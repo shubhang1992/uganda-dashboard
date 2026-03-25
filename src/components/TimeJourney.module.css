@@ -334,6 +334,10 @@
 
 /* ── Mobile swipe hint ── */
 .swipeHint {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -343,7 +347,8 @@
   color: rgba(255,255,255,0.3);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  padding-top: 0.5rem;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 
@@ -374,7 +379,7 @@
 
   /* ── Card: prevent text selection, compact padding ── */
   .card {
-    padding: 1rem;
+    padding: 1rem 1rem 2.5rem;
     border-radius: var(--radius-lg);
     cursor: default;
     -webkit-user-select: none;
