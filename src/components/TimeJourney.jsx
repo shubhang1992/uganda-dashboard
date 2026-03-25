@@ -219,70 +219,91 @@ function LifeShelf({ balance }) {
 export default function TimeJourney() {
   const cardRef = useRef(null);
   const [progress, setProgress] = useState(0);
-  const [swiping, setSwiping] = useState(false);
   const accumulated = useRef(0);
+  const rafPending = useRef(false);
 
   const SCROLL_RANGE = 2000;
+
+  // Batched progress update — avoids multiple re-renders per frame
+  const flushProgress = useCallback(() => {
+    rafPending.current = false;
+    setProgress(accumulated.current / SCROLL_RANGE);
+  }, []);
+
+  const scheduleUpdate = useCallback(() => {
+    if (!rafPending.current) {
+      rafPending.current = true;
+      requestAnimationFrame(flushProgress);
+    }
+  }, [flushProgress]);
 
   // ── Desktop: wheel handler ──
   const handleWheel = useCallback((e) => {
     const next = accumulated.current + e.deltaY;
     if (next < 0 || next > SCROLL_RANGE) {
       accumulated.current = Math.max(0, Math.min(SCROLL_RANGE, next));
-      setProgress(accumulated.current / SCROLL_RANGE);
+      scheduleUpdate();
       return;
     }
     e.preventDefault();
     accumulated.current = next;
-    setProgress(next / SCROLL_RANGE);
-  }, []);
+    scheduleUpdate();
+  }, [scheduleUpdate]);
 
-  // ── Mobile: horizontal swipe to move through time ──
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
-  const swipeActive = useRef(false);
+  // ── Mobile: horizontal swipe ──
+  const lastX = useRef(0);
+  const swipeDecided = useRef(false);
+  const swipeLocked = useRef(false);
+  const cachedWidth = useRef(350);
 
   const handleTouchStart = useCallback((e) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    swipeActive.current = false;
+    lastX.current = e.touches[0].clientX;
+    swipeDecided.current = false;
+    swipeLocked.current = false;
+    cachedWidth.current = cardRef.current?.offsetWidth || 350;
   }, []);
 
   const handleTouchMove = useCallback((e) => {
-    const dx = e.touches[0].clientX - touchStartX.current;
-    const dy = e.touches[0].clientY - touchStartY.current;
+    const x = e.touches[0].clientX;
 
-    // On first significant move, decide: horizontal swipe or vertical scroll?
-    if (!swipeActive.current) {
-      // Need at least 8px of movement to decide
-      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-
-      // If more vertical than horizontal, let the page scroll
-      if (Math.abs(dy) > Math.abs(dx)) return;
-
-      // Horizontal swipe detected — lock it
-      swipeActive.current = true;
-      setSwiping(true);
+    if (!swipeDecided.current) {
+      const dx = Math.abs(x - lastX.current);
+      const dy = Math.abs(e.touches[0].clientY - e.changedTouches[0].clientY || 0);
+      // Decide after just 4px — much snappier
+      if (dx < 4) return;
+      swipeDecided.current = true;
+      // Vertical scroll wins if dy > dx (use the initial touch diff)
+      const initDy = Math.abs(e.touches[0].clientY - (cardRef.current?.dataset.touchY || e.touches[0].clientY));
+      if (initDy > dx) return;
+      swipeLocked.current = true;
     }
 
-    if (swipeActive.current) {
-      e.preventDefault();
-      // Map horizontal delta to progress: full card width = full range
-      const cardWidth = cardRef.current?.offsetWidth || 350;
-      const sensitivity = SCROLL_RANGE / (cardWidth * 0.7);
-      const delta = (e.touches[0].clientX - touchStartX.current) * sensitivity;
-      touchStartX.current = e.touches[0].clientX;
+    if (!swipeLocked.current) return;
 
-      const next = Math.max(0, Math.min(SCROLL_RANGE, accumulated.current + delta));
-      accumulated.current = next;
-      setProgress(next / SCROLL_RANGE);
-    }
-  }, []);
+    e.preventDefault();
+
+    const delta = x - lastX.current;
+    lastX.current = x;
+
+    // Direct mapping: 1px swipe = proportional progress
+    const sensitivity = SCROLL_RANGE / (cachedWidth.current * 0.6);
+    const next = Math.max(0, Math.min(SCROLL_RANGE, accumulated.current + delta * sensitivity));
+    accumulated.current = next;
+    scheduleUpdate();
+  }, [scheduleUpdate]);
 
   const handleTouchEnd = useCallback(() => {
-    swipeActive.current = false;
-    setSwiping(false);
+    swipeDecided.current = false;
+    swipeLocked.current = false;
   }, []);
+
+  // Store initial Y on touchstart for direction detection
+  const handleTouchStartWrapped = useCallback((e) => {
+    if (cardRef.current) {
+      cardRef.current.dataset.touchY = e.touches[0].clientY;
+    }
+    handleTouchStart(e);
+  }, [handleTouchStart]);
 
   // Attach listeners
   useEffect(() => {
@@ -332,8 +353,7 @@ export default function TimeJourney() {
         ref={cardRef}
         className={styles.card}
         style={{ backgroundColor: bg }}
-        data-swiping={swiping}
-        onTouchStart={handleTouchStart}
+        onTouchStart={handleTouchStartWrapped}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
       >

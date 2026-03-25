@@ -346,10 +346,6 @@
   padding-top: 0.5rem;
 }
 
-/* Card swiping state */
-.card[data-swiping='true'] {
-  box-shadow: 0 0 0 2px rgba(255,255,255,0.12);
-}
 
 
 /* Desktop/mobile visibility */
