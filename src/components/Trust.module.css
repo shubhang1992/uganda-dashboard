@@ -10,7 +10,7 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 2rem;
 }
 
@@ -23,8 +23,8 @@
 }
 
 .statIcon {
-  font-size: 1.5rem;
-  margin-bottom: 0.25rem;
+  color: rgba(217,220,242,0.5);
+  margin-bottom: 0.375rem;
 }
 
 .statValue {
@@ -144,7 +144,14 @@
 
 @media (max-width: 900px) {
   .statsGrid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem 1rem;
+  }
+
+  /* Last 2 items center in a 2-col sub-row */
+  .statCard:nth-child(4),
+  .statCard:nth-child(5) {
+    /* handled by 3-col: row1 = 3 items, row2 = 2 items centered */
   }
 
   .testimonialGrid {
@@ -158,8 +165,17 @@
     gap: 1rem;
   }
 
+  /* 5th item spans full width, centered */
+  .statCard:last-child {
+    grid-column: 1 / -1;
+  }
+
   .statValue {
     font-size: var(--text-xl);
+  }
+
+  .statLabel {
+    font-size: var(--text-xs);
   }
 
   .testimonialCard {

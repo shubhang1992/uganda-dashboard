@@ -3,12 +3,28 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import SavingsCalculator from './SavingsCalculator';
 import styles from './Hero.module.css';
 
+// ── Floating blobs — soft colored orbs that drift across the hero ────────────
+const BLOBS = [
+  { size: 320, x: '5%',   y: '10%',  dur: 22, delay: 0,   color: '#5E63A8', opacity: 0.07, blur: 80  },
+  { size: 240, x: '70%',  y: '15%',  dur: 26, delay: 1.5, color: '#2F8F9D', opacity: 0.06, blur: 70  },
+  { size: 280, x: '50%',  y: '60%',  dur: 28, delay: 3,   color: '#5E63A8', opacity: 0.06, blur: 75  },
+  { size: 200, x: '20%',  y: '55%',  dur: 20, delay: 2,   color: '#2E8B57', opacity: 0.05, blur: 60  },
+  { size: 160, x: '80%',  y: '50%',  dur: 18, delay: 4,   color: '#D9DCF2', opacity: 0.15, blur: 50  },
+];
+
+function useIsMobile() {
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth <= 768;
+}
+
 export default function Hero() {
   const ref = useRef(null);
+  const isMobile = useIsMobile();
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end start'] });
 
-  const y = useTransform(scrollYProgress, [0, 1], ['0%', '30%']);
-  const opacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
+  // Disable parallax on mobile to prevent scroll fighting
+  const y = useTransform(scrollYProgress, [0, 1], isMobile ? ['0%', '0%'] : ['0%', '30%']);
+  const opacity = useTransform(scrollYProgress, [0, 0.7], isMobile ? [1, 1] : [1, 0]);
 
   return (
     <section ref={ref} className={styles.hero} aria-label="Hero">
@@ -16,6 +32,34 @@ export default function Hero() {
         <div className={styles.orb1} />
         <div className={styles.orb2} />
         <div className={styles.grid} />
+
+        {/* Animated floating blobs */}
+        {BLOBS.map((b, i) => (
+          <motion.div
+            key={i}
+            className={styles.blob}
+            style={{
+              width: b.size,
+              height: b.size,
+              left: b.x,
+              top: b.y,
+              background: b.color,
+              opacity: b.opacity,
+              filter: `blur(${b.blur}px)`,
+            }}
+            animate={{
+              y: [0, -30, 10, -20, 0],
+              x: [0, 20, -15, 10, 0],
+              scale: [1, 1.15, 0.95, 1.1, 1],
+            }}
+            transition={{
+              duration: b.dur,
+              delay: b.delay,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+          />
+        ))}
       </div>
 
       <motion.div className={styles.content} style={{ y, opacity }}>

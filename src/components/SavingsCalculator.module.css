@@ -265,8 +265,9 @@
   }
 
   .yearBtn {
-    padding: 0.55rem 0.5rem;
-    font-size: 11px;
+    padding: 0.65rem 0.5rem;
+    font-size: 12px;
+    min-height: 44px;
   }
 
   .projValue {
@@ -274,12 +275,17 @@
   }
 
   .ring {
-    width: 56px;
-    height: 56px;
+    width: 64px;
+    height: 64px;
   }
 
   .ringPct {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
+    font-weight: 800;
+  }
+
+  .ringLabel {
+    font-size: 8px;
   }
 
   .breakdown {

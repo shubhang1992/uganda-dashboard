@@ -20,7 +20,7 @@ export default function CTA() {
           <div className={styles.content}>
             <div className={styles.badge}>
               <span className={styles.dot} />
-              No minimum. Start anytime.
+              From UGX 5,000/month. Start anytime.
             </div>
             <h2 className={styles.heading}>
               The best time to start saving
@@ -29,7 +29,7 @@ export default function CTA() {
             </h2>
             <p className={styles.subtext}>
               Open your Universal Pensions account in minutes.
-              No paperwork, no branch visit, no minimum contribution.
+              No paperwork, no branch visit. Start from just UGX 5,000 a month.
             </p>
             <div className={styles.actions}>
               <a href="#open-account" className={styles.primaryBtn}>

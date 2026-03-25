@@ -1,433 +1,487 @@
-import { useRef, useState } from 'react';
-import {
-  motion,
-  useScroll,
-  useSpring,
-  useMotionValueEvent,
-  AnimatePresence,
-} from 'framer-motion';
+import { useRef, useState, useCallback, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import styles from './TimeJourney.module.css';
 import { calcFV, formatUGX } from '../utils/finance';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constants ──────────────────────────────────────────────────────────────
 
 const START_YEAR = 2025;
 const END_YEAR   = 2065;
-const PMT        = 5_000;     // UGX 5K/month
+const PMT        = 5_000;
 const PTS        = 80;
+const EASE       = [0.16, 1, 0.3, 1];
 
-// ─── Precomputed chart geometry ───────────────────────────────────────────────
+// ─── Life shelf items — what your savings can become ────────────────────────
 
-const SVG_W = 420, SVG_H = 280;
-const PAD   = { t: 16, b: 36, l: 0, r: 16 };
-const CW    = SVG_W - PAD.l - PAD.r;  // 404
-const CH    = SVG_H - PAD.t - PAD.b;  // 228
-
-const DATA = Array.from({ length: PTS + 1 }, (_, i) => {
-  const t = i / PTS;
-  return { t, contributed: PMT * t * 40 * 12, total: calcFV(PMT, t * 40) };
-});
-
-const MAX_VAL  = DATA[PTS].total;  // ~150M
-const tx = (t) => PAD.l + t * CW;
-const ty = (v) => PAD.t + CH - (v / MAX_VAL) * CH;
-const BASE     = PAD.t + CH;
-
-// Fixed SVG paths (never change)
-const GHOST_LINE = `M ${tx(0)} ${ty(0)} ${DATA.map(d => `L ${tx(d.t).toFixed(1)} ${ty(d.total).toFixed(1)}`).join(' ')}`;
-const TOTAL_AREA = `M ${tx(0)} ${BASE} ${DATA.map(d => `L ${tx(d.t).toFixed(1)} ${ty(d.total).toFixed(1)}`).join(' ')} L ${tx(1)} ${BASE} Z`;
-const CONTRIB_AREA = `M ${tx(0)} ${BASE} ${DATA.map(d => `L ${tx(d.t).toFixed(1)} ${ty(d.contributed).toFixed(1)}`).join(' ')} L ${tx(1)} ${BASE} Z`;
-
-// ─── Stages ───────────────────────────────────────────────────────────────────
-
-const STAGES = [
+const SHELF_ITEMS = [
   {
-    range: [2025, 2031],
-    title: 'You started. Most people never do.',
-    desc: "You joined 120,000+ Ugandans building a different future. Even UGX 5K a month is earning 10% annually in Uganda's treasury markets.",
-    bg: '#1B1A4A',
+    id: 'emergency',
+    label: 'Emergency fund',
+    threshold: 60_000,
+    icon: (
+      <svg viewBox="0 0 32 32" fill="none">
+        <path d="M16 4l2 6h6l-5 4 2 6-5-4-5 4 2-6-5-4h6z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+      </svg>
+    ),
   },
   {
-    range: [2031, 2038],
-    title: 'Five years in. Your balance is real.',
-    desc: "Life happened — a slow month, a tough season. But the habit held. You're approaching UGX 400K. Small deposits, real money.",
-    bg: '#202060',
+    id: 'medical',
+    label: 'Medical cover',
+    threshold: 300_000,
+    icon: (
+      <svg viewBox="0 0 32 32" fill="none">
+        <rect x="8" y="8" width="16" height="16" rx="3" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M16 12v8M12 16h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
   },
   {
-    range: [2038, 2048],
-    title: 'Returns now outpace your contributions.',
-    desc: "This is the inflection point. Your annual returns exceeded what you added yourself. Compounding has taken over.",
-    bg: '#1E4A60',
+    id: 'school',
+    label: 'School fees',
+    threshold: 600_000,
+    icon: (
+      <svg viewBox="0 0 32 32" fill="none">
+        <path d="M6 14l10-5 10 5-10 5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+        <path d="M10 16v6c0 0 3 2 6 2s6-2 6-2v-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
   },
   {
-    range: [2048, 2058],
-    title: 'Two decades. The gap is permanent.',
-    desc: "Three-quarters of your balance came from returns. Most Ugandans retire with nothing formal. You built something real.",
-    bg: '#1A5A48',
+    id: 'boda',
+    label: 'Boda-boda',
+    threshold: 1_500_000,
+    icon: (
+      <svg viewBox="0 0 32 32" fill="none">
+        <circle cx="10" cy="22" r="4" stroke="currentColor" strokeWidth="1.5"/>
+        <circle cx="22" cy="22" r="4" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M14 22l3-8h4l2 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M17 14l-3 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
   },
   {
-    range: [2058, 2065],
-    title: 'The end is the beginning.',
-    desc: "What started as UGX 5K a month has crossed UGX 30 million. Your retirement is not an idea. It has a date.",
-    bg: '#186040',
+    id: 'home',
+    label: 'Home deposit',
+    threshold: 3_000_000,
+    icon: (
+      <svg viewBox="0 0 32 32" fill="none">
+        <path d="M6 16l10-9 10 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M9 14v11h14V14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M14 25v-6h4v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'land',
+    label: 'Plot of land',
+    threshold: 5_000_000,
+    icon: (
+      <svg viewBox="0 0 32 32" fill="none">
+        <rect x="6" y="8" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M6 20l7-5 5 3 8-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx="22" cy="13" r="2" stroke="currentColor" strokeWidth="1.5"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'security',
+    label: 'Family security',
+    threshold: 10_000_000,
+    icon: (
+      <svg viewBox="0 0 32 32" fill="none">
+        <path d="M16 4C16 4 6 8 6 16c0 6 4.5 10 10 12 5.5-2 10-6 10-12 0-8-10-12-10-12z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+        <path d="M12 16l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'retire',
+    label: 'Retirement',
+    threshold: 25_000_000,
+    icon: (
+      <svg viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="10" r="4" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M8 28c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M20 6l4-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
   },
 ];
 
-function getStage(year) {
-  return STAGES.findIndex(s => year >= s.range[0] && year < s.range[1]) ?? STAGES.length - 1;
+// Live impact text — what your balance covers right now
+const IMPACT_TIERS = [
+  { min: 0,          text: 'Start your first deposit' },
+  { min: 60_000,     text: '3 months of mobile data' },
+  { min: 300_000,    text: 'A medical emergency visit' },
+  { min: 600_000,    text: '1 year of school fees' },
+  { min: 1_500_000,  text: 'A boda-boda for income' },
+  { min: 3_000_000,  text: '1 year of rent in Kampala' },
+  { min: 5_000_000,  text: 'A plot of land in your district' },
+  { min: 10_000_000, text: '5 years of family expenses' },
+  { min: 20_000_000, text: '10 years of financial security' },
+  { min: 30_000_000, text: 'Full retirement independence' },
+];
+
+function getImpact(balance) {
+  let result = IMPACT_TIERS[0];
+  for (const tier of IMPACT_TIERS) {
+    if (balance >= tier.min) result = tier;
+  }
+  return result;
+}
+function getImpactIdx(balance) {
+  let idx = 0;
+  for (let i = 0; i < IMPACT_TIERS.length; i++) {
+    if (balance >= IMPACT_TIERS[i].min) idx = i;
+  }
+  return idx;
 }
 
-// ─── Abstract growth plant ──────────────────────────────────────────────────
+// ─── Milestones ─────────────────────────────────────────────────────────────
 
-function GrowthPlant({ progress }) {
-  const p = Math.min(progress * 1.15, 1);
-  const stemH = p * 48;
+const MILESTONES = [
+  { minYear: 2025, maxYear: 2029, text: "You started saving. Most people never do.",               sub: "The habit is forming." },
+  { minYear: 2029, maxYear: 2033, text: "Enough to cover a medical emergency.",                    sub: "Your first safety net is real." },
+  { minYear: 2033, maxYear: 2037, text: "A full year of school fees — covered.",                   sub: "Your child's future is more secure." },
+  { minYear: 2037, maxYear: 2043, text: "Returns now outpace your contributions.",                 sub: "Your money is working harder than you." },
+  { minYear: 2043, maxYear: 2050, text: "You could buy a plot of land in your district.",          sub: "This is generational wealth." },
+  { minYear: 2050, maxYear: 2058, text: "A decade of financial security — built.",                 sub: "Most Ugandans retire with nothing formal." },
+  { minYear: 2058, maxYear: 2066, text: "Your retirement has a date, a number, and a foundation.", sub: "UGX 5K a month became everything." },
+];
 
-  const leaves = [
-    { cx: 28, cy: 42, r: 4, t: 0.12, c: 'rgba(46,139,87,0.35)' },
-    { cx: 20, cy: 37, r: 5, t: 0.25, c: 'rgba(47,143,157,0.3)' },
-    { cx: 36, cy: 32, r: 5, t: 0.38, c: 'rgba(46,139,87,0.35)' },
-    { cx: 22, cy: 27, r: 6, t: 0.5,  c: 'rgba(47,143,157,0.3)' },
-    { cx: 34, cy: 22, r: 6, t: 0.62, c: 'rgba(46,139,87,0.35)' },
-    { cx: 28, cy: 18, r: 7, t: 0.72, c: 'rgba(46,139,87,0.4)' },
-    { cx: 22, cy: 14, r: 5, t: 0.82, c: 'rgba(47,143,157,0.3)' },
-    { cx: 34, cy: 12, r: 5, t: 0.9,  c: 'rgba(46,139,87,0.35)' },
-  ];
-
-  return (
-    <svg viewBox="0 0 56 72" width="44" height="56" aria-hidden="true" style={{ flexShrink: 0 }}>
-      <circle cx="28" cy="67" r={2 + p} fill="rgba(46,139,87,0.3)" />
-      <line
-        x1="28" y1="66" x2="28" y2={66 - stemH}
-        stroke="rgba(46,139,87,0.45)" strokeWidth="1.5" strokeLinecap="round"
-      />
-      {p > 0.28 && (
-        <line x1="28" y1={66 - stemH * 0.45} x2="20" y2={66 - stemH * 0.58}
-          stroke="rgba(46,139,87,0.3)" strokeWidth="1" strokeLinecap="round"
-          opacity={Math.min((p - 0.28) * 4, 1)} />
-      )}
-      {p > 0.5 && (
-        <line x1="28" y1={66 - stemH * 0.68} x2="36" y2={66 - stemH * 0.8}
-          stroke="rgba(46,139,87,0.3)" strokeWidth="1" strokeLinecap="round"
-          opacity={Math.min((p - 0.5) * 4, 1)} />
-      )}
-      {leaves.filter(l => p > l.t).map((l, i) => (
-        <circle key={i} cx={l.cx} cy={l.cy}
-          r={l.r * Math.min((p - l.t) * 3, 1)}
-          fill={l.c} />
-      ))}
-    </svg>
-  );
+function getMilestone(year) {
+  return MILESTONES.find(m => year >= m.minYear && year < m.maxYear) || MILESTONES[MILESTONES.length - 1];
+}
+function getMilestoneIdx(year) {
+  const idx = MILESTONES.findIndex(m => year >= m.minYear && year < m.maxYear);
+  return idx >= 0 ? idx : MILESTONES.length - 1;
 }
 
-// ─── Snowball chart ────────────────────────────────────────────────────────────
+// ─── Sky color ──────────────────────────────────────────────────────────────
 
-function JourneyChart({ progress, ballX, ballY, ballR, clipW, balanceLabel }) {
+const SKY = [
+  { t: 0, c: [27,26,74] }, { t: 0.25, c: [32,32,96] }, { t: 0.5, c: [40,58,110] },
+  { t: 0.75, c: [42,90,72] }, { t: 1, c: [24,96,64] },
+];
+
+function skyColor(p) {
+  p = Math.min(Math.max(p, 0), 1);
+  let i = 0;
+  while (i < SKY.length - 2 && SKY[i + 1].t < p) i++;
+  const a = SKY[i], b = SKY[i + 1];
+  const l = (p - a.t) / (b.t - a.t);
+  return `rgb(${Math.round(a.c[0]+(b.c[0]-a.c[0])*l)},${Math.round(a.c[1]+(b.c[1]-a.c[1])*l)},${Math.round(a.c[2]+(b.c[2]-a.c[2])*l)})`;
+}
+
+// ─── Life Shelf ─────────────────────────────────────────────────────────────
+
+function LifeShelf({ balance }) {
   return (
-    <svg
-      viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-      className={styles.chart}
-      aria-label="Your savings growth over time"
-    >
-      <defs>
-        <linearGradient id="tjTotal" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#5E63A8" stopOpacity="0.7" />
-          <stop offset="100%" stopColor="#2E8B57" stopOpacity="0.25" />
-        </linearGradient>
-        <linearGradient id="tjContrib" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.18)" />
-          <stop offset="100%" stopColor="rgba(255,255,255,0.04)" />
-        </linearGradient>
-        <linearGradient id="tjStroke" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#5E63A8" />
-          <stop offset="60%" stopColor="#2F8F9D" />
-          <stop offset="100%" stopColor="#2E8B57" />
-        </linearGradient>
-        <radialGradient id="tjBall" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.95)" />
-          <stop offset="100%" stopColor="rgba(94,99,168,0.8)" />
-        </radialGradient>
-        {/* Scroll-driven clip */}
-        <clipPath id="tjReveal">
-          <rect x="0" y="0" height={SVG_H} width={clipW} />
-        </clipPath>
-        {/* Ball glow filter */}
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="4" result="blur" />
-          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-      </defs>
-
-      {/* Ghost — full 40yr curve, very faint */}
-      <path
-        d={GHOST_LINE}
-        fill="none"
-        stroke="rgba(255,255,255,0.07)"
-        strokeWidth="1.5"
-        strokeDasharray="4 6"
-      />
-
-      {/* Scroll-revealed areas */}
-      <g clipPath="url(#tjReveal)">
-        <path d={TOTAL_AREA}   fill="url(#tjTotal)" />
-        <path d={CONTRIB_AREA} fill="url(#tjContrib)" />
-        <path
-          d={GHOST_LINE}
-          fill="none"
-          stroke="url(#tjStroke)"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-        />
-      </g>
-
-      {/* Year markers on x-axis */}
-      {[0, 10, 20, 30, 40].map((yr) => {
-        const t = yr / 40;
-        const x = tx(t);
+    <div className={styles.shelf}>
+      {SHELF_ITEMS.map((item) => {
+        const unlocked = balance >= item.threshold;
         return (
-          <g key={yr} opacity={progress * 40 >= yr ? 0.5 : 0.18}>
-            <line x1={x} y1={BASE - 2} x2={x} y2={BASE + 4} stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-            <text x={x} y={SVG_H - 4} textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="9" fontFamily="Inter, sans-serif">
-              {yr === 0 ? 'Now' : `+${yr}`}
-            </text>
-          </g>
+          <motion.div
+            key={item.id}
+            className={styles.shelfItem}
+            data-unlocked={unlocked}
+            animate={{
+              opacity: unlocked ? 1 : 0.2,
+              scale: unlocked ? 1 : 0.92,
+            }}
+            transition={{ duration: 0.4, ease: EASE }}
+          >
+            <div className={styles.shelfIcon}>
+              {item.icon}
+            </div>
+            <span className={styles.shelfLabel}>{item.label}</span>
+            {unlocked && (
+              <motion.div
+                className={styles.shelfCheck}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+              >
+                <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+                  <path d="M3 8l3.5 3.5L13 5" stroke="#2E8B57" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </motion.div>
+            )}
+          </motion.div>
         );
       })}
-
-      {/* Snowball — growing dot at current position */}
-      {progress > 0.01 && (
-        <>
-          {/* Outer glow ring */}
-          <motion.circle
-            cx={ballX} cy={ballY}
-            r={ballR + 8}
-            fill="none"
-            stroke="rgba(255,255,255,0.12)"
-            strokeWidth="1.5"
-            animate={{ r: [ballR + 6, ballR + 14, ballR + 6] }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          {/* Main ball */}
-          <circle
-            cx={ballX} cy={ballY}
-            r={ballR}
-            fill="url(#tjBall)"
-            filter="url(#glow)"
-          />
-          {/* Core highlight */}
-          <circle
-            cx={ballX - ballR * 0.2} cy={ballY - ballR * 0.2}
-            r={ballR * 0.3}
-            fill="rgba(255,255,255,0.5)"
-          />
-          {/* Balance tooltip */}
-          {progress > 0.05 && (
-            <text
-              x={ballX}
-              y={Math.max(ballY - ballR - 10, 12)}
-              textAnchor="middle"
-              fill="rgba(255,255,255,0.85)"
-              fontSize="10"
-              fontFamily="Plus Jakarta Sans, sans-serif"
-              fontWeight="700"
-            >
-              {balanceLabel}
-            </text>
-          )}
-        </>
-      )}
-    </svg>
+    </div>
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Main ───────────────────────────────────────────────────────────────────
 
 export default function TimeJourney() {
-  const outerRef = useRef(null);
-
-  // 300vh total — 200vh of actual animation scroll
-  const { scrollYProgress } = useScroll({
-    target: outerRef,
-    offset: ['start start', 'end end'],
-  });
-
-  const smoothProgress = useSpring(scrollYProgress, { stiffness: 80, damping: 22 });
-
+  const cardRef = useRef(null);
   const [progress, setProgress] = useState(0);
+  const [holding, setHolding] = useState(false);
+  const accumulated = useRef(0);
+  const holdRaf = useRef(null);
 
-  useMotionValueEvent(smoothProgress, 'change', (p) => {
-    setProgress(p);
-  });
+  const SCROLL_RANGE = 2000;
+  const HOLD_SPEED = 12; // pixels per frame (~720/sec at 60fps)
 
-  const balance  = calcFV(PMT, progress * 40);
-  const year     = Math.round(START_YEAR + progress * (END_YEAR - START_YEAR));
-  const clipW    = tx(progress) + 2;
-  const ballPos  = { x: tx(progress), y: ty(balance) };
-  const ballR    = 3 + progress * 18;
-  const stageIdx = Math.min(Math.max(0, getStage(year)), STAGES.length - 1);
+  // ── Desktop: wheel handler ──
+  const handleWheel = useCallback((e) => {
+    const next = accumulated.current + e.deltaY;
+    if (next < 0 || next > SCROLL_RANGE) {
+      accumulated.current = Math.max(0, Math.min(SCROLL_RANGE, next));
+      setProgress(accumulated.current / SCROLL_RANGE);
+      return;
+    }
+    e.preventDefault();
+    accumulated.current = next;
+    setProgress(next / SCROLL_RANGE);
+  }, []);
 
-  const stage = STAGES[Math.min(stageIdx, STAGES.length - 1)];
+  // ── Mobile: tap-and-hold to advance ──
+  const startHold = useCallback(() => {
+    setHolding(true);
+    function tick() {
+      accumulated.current = Math.min(accumulated.current + HOLD_SPEED, SCROLL_RANGE);
+      setProgress(accumulated.current / SCROLL_RANGE);
+      if (accumulated.current < SCROLL_RANGE) {
+        holdRaf.current = requestAnimationFrame(tick);
+      } else {
+        setHolding(false);
+      }
+    }
+    holdRaf.current = requestAnimationFrame(tick);
+  }, []);
 
-  // Contributed vs returns breakdown for the current year
+  const stopHold = useCallback(() => {
+    setHolding(false);
+    if (holdRaf.current) {
+      cancelAnimationFrame(holdRaf.current);
+      holdRaf.current = null;
+    }
+  }, []);
+
+  // Reset on double-tap
+  const handleDoubleTap = useCallback(() => {
+    accumulated.current = 0;
+    setProgress(0);
+  }, []);
+
+  const lastTap = useRef(0);
+  const handleTouchStart = useCallback((e) => {
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      handleDoubleTap();
+      lastTap.current = 0;
+      return;
+    }
+    lastTap.current = now;
+    // Start hold after a short delay to distinguish from scroll
+    holdRaf.current = setTimeout(() => startHold(), 200);
+  }, [startHold, handleDoubleTap]);
+
+  const handleTouchEnd = useCallback(() => {
+    // If hold hasn't started yet (within 200ms), cancel it
+    if (typeof holdRaf.current === 'number' && holdRaf.current < 1000) {
+      // This was a setTimeout ID, not a rAF ID
+    }
+    clearTimeout(holdRaf.current);
+    stopHold();
+  }, [stopHold]);
+
+  // Attach wheel listener (desktop only)
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (holdRaf.current) {
+        cancelAnimationFrame(holdRaf.current);
+        clearTimeout(holdRaf.current);
+      }
+    };
+  }, []);
+
+  // Derived values
+  const balance      = calcFV(PMT, progress * 40);
+  const year         = Math.round(START_YEAR + progress * (END_YEAR - START_YEAR));
   const yearsElapsed = year - START_YEAR;
   const contributed  = PMT * yearsElapsed * 12;
   const returnAmt    = Math.max(0, balance - contributed);
   const returnPct    = balance > 0 ? Math.round((returnAmt / balance) * 100) : 0;
   const contribPct   = 100 - returnPct;
+  const milestone    = getMilestone(year);
+  const milestoneIdx = getMilestoneIdx(year);
+  const impact       = getImpact(balance);
+  const impactIdx    = getImpactIdx(balance);
+  const bg           = skyColor(progress);
 
   return (
-    <div ref={outerRef} className={styles.outer} id="your-journey">
-      <div className={styles.sticky}>
-        {/* Animated background */}
-        <motion.div
-          className={styles.bg}
-          animate={{ backgroundColor: stage.bg }}
-          transition={{ duration: 1.4, ease: 'easeInOut' }}
-          aria-hidden="true"
-        >
-          <div className={styles.bgGrid} />
-        </motion.div>
+    <section className={styles.section} id="your-journey">
+      <div className={styles.header}>
+        <span className={styles.tag}>Your 40-year journey</span>
+        <h2 className={styles.heading}>
+          See what <span className={styles.accent}>UGX 5K/month</span> becomes
+        </h2>
+        <p className={styles.sub}>
+          <span className={styles.desktopOnly}>Scroll inside the card to move through 40 years of growth.</span>
+          <span className={styles.mobileOnly}>Press and hold the card to watch your savings grow over 40 years.</span>
+        </p>
+      </div>
 
-        <div className={styles.inner}>
-
-          {/* ── Left ── */}
+      <div
+        ref={cardRef}
+        className={styles.card}
+        style={{ backgroundColor: bg }}
+        data-holding={holding}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+      >
+        <div className={styles.cardInner}>
+          {/* ── Left: Data ── */}
           <div className={styles.left}>
-            {/* Growth plant */}
-            <GrowthPlant progress={progress} />
-
-            {/* Year + balance */}
             <div className={styles.yearRow}>
-              <motion.span
-                className={styles.year}
-                key={year}
-                initial={{ opacity: 0, filter: 'blur(12px)', y: -8 }}
-                animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
-                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                aria-live="polite"
-              >
-                {year}
-              </motion.span>
+              <AnimatePresence mode="wait">
+                <motion.span className={styles.year} key={year}
+                  initial={{ opacity: 0, filter: 'blur(10px)', y: -6 }}
+                  animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
+                  transition={{ duration: 0.2, ease: EASE }}>
+                  {year}
+                </motion.span>
+              </AnimatePresence>
               <span className={styles.yearSub}>
                 {yearsElapsed > 0 ? `Year ${yearsElapsed}` : 'Today'}
               </span>
             </div>
 
-            <motion.div
-              className={styles.balance}
-              key={Math.round(balance / 500_000)}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25 }}
-              aria-live="polite"
-            >
-              {formatUGX(balance)}
-            </motion.div>
+            <AnimatePresence mode="wait">
+              <motion.div className={styles.balance} key={Math.round(balance / 500_000)}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}>
+                {formatUGX(balance)}
+              </motion.div>
+            </AnimatePresence>
 
-            {/* Composition bar */}
             {balance > 0 && (
-              <div className={styles.compositionBlock}>
-                <div className={styles.compositionBar}>
-                  <motion.div
-                    className={styles.compositionContrib}
-                    animate={{ width: `${contribPct}%` }}
-                    transition={{ duration: 0.15 }}
-                  />
-                  <motion.div
-                    className={styles.compositionReturns}
-                    animate={{ width: `${returnPct}%` }}
-                    transition={{ duration: 0.15 }}
-                  />
+              <div className={styles.compBlock}>
+                <div className={styles.compBar}>
+                  <div className={styles.compContrib} style={{ width: `${contribPct}%` }} />
+                  <div className={styles.compReturns} style={{ width: `${returnPct}%` }} />
                 </div>
-                <div className={styles.compositionLabels}>
-                  <span>
-                    <span className={styles.clDot} data-c="contrib" />
-                    {formatUGX(contributed)} you put in
-                  </span>
-                  <span>
-                    <span className={styles.clDot} data-c="returns" />
-                    {formatUGX(returnAmt)} earned ({returnPct}%)
-                  </span>
+                <div className={styles.compLabels}>
+                  <span><span className={styles.dot} data-c="contrib" />{formatUGX(contributed)} you put in</span>
+                  <span><span className={styles.dot} data-c="returns" />{formatUGX(returnAmt)} earned ({returnPct}%)</span>
                 </div>
               </div>
             )}
 
-            {/* Story */}
+            {/* Milestone */}
             <AnimatePresence mode="wait">
-              <motion.div
-                key={stageIdx}
-                className={styles.story}
-                initial={{ opacity: 0, y: 18 }}
+              <motion.div className={styles.milestone} key={milestoneIdx}
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              >
-                <h2 className={styles.storyTitle}>{stage.title}</h2>
-                <p className={styles.storyDesc}>{stage.desc}</p>
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.4, ease: EASE }}>
+                <p className={styles.milestoneText}>{milestone.text}</p>
+                <p className={styles.milestoneSub}>{milestone.sub}</p>
               </motion.div>
             </AnimatePresence>
-
-            {/* Scroll progress */}
-            <div className={styles.progressWrap}>
-              <div className={styles.progressTrack}>
-                <motion.div
-                  className={styles.progressFill}
-                  animate={{ width: `${Math.min(progress * 100, 100)}%` }}
-                  transition={{ duration: 0.05, ease: 'linear' }}
-                />
-              </div>
-              <span className={styles.progressLabel}>
-                {Math.round(progress * 40)} of 40 years
-              </span>
-            </div>
           </div>
 
-          {/* ── Right: SVG chart ── */}
+          {/* ── Right: Life Shelf ── */}
           <div className={styles.right}>
-            <div className={styles.chartLabel}>
-              Your 40-year journey
-              <span className={styles.chartSub}>UGX 5K/mo · 10% return</span>
+            {/* Live impact ticker */}
+            <div className={styles.impactRow}>
+              <span className={styles.impactLabel}>Your balance could cover</span>
+              <AnimatePresence mode="wait">
+                <motion.span className={styles.impactText} key={impactIdx}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.3, ease: EASE }}>
+                  {impact.text}
+                </motion.span>
+              </AnimatePresence>
             </div>
-            <JourneyChart
-              progress={progress}
-              ballX={ballPos.x}
-              ballY={ballPos.y}
-              ballR={ballR}
-              clipW={clipW}
-              balanceLabel={formatUGX(balance)}
-            />
-            {/* Destination reminder */}
-            <div className={styles.destination}>
-              <span className={styles.destLine} />
-              <span className={styles.destText}>
-                UGX {(MAX_VAL / 1e6).toFixed(0)}M at year 40 →
-              </span>
+
+            {/* Shelf of life objects */}
+            <LifeShelf balance={balance} />
+
+            <div className={styles.shelfFooter}>
+              <span>{SHELF_ITEMS.filter(i => balance >= i.threshold).length}</span>
+              <span> of {SHELF_ITEMS.length} life goals unlocked</span>
             </div>
           </div>
         </div>
 
-        {/* Scroll nudge */}
+        {/* Progress bar */}
+        <div className={styles.progressRow}>
+          <div className={styles.progressTrack}>
+            <div className={styles.progressFill} style={{ width: `${progress * 100}%` }} />
+          </div>
+          <span className={styles.progressLabel}>
+            {Math.round(progress * 40)} of 40 years
+          </span>
+        </div>
+
+        {/* Desktop: scroll hint */}
         <AnimatePresence>
-          {year === START_YEAR && (
-            <motion.div
-              className={styles.nudge}
+          {progress < 0.02 && (
+            <motion.div className={`${styles.hint} ${styles.desktopOnly}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ delay: 0.8 }}
-              aria-hidden="true"
-            >
-              <span className={styles.nudgeText}>Scroll to move through time</span>
+              transition={{ delay: 0.5 }}>
               <motion.span
-                className={styles.nudgeIcon}
-                animate={{ y: [0, 6, 0] }}
-                transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
-              >
+                animate={{ y: [0, 5, 0] }}
+                transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}>
                 ↓
               </motion.span>
+              <span>Scroll here to explore</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Mobile: hold hint + pulse ring */}
+        <AnimatePresence>
+          {progress < 0.02 && (
+            <motion.div className={`${styles.hint} ${styles.mobileOnly}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ delay: 0.5 }}>
+              <motion.div className={styles.holdRing}
+                animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.15, 0.4] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} />
+              <span>Hold to explore</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Holding indicator */}
+        <AnimatePresence>
+          {holding && (
+            <motion.div className={styles.holdingBadge}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.15 }}>
+              <motion.div className={styles.holdingPulse}
+                animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
+                transition={{ duration: 0.8, repeat: Infinity }} />
+              Time is passing...
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-    </div>
+    </section>
   );
 }

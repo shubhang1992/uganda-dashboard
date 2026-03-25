@@ -2,10 +2,60 @@ import { motion } from 'framer-motion';
 import styles from './Trust.module.css';
 
 const STATS = [
-  { value: '120K+', label: 'Active savers across Uganda', icon: '👥' },
-  { value: 'UGX 48B', label: 'Total savings under management', icon: '📈' },
-  { value: '97%', label: 'On-time contribution rate', icon: '✓' },
-  { value: '5 yrs', label: 'Licensed and regulated', icon: '🏦' },
+  {
+    value: '120K+',
+    label: 'Active savers across Uganda',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.75"/>
+        <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+        <circle cx="17" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.75"/>
+        <path d="M17 13.5a4 4 0 013 3.87V21" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
+    value: 'UGX 48B',
+    label: 'Total savings under management',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="6" width="18" height="13" rx="2" stroke="currentColor" strokeWidth="1.75"/>
+        <path d="M3 10h18" stroke="currentColor" strokeWidth="1.75"/>
+        <path d="M7 15h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
+    value: '97%',
+    label: 'On-time contribution rate',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75"/>
+        <path d="M8 12l3 3 5-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    value: '5 yrs',
+    label: 'Licensed and regulated',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M12 3L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-4z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
+        <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    value: 'PCI DSS',
+    label: 'Certified payment security',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <rect x="5" y="11" width="14" height="8" rx="2" stroke="currentColor" strokeWidth="1.75"/>
+        <path d="M8 11V7a4 4 0 018 0v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+        <circle cx="12" cy="15.5" r="1.5" fill="currentColor"/>
+      </svg>
+    ),
+  },
 ];
 
 const TESTIMONIALS = [
