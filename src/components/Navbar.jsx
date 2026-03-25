@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, useScroll, useMotionValueEvent, AnimatePresence } from 'framer-motion';
+import { useSignIn } from '../contexts/SignInContext';
 import logo from '../assets/logo.png';
 import styles from './Navbar.module.css';
 
@@ -14,6 +15,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const { scrollY } = useScroll();
+  const signIn = useSignIn();
 
   useMotionValueEvent(scrollY, 'change', (latest) => {
     setScrolled(latest > 40);
@@ -45,7 +47,7 @@ export default function Navbar() {
           </nav>
 
           <div className={styles.actions}>
-            <a href="#signin" className={styles.signIn}>Sign in</a>
+            <button className={styles.signIn} onClick={() => signIn.open()}>Sign in</button>
             <a href="#start" className={styles.cta}>Start saving</a>
           </div>
 
@@ -90,7 +92,7 @@ export default function Navbar() {
                 ))}
               </nav>
               <div className={styles.drawerActions}>
-                <a href="#signin" className={styles.drawerSignIn} onClick={closeMenu}>Sign in</a>
+                <button className={styles.drawerSignIn} onClick={() => { closeMenu(); signIn.open(); }}>Sign in</button>
                 <a href="#start" className={styles.drawerCta} onClick={closeMenu}>Start saving</a>
               </div>
             </motion.div>
