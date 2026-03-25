@@ -1,4 +1,4 @@
-import logo from '../assets/logo.png';
+import logo from '../assets/logo-white.png';
 import styles from './Footer.module.css';
 
 const LINKS = {
