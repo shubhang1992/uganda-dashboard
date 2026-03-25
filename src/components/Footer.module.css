@@ -19,8 +19,8 @@
 }
 
 .logo {
-  height: 32px;
-  width: auto;
+  height: auto;
+  width: 180px;
   opacity: 0.9;
   filter: brightness(2.5);
 }
