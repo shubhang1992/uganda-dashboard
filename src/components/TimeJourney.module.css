@@ -1,0 +1,285 @@
+/* ── Scroll container: 250vh gives 150vh of animation room ── */
+.outer {
+  position: relative;
+  height: 250vh;
+}
+
+/* ── Sticky viewport ── */
+.sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Background ── */
+.bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transition: background-color 1.4s ease;
+}
+
+.bgGrid {
+  display: none;
+}
+
+/* ── Main layout ── */
+.inner {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 3.5rem 2rem 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  align-items: center;
+}
+
+/* ── Left column ── */
+.left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+/* Stage icon */
+.stageIcon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+/* Year */
+.yearRow {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.year {
+  font-family: var(--font-display);
+  font-size: clamp(3.5rem, 8vw, 6.5rem);
+  font-weight: 800;
+  color: var(--color-white);
+  letter-spacing: -0.06em;
+  line-height: 1;
+  will-change: filter;
+}
+
+.yearSub {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Balance */
+.balance {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 700;
+  color: var(--color-white);
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+/* Composition bar */
+.compositionBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.compositionBar {
+  height: 5px;
+  border-radius: var(--radius-full);
+  background: rgba(255,255,255,0.08);
+  display: flex;
+  overflow: hidden;
+  gap: 1px;
+}
+
+.compositionContrib {
+  height: 100%;
+  background: rgba(217,220,242,0.4);
+  border-radius: var(--radius-full) 0 0 var(--radius-full);
+  transition: width 0.15s linear;
+}
+
+.compositionReturns {
+  height: 100%;
+  background: linear-gradient(90deg, #5E63A8, #2E8B57);
+  border-radius: 0 var(--radius-full) var(--radius-full) 0;
+  transition: width 0.15s linear;
+}
+
+.compositionLabels {
+  display: flex;
+  gap: 1.25rem;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: rgba(255,255,255,0.38);
+}
+
+.clDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+}
+
+.clDot[data-c='contrib'] { background: rgba(217,220,242,0.45); }
+.clDot[data-c='returns'] { background: #2E8B57; }
+
+/* Story */
+.story {
+  max-width: 460px;
+}
+
+.storyTitle {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 1.8vw, 1.35rem);
+  font-weight: 700;
+  color: rgba(255,255,255,0.88);
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+
+.storyDesc {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: rgba(255,255,255,0.4);
+}
+
+/* Scroll progress */
+.progressWrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.progressTrack {
+  flex: 1;
+  height: 3px;
+  background: rgba(255,255,255,0.1);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(217,220,242,0.6), var(--color-white));
+  border-radius: var(--radius-full);
+}
+
+.progressLabel {
+  font-family: var(--font-body);
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
+  white-space: nowrap;
+  min-width: 80px;
+  text-align: right;
+}
+
+/* ── Right column: chart ── */
+.right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  position: relative;
+}
+
+.chartLabel {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: rgba(255,255,255,0.28);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chartSub {
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.chart {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.destination {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: rgba(255,255,255,0.22);
+}
+
+.destLine {
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+  border-top: 1px dashed rgba(255,255,255,0.1);
+}
+
+.destText {
+  white-space: nowrap;
+}
+
+/* ── Scroll nudge ── */
+.nudge {
+  position: absolute;
+  z-index: 2;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.nudgeText { }
+.nudgeIcon { font-size: 1.1rem; }
+
+/* ── Responsive ── */
+@media (max-width: 960px) {
+  .inner {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding-top: 6rem;
+    align-items: start;
+  }
+
+  .right {
+    max-width: 100%;
+  }
+
+  .year { font-size: 3rem; }
+  .balance { font-size: 1.5rem; }
+}
+
+@media (max-width: 600px) {
+  .inner { padding: 5.5rem 1.25rem 0; }
+  .compositionLabels { flex-direction: column; gap: 0.35rem; }
+}
