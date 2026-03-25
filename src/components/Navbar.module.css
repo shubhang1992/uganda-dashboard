@@ -33,12 +33,6 @@
 .logoImg {
   height: 36px;
   width: auto;
-  transition: filter 0.4s ease;
-}
-
-/* Logo is deep-indigo colored — invert to white over dark hero */
-.nav:not([data-scrolled='true']) .logoImg {
-  filter: brightness(0) invert(1);
 }
 
 .links {
@@ -58,16 +52,6 @@
 }
 
 .link:hover {
-  opacity: 1;
-}
-
-/* When nav is over dark hero, make links light */
-.nav:not([data-scrolled='true']) .link {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.nav:not([data-scrolled='true']) .link:hover {
-  color: #fff;
   opacity: 1;
 }
 
@@ -92,10 +76,6 @@
   opacity: 1;
 }
 
-.nav:not([data-scrolled='true']) .signIn {
-  color: rgba(255, 255, 255, 0.85);
-}
-
 .cta {
   font-family: var(--font-body);
   font-size: var(--text-sm);
@@ -110,15 +90,6 @@
 .cta:hover {
   background: var(--color-indigo-soft);
   transform: translateY(-1px);
-}
-
-.nav:not([data-scrolled='true']) .cta {
-  background: rgba(255,255,255,0.15);
-  border: 1px solid rgba(255,255,255,0.3);
-}
-
-.nav:not([data-scrolled='true']) .cta:hover {
-  background: rgba(255,255,255,0.25);
 }
 
 @media (max-width: 768px) {

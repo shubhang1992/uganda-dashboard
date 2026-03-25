@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-indigo-deep);
+  background: var(--color-white);
 }
 
 /* Background */
@@ -22,7 +22,7 @@
   height: 70vw;
   max-width: 900px;
   max-height: 900px;
-  background: radial-gradient(circle at center, rgba(94,99,168,0.5) 0%, transparent 65%);
+  background: radial-gradient(circle at center, rgba(94,99,168,0.1) 0%, transparent 65%);
   border-radius: 50%;
 }
 
@@ -34,7 +34,7 @@
   height: 50vw;
   max-width: 700px;
   max-height: 700px;
-  background: radial-gradient(circle at center, rgba(47,143,157,0.25) 0%, transparent 65%);
+  background: radial-gradient(circle at center, rgba(47,143,157,0.08) 0%, transparent 65%);
   border-radius: 50%;
 }
 
@@ -42,8 +42,8 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    linear-gradient(rgba(41,40,103,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(41,40,103,0.03) 1px, transparent 1px);
   background-size: 60px 60px;
 }
 
@@ -88,9 +88,9 @@
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(217,220,242,0.85);
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--color-indigo-soft);
+  background: rgba(41,40,103,0.06);
+  border: 1px solid rgba(41,40,103,0.1);
   padding: 0.4rem 0.875rem;
   border-radius: var(--radius-full);
   margin-bottom: 1.75rem;
@@ -117,12 +117,12 @@
   font-weight: 800;
   line-height: 1.08;
   letter-spacing: -0.03em;
-  color: var(--color-white);
+  color: var(--color-indigo);
   margin-bottom: 1.5rem;
 }
 
 .headlineAccent {
-  background: linear-gradient(120deg, #D9DCF2 0%, #5E63A8 100%);
+  background: linear-gradient(120deg, var(--color-indigo) 0%, var(--color-indigo-soft) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -133,7 +133,7 @@
   font-size: var(--text-lg);
   font-weight: 400;
   line-height: 1.65;
-  color: rgba(217,220,242,0.75);
+  color: var(--color-gray);
   max-width: 480px;
   margin-bottom: 2.5rem;
 }
@@ -150,17 +150,17 @@
   font-family: var(--font-display);
   font-size: var(--text-base);
   font-weight: 700;
-  color: var(--color-indigo-deep);
-  background: var(--color-white);
+  color: var(--color-white);
+  background: var(--color-indigo);
   padding: 0.875rem 2rem;
   border-radius: var(--radius-full);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 0 0 0 rgba(255,255,255,0.2);
+  box-shadow: 0 4px 16px rgba(41,40,103,0.2);
 }
 
 .primaryCta:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(255,255,255,0.15);
+  box-shadow: 0 8px 32px rgba(41,40,103,0.25);
 }
 
 .secondaryCta {
@@ -170,16 +170,16 @@
   font-family: var(--font-body);
   font-size: var(--text-base);
   font-weight: 500;
-  color: rgba(217,220,242,0.8);
+  color: var(--color-indigo-soft);
   padding: 0.875rem 1.25rem;
   border-radius: var(--radius-full);
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid var(--color-lavender);
   transition: color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
 .secondaryCta:hover {
-  color: #fff;
-  border-color: rgba(255,255,255,0.35);
+  color: var(--color-indigo);
+  border-color: var(--color-indigo-soft);
   transform: translateX(2px);
 }
 
@@ -200,7 +200,7 @@
   font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: 700;
-  color: var(--color-white);
+  color: var(--color-indigo);
   letter-spacing: -0.02em;
 }
 
@@ -208,14 +208,14 @@
   font-family: var(--font-body);
   font-size: var(--text-xs);
   font-weight: 400;
-  color: rgba(217,220,242,0.55);
+  color: var(--color-gray);
   letter-spacing: 0.02em;
 }
 
 .statDivider {
   width: 1px;
   height: 32px;
-  background: rgba(255,255,255,0.12);
+  background: var(--color-lavender);
 }
 
 /* Scroll hint */
@@ -231,7 +231,7 @@
   gap: 0.75rem;
   font-family: var(--font-body);
   font-size: var(--text-xs);
-  color: rgba(217,220,242,0.4);
+  color: var(--color-gray);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -239,7 +239,7 @@
 .scrollLine {
   width: 1px;
   height: 48px;
-  background: linear-gradient(to bottom, transparent, rgba(217,220,242,0.3));
+  background: linear-gradient(to bottom, transparent, var(--color-lavender));
   animation: scrollPulse 2s ease-in-out infinite;
 }
 
