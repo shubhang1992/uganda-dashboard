@@ -1,7 +1,8 @@
 {
-  "name": "uganda-landing",
+  "name": "universal-pensions-uganda",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Landing page and dashboard for Universal Pensions Uganda — a digital pension platform making retirement savings accessible for every Ugandan.",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -1,5 +1,26 @@
 # Universal Pensions — Uganda Platform Context
 
+## Technical context
+
+**Stack:** React 19 + Vite 8 + Framer Motion + CSS Modules
+**Deployment:** Vercel (auto-deploy on push to `main`)
+**Live URL:** uganda-dashboard.vercel.app
+
+### Key conventions
+- All styling uses **CSS Modules** (`.module.css` per component) — no Tailwind
+- Design tokens are **CSS custom properties** in `src/index.css` (colors, spacing, typography, shadows, radii)
+- Animations use **Framer Motion** — `motion.div`, `useScroll`, `AnimatePresence`, staggered variants
+- Financial calculations (future value, formatting) are centralized in `src/utils/finance.js`
+- Mobile breakpoints: 600px (phone), 768px (tablet), 900px (large tablet), 1024px (desktop)
+- The shared easing curve is `[0.16, 1, 0.3, 1]` (ease-out-expo), used across all animations
+- Brand primary color: `--color-indigo` (#292867) — avoid red except for error states
+- Logo is a PNG with transparent background (white version done via CSS `filter: brightness(0) invert(1)` in footer)
+
+### Architecture
+- `App.jsx` assembles sections: Navbar → Hero → HowItWorks → TimeJourney → ForYou → Trust → CTA → Footer + StickyMobileCTA
+- `TimeJourney.jsx` is the most complex component — handles desktop wheel scroll and mobile horizontal swipe with rAF batching
+- `SavingsCalculator.jsx` is embedded in the Hero section
+
 ## Project summary
 Universal Pensions is a digital long-term savings and pension platform being designed to make retirement saving more accessible, understandable, and usable for everyday people.
 

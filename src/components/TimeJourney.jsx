@@ -268,7 +268,6 @@ export default function TimeJourney() {
 
     if (!swipeDecided.current) {
       const dx = Math.abs(x - lastX.current);
-      const dy = Math.abs(e.touches[0].clientY - e.changedTouches[0].clientY || 0);
       // Decide after just 4px — much snappier
       if (dx < 4) return;
       swipeDecided.current = true;
