@@ -70,6 +70,7 @@ export default function SignInModal() {
           />
 
           {/* Modal */}
+          <div className={styles.modalWrap}>
           <motion.div
             className={styles.modal}
             initial={{ opacity: 0, y: 40, scale: 0.97 }}
@@ -120,6 +121,7 @@ export default function SignInModal() {
               )}
             </AnimatePresence>
           </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>
