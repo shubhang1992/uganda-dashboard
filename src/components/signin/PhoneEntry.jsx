@@ -31,13 +31,7 @@ export default function PhoneEntry({ role, onSubmit, onBack }) {
   }
 
   return (
-    <motion.div
-      className={styles.wrapper}
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -12 }}
-      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-    >
+    <div className={styles.wrapper}>
       <button className={styles.back} onClick={onBack} type="button">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -45,10 +39,19 @@ export default function PhoneEntry({ role, onSubmit, onBack }) {
         Back
       </button>
 
+      {/* Visual icon */}
+      <div className={styles.visual}>
+        <svg viewBox="0 0 48 48" fill="none" width="48" height="48">
+          <rect x="12" y="4" width="24" height="40" rx="4" stroke="currentColor" strokeWidth="2"/>
+          <circle cx="24" cy="38" r="2" fill="currentColor"/>
+          <path d="M20 8h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+      </div>
+
       <span className={styles.badge}>{ROLE_LABELS[role]}</span>
 
       <h2 className={styles.heading}>Enter your phone number</h2>
-      <p className={styles.subtext}>We'll send you a one-time code to verify.</p>
+      <p className={styles.subtext}>We'll send you a one-time verification code.</p>
 
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.inputGroup} data-error={!!error}>
@@ -72,6 +75,6 @@ export default function PhoneEntry({ role, onSubmit, onBack }) {
           Continue
         </button>
       </form>
-    </motion.div>
+    </div>
   );
 }

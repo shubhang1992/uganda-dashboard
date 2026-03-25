@@ -10,14 +10,12 @@ export default function OtpVerify({ phone, onVerify, onBack }) {
   const [resendTimer, setResendTimer] = useState(30);
   const inputsRef = useRef([]);
 
-  // Countdown timer for resend
   useEffect(() => {
     if (resendTimer <= 0) return;
     const id = setTimeout(() => setResendTimer((t) => t - 1), 1000);
     return () => clearTimeout(id);
   }, [resendTimer]);
 
-  // Auto-focus first input
   useEffect(() => {
     inputsRef.current[0]?.focus();
   }, []);
@@ -30,8 +28,6 @@ export default function OtpVerify({ phone, onVerify, onBack }) {
       return next;
     });
     if (error) setError('');
-
-    // Auto-advance to next input
     if (digit && index < OTP_LENGTH - 1) {
       inputsRef.current[index + 1]?.focus();
     }
@@ -73,13 +69,7 @@ export default function OtpVerify({ phone, onVerify, onBack }) {
   const masked = phone ? `+256 ${phone.slice(0, 1)}XX XXX ${phone.slice(6)}` : '';
 
   return (
-    <motion.div
-      className={styles.wrapper}
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -12 }}
-      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-    >
+    <div className={styles.wrapper}>
       <button className={styles.back} onClick={onBack} type="button">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -87,8 +77,16 @@ export default function OtpVerify({ phone, onVerify, onBack }) {
         Back
       </button>
 
-      <h2 className={styles.heading}>Enter verification code</h2>
-      <p className={styles.subtext}>Sent to {masked}</p>
+      {/* Visual icon */}
+      <div className={styles.visual}>
+        <svg viewBox="0 0 48 48" fill="none" width="48" height="48">
+          <path d="M24 4L8 12v10c0 11.1 6.84 21.48 16 24 9.16-2.52 16-12.9 16-24V12L24 4z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+          <path d="M17 24l5 5 9-10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+
+      <h2 className={styles.heading}>Verification code</h2>
+      <p className={styles.subtext}>Enter the 6-digit code sent to <strong>{masked}</strong></p>
 
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.otpRow} onPaste={handlePaste}>
@@ -104,13 +102,14 @@ export default function OtpVerify({ phone, onVerify, onBack }) {
               onChange={(e) => handleChange(i, e.target.value)}
               onKeyDown={(e) => handleKeyDown(i, e)}
               data-error={!!error}
+              data-filled={!!d}
             />
           ))}
         </div>
         {error && <p className={styles.error}>{error}</p>}
 
         <button type="submit" className={styles.submit}>
-          Verify
+          Verify & sign in
         </button>
 
         <div className={styles.resend}>
@@ -123,6 +122,6 @@ export default function OtpVerify({ phone, onVerify, onBack }) {
           )}
         </div>
       </form>
-    </motion.div>
+    </div>
   );
 }
