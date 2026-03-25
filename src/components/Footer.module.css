@@ -22,6 +22,7 @@
   height: 32px;
   width: auto;
   opacity: 0.9;
+  filter: brightness(2.5);
 }
 
 .tagline {
