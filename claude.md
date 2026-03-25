@@ -14,12 +14,63 @@
 - Mobile breakpoints: 600px (phone), 768px (tablet), 900px (large tablet), 1024px (desktop)
 - The shared easing curve is `[0.16, 1, 0.3, 1]` (ease-out-expo), used across all animations
 - Brand primary color: `--color-indigo` (#292867) — avoid red except for error states
-- Logo is a PNG with transparent background (white version done via CSS `filter: brightness(0) invert(1)` in footer)
+- Logo: two PNGs with transparent backgrounds — `logo.png` (color, for light backgrounds) and `logo-white.png` (grey, brightened via CSS for dark backgrounds)
 
 ### Architecture
-- `App.jsx` assembles sections: Navbar → Hero → HowItWorks → TimeJourney → ForYou → Trust → CTA → Footer + StickyMobileCTA
+- `App.jsx` assembles sections: Navbar → Hero → HowItWorks → TimeJourney → ForYou → Trust → CTA → Footer + StickyMobileCTA + SignInModal
+- `SignInContext` provides `{ isOpen, open, close }` for the sign-in modal, used by Navbar and any CTA
 - `TimeJourney.jsx` is the most complex component — handles desktop wheel scroll and mobile horizontal swipe with rAF batching
 - `SavingsCalculator.jsx` is embedded in the Hero section
+
+### Design consistency rules — MUST FOLLOW
+
+The landing page establishes the design language for the entire platform. All new UI (dashboards, modals, flows) must maintain visual consistency with the existing landing page. Specifically:
+
+**Icons:**
+- Always use **inline SVG line icons** with `stroke="currentColor"` and `strokeWidth="1.75"`
+- Standard icon size: `24x24` viewBox, displayed at 24px
+- Never use emojis, icon fonts, or icon libraries — all icons are hand-drawn SVGs matching the existing style
+- Icon containers (when used): `background: rgba(41,40,103,0.06)`, `border: 1px solid var(--color-lavender)`, `border-radius: var(--radius-md)`, `color: var(--color-indigo)`
+- Reference: Trust.jsx stat icons, HowItWorks.jsx card icons, TimeJourney.jsx shelf icons
+
+**Cards and surfaces:**
+- Card background: `var(--color-cloud)` or `var(--color-white)`
+- Card border: `1px solid var(--color-lavender)`
+- Card radius: `var(--radius-md)` for small cards, `var(--radius-xl)` for large panels
+- Hover state: `box-shadow: var(--shadow-md)` + subtle `translateY(-2px)`
+
+**Buttons:**
+- Primary: `background: var(--color-indigo)`, `color: white`, `border-radius: var(--radius-full)`, `font-family: var(--font-display)`, `font-weight: 700`
+- Secondary: `border: 1px solid var(--color-lavender)`, `color: var(--color-indigo-soft)`, `border-radius: var(--radius-full)`
+- Touch targets: minimum 44px height on mobile
+
+**Typography:**
+- Headings: `var(--font-display)` (Plus Jakarta Sans), `font-weight: 800`, `color: var(--color-indigo)`, `letter-spacing: -0.03em`
+- Body text: `var(--font-body)` (Inter), `color: var(--color-slate)`
+- Secondary text: `color: var(--color-gray)`
+- Labels/tags: `var(--text-xs)`, `uppercase`, `letter-spacing: 0.06-0.1em`, `color: var(--color-indigo-soft)`
+
+**Animations:**
+- All entrance animations use ease `[0.16, 1, 0.3, 1]` (ease-out-expo)
+- Staggered children: `staggerChildren: 0.05–0.1`
+- Item reveal: `{ opacity: 0, y: 12-24 } → { opacity: 1, y: 0 }`
+- Use `AnimatePresence mode="wait"` for step transitions
+
+**Spacing:**
+- Use `var(--space-*)` tokens, not raw values
+- Section padding: `var(--space-16) 0 var(--space-20)` desktop, `var(--space-8) 0 var(--space-12)` mobile
+- Container: `max-width: 1200px`, `padding: 0 var(--space-8)` (desktop), `0 var(--space-6)` (mobile)
+
+**Dark sections:**
+- Background: `var(--color-indigo)` or `var(--color-indigo-deep)`
+- Text: `var(--color-white)` for headings, `rgba(217,220,242,0.65)` for body
+- Borders: `rgba(255,255,255,0.08-0.12)`
+
+**Form inputs:**
+- Border: `1.5px solid var(--color-lavender)`, `border-radius: var(--radius-md)`
+- Focus: `border-color: var(--color-indigo)`, `box-shadow: 0 0 0 3px rgba(41,40,103,0.08)`
+- Error: `border-color: #dc3545`
+- Height: 52px for standard inputs
 
 ## Project summary
 Universal Pensions is a digital long-term savings and pension platform being designed to make retirement saving more accessible, understandable, and usable for everyday people.
