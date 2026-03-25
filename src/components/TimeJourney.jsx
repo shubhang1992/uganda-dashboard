@@ -219,12 +219,10 @@ function LifeShelf({ balance }) {
 export default function TimeJourney() {
   const cardRef = useRef(null);
   const [progress, setProgress] = useState(0);
-  const [holding, setHolding] = useState(false);
+  const [swiping, setSwiping] = useState(false);
   const accumulated = useRef(0);
-  const holdRaf = useRef(null);
 
   const SCROLL_RANGE = 2000;
-  const HOLD_SPEED = 12; // pixels per frame (~720/sec at 60fps)
 
   // ── Desktop: wheel handler ──
   const handleWheel = useCallback((e) => {
@@ -239,72 +237,67 @@ export default function TimeJourney() {
     setProgress(next / SCROLL_RANGE);
   }, []);
 
-  // ── Mobile: tap-and-hold to advance ──
-  const startHold = useCallback(() => {
-    setHolding(true);
-    function tick() {
-      accumulated.current = Math.min(accumulated.current + HOLD_SPEED, SCROLL_RANGE);
-      setProgress(accumulated.current / SCROLL_RANGE);
-      if (accumulated.current < SCROLL_RANGE) {
-        holdRaf.current = requestAnimationFrame(tick);
-      } else {
-        setHolding(false);
-      }
-    }
-    holdRaf.current = requestAnimationFrame(tick);
-  }, []);
+  // ── Mobile: horizontal swipe to move through time ──
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const swipeActive = useRef(false);
 
-  const stopHold = useCallback(() => {
-    setHolding(false);
-    if (holdRaf.current) {
-      cancelAnimationFrame(holdRaf.current);
-      holdRaf.current = null;
-    }
-  }, []);
-
-  // Reset on double-tap
-  const handleDoubleTap = useCallback(() => {
-    accumulated.current = 0;
-    setProgress(0);
-  }, []);
-
-  const lastTap = useRef(0);
   const handleTouchStart = useCallback((e) => {
-    const now = Date.now();
-    if (now - lastTap.current < 300) {
-      handleDoubleTap();
-      lastTap.current = 0;
-      return;
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    swipeActive.current = false;
+  }, []);
+
+  const handleTouchMove = useCallback((e) => {
+    const dx = e.touches[0].clientX - touchStartX.current;
+    const dy = e.touches[0].clientY - touchStartY.current;
+
+    // On first significant move, decide: horizontal swipe or vertical scroll?
+    if (!swipeActive.current) {
+      // Need at least 8px of movement to decide
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+
+      // If more vertical than horizontal, let the page scroll
+      if (Math.abs(dy) > Math.abs(dx)) return;
+
+      // Horizontal swipe detected — lock it
+      swipeActive.current = true;
+      setSwiping(true);
     }
-    lastTap.current = now;
-    // Start hold after a short delay to distinguish from scroll
-    holdRaf.current = setTimeout(() => startHold(), 200);
-  }, [startHold, handleDoubleTap]);
+
+    if (swipeActive.current) {
+      e.preventDefault();
+      // Map horizontal delta to progress: full card width = full range
+      const cardWidth = cardRef.current?.offsetWidth || 350;
+      const sensitivity = SCROLL_RANGE / (cardWidth * 0.7);
+      const delta = (e.touches[0].clientX - touchStartX.current) * sensitivity;
+      touchStartX.current = e.touches[0].clientX;
+
+      const next = Math.max(0, Math.min(SCROLL_RANGE, accumulated.current + delta));
+      accumulated.current = next;
+      setProgress(next / SCROLL_RANGE);
+    }
+  }, []);
 
   const handleTouchEnd = useCallback(() => {
-    // If hold hasn't started yet (within 200ms), cancel it
-    if (typeof holdRaf.current === 'number' && holdRaf.current < 1000) {
-      // This was a setTimeout ID, not a rAF ID
-    }
-    clearTimeout(holdRaf.current);
-    stopHold();
-  }, [stopHold]);
+    swipeActive.current = false;
+    setSwiping(false);
+  }, []);
 
-  // Attach wheel listener (desktop only)
+  // Attach listeners
   useEffect(() => {
     const el = cardRef.current;
     if (!el) return;
     el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => el.removeEventListener('wheel', handleWheel);
-  }, [handleWheel]);
+    el.addEventListener('touchmove', handleTouchMove, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      el.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [handleWheel, handleTouchMove]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (holdRaf.current) {
-        cancelAnimationFrame(holdRaf.current);
-        clearTimeout(holdRaf.current);
-      }
     };
   }, []);
 
@@ -331,7 +324,7 @@ export default function TimeJourney() {
         </h2>
         <p className={styles.sub}>
           <span className={styles.desktopOnly}>Scroll inside the card to move through 40 years of growth.</span>
-          <span className={styles.mobileOnly}>Press and hold the card to watch your savings grow over 40 years.</span>
+          <span className={styles.mobileOnly}>Swipe left and right on the card to move through time.</span>
         </p>
       </div>
 
@@ -339,7 +332,7 @@ export default function TimeJourney() {
         ref={cardRef}
         className={styles.card}
         style={{ backgroundColor: bg }}
-        data-holding={holding}
+        data-swiping={swiping}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
@@ -450,38 +443,20 @@ export default function TimeJourney() {
           )}
         </AnimatePresence>
 
-        {/* Mobile: hold button — always visible */}
-        <div className={`${styles.holdBtnWrap} ${styles.mobileOnly}`}>
-          <button
-            className={styles.holdBtn}
-            data-holding={holding}
-            onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); handleTouchStart(e); }}
-            onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleTouchEnd(); }}
-            onTouchCancel={handleTouchEnd}
-          >
-            <motion.div className={styles.holdBtnRing}
-              animate={holding
-                ? { scale: [1, 1.4], opacity: [0.4, 0] }
-                : { scale: [1, 1.2, 1], opacity: [0.3, 0.1, 0.3] }}
-              transition={holding
-                ? { duration: 0.6, repeat: Infinity }
-                : { duration: 2, repeat: Infinity, ease: 'easeInOut' }} />
-            {holding ? 'Time is passing...' : progress >= 1 ? 'Double-tap to restart' : 'Hold to explore'}
-          </button>
-        </div>
-
-        {/* Desktop: holding indicator */}
+        {/* Mobile: swipe hint */}
         <AnimatePresence>
-          {holding && (
-            <motion.div className={`${styles.holdingBadge} ${styles.desktopOnly}`}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.15 }}>
-              <motion.div className={styles.holdingPulse}
-                animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
-                transition={{ duration: 0.8, repeat: Infinity }} />
-              Time is passing...
+          {progress < 0.02 && (
+            <motion.div className={`${styles.swipeHint} ${styles.mobileOnly}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ delay: 0.5 }}>
+              <motion.span
+                animate={{ x: [0, 12, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}>
+                →
+              </motion.span>
+              Swipe to move through time
             </motion.div>
           )}
         </AnimatePresence>
