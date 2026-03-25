@@ -455,8 +455,8 @@ export default function TimeJourney() {
           <button
             className={styles.holdBtn}
             data-holding={holding}
-            onTouchStart={(e) => { e.stopPropagation(); handleTouchStart(e); }}
-            onTouchEnd={(e) => { e.stopPropagation(); handleTouchEnd(); }}
+            onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); handleTouchStart(e); }}
+            onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleTouchEnd(); }}
             onTouchCancel={handleTouchEnd}
           >
             <motion.div className={styles.holdBtnRing}
