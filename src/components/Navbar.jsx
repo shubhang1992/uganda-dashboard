@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, useScroll, useMotionValueEvent, AnimatePresence } from 'framer-motion';
-import logo from '../assets/logo.svg';
+import logo from '../assets/logo.png';
 import styles from './Navbar.module.css';
 
 const NAV_LINKS = [
