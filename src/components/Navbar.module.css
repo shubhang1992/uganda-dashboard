@@ -129,4 +129,17 @@
   .actions {
     margin-left: auto;
   }
+
+  .inner {
+    padding: 0 1.25rem;
+  }
+
+  .signIn {
+    display: none;
+  }
+
+  .cta {
+    font-size: var(--text-xs);
+    padding: 0.5rem 1rem;
+  }
 }

@@ -264,10 +264,12 @@
 
 /* ── Responsive ── */
 @media (max-width: 960px) {
+  .outer { height: 220vh; }
+
   .inner {
     grid-template-columns: 1fr;
     gap: 1.5rem;
-    padding-top: 6rem;
+    padding-top: 4rem;
     align-items: start;
   }
 
@@ -280,6 +282,12 @@
 }
 
 @media (max-width: 600px) {
-  .inner { padding: 5.5rem 1.25rem 0; }
+  .outer { height: 200vh; }
+  .inner { padding: 3.5rem 1.25rem 0; }
+  .year { font-size: 2.5rem; }
+  .balance { font-size: 1.25rem; }
+  .storyTitle { font-size: 1rem; }
+  .storyDesc { font-size: var(--text-xs); line-height: 1.6; }
   .compositionLabels { flex-direction: column; gap: 0.35rem; }
+  .chartLabel { flex-direction: column; gap: 0.25rem; }
 }

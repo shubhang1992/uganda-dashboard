@@ -205,3 +205,30 @@
     display: none;
   }
 }
+
+@media (max-width: 600px) {
+  .card {
+    padding: 2rem 1.5rem;
+    border-radius: 1.25rem;
+  }
+
+  .heading {
+    font-size: 1.5rem;
+  }
+
+  .subtext {
+    margin-bottom: 1.5rem;
+  }
+
+  .actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .primaryBtn,
+  .secondaryBtn {
+    text-align: center;
+    width: 100%;
+    justify-content: center;
+  }
+}

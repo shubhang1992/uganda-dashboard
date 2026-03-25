@@ -270,14 +270,21 @@
 @media (max-width: 600px) {
   .inner {
     padding: 5.5rem var(--space-6) 3rem;
+    gap: 2rem;
   }
 
   .headline {
-    font-size: 2.5rem;
+    font-size: 2.25rem;
+    margin-bottom: 1rem;
   }
 
   .subtext {
     font-size: var(--text-base);
+    margin-bottom: 1.75rem;
+  }
+
+  .ctaGroup {
+    margin-bottom: 2rem;
   }
 
   .statDivider {
@@ -290,6 +297,6 @@
   }
 
   .right {
-    display: none;
+    max-width: 100%;
   }
 }
