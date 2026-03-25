@@ -45,6 +45,7 @@
 /* Testimonials */
 .testimonials {
   padding: var(--space-16) 0 var(--space-20);
+  overflow-x: clip;
 }
 
 .header {
@@ -143,15 +144,17 @@
 }
 
 @media (max-width: 900px) {
+  .statsStrip {
+    padding: var(--space-8) 0;
+  }
+
   .statsGrid {
     grid-template-columns: repeat(3, 1fr);
     gap: 1.5rem 1rem;
   }
 
-  /* Last 2 items center in a 2-col sub-row */
-  .statCard:nth-child(4),
-  .statCard:nth-child(5) {
-    /* handled by 3-col: row1 = 3 items, row2 = 2 items centered */
+  .testimonials {
+    padding: var(--space-8) 0 var(--space-12);
   }
 
   .testimonialGrid {
@@ -160,14 +163,19 @@
 }
 
 @media (max-width: 600px) {
-  .statsGrid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
+  .statsStrip {
+    padding: var(--space-6) 0;
   }
 
-  /* 5th item spans full width, centered */
-  .statCard:last-child {
-    grid-column: 1 / -1;
+  .statsGrid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+  }
+
+  /* Hide the 5th stat on mobile — 3 items per row looks clean */
+  .statCard:nth-child(4),
+  .statCard:nth-child(5) {
+    display: none;
   }
 
   .statValue {
@@ -178,14 +186,43 @@
     font-size: var(--text-xs);
   }
 
+  .testimonials {
+    padding: var(--space-6) 0 var(--space-8);
+  }
+
+  .header {
+    margin-bottom: var(--space-4);
+  }
+
+  /* Testimonials: horizontal snap-scroll carousel */
+  .testimonialGrid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    gap: 0.75rem;
+    padding: 0.5rem var(--space-6);
+    margin-left: calc(-1 * var(--space-6));
+    margin-right: calc(-1 * var(--space-6));
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .testimonialGrid::-webkit-scrollbar {
+    display: none;
+  }
+
   .testimonialCard {
+    flex: 0 0 85%;
+    max-width: 320px;
+    scroll-snap-align: center;
     padding: 1.5rem;
   }
 }
 
 @media (max-width: 400px) {
   .statsGrid {
-    grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
   }
 }

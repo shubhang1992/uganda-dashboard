@@ -6,6 +6,7 @@ import ForYou from './components/ForYou';
 import Trust from './components/Trust';
 import CTA from './components/CTA';
 import Footer from './components/Footer';
+import StickyMobileCTA from './components/StickyMobileCTA';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <CTA />
       </main>
       <Footer />
+      <StickyMobileCTA />
     </>
   );
 }

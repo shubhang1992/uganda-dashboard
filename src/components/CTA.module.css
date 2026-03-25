@@ -3,6 +3,12 @@
   background: var(--color-cloud);
 }
 
+@media (max-width: 600px) {
+  .section {
+    padding: var(--space-8) 0 var(--space-12);
+  }
+}
+
 .card {
   background: var(--color-indigo);
   border-radius: 2rem;

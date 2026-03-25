@@ -4,6 +4,16 @@
   overflow-x: clip;
 }
 
+@media (max-width: 600px) {
+  .section {
+    padding: var(--space-8) 0 var(--space-12);
+  }
+
+  .header {
+    margin-bottom: var(--space-4);
+  }
+}
+
 .header {
   text-align: center;
   margin: 0 auto var(--space-8);
@@ -170,8 +180,8 @@
   }
 
   .card {
-    flex: 0 0 80%;
-    max-width: 300px;
+    flex: 0 0 85%;
+    max-width: 320px;
     scroll-snap-align: center;
     padding: 1.25rem;
   }
