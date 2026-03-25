@@ -450,26 +450,30 @@ export default function TimeJourney() {
           )}
         </AnimatePresence>
 
-        {/* Mobile: hold hint + pulse ring */}
-        <AnimatePresence>
-          {progress < 0.02 && (
-            <motion.div className={`${styles.hint} ${styles.mobileOnly}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ delay: 0.5 }}>
-              <motion.div className={styles.holdRing}
-                animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.15, 0.4] }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} />
-              <span>Hold to explore</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Mobile: hold button — always visible */}
+        <div className={`${styles.holdBtnWrap} ${styles.mobileOnly}`}>
+          <button
+            className={styles.holdBtn}
+            data-holding={holding}
+            onTouchStart={(e) => { e.stopPropagation(); handleTouchStart(e); }}
+            onTouchEnd={(e) => { e.stopPropagation(); handleTouchEnd(); }}
+            onTouchCancel={handleTouchEnd}
+          >
+            <motion.div className={styles.holdBtnRing}
+              animate={holding
+                ? { scale: [1, 1.4], opacity: [0.4, 0] }
+                : { scale: [1, 1.2, 1], opacity: [0.3, 0.1, 0.3] }}
+              transition={holding
+                ? { duration: 0.6, repeat: Infinity }
+                : { duration: 2, repeat: Infinity, ease: 'easeInOut' }} />
+            {holding ? 'Time is passing...' : progress >= 1 ? 'Double-tap to restart' : 'Hold to explore'}
+          </button>
+        </div>
 
-        {/* Holding indicator */}
+        {/* Desktop: holding indicator */}
         <AnimatePresence>
           {holding && (
-            <motion.div className={styles.holdingBadge}
+            <motion.div className={`${styles.holdingBadge} ${styles.desktopOnly}`}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}

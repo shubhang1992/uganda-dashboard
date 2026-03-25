@@ -33,6 +33,12 @@
 .logoImg {
   height: 36px;
   width: auto;
+  /* Prevent backdrop-filter blur from affecting the logo */
+  position: relative;
+  z-index: 1;
+  /* Force crisp rendering on high-DPI */
+  image-rendering: -webkit-optimize-contrast;
+  transform: translateZ(0);
 }
 
 /* ── Desktop links ── */

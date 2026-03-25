@@ -1,6 +1,7 @@
 .section {
   padding: var(--space-16) 0 var(--space-20);
   background: var(--color-white);
+  overflow-x: clip;
 }
 
 .header {
@@ -146,9 +147,10 @@
     background: none;
     box-shadow: none;
     border-radius: 0;
-    /* Let the scroll strip extend to screen edges */
-    margin: 0 calc(-1 * var(--space-8));
-    width: calc(100% + 2 * var(--space-8));
+    /* Break out to screen edges without causing body overflow */
+    margin-left: calc(-1 * var(--space-6));
+    margin-right: calc(-1 * var(--space-6));
+    overflow: hidden;
   }
 
   .grid {
@@ -157,7 +159,7 @@
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
     gap: 0.75rem;
-    padding: 0.5rem var(--space-8);
+    padding: 0.5rem var(--space-6);
     /* Hide scrollbar */
     scrollbar-width: none;
     -ms-overflow-style: none;
