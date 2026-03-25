@@ -22,7 +22,7 @@ const ROLES = [
     ),
   },
   {
-    id: 'distributor', label: 'Distributor', desc: 'Network partner',
+    id: 'distributor', label: 'Distributor', desc: 'Distribution network',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
         <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75"/>
@@ -31,27 +31,6 @@ const ROLES = [
         <circle cx="3" cy="12" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
         <circle cx="21" cy="12" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
         <path d="M12 4.5v4.5M12 15v4.5M4.5 12H9M15 12h4.5" stroke="currentColor" strokeWidth="1.5"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'branch', label: 'Branch', desc: 'Local operations',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
-        <path d="M3 21h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-        <path d="M5 21V7l7-4 7 4v14" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
-        <rect x="9" y="13" width="6" height="8" rx="1" stroke="currentColor" strokeWidth="1.75"/>
-        <path d="M9 9h6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'agent', label: 'Agent', desc: 'Field enrolment',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
-        <circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.75"/>
-        <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-        <path d="M18 8v6M15 11h6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
       </svg>
     ),
   },

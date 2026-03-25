@@ -5,8 +5,8 @@ import styles from './PhoneEntry.module.css';
 const ROLE_LABELS = {
   subscriber: 'Subscriber',
   employer: 'Employer',
-  distributor: 'Distributor',
-  branch: 'Branch',
+  distributor: 'Distributor Admin',
+  branch: 'Branch Admin',
   agent: 'Agent',
   admin: 'Admin',
 };

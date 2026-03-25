@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSignIn } from '../contexts/SignInContext';
 import RoleSelect from './signin/RoleSelect';
+import DistributorSelect from './signin/DistributorSelect';
 import PhoneEntry from './signin/PhoneEntry';
 import OtpVerify from './signin/OtpVerify';
 import styles from './SignInModal.module.css';
@@ -37,7 +38,16 @@ export default function SignInModal() {
   }, [isOpen]);
 
   function handleRoleSelect(selectedRole) {
-    setRole(selectedRole);
+    if (selectedRole === 'distributor') {
+      setStep('distributor');
+    } else {
+      setRole(selectedRole);
+      setStep('phone');
+    }
+  }
+
+  function handleDistributorSelect(subRole) {
+    setRole(subRole);
     setStep('phone');
   }
 
@@ -47,7 +57,6 @@ export default function SignInModal() {
   }
 
   function handleVerify() {
-    // Prototype: any code works — just close the modal
     close();
   }
 
@@ -55,11 +64,18 @@ export default function SignInModal() {
     close();
   }
 
+  function handlePhoneBack() {
+    if (role === 'distributor' || role === 'branch' || role === 'agent') {
+      setStep('distributor');
+    } else {
+      setStep('role');
+    }
+  }
+
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
           <motion.div
             className={styles.overlay}
             initial={{ opacity: 0 }}
@@ -69,7 +85,6 @@ export default function SignInModal() {
             onClick={handleClose}
           />
 
-          {/* Modal */}
           <div className={styles.modalWrap}>
           <motion.div
             className={styles.modal}
@@ -81,14 +96,12 @@ export default function SignInModal() {
             aria-modal="true"
             aria-label="Sign in"
           >
-            {/* Close button */}
             <button className={styles.close} onClick={handleClose} aria-label="Close">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
             </button>
 
-            {/* Step content */}
             <AnimatePresence mode="wait">
               {step === 'role' && (
                 <motion.div
@@ -102,12 +115,20 @@ export default function SignInModal() {
                 </motion.div>
               )}
 
+              {step === 'distributor' && (
+                <DistributorSelect
+                  key="distributor"
+                  onSelect={handleDistributorSelect}
+                  onBack={() => setStep('role')}
+                />
+              )}
+
               {step === 'phone' && (
                 <PhoneEntry
                   key="phone"
                   role={role}
                   onSubmit={handlePhoneSubmit}
-                  onBack={() => setStep('role')}
+                  onBack={handlePhoneBack}
                 />
               )}
 
