@@ -270,6 +270,8 @@
 @media (max-width: 600px) {
   .hero {
     min-height: auto;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
 
   .content {
@@ -277,7 +279,7 @@
   }
 
   .inner {
-    padding: 5.5rem var(--space-6) 3rem;
+    padding: 5.5rem var(--space-6) 4rem;
     gap: 1.5rem;
   }
 

@@ -246,6 +246,7 @@
   cursor: pointer;
   margin: 0;
   z-index: 1;
+  touch-action: none;
 }
 
 .sliderLimits {
@@ -288,16 +289,22 @@
 
   .sliderTrack {
     height: 8px;
-    margin: 0.5rem 0;
+    margin: 0.75rem 0;
   }
 
   .sliderTrack::after {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
   }
 
   .sliderInput {
-    inset: -16px 0;
-    height: calc(100% + 32px);
+    inset: -20px 0;
+    height: calc(100% + 40px);
+    touch-action: none;
+  }
+
+  .controls {
+    padding-top: 0.25rem;
+    padding-bottom: 0.5rem;
   }
 }
