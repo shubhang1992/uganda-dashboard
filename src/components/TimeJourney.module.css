@@ -471,26 +471,15 @@
   .impactLabel { font-size: 10px; }
   .impactText { font-size: 0.9375rem; line-height: 1.25; }
 
-  /* Shelf — compact horizontal strip */
+  /* Shelf — 4x2 compact grid that fits in view */
   .shelf {
-    display: flex;
-    overflow-x: auto;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 0.375rem;
-    padding: 0.125rem 0;
-    scroll-snap-type: x proximity;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  .shelf::-webkit-scrollbar {
-    display: none;
   }
 
   .shelfItem {
-    flex: 0 0 auto;
-    width: 64px;
     padding: 0.4rem 0.25rem;
-    scroll-snap-align: start;
     gap: 0.2rem;
   }
 
