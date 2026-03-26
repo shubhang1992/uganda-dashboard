@@ -2,14 +2,15 @@
   position: absolute;
   bottom: var(--space-4);
   left: var(--space-4);
-  display: flex;
+  right: var(--space-4);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   align-items: flex-end;
   gap: var(--space-3);
   z-index: 15;
 }
 
 .card {
-  width: 340px;
   background: linear-gradient(145deg, rgba(255,255,255,0.78) 0%, rgba(246,247,251,0.72) 100%);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
