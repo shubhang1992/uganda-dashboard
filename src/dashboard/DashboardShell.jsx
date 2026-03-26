@@ -5,7 +5,6 @@ import OverlayPanel from './overlay/OverlayPanel';
 import Breadcrumb from './overlay/Breadcrumb';
 import MetricsRow from './cards/MetricsRow';
 import TopBar from './overlay/TopBar';
-import ChatPanel from './chat/ChatPanel';
 import styles from './DashboardShell.module.css';
 
 export default function DashboardShell() {
@@ -19,7 +18,6 @@ export default function DashboardShell() {
           <OverlayPanel />
           <TopBar />
           <MetricsRow />
-          <ChatPanel />
         </div>
       </div>
     </DashboardProvider>

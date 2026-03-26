@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { COUNTRY, getEntityById } from '../../data/mockData';
@@ -12,6 +13,105 @@ function getCurrentMetrics(level, selectedIds) {
   return entity?.metrics || COUNTRY.metrics;
 }
 
+// ── Mock AI responses ──
+const SUGGESTIONS = [
+  'Top agents?',
+  'Coverage by region?',
+  'Active subscribers?',
+  'Gender split?',
+];
+
+const MOCK_RESPONSES = {
+  default: "I can help you analyse your pension network data. Ask me about subscribers, agents, coverage, or contributions!",
+  agent: "Top 3 agents: Sarah Nambi (92%), Moses Okello (89%), Grace Achieng (87%). Average network performance is 78%.",
+  coverage: "Coverage by region: Northern 62%, Central 58%, Eastern 55%, Western 52%. Overall: 67%.",
+  subscriber: "2,000 subscribers total. 82% active, 18% inactive. Growth rate: 3.8% MoM. Central region leads with 680 subscribers.",
+  gender: "Gender split: 52% male, 46% female, 2% other. Eastern region has the most balanced split at 50/48/2.",
+};
+
+function getMockResponse(msg) {
+  const l = msg.toLowerCase();
+  if (l.includes('agent') || l.includes('perform') || l.includes('top')) return MOCK_RESPONSES.agent;
+  if (l.includes('coverage') || l.includes('region')) return MOCK_RESPONSES.coverage;
+  if (l.includes('subscriber') || l.includes('active')) return MOCK_RESPONSES.subscriber;
+  if (l.includes('gender') || l.includes('split') || l.includes('male')) return MOCK_RESPONSES.gender;
+  return MOCK_RESPONSES.default;
+}
+
+// ── Inline Chat Card ──
+function ChatCard() {
+  const [messages, setMessages] = useState([
+    { role: 'assistant', text: 'Ask me anything about your network data.' },
+  ]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const listRef = useRef(null);
+
+  useEffect(() => {
+    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+  }, [messages, isTyping]);
+
+  function handleSend(text) {
+    const msg = text || input.trim();
+    if (!msg) return;
+    setMessages((prev) => [...prev, { role: 'user', text: msg }]);
+    setInput('');
+    setIsTyping(true);
+    setTimeout(() => {
+      setIsTyping(false);
+      setMessages((prev) => [...prev, { role: 'assistant', text: getMockResponse(msg) }]);
+    }, 900);
+  }
+
+  return (
+    <div className={styles.chatCard}>
+      <div className={styles.chatHeader}>
+        <div className={styles.chatDot} />
+        <span className={styles.chatTitle}>Data Assistant</span>
+      </div>
+
+      <div className={styles.chatMessages} ref={listRef}>
+        {messages.map((m, i) => (
+          <div key={i} className={styles.chatMsg} data-role={m.role}>
+            <div className={styles.chatBubble} data-role={m.role}>{m.text}</div>
+          </div>
+        ))}
+        {isTyping && (
+          <div className={styles.chatMsg} data-role="assistant">
+            <div className={styles.chatBubble} data-role="assistant">
+              <span className={styles.typingDots}><span /><span /><span /></span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {messages.length <= 1 && (
+        <div className={styles.chatSuggestions}>
+          {SUGGESTIONS.map((s) => (
+            <button key={s} className={styles.chatSuggest} onClick={() => handleSend(s)}>{s}</button>
+          ))}
+        </div>
+      )}
+
+      <div className={styles.chatInput}>
+        <input
+          className={styles.chatField}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } }}
+          placeholder="Ask about your data..."
+        />
+        <button className={styles.chatSend} onClick={() => handleSend()} disabled={!input.trim()}>
+          <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+            <path d="M2 8l12-6-6 12V8H2z" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Charts ──
 function DonutChart({ ratio }) {
   if (!ratio) return null;
   const r = 24;
@@ -46,32 +146,6 @@ function AgeBarChart({ distribution }) {
   );
 }
 
-function Sparkline({ data }) {
-  if (!data || data.length < 2) return null;
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
-  const w = 100;
-  const h = 32;
-  const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - ((v - min) / range) * (h - 6) - 3;
-    return `${x},${y}`;
-  });
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className={styles.sparkline}>
-      <defs>
-        <linearGradient id="sparkG" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--color-indigo)" />
-          <stop offset="100%" stopColor="var(--color-indigo)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polyline points={`0,${h} ${points.join(' ')} ${w},${h}`} fill="url(#sparkG)" opacity="0.08" />
-      <polyline points={points.join(' ')} fill="none" stroke="var(--color-indigo)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 const item = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } } };
 
@@ -87,32 +161,12 @@ export default function MetricsRow() {
       animate="show"
       key={level + JSON.stringify(selectedIds)}
     >
-      {/* Card 1: Financials overview with sparkline */}
-      <motion.div className={styles.card} variants={item}>
-        <div className={styles.cardHeader}>
-          <h3 className={styles.cardTitle}>Financials</h3>
-          <span className={styles.seeAll}>Details</span>
-        </div>
-        <div className={styles.financialBody}>
-          <Sparkline data={metrics.monthlyContributions} />
-          <div className={styles.financialStats}>
-            <div className={styles.fStat}>
-              <span className={styles.fLabel}>Contributions</span>
-              <span className={styles.fValue} data-positive="true">
-                {((metrics.totalContributions || 0) / 1e9).toFixed(1)}B
-              </span>
-            </div>
-            <div className={styles.fStat}>
-              <span className={styles.fLabel}>Withdrawals</span>
-              <span className={styles.fValue}>
-                {((metrics.totalWithdrawals || 0) / 1e9).toFixed(1)}B
-              </span>
-            </div>
-          </div>
-        </div>
+      {/* Card 1: AI Data Assistant */}
+      <motion.div variants={item} style={{ flex: 1 }}>
+        <ChatCard />
       </motion.div>
 
-      {/* Card 2: Demographics — combined gender + age */}
+      {/* Card 2: Demographics */}
       <motion.div className={styles.card} variants={item}>
         <div className={styles.cardHeader}>
           <h3 className={styles.cardTitle}>Demographics</h3>
@@ -138,14 +192,13 @@ export default function MetricsRow() {
         </div>
       </motion.div>
 
-      {/* Card 3: Coverage & Activity */}
+      {/* Card 3: Coverage */}
       <motion.div className={styles.card} variants={item}>
         <div className={styles.cardHeader}>
           <h3 className={styles.cardTitle}>Coverage & Activity</h3>
           <span className={styles.seeAll}>Details</span>
         </div>
         <div className={styles.coverageBody}>
-          {/* Coverage ring */}
           <div className={styles.coverageRing}>
             <svg viewBox="0 0 72 72" className={styles.ringChart}>
               <circle cx="36" cy="36" r="28" fill="none" stroke="var(--color-lavender)" strokeWidth="6" />
@@ -156,7 +209,6 @@ export default function MetricsRow() {
               <text x="36" y="44" textAnchor="middle" className={styles.ringSub}>Coverage</text>
             </svg>
           </div>
-          {/* Quick stats */}
           <div className={styles.coverageStats}>
             <div className={styles.covStat}>
               <span className={styles.covNum}>{metrics.activeRate}%</span>
