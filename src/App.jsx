@@ -1,5 +1,6 @@
 import { SignInProvider } from './contexts/SignInContext';
 import { AppProvider, useApp } from './contexts/AppContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import HowItWorks from './components/HowItWorks';
@@ -16,7 +17,11 @@ function AppContent() {
   const { view } = useApp();
 
   if (view === 'dashboard') {
-    return <DashboardShell />;
+    return (
+      <ErrorBoundary>
+        <DashboardShell />
+      </ErrorBoundary>
+    );
   }
 
   return (

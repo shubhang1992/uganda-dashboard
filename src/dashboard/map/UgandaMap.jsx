@@ -3,9 +3,8 @@ import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 're
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { DISTRICTS, BRANCHES, getChildEntities, getEntityById } from '../../data/mockData';
+import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './UgandaMap.module.css';
-
-const EASE = [0.16, 1, 0.3, 1];
 const GEO_URL = '/uganda-topo.json';
 const NEXT_LEVEL = { country: 'region', region: 'district', district: 'branch', branch: 'agent' };
 
@@ -34,9 +33,9 @@ const REGION_ZOOM = {
 };
 
 function getStatusColor(rate) {
-  if (rate >= 75) return '#2E8B57';
-  if (rate >= 50) return '#E6A817';
-  return '#DC3545';
+  if (rate >= 75) return 'var(--color-status-good)';
+  if (rate >= 50) return 'var(--color-status-warning)';
+  return 'var(--color-status-poor)';
 }
 
 function MapDot({ coordinates, name, activeRate, size, onClick }) {
@@ -49,6 +48,10 @@ function MapDot({ coordinates, name, activeRate, size, onClick }) {
         exit={{ scale: 0, opacity: 0 }}
         transition={{ duration: 0.4, ease: EASE }}
         onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
+        tabIndex={onClick ? 0 : undefined}
+        role={onClick ? 'button' : undefined}
+        aria-label={`${name}, ${activeRate}% active`}
         style={{ cursor: onClick ? 'pointer' : 'default' }}
       >
         <motion.circle

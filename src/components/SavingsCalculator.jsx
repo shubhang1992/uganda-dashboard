@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { calcFV, formatUGX } from '../utils/finance';
+import { calcFV, formatUGX, EASE_OUT_EXPO } from '../utils/finance';
 import styles from './SavingsCalculator.module.css';
 
 const MIN_PMT = 5_000;
@@ -13,7 +13,7 @@ const stagger = {
 };
 const fadeUp = {
   hidden: { opacity: 0, y: 14 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE_OUT_EXPO } },
 };
 
 export default function SavingsCalculator() {
@@ -85,7 +85,7 @@ export default function SavingsCalculator() {
               strokeDasharray={CIRC}
               initial={{ strokeDashoffset: CIRC }}
               animate={{ strokeDashoffset: CIRC * (1 - returnPct / 100) }}
-              transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.9, ease: EASE_OUT_EXPO }}
               transform="rotate(-90 40 40)" strokeLinecap="round" />
             <defs>
               <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">

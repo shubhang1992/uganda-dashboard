@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { EASE_OUT_EXPO } from '../utils/finance';
 import styles from './Trust.module.css';
 
 const STATS = [
@@ -86,7 +87,7 @@ const container = {
 
 const item = {
   hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.65, ease: [0.16, 1, 0.3, 1] } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.65, ease: EASE_OUT_EXPO } },
 };
 
 export default function Trust() {
@@ -121,7 +122,7 @@ export default function Trust() {
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-80px' }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.7, ease: EASE_OUT_EXPO }}
           >
             <div className={styles.sectionTag}>Real stories</div>
             <h2 className={styles.heading}>People saving for their future.</h2>

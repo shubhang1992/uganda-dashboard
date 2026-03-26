@@ -2,9 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { COUNTRY, getEntityById } from '../../data/mockData';
+import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './MetricsRow.module.css';
-
-const EASE = [0.16, 1, 0.3, 1];
 
 function getCurrentMetrics(level, selectedIds) {
   if (level === 'country') return COUNTRY.metrics;
@@ -64,7 +63,7 @@ function ChatCard() {
         <div className={styles.chatDot} />
         <span className={styles.chatTitle}>Data Assistant</span>
       </div>
-      <div className={styles.chatMessages} ref={listRef}>
+      <div className={styles.chatMessages} ref={listRef} aria-live="polite" aria-relevant="additions">
         {messages.map((m, i) => (
           <div key={i} className={styles.chatMsg} data-role={m.role}>
             <div className={styles.chatBubble} data-role={m.role}>{m.text}</div>
@@ -72,7 +71,7 @@ function ChatCard() {
         ))}
         {isTyping && (
           <div className={styles.chatMsg} data-role="assistant">
-            <div className={styles.chatBubble} data-role="assistant">
+            <div className={styles.chatBubble} data-role="assistant" aria-label="Typing">
               <span className={styles.typingDots}><span /><span /><span /></span>
             </div>
           </div>

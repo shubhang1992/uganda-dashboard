@@ -7,9 +7,8 @@ import DistributorSelect from './signin/DistributorSelect';
 import PhoneEntry from './signin/PhoneEntry';
 import OtpVerify from './signin/OtpVerify';
 import logo from '../assets/logo-white.png';
+import { EASE_OUT_EXPO as EASE } from '../utils/finance';
 import styles from './SignInModal.module.css';
-
-const EASE = [0.16, 1, 0.3, 1];
 
 const STEPS = ['role', 'distributor', 'phone', 'otp'];
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { EASE_OUT_EXPO } from '../utils/finance';
 import styles from './ForYou.module.css';
 
 const ROLES = [
@@ -68,7 +69,7 @@ export default function ForYou() {
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.7, ease: EASE_OUT_EXPO }}
         >
           <div className={styles.sectionTag}>Built for everyone</div>
           <h2 className={styles.heading}>
@@ -106,7 +107,7 @@ export default function ForYou() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
             role="tabpanel"
             aria-label={`${role.label} features`}
           >
@@ -123,7 +124,7 @@ export default function ForYou() {
                     className={styles.featureItem}
                     initial={{ opacity: 0, x: 16 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.07, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                    transition={{ delay: i * 0.07, duration: 0.5, ease: EASE_OUT_EXPO }}
                   >
                     <span className={styles.featureCheck} aria-hidden="true">
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

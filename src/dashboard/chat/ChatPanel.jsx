@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './ChatPanel.module.css';
-
-const EASE = [0.16, 1, 0.3, 1];
 
 const SUGGESTIONS = [
   'How many active subscribers do we have?',
@@ -115,7 +114,7 @@ export default function ChatPanel() {
             </div>
 
             {/* Messages */}
-            <div className={styles.messages} ref={listRef}>
+            <div className={styles.messages} ref={listRef} aria-live="polite" aria-relevant="additions">
               {messages.map((msg, i) => (
                 <div key={i} className={styles.msg} data-role={msg.role}>
                   <div className={styles.msgBubble} data-role={msg.role}>
@@ -125,7 +124,7 @@ export default function ChatPanel() {
               ))}
               {isTyping && (
                 <div className={styles.msg} data-role="assistant">
-                  <div className={styles.msgBubble} data-role="assistant">
+                  <div className={styles.msgBubble} data-role="assistant" aria-label="Typing">
                     <span className={styles.typingDots}>
                       <span /><span /><span />
                     </span>

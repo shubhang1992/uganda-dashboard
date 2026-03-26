@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, useScroll, useMotionValueEvent, AnimatePresence } from 'framer-motion';
+import { EASE_OUT_EXPO } from '../utils/finance';
 import styles from './StickyMobileCTA.module.css';
 
 export default function StickyMobileCTA() {
@@ -19,7 +20,7 @@ export default function StickyMobileCTA() {
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
-          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
         >
           <a href="#start" className={styles.cta}>Start saving today</a>
         </motion.div>

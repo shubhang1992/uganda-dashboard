@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
+import { EASE_OUT_EXPO } from '../utils/finance';
 import SavingsCalculator from './SavingsCalculator';
 import styles from './Hero.module.css';
 
@@ -69,7 +70,7 @@ export default function Hero() {
               className={styles.badge}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.6, delay: 0.2, ease: EASE_OUT_EXPO }}
             >
               <span className={styles.badgeDot} />
               Trusted pension platform · Uganda
@@ -79,7 +80,7 @@ export default function Hero() {
               className={styles.headline}
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.8, delay: 0.35, ease: EASE_OUT_EXPO }}
             >
               Your future is being
               <br />
@@ -90,7 +91,7 @@ export default function Hero() {
               className={styles.subtext}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.7, delay: 0.5, ease: EASE_OUT_EXPO }}
             >
               Start saving for retirement today — no matter your job, income, or background.
               Every contribution brings you closer to long-term security.
@@ -100,7 +101,7 @@ export default function Hero() {
               className={styles.ctaGroup}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.65, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.7, delay: 0.65, ease: EASE_OUT_EXPO }}
             >
               <a href="#start" className={styles.primaryCta}>Start saving today</a>
               <a href="#your-journey" className={styles.secondaryCta}>
@@ -115,7 +116,7 @@ export default function Hero() {
               className={styles.stats}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.7, delay: 0.8, ease: EASE_OUT_EXPO }}
             >
               <div className={styles.stat}>
                 <span className={styles.statNum}>120K+</span>
@@ -138,7 +139,7 @@ export default function Hero() {
             className={styles.right}
             initial={{ opacity: 0, x: 32, y: 8 }}
             animate={{ opacity: 1, x: 0, y: 0 }}
-            transition={{ duration: 0.9, delay: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.9, delay: 0.7, ease: EASE_OUT_EXPO }}
           >
             <SavingsCalculator />
           </motion.div>

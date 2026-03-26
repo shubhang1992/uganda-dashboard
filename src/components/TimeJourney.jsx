@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import styles from './TimeJourney.module.css';
-import { calcFV, formatUGX } from '../utils/finance';
+import { calcFV, formatUGX, EASE_OUT_EXPO as EASE } from '../utils/finance';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -9,7 +9,6 @@ const START_YEAR = 2025;
 const END_YEAR   = 2065;
 const PMT        = 5_000;
 const PTS        = 80;
-const EASE       = [0.16, 1, 0.3, 1];
 
 // ─── Life shelf items — what your savings can become ────────────────────────
 
@@ -315,11 +314,6 @@ export default function TimeJourney() {
       el.removeEventListener('touchmove', handleTouchMove);
     };
   }, [handleWheel, handleTouchMove]);
-
-  useEffect(() => {
-    return () => {
-    };
-  }, []);
 
   // Derived values
   const balance      = calcFV(PMT, progress * 40);

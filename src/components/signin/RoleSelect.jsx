@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { EASE_OUT_EXPO } from '../../utils/finance';
 import styles from './RoleSelect.module.css';
 
 const ROLES = [
@@ -52,7 +53,7 @@ const container = {
 
 const item = {
   hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE_OUT_EXPO } },
 };
 
 export default function RoleSelect({ onSelect }) {

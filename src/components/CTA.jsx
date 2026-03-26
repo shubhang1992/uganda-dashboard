@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { EASE_OUT_EXPO } from '../utils/finance';
 import styles from './CTA.module.css';
 
 export default function CTA() {
@@ -10,7 +11,7 @@ export default function CTA() {
           initial={{ opacity: 0, y: 32 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.8, ease: EASE_OUT_EXPO }}
         >
           <div className={styles.bg} aria-hidden="true">
             <div className={styles.orb1} />

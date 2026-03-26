@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { EASE_OUT_EXPO } from '../utils/finance';
 import styles from './HowItWorks.module.css';
 
 const STEPS = [
@@ -60,7 +61,7 @@ export default function HowItWorks() {
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.7, ease: EASE_OUT_EXPO }}
         >
           <div className={styles.sectionTag}>Built for Uganda</div>
           <h2 className={styles.heading}>
@@ -79,7 +80,7 @@ export default function HowItWorks() {
           initial={{ opacity: 0, y: 32, scale: 0.96 }}
           whileInView={{ opacity: 1, y: 0, scale: 1 }}
           viewport={{ once: true, margin: '-60px' }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.8, ease: EASE_OUT_EXPO }}
         >
           <div className={styles.grid}>
             {STEPS.map((step, i) => (
@@ -92,7 +93,7 @@ export default function HowItWorks() {
                 transition={{
                   delay: 0.15 + i * 0.1,
                   duration: 0.6,
-                  ease: [0.16, 1, 0.3, 1],
+                  ease: EASE_OUT_EXPO,
                 }}
               >
                 <div className={styles.cardTop}>

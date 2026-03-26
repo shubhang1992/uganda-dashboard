@@ -2,9 +2,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { COUNTRY, getChildEntities, getEntityById, formatUGX } from '../../data/mockData';
+import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './OverlayPanel.module.css';
-
-const EASE = [0.16, 1, 0.3, 1];
 const NEXT_LEVEL = { country: 'region', region: 'district', district: 'branch', branch: 'agent' };
 const LEVEL_LABELS = { region: 'Regions', district: 'Districts', branch: 'Branches', agent: 'Agents' };
 

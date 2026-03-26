@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './DistributorSelect.module.css';
 
 const SUB_ROLES = [
@@ -37,8 +38,6 @@ const SUB_ROLES = [
     ),
   },
 ];
-
-const EASE = [0.16, 1, 0.3, 1];
 
 const container = {
   hidden: {},
