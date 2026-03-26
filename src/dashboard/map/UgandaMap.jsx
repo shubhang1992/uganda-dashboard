@@ -1,14 +1,14 @@
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useMemo } from 'react';
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { DISTRICTS, BRANCHES, getChildEntities, getEntityById } from '../../data/mockData';
+import { DISTRICTS, BRANCHES, REGIONS, getChildEntities, getEntityById } from '../../data/mockData';
 import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './UgandaMap.module.css';
 const GEO_URL = '/uganda-topo.json';
 const NEXT_LEVEL = { country: 'region', region: 'district', district: 'branch', branch: 'agent' };
 
-// Brand-aligned region colors (indigo palette)
+// Region fill colors — more distinct
 const REGION_FILLS = {
   Central: 'rgba(94, 99, 168, 0.22)',
   Eastern: 'rgba(47, 143, 157, 0.2)',
@@ -17,9 +17,25 @@ const REGION_FILLS = {
 };
 
 const REGION_FILLS_HOVER = {
+  Central: 'rgba(94, 99, 168, 0.38)',
+  Eastern: 'rgba(47, 143, 157, 0.35)',
+  Northern: 'rgba(41, 40, 103, 0.32)',
+  Western: 'rgba(217, 220, 242, 0.65)',
+};
+
+// Dimmed fills when a region is selected
+const REGION_FILLS_DIM = {
+  Central: 'rgba(94, 99, 168, 0.08)',
+  Eastern: 'rgba(47, 143, 157, 0.07)',
+  Northern: 'rgba(41, 40, 103, 0.06)',
+  Western: 'rgba(217, 220, 242, 0.18)',
+};
+
+// Active (selected) region fills — brighter
+const REGION_FILLS_ACTIVE = {
   Central: 'rgba(94, 99, 168, 0.35)',
   Eastern: 'rgba(47, 143, 157, 0.32)',
-  Northern: 'rgba(41, 40, 103, 0.3)',
+  Northern: 'rgba(41, 40, 103, 0.28)',
   Western: 'rgba(217, 220, 242, 0.6)',
 };
 
@@ -31,6 +47,13 @@ const REGION_ZOOM = {
   'r-northern': { center: [32.3, 3.0], zoom: 2 },
   'r-western': { center: [30.3, -0.2], zoom: 2.5 },
 };
+
+// Map district names in GeoJSON to region IDs
+const DISTRICT_TO_REGION = {};
+Object.values(DISTRICTS).forEach((d) => {
+  const region = REGIONS[d.parentId];
+  if (region) DISTRICT_TO_REGION[d.name] = region.name;
+});
 
 function getStatusColor(rate) {
   if (rate >= 75) return 'var(--color-status-good)';
@@ -73,6 +96,17 @@ function MapDot({ coordinates, name, activeRate, size, onClick }) {
   );
 }
 
+// Region label rendered directly on the map
+function RegionLabel({ coordinates, name }) {
+  return (
+    <Marker coordinates={coordinates}>
+      <text textAnchor="middle" className={styles.regionLabel}>
+        {name}
+      </text>
+    </Marker>
+  );
+}
+
 function UgandaMap() {
   const { level, selectedIds, drillDown } = useDashboard();
   const [tooltip, setTooltip] = useState(null);
@@ -80,6 +114,16 @@ function UgandaMap() {
 
   const parentId = level === 'country' ? 'ug' : selectedIds[level];
   const children = nextLevel ? getChildEntities(level, parentId) : [];
+
+  // Current selected region name (for dimming others)
+  const selectedRegionName = useMemo(() => {
+    if (level === 'country') return null;
+    if (selectedIds.region) {
+      const r = REGIONS[selectedIds.region];
+      return r?.name || null;
+    }
+    return null;
+  }, [level, selectedIds]);
 
   // Compute zoom center and level based on drill state
   let zoomCenter = CENTER;
@@ -90,13 +134,13 @@ function UgandaMap() {
     if (cfg) { zoomCenter = cfg.center; zoomLevel = cfg.zoom; }
   } else if (level === 'district' && selectedIds.district) {
     const district = DISTRICTS[selectedIds.district];
-    if (district) { zoomCenter = district.center; zoomLevel = 5; }
+    if (district) { zoomCenter = district.center; zoomLevel = 6; }
   } else if (level === 'branch' && selectedIds.branch) {
     const branch = BRANCHES[selectedIds.branch];
-    if (branch) { zoomCenter = branch.center; zoomLevel = 8; }
+    if (branch) { zoomCenter = branch.center; zoomLevel = 10; }
   } else if (level === 'agent' && selectedIds.agent) {
     const agent = getEntityById('agent', selectedIds.agent);
-    if (agent?.center) { zoomCenter = agent.center; zoomLevel = 10; }
+    if (agent?.center) { zoomCenter = agent.center; zoomLevel = 14; }
   }
 
   const handleMouseEnter = useCallback((e, geo) => {
@@ -114,6 +158,20 @@ function UgandaMap() {
 
   const handleMouseLeave = useCallback(() => setTooltip(null), []);
 
+  // Get fill color for a geography based on drill state
+  const getGeoFill = useCallback((region) => {
+    if (!selectedRegionName) return REGION_FILLS[region] || 'rgba(200, 205, 220, 0.3)';
+    if (region === selectedRegionName) return REGION_FILLS_ACTIVE[region] || 'rgba(94, 99, 168, 0.35)';
+    return REGION_FILLS_DIM[region] || 'rgba(200, 205, 220, 0.1)';
+  }, [selectedRegionName]);
+
+  const getGeoHoverFill = useCallback((region) => {
+    if (selectedRegionName && region !== selectedRegionName) {
+      return REGION_FILLS_DIM[region] || 'rgba(200, 205, 220, 0.1)';
+    }
+    return REGION_FILLS_HOVER[region] || 'rgba(41, 40, 103, 0.2)';
+  }, [selectedRegionName]);
+
   return (
     <div className={styles.mapContainer}>
       <ComposableMap
@@ -130,15 +188,17 @@ function UgandaMap() {
           center={zoomCenter}
           zoom={zoomLevel}
           minZoom={0.8}
-          maxZoom={12}
-          translateExtent={[[0, -100], [800, 900]]}
+          maxZoom={16}
+          translateExtent={[[-100, -200], [900, 1000]]}
         >
           <Geographies geography={GEO_URL}>
             {({ geographies }) =>
               geographies.map((geo) => {
                 const region = geo.properties?.region;
-                const fillColor = REGION_FILLS[region] || 'rgba(200, 205, 220, 0.3)';
-                const hoverColor = REGION_FILLS_HOVER[region] || 'rgba(41, 40, 103, 0.2)';
+                const fillColor = getGeoFill(region);
+                const hoverColor = getGeoHoverFill(region);
+                const isActive = region === selectedRegionName;
+                const isDimmed = selectedRegionName && !isActive;
 
                 return (
                   <Geography
@@ -146,9 +206,11 @@ function UgandaMap() {
                     geography={geo}
                     className={styles.geography}
                     fill={fillColor}
+                    stroke={isActive ? 'rgba(41, 40, 103, 0.35)' : isDimmed ? 'rgba(41, 40, 103, 0.08)' : 'rgba(41, 40, 103, 0.2)'}
+                    strokeWidth={isActive ? 0.8 : 0.4}
                     style={{
                       default: { outline: 'none', fill: fillColor },
-                      hover: { outline: 'none', fill: hoverColor, strokeWidth: 1.2 },
+                      hover: { outline: 'none', fill: hoverColor, strokeWidth: isDimmed ? 0.4 : 1 },
                       pressed: { outline: 'none', fill: hoverColor },
                     }}
                     onMouseEnter={(e) => handleMouseEnter(e, geo)}
@@ -159,6 +221,11 @@ function UgandaMap() {
               })
             }
           </Geographies>
+
+          {/* Region labels — only at country level */}
+          {level === 'country' && Object.values(REGIONS).map((r) => (
+            <RegionLabel key={r.id} coordinates={r.center} name={r.name} />
+          ))}
 
           <AnimatePresence>
             {children.map((child) => (
