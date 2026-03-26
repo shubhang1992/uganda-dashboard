@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../utils/finance';
 import { DashboardProvider } from '../contexts/DashboardContext';
 import { useApp } from '../contexts/AppContext';
+import logo from '../assets/logo.png';
 import Sidebar from './sidebar/Sidebar';
 import UgandaMap from './map/UgandaMap';
 import OverlayPanel from './overlay/OverlayPanel';
@@ -24,12 +25,7 @@ function MobileHeader({ onMenuToggle, menuOpen }) {
   return (
     <div className={styles.mobileHeader}>
       <div className={styles.mobileHeaderLeft}>
-        <svg viewBox="0 0 24 24" fill="none" width="22" height="22" className={styles.mobileHeaderLogo}>
-          <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
-          <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        <span className={styles.mobileHeaderTitle}>Overview</span>
+        <img src={logo} alt="Universal Pensions" className={styles.mobileHeaderLogo} />
       </div>
       <button
         className={styles.hamburger}

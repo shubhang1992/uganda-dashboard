@@ -131,7 +131,7 @@ export default function OverlayPanel() {
       </div>
 
       {/* Activity — active vs inactive subscribers */}
-      <CollapsibleSection title="Activity" defaultOpen={true}>
+      <CollapsibleSection title="Activity" defaultOpen={false}>
         <div className={styles.activityContent}>
           <div className={styles.activeBarRow}>
             <div className={styles.barTrackLg}>
@@ -152,7 +152,7 @@ export default function OverlayPanel() {
 
       {/* Region/child list */}
       {children.length > 0 && nextLevel && (
-        <CollapsibleSection title={LEVEL_LABELS[nextLevel] || 'Items'} count={children.length} defaultOpen={true}>
+        <CollapsibleSection title={LEVEL_LABELS[nextLevel] || 'Items'} count={children.length} defaultOpen={false}>
           <div className={styles.entityList}>
             {children.map((child) => {
               const active = child.metrics?.activeRate || 80;
