@@ -295,12 +295,10 @@
     position: relative;
     top: auto;
     left: auto;
-    width: 100%;
+    width: auto;
     max-height: none;
-    border-radius: 0;
-    border: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow: none;
-    padding: 1rem var(--space-4);
+    margin: var(--space-3) var(--space-4) 0;
+    border-radius: var(--radius-xl);
+    padding: 1.25rem;
   }
 }

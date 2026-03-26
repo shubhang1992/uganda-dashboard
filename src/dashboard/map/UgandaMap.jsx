@@ -191,6 +191,16 @@ function UgandaMap() {
           <span className={styles.tooltipRegion}>{tooltip.region} Region</span>
         </div>
       )}
+
+      {level === 'country' && (
+        <div className={styles.tapHint}>
+          <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25"/>
+            <path d="M8 5.5v5M5.5 8h5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+          </svg>
+          Tap a region to explore
+        </div>
+      )}
     </div>
   );
 }

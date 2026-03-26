@@ -31,17 +31,5 @@
 }
 
 @media (max-width: 768px) {
-  .topBar {
-    position: relative;
-    top: auto;
-    right: auto;
-    padding: 0.5rem var(--space-4);
-    justify-content: flex-end;
-    background: rgba(255, 255, 255, 0.3);
-  }
-
-  .btn {
-    font-size: 11px;
-    padding: 0.4rem 0.75rem;
-  }
+  .topBar { display: none; }
 }

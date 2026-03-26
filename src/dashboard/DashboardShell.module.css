@@ -21,11 +21,9 @@
   }
 
   .main {
-    height: auto;
-    min-height: 0;
+    height: 100vh;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: var(--space-4);
   }
 }
