@@ -23,6 +23,15 @@
   cursor: pointer;
 }
 
+.mapDot {
+  outline: none;
+}
+
+.mapDot:focus-visible circle:nth-child(3) {
+  stroke: white;
+  stroke-width: 1;
+}
+
 .dotLabel {
   font-family: var(--font-body);
   font-size: 3px;

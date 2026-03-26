@@ -52,7 +52,8 @@ function MapDot({ coordinates, name, activeRate, size, onClick }) {
         tabIndex={onClick ? 0 : undefined}
         role={onClick ? 'button' : undefined}
         aria-label={`${name}, ${activeRate}% active`}
-        style={{ cursor: onClick ? 'pointer' : 'default' }}
+        style={{ cursor: onClick ? 'pointer' : 'default', outline: 'none' }}
+        className={styles.mapDot}
       >
         <motion.circle
           r={size * 3}
