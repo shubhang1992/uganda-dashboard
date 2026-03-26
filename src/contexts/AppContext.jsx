@@ -2,13 +2,19 @@ import { createContext, useContext, useState } from 'react';
 
 const AppContext = createContext();
 
+const DASHBOARD_ROLES = ['distributor'];
+
 export function AppProvider({ children }) {
   const [view, setView] = useState('landing'); // 'landing' | 'dashboard'
   const [role, setRole] = useState(null);
 
   function enterDashboard(selectedRole) {
     setRole(selectedRole);
-    setView('dashboard');
+    if (DASHBOARD_ROLES.includes(selectedRole)) {
+      setView('dashboard');
+    } else {
+      setView('coming-soon');
+    }
   }
 
   function exitDashboard() {
