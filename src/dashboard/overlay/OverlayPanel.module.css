@@ -1,6 +1,6 @@
 .panel {
   position: absolute;
-  top: var(--space-6);
+  top: calc(var(--space-6) + 2.5rem);
   left: var(--space-6);
   width: 310px;
   z-index: 15;
