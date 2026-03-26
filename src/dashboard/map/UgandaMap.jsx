@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
@@ -9,18 +9,19 @@ const EASE = [0.16, 1, 0.3, 1];
 const GEO_URL = '/uganda-topo.json';
 const NEXT_LEVEL = { country: 'region', region: 'district', district: 'branch', branch: 'agent' };
 
-const REGION_COLORS = {
-  Central: 'rgba(46, 139, 87, 0.2)',
-  Eastern: 'rgba(230, 168, 23, 0.2)',
-  Northern: 'rgba(94, 99, 168, 0.25)',
-  Western: 'rgba(220, 100, 120, 0.2)',
+// Subtle, muted region fills — like the reference dashboard
+const REGION_FILLS = {
+  Central: '#c8d4c8',
+  Eastern: '#d9d4b8',
+  Northern: '#c4c8d8',
+  Western: '#d4c4c8',
 };
 
-const REGION_COLORS_HOVER = {
-  Central: 'rgba(46, 139, 87, 0.35)',
-  Eastern: 'rgba(230, 168, 23, 0.35)',
-  Northern: 'rgba(94, 99, 168, 0.4)',
-  Western: 'rgba(220, 100, 120, 0.35)',
+const REGION_FILLS_HOVER = {
+  Central: '#b0c4b0',
+  Eastern: '#c8c4a0',
+  Northern: '#b0b4c8',
+  Western: '#c4b0b8',
 };
 
 const ZOOM_CONFIGS = {
@@ -35,9 +36,9 @@ const REGION_ZOOM = {
 };
 
 function getStatusColor(rate) {
-  if (rate >= 75) return 'var(--color-status-good)';
-  if (rate >= 50) return 'var(--color-status-warning)';
-  return 'var(--color-status-poor)';
+  if (rate >= 75) return '#2E8B57';
+  if (rate >= 50) return '#E6A817';
+  return '#DC3545';
 }
 
 function MapDot({ coordinates, name, activeRate, size, onClick }) {
@@ -52,25 +53,43 @@ function MapDot({ coordinates, name, activeRate, size, onClick }) {
         onClick={onClick}
         style={{ cursor: onClick ? 'pointer' : 'default' }}
       >
+        {/* Outer glow */}
         <motion.circle
-          r={size * 2.5}
+          r={size * 3}
           fill={color}
-          opacity={0.15}
-          animate={{ r: [size * 2, size * 3, size * 2], opacity: [0.15, 0.08, 0.15] }}
+          opacity={0.12}
+          animate={{ r: [size * 2.5, size * 3.5, size * 2.5], opacity: [0.12, 0.06, 0.12] }}
           transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
         />
-        <circle r={size} fill={color} opacity={0.9} />
-        <circle r={size * 0.4} fill="white" opacity={0.6} />
+        {/* Mid glow */}
+        <circle r={size * 1.8} fill={color} opacity={0.2} />
+        {/* Core */}
+        <circle r={size} fill={color} opacity={0.85} />
+        {/* Bright center */}
+        <circle r={size * 0.35} fill="white" opacity={0.7} />
       </motion.g>
-      <text textAnchor="middle" y={-size - 6} className={styles.dotLabel}>
+      <text textAnchor="middle" y={-size - 8} className={styles.dotLabel}>
         {name}
       </text>
     </Marker>
   );
 }
 
+function MapTooltip({ x, y, name, region }) {
+  return (
+    <div
+      className={styles.tooltip}
+      style={{ left: x, top: y }}
+    >
+      <span className={styles.tooltipName}>{name}</span>
+      <span className={styles.tooltipRegion}>{region}</span>
+    </div>
+  );
+}
+
 function UgandaMap() {
   const { level, selectedIds, drillDown } = useDashboard();
+  const [tooltip, setTooltip] = useState(null);
   const nextLevel = NEXT_LEVEL[level];
 
   const parentId = level === 'country' ? 'ug' : selectedIds[level];
@@ -106,8 +125,9 @@ function UgandaMap() {
           {({ geographies }) =>
             geographies.map((geo) => {
               const region = geo.properties?.region;
-              const fillColor = REGION_COLORS[region] || 'rgba(217, 220, 242, 0.3)';
-              const hoverColor = REGION_COLORS_HOVER[region] || 'rgba(41, 40, 103, 0.15)';
+              const districtName = geo.properties?.name;
+              const fillColor = REGION_FILLS[region] || '#ccd0dc';
+              const hoverColor = REGION_FILLS_HOVER[region] || '#b8bcc8';
 
               return (
                 <Geography
@@ -117,9 +137,23 @@ function UgandaMap() {
                   fill={fillColor}
                   style={{
                     default: { outline: 'none', fill: fillColor },
-                    hover: { outline: 'none', fill: hoverColor },
-                    pressed: { outline: 'none' },
+                    hover: { outline: 'none', fill: hoverColor, strokeWidth: 1 },
+                    pressed: { outline: 'none', fill: hoverColor },
                   }}
+                  onMouseEnter={(e) => {
+                    setTooltip({
+                      x: e.clientX,
+                      y: e.clientY,
+                      name: districtName,
+                      region: region,
+                    });
+                  }}
+                  onMouseMove={(e) => {
+                    setTooltip((prev) =>
+                      prev ? { ...prev, x: e.clientX, y: e.clientY } : null
+                    );
+                  }}
+                  onMouseLeave={() => setTooltip(null)}
                 />
               );
             })
@@ -139,6 +173,16 @@ function UgandaMap() {
           ))}
         </AnimatePresence>
       </ComposableMap>
+
+      {/* Floating tooltip */}
+      {tooltip && (
+        <MapTooltip
+          x={tooltip.x}
+          y={tooltip.y}
+          name={tooltip.name}
+          region={tooltip.region}
+        />
+      )}
     </div>
   );
 }
