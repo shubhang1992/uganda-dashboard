@@ -521,15 +521,14 @@
     transform: none;
   }
 
-  /* ── Chat as hero — first item, prominent ── */
+  /* ── Chat as hero — first item, branded ── */
   .chatCard {
     min-height: auto;
     border-radius: var(--radius-xl);
     order: -1;
-    border: 1.5px solid rgba(41, 40, 103, 0.08);
-    box-shadow:
-      0 8px 32px rgba(41, 40, 103, 0.08),
-      0 1px 0 rgba(255, 255, 255, 0.5) inset;
+    background: var(--color-indigo-deep);
+    border: none;
+    box-shadow: 0 8px 32px rgba(27, 26, 74, 0.25);
   }
 
   .chatCard:hover {
@@ -538,17 +537,19 @@
 
   .chatHeader {
     padding: 1rem 1.125rem;
-    border-bottom: 1px solid rgba(41, 40, 103, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .chatDot {
     width: 8px;
     height: 8px;
+    box-shadow: 0 0 8px rgba(46, 139, 87, 0.6);
   }
 
   .chatTitle {
     font-size: var(--text-sm);
     font-weight: 800;
+    color: var(--color-white);
   }
 
   .chatMessages {
@@ -565,6 +566,16 @@
     border-radius: var(--radius-md);
   }
 
+  .chatBubble[data-role='assistant'] {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(217, 220, 242, 0.9);
+  }
+
+  .chatBubble[data-role='user'] {
+    background: var(--color-teal);
+    color: var(--color-white);
+  }
+
   .chatSuggestions {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -578,23 +589,30 @@
     white-space: normal;
     text-align: left;
     border-radius: var(--radius-md);
-    background: rgba(41, 40, 103, 0.03);
-    border: 1px solid rgba(41, 40, 103, 0.08);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(217, 220, 242, 0.8);
   }
 
   .chatInput {
     padding: 0.75rem 1.125rem;
-    border-top: 1px solid rgba(41, 40, 103, 0.06);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .chatField {
     font-size: var(--text-sm);
     padding: 0.375rem 0;
+    color: var(--color-white);
+  }
+
+  .chatField::placeholder {
+    color: rgba(217, 220, 242, 0.4);
   }
 
   .chatSend {
     width: 36px;
     height: 36px;
+    background: var(--color-teal);
   }
 
   /* ── Demographics fix ── */
