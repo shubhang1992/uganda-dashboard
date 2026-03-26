@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { COUNTRY, getChildEntities, getEntityById, formatUGX } from '../../data/mockData';
@@ -17,6 +18,46 @@ function getCurrentMetrics(level, selectedIds) {
 function getCurrentParentId(level, selectedIds) {
   if (level === 'country') return 'ug';
   return selectedIds[level];
+}
+
+function ChevronIcon({ expanded }) {
+  return (
+    <svg
+      width="14" height="14" viewBox="0 0 14 14" fill="none"
+      className={styles.chevron}
+      data-expanded={expanded}
+    >
+      <path d="M4 5.5l3 3 3-3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function CollapsibleSection({ title, count, defaultOpen, children }) {
+  const [open, setOpen] = useState(defaultOpen ?? true);
+  return (
+    <div className={styles.section}>
+      <button className={styles.sectionHeader} onClick={() => setOpen(!open)}>
+        <span className={styles.sectionTitle}>{title}</span>
+        <div className={styles.sectionRight}>
+          {count != null && <span className={styles.sectionCount}>{count}</span>}
+          <ChevronIcon expanded={open} />
+        </div>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: EASE }}
+            className={styles.sectionBody}
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
 
 function StatusBar({ label, value, segments }) {
@@ -49,98 +90,68 @@ export default function OverlayPanel() {
     >
       {level === 'country' && <h2 className={styles.greeting}>Hi Admin</h2>}
 
-      {/* Primary KPIs — Widget Data */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={level + parentId}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.25 }}
-        >
-          {/* Row 1: AUM + Coverage */}
-          <div className={styles.kpiRow}>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValue}>{formatUGX(metrics.aum || metrics.totalContributions)}</span>
-              <span className={styles.kpiLabel}>Assets Under Mgmt</span>
-            </div>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValue}>{metrics.coverageRate || 0}%</span>
-              <span className={styles.kpiLabel}>Coverage Rate</span>
-            </div>
+      {/* Top KPIs — always visible, compact */}
+      <div className={styles.topKpis}>
+        <div className={styles.kpiPrimary}>
+          <span className={styles.kpiValueLg}>{formatUGX(metrics.aum || metrics.totalContributions)}</span>
+          <span className={styles.kpiLabel}>Assets Under Management</span>
+        </div>
+        <div className={styles.kpiRow}>
+          <div className={styles.kpiMini}>
+            <span className={styles.kpiNum}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
+            <span className={styles.kpiLabel}>Subscribers</span>
           </div>
-
-          {/* Row 2: Contributions + Withdrawals */}
-          <div className={styles.kpiRow}>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValueSm}>{formatUGX(metrics.totalContributions)}</span>
-              <span className={styles.kpiLabel}>Total Contributions</span>
-            </div>
-            <div className={styles.kpi}>
-              <span className={styles.kpiValueSm}>{formatUGX(metrics.totalWithdrawals)}</span>
-              <span className={styles.kpiLabel}>Total Withdrawals</span>
-            </div>
+          <div className={styles.kpiMini}>
+            <span className={styles.kpiNum}>{metrics.totalAgents ?? 0}</span>
+            <span className={styles.kpiLabel}>Agents</span>
           </div>
-
-          {/* Row 3: Entity counts */}
-          <div className={styles.countRow}>
-            <button className={styles.countBtn}>
-              <span className={styles.countNum}>{metrics.totalBranches ?? Object.keys(children).length}</span>
-              <span className={styles.countLabel}>Branches</span>
-            </button>
-            <button className={styles.countBtn}>
-              <span className={styles.countNum}>{metrics.totalAgents ?? 0}</span>
-              <span className={styles.countLabel}>Agents</span>
-            </button>
-            <button className={styles.countBtn}>
-              <span className={styles.countNum}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
-              <span className={styles.countLabel}>Subscribers</span>
-            </button>
+          <div className={styles.kpiMini}>
+            <span className={styles.kpiNum}>{metrics.coverageRate || 0}%</span>
+            <span className={styles.kpiLabel}>Coverage</span>
           </div>
+        </div>
+      </div>
 
-          {/* Active vs Inactive */}
-          {metrics.activeRate != null && (
-            <div className={styles.activeBar}>
-              <div className={styles.activeBarHeader}>
-                <span className={styles.kpiLabel}>Active vs Inactive</span>
-                <span className={styles.activeBarPct}>{metrics.activeRate}% active</span>
-              </div>
-              <div className={styles.barTrack}>
-                <div className={styles.barSegment} style={{ width: `${metrics.activeRate}%`, background: 'var(--color-status-good)' }} />
-                <div className={styles.barSegment} style={{ width: `${100 - metrics.activeRate}%`, background: 'var(--color-lavender)' }} />
-              </div>
-            </div>
-          )}
+      {/* Collapsible: Financial Summary */}
+      <CollapsibleSection title="Financials" defaultOpen={false}>
+        <div className={styles.detailGrid}>
+          <div className={styles.detailItem}>
+            <span className={styles.detailValue}>{formatUGX(metrics.totalContributions)}</span>
+            <span className={styles.detailLabel}>Total Contributions</span>
+          </div>
+          <div className={styles.detailItem}>
+            <span className={styles.detailValue}>{formatUGX(metrics.totalWithdrawals)}</span>
+            <span className={styles.detailLabel}>Total Withdrawals</span>
+          </div>
+          <div className={styles.detailItem}>
+            <span className={styles.detailValue}>{metrics.totalBranches ?? 0}</span>
+            <span className={styles.detailLabel}>Branches</span>
+          </div>
+          <div className={styles.detailItem}>
+            <span className={styles.detailValue}>{metrics.complaintsCount ?? 0}</span>
+            <span className={styles.detailLabel}>Complaints</span>
+          </div>
+        </div>
+      </CollapsibleSection>
 
-          {/* Complaints */}
-          {metrics.complaintsCount != null && (
-            <div className={styles.complaintRow}>
-              <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
-                <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M10 6v5M10 13.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              <span className={styles.complaintNum}>{metrics.complaintsCount}</span>
-              <span className={styles.kpiLabel}>Complaints</span>
-            </div>
-          )}
-        </motion.div>
-      </AnimatePresence>
+      {/* Collapsible: Active vs Inactive */}
+      <CollapsibleSection title="Activity" defaultOpen={true}>
+        <div className={styles.activityContent}>
+          <div className={styles.activeBarHeader}>
+            <span className={styles.activeLabel}>{metrics.activeRate}% active</span>
+            <span className={styles.inactiveLabel}>{100 - metrics.activeRate}% inactive</span>
+          </div>
+          <div className={styles.barTrackLg}>
+            <div className={styles.barSegment} style={{ width: `${metrics.activeRate}%`, background: 'var(--color-status-good)' }} />
+            <div className={styles.barSegment} style={{ width: `${100 - metrics.activeRate}%`, background: 'var(--color-lavender)' }} />
+          </div>
+        </div>
+      </CollapsibleSection>
 
-      {/* Child entity status bars */}
+      {/* Collapsible: Region/child entity list */}
       {children.length > 0 && nextLevel && (
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={'list-' + level + parentId}
-            className={styles.entityList}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3, ease: EASE }}
-          >
-            <div className={styles.listHeader}>
-              <span className={styles.listTitle}>{LEVEL_LABELS[nextLevel] || 'Items'}</span>
-              <span className={styles.listCount}>{children.length}</span>
-            </div>
+        <CollapsibleSection title={LEVEL_LABELS[nextLevel] || 'Items'} count={children.length} defaultOpen={true}>
+          <div className={styles.entityList}>
             {children.map((child) => {
               const active = child.metrics?.activeRate || 80;
               const warning = Math.min(100 - active, 15);
@@ -159,8 +170,8 @@ export default function OverlayPanel() {
                 </button>
               );
             })}
-          </motion.div>
-        </AnimatePresence>
+          </div>
+        </CollapsibleSection>
       )}
     </motion.div>
   );

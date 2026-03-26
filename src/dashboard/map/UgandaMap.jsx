@@ -1,5 +1,5 @@
-import { memo, useState } from 'react';
-import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps';
+import { memo, useState, useCallback } from 'react';
+import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { DISTRICTS, BRANCHES, getChildEntities, getEntityById } from '../../data/mockData';
@@ -9,30 +9,28 @@ const EASE = [0.16, 1, 0.3, 1];
 const GEO_URL = '/uganda-topo.json';
 const NEXT_LEVEL = { country: 'region', region: 'district', district: 'branch', branch: 'agent' };
 
-// Subtle, muted region fills — like the reference dashboard
+// Brand-aligned region colors (indigo palette)
 const REGION_FILLS = {
-  Central: '#c8d4c8',
-  Eastern: '#d9d4b8',
-  Northern: '#c4c8d8',
-  Western: '#d4c4c8',
+  Central: 'rgba(94, 99, 168, 0.22)',
+  Eastern: 'rgba(47, 143, 157, 0.2)',
+  Northern: 'rgba(41, 40, 103, 0.18)',
+  Western: 'rgba(217, 220, 242, 0.45)',
 };
 
 const REGION_FILLS_HOVER = {
-  Central: '#b0c4b0',
-  Eastern: '#c8c4a0',
-  Northern: '#b0b4c8',
-  Western: '#c4b0b8',
+  Central: 'rgba(94, 99, 168, 0.35)',
+  Eastern: 'rgba(47, 143, 157, 0.32)',
+  Northern: 'rgba(41, 40, 103, 0.3)',
+  Western: 'rgba(217, 220, 242, 0.6)',
 };
 
-const ZOOM_CONFIGS = {
-  country: { center: [32.3, 1.4], zoom: 3800 },
-};
+const CENTER = [32.3, 1.3];
 
 const REGION_ZOOM = {
-  'r-central': { center: [32.2, 0.2], zoom: 12000 },
-  'r-eastern': { center: [33.8, 1.2], zoom: 9000 },
-  'r-northern': { center: [32.3, 3.0], zoom: 6500 },
-  'r-western': { center: [30.3, -0.2], zoom: 9000 },
+  'r-central': { center: [32.2, 0.2], zoom: 3 },
+  'r-eastern': { center: [33.8, 1.2], zoom: 2.5 },
+  'r-northern': { center: [32.3, 3.0], zoom: 2 },
+  'r-western': { center: [30.3, -0.2], zoom: 2.5 },
 };
 
 function getStatusColor(rate) {
@@ -50,10 +48,9 @@ function MapDot({ coordinates, name, activeRate, size, onClick }) {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0, opacity: 0 }}
         transition={{ duration: 0.4, ease: EASE }}
-        onClick={onClick}
+        onClick={(e) => { e.stopPropagation(); onClick?.(); }}
         style={{ cursor: onClick ? 'pointer' : 'default' }}
       >
-        {/* Outer glow */}
         <motion.circle
           r={size * 3}
           fill={color}
@@ -61,29 +58,14 @@ function MapDot({ coordinates, name, activeRate, size, onClick }) {
           animate={{ r: [size * 2.5, size * 3.5, size * 2.5], opacity: [0.12, 0.06, 0.12] }}
           transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
         />
-        {/* Mid glow */}
         <circle r={size * 1.8} fill={color} opacity={0.2} />
-        {/* Core */}
         <circle r={size} fill={color} opacity={0.85} />
-        {/* Bright center */}
         <circle r={size * 0.35} fill="white" opacity={0.7} />
       </motion.g>
-      <text textAnchor="middle" y={-size - 8} className={styles.dotLabel}>
+      <text textAnchor="middle" y={-size - 6} className={styles.dotLabel}>
         {name}
       </text>
     </Marker>
-  );
-}
-
-function MapTooltip({ x, y, name, region }) {
-  return (
-    <div
-      className={styles.tooltip}
-      style={{ left: x, top: y }}
-    >
-      <span className={styles.tooltipName}>{name}</span>
-      <span className={styles.tooltipRegion}>{region}</span>
-    </div>
   );
 }
 
@@ -95,93 +77,116 @@ function UgandaMap() {
   const parentId = level === 'country' ? 'ug' : selectedIds[level];
   const children = nextLevel ? getChildEntities(level, parentId) : [];
 
-  let mapConfig = ZOOM_CONFIGS.country;
+  // Compute zoom center and level based on drill state
+  let zoomCenter = CENTER;
+  let zoomLevel = 1;
+
   if (level === 'region' && selectedIds.region) {
-    mapConfig = REGION_ZOOM[selectedIds.region] || ZOOM_CONFIGS.country;
+    const cfg = REGION_ZOOM[selectedIds.region];
+    if (cfg) { zoomCenter = cfg.center; zoomLevel = cfg.zoom; }
   } else if (level === 'district' && selectedIds.district) {
     const district = DISTRICTS[selectedIds.district];
-    if (district) mapConfig = { center: district.center, zoom: 20000 };
+    if (district) { zoomCenter = district.center; zoomLevel = 5; }
   } else if (level === 'branch' && selectedIds.branch) {
     const branch = BRANCHES[selectedIds.branch];
-    if (branch) mapConfig = { center: branch.center, zoom: 40000 };
+    if (branch) { zoomCenter = branch.center; zoomLevel = 8; }
   } else if (level === 'agent' && selectedIds.agent) {
     const agent = getEntityById('agent', selectedIds.agent);
-    if (agent?.center) mapConfig = { center: agent.center, zoom: 50000 };
+    if (agent?.center) { zoomCenter = agent.center; zoomLevel = 10; }
   }
+
+  const handleMouseEnter = useCallback((e, geo) => {
+    setTooltip({
+      x: e.clientX,
+      y: e.clientY,
+      name: geo.properties?.name,
+      region: geo.properties?.region,
+    });
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    setTooltip((prev) => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => setTooltip(null), []);
 
   return (
     <div className={styles.mapContainer}>
       <ComposableMap
         projection="geoMercator"
         projectionConfig={{
-          center: mapConfig.center,
-          scale: mapConfig.zoom,
+          center: CENTER,
+          scale: 5500,
         }}
         className={styles.map}
         width={800}
-        height={700}
+        height={800}
       >
-        <Geographies geography={GEO_URL}>
-          {({ geographies }) =>
-            geographies.map((geo) => {
-              const region = geo.properties?.region;
-              const districtName = geo.properties?.name;
-              const fillColor = REGION_FILLS[region] || '#ccd0dc';
-              const hoverColor = REGION_FILLS_HOVER[region] || '#b8bcc8';
+        <ZoomableGroup
+          center={zoomCenter}
+          zoom={zoomLevel}
+          minZoom={0.8}
+          maxZoom={12}
+          translateExtent={[[0, -100], [800, 900]]}
+        >
+          <Geographies geography={GEO_URL}>
+            {({ geographies }) =>
+              geographies.map((geo) => {
+                const region = geo.properties?.region;
+                const fillColor = REGION_FILLS[region] || 'rgba(200, 205, 220, 0.3)';
+                const hoverColor = REGION_FILLS_HOVER[region] || 'rgba(41, 40, 103, 0.2)';
 
-              return (
-                <Geography
-                  key={geo.rsmKey}
-                  geography={geo}
-                  className={styles.geography}
-                  fill={fillColor}
-                  style={{
-                    default: { outline: 'none', fill: fillColor },
-                    hover: { outline: 'none', fill: hoverColor, strokeWidth: 1 },
-                    pressed: { outline: 'none', fill: hoverColor },
-                  }}
-                  onMouseEnter={(e) => {
-                    setTooltip({
-                      x: e.clientX,
-                      y: e.clientY,
-                      name: districtName,
-                      region: region,
-                    });
-                  }}
-                  onMouseMove={(e) => {
-                    setTooltip((prev) =>
-                      prev ? { ...prev, x: e.clientX, y: e.clientY } : null
-                    );
-                  }}
-                  onMouseLeave={() => setTooltip(null)}
-                />
-              );
-            })
-          }
-        </Geographies>
+                return (
+                  <Geography
+                    key={geo.rsmKey}
+                    geography={geo}
+                    className={styles.geography}
+                    fill={fillColor}
+                    style={{
+                      default: { outline: 'none', fill: fillColor },
+                      hover: { outline: 'none', fill: hoverColor, strokeWidth: 1.2 },
+                      pressed: { outline: 'none', fill: hoverColor },
+                    }}
+                    onMouseEnter={(e) => handleMouseEnter(e, geo)}
+                    onMouseMove={handleMouseMove}
+                    onMouseLeave={handleMouseLeave}
+                  />
+                );
+              })
+            }
+          </Geographies>
 
-        <AnimatePresence>
-          {children.map((child) => (
-            <MapDot
-              key={child.id}
-              coordinates={child.center}
-              name={child.name}
-              activeRate={child.metrics?.activeRate || 80}
-              size={level === 'country' ? 6 : level === 'region' ? 5 : 4}
-              onClick={nextLevel ? () => drillDown(nextLevel, child.id) : undefined}
-            />
-          ))}
-        </AnimatePresence>
+          <AnimatePresence>
+            {children.map((child) => (
+              <MapDot
+                key={child.id}
+                coordinates={child.center}
+                name={child.name}
+                activeRate={child.metrics?.activeRate || 80}
+                size={level === 'country' ? 4 : level === 'region' ? 3 : 2}
+                onClick={nextLevel ? () => drillDown(nextLevel, child.id) : undefined}
+              />
+            ))}
+          </AnimatePresence>
+        </ZoomableGroup>
       </ComposableMap>
 
-      {/* Floating tooltip */}
+      {/* Zoom controls */}
+      <div className={styles.zoomControls}>
+        <button className={styles.zoomBtn} title="Zoom functionality is via scroll wheel & drag">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
+            <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M13.5 13.5L17 17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M9 6.5v5M6.5 9h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
+      </div>
+
       {tooltip && (
-        <MapTooltip
-          x={tooltip.x}
-          y={tooltip.y}
-          name={tooltip.name}
-          region={tooltip.region}
-        />
+        <div className={styles.tooltip} style={{ left: tooltip.x, top: tooltip.y }}>
+          <span className={styles.tooltipName}>{tooltip.name}</span>
+          <span className={styles.tooltipRegion}>{tooltip.region} Region</span>
+        </div>
       )}
     </div>
   );

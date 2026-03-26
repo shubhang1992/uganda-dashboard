@@ -3,28 +3,65 @@
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  background: #d5dae6;
+  background: linear-gradient(135deg, #dde1ed 0%, #cdd2e0 50%, #c8ceda 100%);
 }
 
 .map {
   width: 100%;
   height: 100%;
+  cursor: grab;
+}
+
+.map:active {
+  cursor: grabbing;
 }
 
 .geography {
-  stroke: rgba(41, 40, 103, 0.18);
-  stroke-width: 0.5;
-  transition: fill 0.25s ease, stroke-width 0.2s ease;
+  stroke: rgba(41, 40, 103, 0.2);
+  stroke-width: 0.4;
+  transition: fill 0.2s ease;
   cursor: pointer;
 }
 
 .dotLabel {
   font-family: var(--font-body);
-  font-size: 3.5px;
+  font-size: 3px;
   font-weight: 600;
   fill: var(--color-slate);
   pointer-events: none;
-  opacity: 0.8;
+  opacity: 0.85;
+}
+
+/* Zoom controls */
+.zoomControls {
+  position: absolute;
+  bottom: 14rem;
+  right: var(--space-4);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.zoomBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-md);
+  color: var(--color-slate);
+  box-shadow: 0 2px 8px rgba(41, 40, 103, 0.06);
+  transition: all 0.2s ease;
+}
+
+.zoomBtn:hover {
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--color-indigo);
 }
 
 /* Floating tooltip */
@@ -32,13 +69,13 @@
   position: fixed;
   z-index: 100;
   pointer-events: none;
-  transform: translate(12px, -50%);
-  background: rgba(27, 26, 74, 0.9);
+  transform: translate(14px, -50%);
+  background: rgba(27, 26, 74, 0.92);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 0.875rem;
   border-radius: var(--radius-sm);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
