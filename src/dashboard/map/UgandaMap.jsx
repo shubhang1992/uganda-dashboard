@@ -2,11 +2,11 @@ import { memo, useState, useCallback, useMemo } from 'react';
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { DISTRICTS, BRANCHES, REGIONS, getChildEntities, getEntityById } from '../../data/mockData';
+import { DISTRICTS, BRANCHES, REGIONS, getChildEntities } from '../../data/mockData';
 import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './UgandaMap.module.css';
 const GEO_URL = '/uganda-topo.json';
-const NEXT_LEVEL = { country: 'region', region: 'district', district: 'branch', branch: 'agent' };
+const NEXT_LEVEL = { country: 'region', region: 'district', district: 'branch' };
 
 // Region fill colors — more distinct
 const REGION_FILLS = {
@@ -125,6 +125,16 @@ function UgandaMap() {
     return null;
   }, [level, selectedIds]);
 
+  // Selected district name (for highlighting specific district)
+  const selectedDistrictName = useMemo(() => {
+    if (level !== 'district' && level !== 'branch') return null;
+    if (selectedIds.district) {
+      const d = DISTRICTS[selectedIds.district];
+      return d?.name || null;
+    }
+    return null;
+  }, [level, selectedIds]);
+
   // Compute zoom center and level based on drill state
   let zoomCenter = CENTER;
   let zoomLevel = 1.6;
@@ -134,13 +144,10 @@ function UgandaMap() {
     if (cfg) { zoomCenter = cfg.center; zoomLevel = cfg.zoom; }
   } else if (level === 'district' && selectedIds.district) {
     const district = DISTRICTS[selectedIds.district];
-    if (district) { zoomCenter = district.center; zoomLevel = 6; }
+    if (district) { zoomCenter = district.center; zoomLevel = 4.5; }
   } else if (level === 'branch' && selectedIds.branch) {
     const branch = BRANCHES[selectedIds.branch];
-    if (branch) { zoomCenter = branch.center; zoomLevel = 10; }
-  } else if (level === 'agent' && selectedIds.agent) {
-    const agent = getEntityById('agent', selectedIds.agent);
-    if (agent?.center) { zoomCenter = agent.center; zoomLevel = 14; }
+    if (branch) { zoomCenter = branch.center; zoomLevel = 7; }
   }
 
   const handleMouseEnter = useCallback((e, geo) => {
@@ -159,18 +166,30 @@ function UgandaMap() {
   const handleMouseLeave = useCallback(() => setTooltip(null), []);
 
   // Get fill color for a geography based on drill state
-  const getGeoFill = useCallback((region) => {
-    if (!selectedRegionName) return REGION_FILLS[region] || 'rgba(200, 205, 220, 0.3)';
-    if (region === selectedRegionName) return REGION_FILLS_ACTIVE[region] || 'rgba(94, 99, 168, 0.35)';
-    return REGION_FILLS_DIM[region] || 'rgba(200, 205, 220, 0.1)';
-  }, [selectedRegionName]);
+  const getGeoFill = useCallback((region, districtName) => {
+    // District-level: highlight selected district
+    if (selectedDistrictName) {
+      if (districtName === selectedDistrictName) return 'rgba(94, 99, 168, 0.4)';
+      if (region === selectedRegionName) return REGION_FILLS_DIM[region] || 'rgba(200, 205, 220, 0.12)';
+      return 'rgba(200, 205, 220, 0.06)';
+    }
+    // Region-level: highlight selected region
+    if (selectedRegionName) {
+      if (region === selectedRegionName) return REGION_FILLS_ACTIVE[region] || 'rgba(94, 99, 168, 0.35)';
+      return REGION_FILLS_DIM[region] || 'rgba(200, 205, 220, 0.1)';
+    }
+    return REGION_FILLS[region] || 'rgba(200, 205, 220, 0.3)';
+  }, [selectedRegionName, selectedDistrictName]);
 
-  const getGeoHoverFill = useCallback((region) => {
+  const getGeoHoverFill = useCallback((region, districtName) => {
+    if (selectedDistrictName && districtName !== selectedDistrictName) {
+      return getGeoFill(region, districtName);
+    }
     if (selectedRegionName && region !== selectedRegionName) {
       return REGION_FILLS_DIM[region] || 'rgba(200, 205, 220, 0.1)';
     }
     return REGION_FILLS_HOVER[region] || 'rgba(41, 40, 103, 0.2)';
-  }, [selectedRegionName]);
+  }, [selectedRegionName, selectedDistrictName, getGeoFill]);
 
   return (
     <div className={styles.mapContainer}>
@@ -195,10 +214,12 @@ function UgandaMap() {
             {({ geographies }) =>
               geographies.map((geo) => {
                 const region = geo.properties?.region;
-                const fillColor = getGeoFill(region);
-                const hoverColor = getGeoHoverFill(region);
-                const isActive = region === selectedRegionName;
-                const isDimmed = selectedRegionName && !isActive;
+                const districtName = geo.properties?.name;
+                const fillColor = getGeoFill(region, districtName);
+                const hoverColor = getGeoHoverFill(region, districtName);
+                const isActiveDistrict = districtName === selectedDistrictName;
+                const isActive = isActiveDistrict || (region === selectedRegionName && !selectedDistrictName);
+                const isDimmed = (selectedRegionName || selectedDistrictName) && !isActive;
 
                 return (
                   <Geography
