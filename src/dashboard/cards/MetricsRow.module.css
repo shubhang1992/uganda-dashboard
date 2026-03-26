@@ -5,14 +5,14 @@
   right: var(--space-4);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  align-items: stretch;
+  align-items: end;
   gap: var(--space-3);
   z-index: 15;
 }
 
 
 .card {
-  height: 100%;
+  min-height: 210px;
   background: linear-gradient(145deg, rgba(255,255,255,0.78) 0%, rgba(246,247,251,0.72) 100%);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -151,7 +151,7 @@
   padding: 0;
   overflow: hidden;
   gap: 0;
-  height: 100%;
+  min-height: 210px;
 }
 
 .chatCard:hover {

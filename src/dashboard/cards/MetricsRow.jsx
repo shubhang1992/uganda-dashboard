@@ -165,7 +165,7 @@ export default function MetricsRow() {
       key={level + JSON.stringify(selectedIds)}
     >
       {/* Card 1: AI Data Assistant */}
-      <motion.div variants={item} style={{ height: '100%' }}>
+      <motion.div variants={item}>
         <ChatCard />
       </motion.div>
 
