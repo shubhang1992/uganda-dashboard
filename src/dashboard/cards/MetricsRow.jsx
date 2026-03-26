@@ -108,6 +108,7 @@ function DonutChart({ ratio }) {
   const circ = 2 * Math.PI * r;
   const male = (ratio.male / 100) * circ;
   const female = (ratio.female / 100) * circ;
+  const other = ((ratio.other || 0) / 100) * circ;
   return (
     <svg viewBox="0 0 64 64" className={styles.donut}>
       <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-lavender)" strokeWidth="7" />
@@ -116,6 +117,11 @@ function DonutChart({ ratio }) {
       <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-teal)" strokeWidth="7"
         strokeDasharray={`${female} ${circ - female}`} strokeDashoffset={`${-male}`}
         transform="rotate(-90 32 32)" strokeLinecap="round" />
+      {other > 0 && (
+        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-status-warning)" strokeWidth="7"
+          strokeDasharray={`${other} ${circ - other}`} strokeDashoffset={`${-(male + female)}`}
+          transform="rotate(-90 32 32)" strokeLinecap="round" />
+      )}
     </svg>
   );
 }
@@ -183,6 +189,12 @@ export default function MetricsRow() {
                 <span className={styles.legendDot} style={{ background: 'var(--color-teal)' }} />
                 Female {metrics.genderRatio?.female}%
               </span>
+              {(metrics.genderRatio?.other || 0) > 0 && (
+                <span className={styles.legendItem}>
+                  <span className={styles.legendDot} style={{ background: 'var(--color-status-warning)' }} />
+                  Other {metrics.genderRatio.other}%
+                </span>
+              )}
             </div>
           </div>
           <div className={styles.demoRight}>
@@ -199,19 +211,31 @@ export default function MetricsRow() {
               transition={{ duration: 0.3, ease: EASE }}
             >
               <div className={styles.expandDivider} />
+              <div className={styles.expandSubtitle}>Gender (count)</div>
               <div className={styles.expandGrid}>
                 <div className={styles.expandItem}>
-                  <span className={styles.expandNum}>{metrics.genderRatio?.other || 0}%</span>
-                  <span className={styles.expandLabel}>Other gender</span>
+                  <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.male || 0) / 100).toLocaleString()}</span>
+                  <span className={styles.expandLabel}>Male</span>
+                </div>
+                <div className={styles.expandItem}>
+                  <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.female || 0) / 100).toLocaleString()}</span>
+                  <span className={styles.expandLabel}>Female</span>
+                </div>
+                <div className={styles.expandItem}>
+                  <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.other || 0) / 100).toLocaleString()}</span>
+                  <span className={styles.expandLabel}>Other</span>
                 </div>
                 <div className={styles.expandItem}>
                   <span className={styles.expandNum}>{totalSubs.toLocaleString()}</span>
-                  <span className={styles.expandLabel}>Total subscribers</span>
+                  <span className={styles.expandLabel}>Total</span>
                 </div>
+              </div>
+              <div className={styles.expandSubtitle}>Age distribution (count)</div>
+              <div className={styles.expandGrid}>
                 {Object.entries(metrics.ageDistribution || {}).map(([bracket, count]) => (
                   <div key={bracket} className={styles.expandItem}>
-                    <span className={styles.expandNum}>{count}</span>
-                    <span className={styles.expandLabel}>Age {bracket}</span>
+                    <span className={styles.expandNum}>{count.toLocaleString()}</span>
+                    <span className={styles.expandLabel}>{bracket}</span>
                   </div>
                 ))}
               </div>

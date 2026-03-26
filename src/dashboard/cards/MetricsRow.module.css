@@ -5,9 +5,14 @@
   right: var(--space-4);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  align-items: flex-end;
+  align-items: end;
   gap: var(--space-3);
   z-index: 15;
+}
+
+/* When not expanded, both cards match height */
+.row > * {
+  min-height: 200px;
 }
 
 .card {
@@ -84,6 +89,16 @@
   margin: 0.5rem 0;
 }
 
+.expandSubtitle {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-indigo-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+}
+
 .expandGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -139,6 +154,7 @@
   padding: 0;
   overflow: hidden;
   gap: 0;
+  height: 100%;
 }
 
 .chatCard:hover {
