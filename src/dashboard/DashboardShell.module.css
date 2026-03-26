@@ -14,17 +14,152 @@
   overflow: hidden;
 }
 
+/* Desktop: hide mobile-only elements */
+.mobileHeader { display: none; }
+.drawerOverlay { display: none; }
+.drawer { display: none; }
+
 @media (max-width: 768px) {
   .shell {
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr auto;
+    grid-template-rows: auto 1fr;
     background: var(--color-cloud);
   }
 
   .main {
-    height: 100vh;
+    height: auto;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Mobile header ── */
+  .mobileHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.625rem var(--space-4);
+    padding-top: max(0.625rem, env(safe-area-inset-top));
+    background: var(--color-white);
+    border-bottom: 1px solid var(--color-lavender);
+    z-index: 50;
+    position: sticky;
+    top: 0;
+  }
+
+  .mobileHeaderLeft {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+  }
+
+  .mobileHeaderLogo {
+    color: var(--color-indigo);
+  }
+
+  .mobileHeaderTitle {
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    font-weight: 800;
+    color: var(--color-indigo);
+    letter-spacing: -0.02em;
+  }
+
+  .hamburger {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    border-radius: var(--radius-md);
+    transition: background 0.15s ease;
+  }
+
+  .hamburger:active {
+    background: rgba(41, 40, 103, 0.06);
+  }
+
+  .hamburgerLine {
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: var(--color-indigo);
+    border-radius: 1px;
+    transition: all 0.25s ease;
+  }
+
+  .hamburgerLine[data-open='true']:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+  }
+  .hamburgerLine[data-open='true']:nth-child(2) {
+    opacity: 0;
+  }
+  .hamburgerLine[data-open='true']:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
+  }
+
+  /* ── Drawer ── */
+  .drawerOverlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(27, 26, 74, 0.4);
+    z-index: 90;
+  }
+
+  .drawer {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 260px;
+    background: var(--color-white);
+    z-index: 100;
+    padding: var(--space-8) var(--space-6);
+    padding-top: max(var(--space-8), calc(env(safe-area-inset-top) + var(--space-4)));
+    box-shadow: -8px 0 40px rgba(41, 40, 103, 0.12);
+  }
+
+  .drawerNav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    flex: 1;
+  }
+
+  .drawerItem {
+    text-align: left;
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--color-slate);
+    padding: 0.75rem 0.75rem;
+    border-radius: var(--radius-md);
+    transition: all 0.15s ease;
+  }
+
+  .drawerItem:hover,
+  .drawerItem:active {
+    background: var(--color-cloud);
+    color: var(--color-indigo);
+  }
+
+  .drawerLogout {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-gray);
+    text-align: left;
+    padding: 0.75rem 0.75rem;
+    border-top: 1px solid var(--color-lavender);
+    margin-top: auto;
+  }
+
+  .drawerLogout:active {
+    color: var(--color-indigo);
   }
 }
