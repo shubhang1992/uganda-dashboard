@@ -17,10 +17,99 @@
 - Logo: two PNGs with transparent backgrounds — `logo.png` (color, for light backgrounds) and `logo-white.png` (grey, brightened via CSS for dark backgrounds)
 
 ### Architecture
-- `App.jsx` assembles sections: Navbar → Hero → HowItWorks → TimeJourney → ForYou → Trust → CTA → Footer + StickyMobileCTA + SignInModal
-- `SignInContext` provides `{ isOpen, open, close }` for the sign-in modal, used by Navbar and any CTA
-- `TimeJourney.jsx` is the most complex component — handles desktop wheel scroll and mobile horizontal swipe with rAF batching
-- `SavingsCalculator.jsx` is embedded in the Hero section
+
+**View switching:** `AppContext` manages `view` ('landing' | 'dashboard') and `role`. Sign-in modal calls `enterDashboard(role)` after OTP verification. No router library — state-based switching.
+
+**Landing page:**
+- `App.jsx` renders either landing page or `DashboardShell` based on `AppContext.view`
+- Landing sections: Navbar → Hero → HowItWorks → TimeJourney → ForYou → Trust → CTA → Footer + StickyMobileCTA + SignInModal
+- `SignInContext` provides `{ isOpen, open, close }` for the sign-in modal
+- `TimeJourney.jsx` is the most complex landing component — desktop wheel scroll + mobile horizontal swipe with rAF batching
+
+**Sign-in flow:**
+- Modal with 4 steps: Role Select → (Distributor Sub-select) → Phone Entry → OTP Verify
+- Main roles: Subscriber, Employer, Distributor, Admin
+- Distributor sub-roles: Distributor Admin, Branch Admin, Agent
+- Any OTP accepted (prototype) — calls `enterDashboard(role)` on verify
+
+**Dashboard (Distributor Admin):**
+- `DashboardShell.jsx` is the root — fixed viewport, CSS grid: sidebar (64px) + main area
+- `DashboardContext` manages drill-down state machine with `useReducer`
+- Drill levels: country → region → district → branch → agent → subscriber
+- Actions: `drillDown(level, id)`, `drillUp(level)`, `goToLevel(level)`, `reset()`
+
+### Dashboard file structure
+```
+src/dashboard/
+  DashboardShell.jsx          — Root layout (sidebar + map + overlays)
+  map/
+    UgandaMap.jsx             — Full-bleed SVG map with ZoomableGroup (pan/zoom)
+  sidebar/
+    Sidebar.jsx               — Dark indigo icon rail with tooltips
+  overlay/
+    OverlayPanel.jsx          — Top-left glassmorphism card (KPIs, collapsible sections)
+    Breadcrumb.jsx            — Drill-down path navigation
+    TopBar.jsx                — Filter + Download buttons (top-right)
+  cards/
+    MetricsRow.jsx            — Bottom card row (AI chat + Demographics)
+src/data/
+    mockData.js               — All mock data (4 regions, 12 districts, 30 branches, 120 agents, 2000 subscribers)
+```
+
+### Dashboard data architecture
+- Mock data in `src/data/mockData.js` — flat lookup maps keyed by ID for O(1) access
+- Hierarchy: Country → Regions (4) → Districts (12, real Ugandan names) → Branches (~30) → Agents (~120) → Subscribers (~2000, lazy-generated via Proxy)
+- Metrics aggregated bottom-up at module load time (agent ← subscribers, branch ← agents, etc.)
+- Key exports: `COUNTRY`, `REGIONS`, `DISTRICTS`, `BRANCHES`, `AGENTS`, `SUBSCRIBERS`, `getChildEntities()`, `getEntityById()`, `getBreadcrumbPath()`, `formatUGX()`
+- Map GeoJSON: `public/uganda-topo.json` — 56 real GADM districts with region assignments
+
+### Dashboard UI patterns
+
+**Map:**
+- Full-bleed background using `react-simple-maps` with `ZoomableGroup` for pan/drag/zoom
+- GeoJSON from GADM (56 districts) with region color-coding (indigo palette)
+- Animated glowing dot indicators at entity positions (green/yellow/red by active rate)
+- Hover tooltips showing district name + region
+- Map zooms on drill-down via `ZoomableGroup` center/zoom props
+
+**Glassmorphism cards (dashboard-specific):**
+- Background: `linear-gradient(145deg, rgba(255,255,255,0.78) 0%, rgba(246,247,251,0.72) 100%)`
+- Border: bright top/left (0.8/0.7 opacity white) for 3D light direction
+- Backdrop blur: 24px
+- Inset shadows: `0 1px 0 rgba(255,255,255,0.5) inset` (top highlight)
+- Hover: `translateY(-3px)` + deeper shadow
+- Use `--glass-bg`, `--glass-blur`, `--glass-border` tokens
+
+**Collapsible sections:**
+- `CollapsibleSection` component in OverlayPanel with animated height + chevron rotation
+- `AnimatePresence` with `height: 0/auto` for smooth open/close
+
+**Bottom cards:**
+- 3-column grid (`repeat(3, 1fr)`) with `align-items: end`
+- Card 1: AI Data Assistant (inline chat with suggestions)
+- Card 2: Demographics (expandable — gender donut + age bars, expands to show counts)
+- Card 3: Empty (reserved for future use)
+- Both cards have `min-height: 210px` to match when collapsed
+- Only the expanded card grows upward; others stay at their height
+
+**AI Chat (Data Assistant):**
+- Embedded in bottom card row (not a floating widget)
+- Mock responses matching network data
+- Suggested prompt pills on first load
+- Will be connected to LLM + DB in production
+
+### Dashboard design tokens (in index.css)
+```css
+--glass-bg:       rgba(255, 255, 255, 0.82);
+--glass-bg-dark:  rgba(27, 26, 74, 0.85);
+--glass-border:   rgba(217, 220, 242, 0.5);
+--glass-blur:     16px;
+--sidebar-width:  64px;
+--map-bg:         #E8EAF0;
+--color-status-good:    #2E8B57;
+--color-status-warning: #E6A817;
+--color-status-poor:    #DC3545;
+```
 
 ### Design consistency rules — MUST FOLLOW
 
@@ -84,59 +173,37 @@ At its core, Universal Pensions is about:
 - supporting multiple distribution and contribution models
 - building a platform that can scale across employers, field distribution, and direct individual usage
 
-## Core users
-The Uganda platform is a multi-user ecosystem. Claude should always think in terms of different user roles, not a single end user.
+## Core users & sign-in structure
+The Uganda platform is a multi-user ecosystem with 6 roles across 4 sign-in categories.
 
-### 1. Subscribers
-Subscribers are the end users saving into the platform.
-They may include informal workers, gig workers, small business workers, self-employed users, women, youth, farmers, and other underserved segments.
+**Sign-in modal shows 4 top-level options:**
+1. **Subscriber** — Individual saver (informal workers, gig workers, farmers, self-employed)
+2. **Employer** — Organisation managing employee contributions
+3. **Distributor** — Clicking this shows 3 sub-options:
+   - **Distributor Admin** — Network-level oversight of branches and agents
+   - **Branch Admin** — Local operations, agent supervision
+   - **Agent** — Field-level enrolment and subscriber servicing
+4. **Admin** — Platform admin (head office)
 
-What matters for them:
-- easy understanding of the product
-- simple registration and activation flows
-- clear contribution journeys
-- visibility into current savings and long-term progress
-- a strong sense of trust, ownership, and control
+**Distributor network hierarchy:** Country (Uganda) → Regions → Districts → Branches → Agents → Subscribers
 
-### 2. Employers
-Employers are organisations that help enroll and contribute for employees.
-They are an important structured distribution and contribution channel.
+### What matters per role:
+- **Subscribers:** balance visibility, contribution journeys, progress tracking, trust
+- **Employers:** employee management, contribution uploads, clean reporting
+- **Agents:** guided workflows, fast mobile actions, task completion
+- **Branches:** agent oversight, local performance, subscriber activity
+- **Distributors:** network-wide visibility, branch/agent performance, strategic reporting
+- **Admin:** full platform control, all data access
 
-What matters for them:
-- simple onboarding
-- employee management
-- contribution uploads and contribution tracking
-- clean reporting and low operational friction
-
-### 3. Agents
-Agents are frontline users who help bring subscribers into the platform.
-They may support education, onboarding, contribution assistance, and basic servicing.
-
-What matters for them:
-- very clear guided workflows
-- fast actions on mobile or lightweight interfaces
-- simple explanations they can use with users
-- visibility into tasks, status, and next actions
-
-### 4. Branches
-Branches sit within a larger distribution structure and act as an operational layer between head office and field execution.
-They may supervise agents, support local operations, and track performance.
-
-What matters for them:
-- oversight of local activity
-- monitoring of agents and subscribers
-- branch-level visibility into progress and performance
-- simple operational dashboards
-
-### 5. Distributors
-Distributors are larger partner institutions or networks that own branch and agent structures.
-This may include organised distribution networks, institutional partners, or ecosystem partners responsible for scale and outreach.
-
-What matters for them:
-- network-level visibility
-- branch and agent performance tracking
-- contribution and onboarding monitoring
-- reporting, control, and growth measurement
+### Current build status:
+- ✅ Landing page (complete)
+- ✅ Sign-in flow (complete — all roles)
+- ✅ Distributor Admin dashboard (in progress — map, overlays, analytics, AI chat)
+- ⬜ Subscriber dashboard (not started)
+- ⬜ Employer dashboard (not started)
+- ⬜ Branch Admin dashboard (not started)
+- ⬜ Agent dashboard (not started)
+- ⬜ Admin dashboard (not started)
 
 ## Product thinking
 Claude should understand that this is not just a portal.
