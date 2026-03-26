@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { COUNTRY, getEntityById, formatUGX } from '../../data/mockData';
+import { COUNTRY, getEntityById } from '../../data/mockData';
 import styles from './MetricsRow.module.css';
 
 const EASE = [0.16, 1, 0.3, 1];
@@ -136,32 +136,6 @@ function AgeBarChart({ distribution }) {
   );
 }
 
-function Sparkline({ data }) {
-  if (!data || data.length < 2) return null;
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
-  const w = 140;
-  const h = 40;
-  const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - ((v - min) / range) * (h - 6) - 3;
-    return `${x},${y}`;
-  });
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className={styles.sparkline}>
-      <defs>
-        <linearGradient id="spG" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--color-indigo)" />
-          <stop offset="100%" stopColor="var(--color-indigo)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polyline points={`0,${h} ${points.join(' ')} ${w},${h}`} fill="url(#spG)" opacity="0.08" />
-      <polyline points={points.join(' ')} fill="none" stroke="var(--color-indigo)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 const item = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } } };
 
@@ -248,38 +222,42 @@ export default function MetricsRow() {
         </AnimatePresence>
       </motion.div>
 
-      {/* Card 3: Coverage (expandable) */}
-      <motion.div className={styles.card} variants={item} data-expanded={expanded === 'coverage'}>
+      {/* Card 3: Network Health — actionable insights */}
+      <motion.div className={styles.card} variants={item} data-expanded={expanded === 'health'}>
         <div className={styles.cardHeader}>
-          <h3 className={styles.cardTitle}>Coverage & Activity</h3>
-          <button className={styles.detailsBtn} onClick={() => toggleExpand('coverage')}>
-            {expanded === 'coverage' ? 'Collapse' : 'Details'}
+          <h3 className={styles.cardTitle}>Network Health</h3>
+          <button className={styles.detailsBtn} onClick={() => toggleExpand('health')}>
+            {expanded === 'health' ? 'Collapse' : 'Details'}
           </button>
         </div>
-        <div className={styles.coverageBody}>
-          <div className={styles.coverageRing}>
-            <svg viewBox="0 0 72 72" className={styles.ringChart}>
-              <circle cx="36" cy="36" r="28" fill="none" stroke="var(--color-lavender)" strokeWidth="6" />
-              <circle cx="36" cy="36" r="28" fill="none" stroke="var(--color-indigo)" strokeWidth="6"
-                strokeDasharray={`${(metrics.coverageRate / 100) * 2 * Math.PI * 28} ${2 * Math.PI * 28}`}
-                transform="rotate(-90 36 36)" strokeLinecap="round" />
-              <text x="36" y="34" textAnchor="middle" className={styles.ringValue}>{metrics.coverageRate}%</text>
-              <text x="36" y="44" textAnchor="middle" className={styles.ringSub}>Coverage</text>
-            </svg>
-          </div>
-          <div className={styles.coverageStats}>
-            <div className={styles.covStat}>
-              <span className={styles.covNum}>{metrics.activeRate}%</span>
-              <span className={styles.covLabel}>Active rate</span>
+        <div className={styles.healthBody}>
+          {/* Region performance mini-leaderboard */}
+          <div className={styles.healthList}>
+            <div className={styles.healthRow}>
+              <span className={styles.healthRank} data-status="good">1</span>
+              <span className={styles.healthName}>Northern</span>
+              <span className={styles.healthStat} data-status="good">62%</span>
             </div>
-            <div className={styles.covStat}>
-              <span className={styles.covNum}>{activeSubs.toLocaleString()}</span>
-              <span className={styles.covLabel}>Active subs</span>
+            <div className={styles.healthRow}>
+              <span className={styles.healthRank} data-status="good">2</span>
+              <span className={styles.healthName}>Central</span>
+              <span className={styles.healthStat} data-status="good">58%</span>
+            </div>
+            <div className={styles.healthRow}>
+              <span className={styles.healthRank} data-status="warning">3</span>
+              <span className={styles.healthName}>Eastern</span>
+              <span className={styles.healthStat} data-status="warning">55%</span>
+            </div>
+            <div className={styles.healthRow}>
+              <span className={styles.healthRank} data-status="warning">4</span>
+              <span className={styles.healthName}>Western</span>
+              <span className={styles.healthStat} data-status="warning">52%</span>
             </div>
           </div>
+          <span className={styles.healthCaption}>Coverage by region</span>
         </div>
         <AnimatePresence>
-          {expanded === 'coverage' && (
+          {expanded === 'health' && (
             <motion.div
               className={styles.expandedContent}
               initial={{ height: 0, opacity: 0 }}
@@ -288,26 +266,27 @@ export default function MetricsRow() {
               transition={{ duration: 0.3, ease: EASE }}
             >
               <div className={styles.expandDivider} />
-              <div className={styles.expandSection}>
-                <span className={styles.expandSectionTitle}>Contribution trend (12 months)</span>
-                <Sparkline data={metrics.monthlyContributions} />
-              </div>
-              <div className={styles.expandGrid}>
-                <div className={styles.expandItem}>
-                  <span className={styles.expandNum}>{inactiveSubs.toLocaleString()}</span>
-                  <span className={styles.expandLabel}>Inactive subs</span>
+              <div className={styles.healthAlerts}>
+                <div className={styles.alertItem} data-type="warning">
+                  <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25"/>
+                    <path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+                  </svg>
+                  <span>{inactiveSubs.toLocaleString()} subscribers at risk of churn</span>
                 </div>
-                <div className={styles.expandItem}>
-                  <span className={styles.expandNum}>{metrics.complaintsCount ?? 0}</span>
-                  <span className={styles.expandLabel}>Complaints</span>
+                <div className={styles.alertItem} data-type="info">
+                  <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25"/>
+                    <path d="M8 7v4M8 5v.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+                  </svg>
+                  <span>{metrics.complaintsCount ?? 0} open complaints need attention</span>
                 </div>
-                <div className={styles.expandItem}>
-                  <span className={styles.expandNum}>{formatUGX(metrics.totalContributions)}</span>
-                  <span className={styles.expandLabel}>Contributions</span>
-                </div>
-                <div className={styles.expandItem}>
-                  <span className={styles.expandNum}>{formatUGX(metrics.totalWithdrawals)}</span>
-                  <span className={styles.expandLabel}>Withdrawals</span>
+                <div className={styles.alertItem} data-type="good">
+                  <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25"/>
+                    <path d="M5.5 8l2 2 3-3.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span>Monthly contributions up 3.8% MoM</span>
                 </div>
               </div>
             </motion.div>
