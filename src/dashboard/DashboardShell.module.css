@@ -59,31 +59,6 @@
     object-fit: contain;
   }
 
-  .mobileHeaderText {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-  }
-
-  .mobileHeaderLevel {
-    font-family: var(--font-body);
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--color-gray);
-    line-height: 1;
-  }
-
-  .mobileHeaderTitle {
-    font-family: var(--font-display);
-    font-size: var(--text-base);
-    font-weight: 800;
-    color: var(--color-indigo);
-    letter-spacing: -0.02em;
-    line-height: 1.2;
-  }
-
   .backBtn {
     display: flex;
     align-items: center;

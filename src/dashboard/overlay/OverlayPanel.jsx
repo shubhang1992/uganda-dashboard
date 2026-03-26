@@ -74,7 +74,7 @@ function StatusBar({ label, value, segments }) {
 }
 
 export default function OverlayPanel() {
-  const { level, selectedIds, drillDown } = useDashboard();
+  const { level, selectedIds, drillDown, drillUp, reset } = useDashboard();
   const metrics = getCurrentMetrics(level, selectedIds);
   const parentId = getCurrentParentId(level, selectedIds);
   const nextLevel = NEXT_LEVEL[level];
@@ -90,6 +90,18 @@ export default function OverlayPanel() {
       transition={{ duration: 0.5, ease: EASE }}
     >
       {level === 'country' && <h2 className={styles.greeting}>Hi Admin</h2>}
+
+      {level !== 'country' && (
+        <button
+          className={styles.backBtn}
+          onClick={() => level === 'region' ? reset() : drillUp(level)}
+        >
+          <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+            <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Back
+        </button>
+      )}
 
       {/* AUM — hero number */}
       <div className={styles.aumBlock}>
