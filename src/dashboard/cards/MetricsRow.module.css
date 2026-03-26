@@ -48,16 +48,89 @@
   color: var(--color-indigo);
 }
 
-.seeAll {
+.detailsBtn {
   font-family: var(--font-body);
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-indigo-soft);
   cursor: pointer;
   transition: color 0.2s ease;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-full);
+  background: rgba(41, 40, 103, 0.04);
+  border: 1px solid rgba(41, 40, 103, 0.06);
 }
 
-.seeAll:hover { color: var(--color-indigo); }
+.detailsBtn:hover {
+  color: var(--color-indigo);
+  background: rgba(41, 40, 103, 0.08);
+}
+
+/* Expanded state */
+.card[data-expanded='true'] {
+  position: relative;
+  z-index: 16;
+  box-shadow: 0 16px 48px rgba(41, 40, 103, 0.14);
+}
+
+.expandedContent {
+  overflow: hidden;
+}
+
+.expandDivider {
+  height: 1px;
+  background: rgba(41, 40, 103, 0.06);
+  margin: 0.5rem 0;
+}
+
+.expandGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  padding-bottom: 0.25rem;
+}
+
+.expandItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+}
+
+.expandNum {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  color: var(--color-indigo);
+}
+
+.expandLabel {
+  font-family: var(--font-body);
+  font-size: 9px;
+  color: var(--color-gray);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.expandSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
+}
+
+.expandSectionTitle {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--color-gray);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sparkline {
+  width: 100%;
+  height: 40px;
+}
 
 /* ── Chat card ── */
 .chatCard {

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { COUNTRY, getEntityById } from '../../data/mockData';
+import { COUNTRY, getEntityById, formatUGX } from '../../data/mockData';
 import styles from './MetricsRow.module.css';
 
 const EASE = [0.16, 1, 0.3, 1];
@@ -13,32 +13,27 @@ function getCurrentMetrics(level, selectedIds) {
   return entity?.metrics || COUNTRY.metrics;
 }
 
-// ── Mock AI responses ──
-const SUGGESTIONS = [
-  'Top agents?',
-  'Coverage by region?',
-  'Active subscribers?',
-  'Gender split?',
-];
+// ── Mock AI ──
+const SUGGESTIONS = ['Top agents?', 'Coverage by region?', 'Active subscribers?', 'Gender split?'];
 
 const MOCK_RESPONSES = {
-  default: "I can help you analyse your pension network data. Ask me about subscribers, agents, coverage, or contributions!",
-  agent: "Top 3 agents: Sarah Nambi (92%), Moses Okello (89%), Grace Achieng (87%). Average network performance is 78%.",
-  coverage: "Coverage by region: Northern 62%, Central 58%, Eastern 55%, Western 52%. Overall: 67%.",
-  subscriber: "2,000 subscribers total. 82% active, 18% inactive. Growth rate: 3.8% MoM. Central region leads with 680 subscribers.",
-  gender: "Gender split: 52% male, 46% female, 2% other. Eastern region has the most balanced split at 50/48/2.",
+  default: "I can help you analyse your pension network data. Ask about subscribers, agents, coverage, or contributions!",
+  agent: "Top 3 agents: Sarah Nambi (92%), Moses Okello (89%), Grace Achieng (87%). Average performance: 78%.",
+  coverage: "Coverage: Northern 62%, Central 58%, Eastern 55%, Western 52%. Overall: 67%.",
+  subscriber: "2,000 subscribers. 82% active. Growth: 3.8% MoM. Central leads with 680.",
+  gender: "Gender: 52% male, 46% female, 2% other. Eastern has the most balanced split.",
 };
 
 function getMockResponse(msg) {
   const l = msg.toLowerCase();
-  if (l.includes('agent') || l.includes('perform') || l.includes('top')) return MOCK_RESPONSES.agent;
+  if (l.includes('agent') || l.includes('top')) return MOCK_RESPONSES.agent;
   if (l.includes('coverage') || l.includes('region')) return MOCK_RESPONSES.coverage;
   if (l.includes('subscriber') || l.includes('active')) return MOCK_RESPONSES.subscriber;
-  if (l.includes('gender') || l.includes('split') || l.includes('male')) return MOCK_RESPONSES.gender;
+  if (l.includes('gender') || l.includes('split')) return MOCK_RESPONSES.gender;
   return MOCK_RESPONSES.default;
 }
 
-// ── Inline Chat Card ──
+// ── Chat Card ──
 function ChatCard() {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: 'Ask me anything about your network data.' },
@@ -69,7 +64,6 @@ function ChatCard() {
         <div className={styles.chatDot} />
         <span className={styles.chatTitle}>Data Assistant</span>
       </div>
-
       <div className={styles.chatMessages} ref={listRef}>
         {messages.map((m, i) => (
           <div key={i} className={styles.chatMsg} data-role={m.role}>
@@ -84,7 +78,6 @@ function ChatCard() {
           </div>
         )}
       </div>
-
       {messages.length <= 1 && (
         <div className={styles.chatSuggestions}>
           {SUGGESTIONS.map((s) => (
@@ -92,7 +85,6 @@ function ChatCard() {
           ))}
         </div>
       )}
-
       <div className={styles.chatInput}>
         <input
           className={styles.chatField}
@@ -102,9 +94,7 @@ function ChatCard() {
           placeholder="Ask about your data..."
         />
         <button className={styles.chatSend} onClick={() => handleSend()} disabled={!input.trim()}>
-          <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
-            <path d="M2 8l12-6-6 12V8H2z" fill="currentColor"/>
-          </svg>
+          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 8l12-6-6 12V8H2z" fill="currentColor"/></svg>
         </button>
       </div>
     </div>
@@ -146,12 +136,47 @@ function AgeBarChart({ distribution }) {
   );
 }
 
+function Sparkline({ data }) {
+  if (!data || data.length < 2) return null;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const w = 140;
+  const h = 40;
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((v - min) / range) * (h - 6) - 3;
+    return `${x},${y}`;
+  });
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className={styles.sparkline}>
+      <defs>
+        <linearGradient id="spG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--color-indigo)" />
+          <stop offset="100%" stopColor="var(--color-indigo)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polyline points={`0,${h} ${points.join(' ')} ${w},${h}`} fill="url(#spG)" opacity="0.08" />
+      <polyline points={points.join(' ')} fill="none" stroke="var(--color-indigo)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 const item = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } } };
 
 export default function MetricsRow() {
   const { level, selectedIds } = useDashboard();
   const metrics = getCurrentMetrics(level, selectedIds);
+  const [expanded, setExpanded] = useState(null); // 'demographics' | 'coverage' | null
+
+  function toggleExpand(card) {
+    setExpanded((prev) => prev === card ? null : card);
+  }
+
+  const totalSubs = metrics.totalSubscribers || 0;
+  const activeSubs = Math.round(totalSubs * (metrics.activeRate / 100));
+  const inactiveSubs = totalSubs - activeSubs;
 
   return (
     <motion.div
@@ -166,11 +191,13 @@ export default function MetricsRow() {
         <ChatCard />
       </motion.div>
 
-      {/* Card 2: Demographics */}
-      <motion.div className={styles.card} variants={item}>
+      {/* Card 2: Demographics (expandable) */}
+      <motion.div className={styles.card} variants={item} data-expanded={expanded === 'demographics'}>
         <div className={styles.cardHeader}>
           <h3 className={styles.cardTitle}>Demographics</h3>
-          <span className={styles.seeAll}>Details</span>
+          <button className={styles.detailsBtn} onClick={() => toggleExpand('demographics')}>
+            {expanded === 'demographics' ? 'Collapse' : 'Details'}
+          </button>
         </div>
         <div className={styles.demoBody}>
           <div className={styles.demoLeft}>
@@ -190,13 +217,44 @@ export default function MetricsRow() {
             <AgeBarChart distribution={metrics.ageDistribution} />
           </div>
         </div>
+        <AnimatePresence>
+          {expanded === 'demographics' && (
+            <motion.div
+              className={styles.expandedContent}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: EASE }}
+            >
+              <div className={styles.expandDivider} />
+              <div className={styles.expandGrid}>
+                <div className={styles.expandItem}>
+                  <span className={styles.expandNum}>{metrics.genderRatio?.other || 0}%</span>
+                  <span className={styles.expandLabel}>Other gender</span>
+                </div>
+                <div className={styles.expandItem}>
+                  <span className={styles.expandNum}>{totalSubs.toLocaleString()}</span>
+                  <span className={styles.expandLabel}>Total subscribers</span>
+                </div>
+                {Object.entries(metrics.ageDistribution || {}).map(([bracket, count]) => (
+                  <div key={bracket} className={styles.expandItem}>
+                    <span className={styles.expandNum}>{count}</span>
+                    <span className={styles.expandLabel}>Age {bracket}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
-      {/* Card 3: Coverage */}
-      <motion.div className={styles.card} variants={item}>
+      {/* Card 3: Coverage (expandable) */}
+      <motion.div className={styles.card} variants={item} data-expanded={expanded === 'coverage'}>
         <div className={styles.cardHeader}>
           <h3 className={styles.cardTitle}>Coverage & Activity</h3>
-          <span className={styles.seeAll}>Details</span>
+          <button className={styles.detailsBtn} onClick={() => toggleExpand('coverage')}>
+            {expanded === 'coverage' ? 'Collapse' : 'Details'}
+          </button>
         </div>
         <div className={styles.coverageBody}>
           <div className={styles.coverageRing}>
@@ -215,11 +273,46 @@ export default function MetricsRow() {
               <span className={styles.covLabel}>Active rate</span>
             </div>
             <div className={styles.covStat}>
-              <span className={styles.covNum}>{metrics.complaintsCount ?? 0}</span>
-              <span className={styles.covLabel}>Complaints</span>
+              <span className={styles.covNum}>{activeSubs.toLocaleString()}</span>
+              <span className={styles.covLabel}>Active subs</span>
             </div>
           </div>
         </div>
+        <AnimatePresence>
+          {expanded === 'coverage' && (
+            <motion.div
+              className={styles.expandedContent}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: EASE }}
+            >
+              <div className={styles.expandDivider} />
+              <div className={styles.expandSection}>
+                <span className={styles.expandSectionTitle}>Contribution trend (12 months)</span>
+                <Sparkline data={metrics.monthlyContributions} />
+              </div>
+              <div className={styles.expandGrid}>
+                <div className={styles.expandItem}>
+                  <span className={styles.expandNum}>{inactiveSubs.toLocaleString()}</span>
+                  <span className={styles.expandLabel}>Inactive subs</span>
+                </div>
+                <div className={styles.expandItem}>
+                  <span className={styles.expandNum}>{metrics.complaintsCount ?? 0}</span>
+                  <span className={styles.expandLabel}>Complaints</span>
+                </div>
+                <div className={styles.expandItem}>
+                  <span className={styles.expandNum}>{formatUGX(metrics.totalContributions)}</span>
+                  <span className={styles.expandLabel}>Contributions</span>
+                </div>
+                <div className={styles.expandItem}>
+                  <span className={styles.expandNum}>{formatUGX(metrics.totalWithdrawals)}</span>
+                  <span className={styles.expandLabel}>Withdrawals</span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </motion.div>
   );

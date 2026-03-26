@@ -131,7 +131,7 @@ export default function OverlayPanel() {
         </div>
       </div>
 
-      {/* Activity + Complaints */}
+      {/* Activity — active vs inactive subscribers */}
       <CollapsibleSection title="Activity" defaultOpen={true}>
         <div className={styles.activityContent}>
           <div className={styles.activeBarRow}>
@@ -140,13 +140,11 @@ export default function OverlayPanel() {
               <div className={styles.barSegment} style={{ width: `${100 - metrics.activeRate}%`, background: 'var(--color-lavender)' }} />
             </div>
             <div className={styles.activeLabels}>
-              <span className={styles.activeLabel}>{metrics.activeRate}% active</span>
-              <span className={styles.complaintLabel}>
-                <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
-                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25"/>
-                  <path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
-                </svg>
-                {metrics.complaintsCount ?? 0} complaints
+              <span className={styles.activeLabel}>
+                {Math.round((metrics.totalSubscribers || 0) * (metrics.activeRate / 100)).toLocaleString()} active
+              </span>
+              <span className={styles.inactiveLabel}>
+                {Math.round((metrics.totalSubscribers || 0) * ((100 - metrics.activeRate) / 100)).toLocaleString()} inactive
               </span>
             </div>
           </div>

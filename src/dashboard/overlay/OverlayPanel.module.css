@@ -220,13 +220,11 @@
   color: var(--color-status-good);
 }
 
-.complaintLabel {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
+.inactiveLabel {
   font-family: var(--font-body);
   font-size: 10px;
-  color: var(--color-status-warning);
+  font-weight: 500;
+  color: var(--color-gray);
 }
 
 /* ── Entity list ── */
