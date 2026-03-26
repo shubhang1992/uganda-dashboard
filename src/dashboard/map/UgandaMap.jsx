@@ -90,7 +90,8 @@ function UgandaMap() {
         width={800}
         height={600}
       >
-        <Geographies geography={GEO_URL}>
+        {/* Region boundaries */}
+        <Geographies geography={GEO_URL} parseGeographies={(geos) => geos}>
           {({ geographies }) =>
             geographies.map((geo) => (
               <Geography
@@ -99,7 +100,7 @@ function UgandaMap() {
                 className={styles.geography}
                 style={{
                   default: { outline: 'none' },
-                  hover: { outline: 'none', fill: 'rgba(41, 40, 103, 0.12)' },
+                  hover: { outline: 'none', fill: 'rgba(41, 40, 103, 0.15)' },
                   pressed: { outline: 'none' },
                 }}
               />
