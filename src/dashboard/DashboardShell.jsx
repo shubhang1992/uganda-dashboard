@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../utils/finance';
-import { DashboardProvider } from '../contexts/DashboardContext';
+import { DashboardProvider, useDashboard } from '../contexts/DashboardContext';
 import { useApp } from '../contexts/AppContext';
+import { getBreadcrumbPath } from '../data/mockData';
 import logo from '../assets/logo.png';
 import Sidebar from './sidebar/Sidebar';
 import UgandaMap from './map/UgandaMap';
@@ -21,11 +22,51 @@ const DRAWER_ITEMS = [
   { id: 'settings', label: 'Settings' },
 ];
 
+const LEVEL_NAMES = {
+  country: 'Uganda',
+  region: 'Region',
+  district: 'District',
+  branch: 'Branch',
+  agent: 'Agent',
+  subscriber: 'Subscriber',
+};
+
 function MobileHeader({ onMenuToggle, menuOpen }) {
+  const { level, selectedIds, drillUp, reset } = useDashboard();
+  const isDeep = level !== 'country';
+
+  // Get the current location name from breadcrumb path
+  const crumbs = getBreadcrumbPath(level, selectedIds);
+  const currentName = crumbs.length > 0 ? crumbs[crumbs.length - 1].label : 'Overview';
+
+  function handleBack() {
+    if (level === 'region') {
+      reset();
+    } else {
+      drillUp(level);
+    }
+  }
+
   return (
     <div className={styles.mobileHeader}>
       <div className={styles.mobileHeaderLeft}>
-        <img src={logo} alt="Universal Pensions" className={styles.mobileHeaderLogo} />
+        {isDeep ? (
+          <button className={styles.backBtn} onClick={handleBack} aria-label="Go back">
+            <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+              <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        ) : null}
+        <div className={styles.mobileHeaderText}>
+          {isDeep ? (
+            <>
+              <span className={styles.mobileHeaderLevel}>{LEVEL_NAMES[level]}</span>
+              <span className={styles.mobileHeaderTitle}>{currentName}</span>
+            </>
+          ) : (
+            <img src={logo} alt="Universal Pensions" className={styles.mobileHeaderLogo} />
+          )}
+        </div>
       </div>
       <button
         className={styles.hamburger}
