@@ -81,6 +81,8 @@ export default function OverlayPanel() {
   const nextLevel = NEXT_LEVEL[level];
   const children = nextLevel ? getChildEntities(level, parentId) : [];
 
+  const aum = metrics.aum || metrics.totalContributions;
+
   return (
     <motion.div
       className={styles.panel}
@@ -90,65 +92,68 @@ export default function OverlayPanel() {
     >
       {level === 'country' && <h2 className={styles.greeting}>Hi Admin</h2>}
 
-      {/* Top KPIs — always visible, compact */}
-      <div className={styles.topKpis}>
-        <div className={styles.kpiPrimary}>
-          <span className={styles.kpiValueLg}>{formatUGX(metrics.aum || metrics.totalContributions)}</span>
-          <span className={styles.kpiLabel}>Assets Under Management</span>
+      {/* AUM — hero number */}
+      <div className={styles.aumBlock}>
+        <span className={styles.aumValue}>{formatUGX(aum)}</span>
+        <span className={styles.aumLabel}>Assets Under Management</span>
+      </div>
+
+      {/* Quick stats row */}
+      <div className={styles.quickStats}>
+        <div className={styles.stat}>
+          <span className={styles.statNum}>{formatUGX(metrics.totalContributions)}</span>
+          <span className={styles.statLabel}>Contributions</span>
         </div>
-        <div className={styles.kpiRow}>
-          <div className={styles.kpiMini}>
-            <span className={styles.kpiNum}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
-            <span className={styles.kpiLabel}>Subscribers</span>
-          </div>
-          <div className={styles.kpiMini}>
-            <span className={styles.kpiNum}>{metrics.totalAgents ?? 0}</span>
-            <span className={styles.kpiLabel}>Agents</span>
-          </div>
-          <div className={styles.kpiMini}>
-            <span className={styles.kpiNum}>{metrics.coverageRate || 0}%</span>
-            <span className={styles.kpiLabel}>Coverage</span>
-          </div>
+        <div className={styles.statDivider} />
+        <div className={styles.stat}>
+          <span className={styles.statNum}>{formatUGX(metrics.totalWithdrawals)}</span>
+          <span className={styles.statLabel}>Withdrawals</span>
         </div>
       </div>
 
-      {/* Collapsible: Financial Summary */}
-      <CollapsibleSection title="Financials" defaultOpen={false}>
-        <div className={styles.detailGrid}>
-          <div className={styles.detailItem}>
-            <span className={styles.detailValue}>{formatUGX(metrics.totalContributions)}</span>
-            <span className={styles.detailLabel}>Total Contributions</span>
-          </div>
-          <div className={styles.detailItem}>
-            <span className={styles.detailValue}>{formatUGX(metrics.totalWithdrawals)}</span>
-            <span className={styles.detailLabel}>Total Withdrawals</span>
-          </div>
-          <div className={styles.detailItem}>
-            <span className={styles.detailValue}>{metrics.totalBranches ?? 0}</span>
-            <span className={styles.detailLabel}>Branches</span>
-          </div>
-          <div className={styles.detailItem}>
-            <span className={styles.detailValue}>{metrics.complaintsCount ?? 0}</span>
-            <span className={styles.detailLabel}>Complaints</span>
-          </div>
+      {/* Entity counts */}
+      <div className={styles.countRow}>
+        <div className={styles.countItem}>
+          <span className={styles.countNum}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
+          <span className={styles.countLabel}>Subscribers</span>
         </div>
-      </CollapsibleSection>
+        <div className={styles.countItem}>
+          <span className={styles.countNum}>{metrics.totalAgents ?? 0}</span>
+          <span className={styles.countLabel}>Agents</span>
+        </div>
+        <div className={styles.countItem}>
+          <span className={styles.countNum}>{metrics.totalBranches ?? 0}</span>
+          <span className={styles.countLabel}>Branches</span>
+        </div>
+        <div className={styles.countItem}>
+          <span className={styles.countNum}>{metrics.coverageRate || 0}%</span>
+          <span className={styles.countLabel}>Coverage</span>
+        </div>
+      </div>
 
-      {/* Collapsible: Active vs Inactive */}
+      {/* Activity + Complaints */}
       <CollapsibleSection title="Activity" defaultOpen={true}>
         <div className={styles.activityContent}>
-          <div className={styles.activeBarHeader}>
-            <span className={styles.activeLabel}>{metrics.activeRate}% active</span>
-            <span className={styles.inactiveLabel}>{100 - metrics.activeRate}% inactive</span>
-          </div>
-          <div className={styles.barTrackLg}>
-            <div className={styles.barSegment} style={{ width: `${metrics.activeRate}%`, background: 'var(--color-status-good)' }} />
-            <div className={styles.barSegment} style={{ width: `${100 - metrics.activeRate}%`, background: 'var(--color-lavender)' }} />
+          <div className={styles.activeBarRow}>
+            <div className={styles.barTrackLg}>
+              <div className={styles.barSegment} style={{ width: `${metrics.activeRate}%`, background: 'var(--color-status-good)' }} />
+              <div className={styles.barSegment} style={{ width: `${100 - metrics.activeRate}%`, background: 'var(--color-lavender)' }} />
+            </div>
+            <div className={styles.activeLabels}>
+              <span className={styles.activeLabel}>{metrics.activeRate}% active</span>
+              <span className={styles.complaintLabel}>
+                <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25"/>
+                  <path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+                </svg>
+                {metrics.complaintsCount ?? 0} complaints
+              </span>
+            </div>
           </div>
         </div>
       </CollapsibleSection>
 
-      {/* Collapsible: Region/child entity list */}
+      {/* Region/child list */}
       {children.length > 0 && nextLevel && (
         <CollapsibleSection title={LEVEL_LABELS[nextLevel] || 'Items'} count={children.length} defaultOpen={true}>
           <div className={styles.entityList}>
