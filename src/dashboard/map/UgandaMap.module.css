@@ -11,9 +11,8 @@
 }
 
 .geography {
-  fill: rgba(217, 220, 242, 0.5);
-  stroke: rgba(41, 40, 103, 0.2);
-  stroke-width: 1;
+  stroke: rgba(41, 40, 103, 0.25);
+  stroke-width: 0.5;
   transition: fill 0.3s ease;
   cursor: pointer;
 }
