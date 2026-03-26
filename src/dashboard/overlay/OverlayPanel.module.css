@@ -346,6 +346,14 @@
 }
 
 /* ── Inactive tag in entity list ── */
+.statusCount {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-indigo-soft);
+  white-space: nowrap;
+}
+
 .inactiveTag {
   font-family: var(--font-body);
   font-size: 9px;

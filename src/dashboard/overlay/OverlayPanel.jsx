@@ -186,27 +186,17 @@ export default function OverlayPanel() {
           <div className={styles.entityList}>
             {children.map((child) => {
               const isChildActive = child.active !== false;
-              const activeRate = isChildActive ? (child.metrics?.activeRate || 80) : 0;
-              const warning = isChildActive ? Math.min(100 - activeRate, 15) : 0;
-              const poor = isChildActive ? Math.max(100 - activeRate - warning, 0) : 0;
+              const subCount = child.metrics?.totalSubscribers || 0;
               return (
                 <button key={child.id} className={styles.entityBtn} data-inactive={!isChildActive} onClick={() => drillDown(nextLevel, child.id)}>
-                  {isChildActive ? (
-                    <StatusBar
-                      label={child.name}
-                      value={activeRate}
-                      segments={[
-                        { pct: activeRate, color: 'var(--color-status-good)' },
-                        { pct: warning, color: 'var(--color-status-warning)' },
-                        { pct: poor, color: 'var(--color-status-poor)' },
-                      ]}
-                    />
-                  ) : (
-                    <div className={styles.statusRow}>
-                      <span className={styles.statusLabel}>{child.name}</span>
+                  <div className={styles.statusRow}>
+                    <span className={styles.statusLabel}>{child.name}</span>
+                    {isChildActive ? (
+                      <span className={styles.statusCount}>{subCount.toLocaleString()} subscribers</span>
+                    ) : (
                       <span className={styles.inactiveTag}>No branches</span>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </button>
               );
             })}

@@ -214,7 +214,7 @@ function generateSubscribers() {
   let subCounter = 0;
 
   agentIds.forEach((agentId) => {
-    const count = randInt(subsPerAgent - 4, subsPerAgent + 4);
+    const count = randInt(Math.max(5, subsPerAgent - 8), subsPerAgent + 10);
     for (let i = 0; i < count && subCounter < 2000; i++) {
       subCounter++;
       const gRoll = rand();
@@ -226,7 +226,7 @@ function generateSubscribers() {
         randInt(46, 55), randInt(46, 55),
         randInt(56, 70),
       ]);
-      const isActive = rand() < 0.80;
+      const isActive = rand() < (0.60 + rand() * 0.35);
       const monthlyAmt = randInt(5, 50) * 1000; // 5K–50K UGX
       const contribHistory = monthlyTrend(monthlyAmt, isActive ? 0.02 : -0.05, 0.15);
       const totalC = contribHistory.reduce((s, v) => s + v, 0);

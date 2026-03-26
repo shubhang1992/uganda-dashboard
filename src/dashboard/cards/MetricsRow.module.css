@@ -1,13 +1,16 @@
 .row {
   position: absolute;
   bottom: var(--space-4);
-  left: var(--space-4);
   right: var(--space-4);
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  align-items: end;
+  display: flex;
   gap: var(--space-3);
+  align-items: flex-end;
   z-index: 15;
+}
+
+.row > * {
+  width: 340px;
+  flex-shrink: 0;
 }
 
 
