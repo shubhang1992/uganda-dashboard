@@ -289,3 +289,18 @@
   text-align: right;
   flex-shrink: 0;
 }
+
+@media (max-width: 768px) {
+  .panel {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: 100%;
+    max-height: none;
+    border-radius: 0;
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: none;
+    padding: 1rem var(--space-4);
+  }
+}

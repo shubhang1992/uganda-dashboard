@@ -220,3 +220,8 @@
   opacity: 0.3;
   pointer-events: none;
 }
+
+@media (max-width: 768px) {
+  .toggleBtn { display: none; }
+  .panel { display: none; }
+}

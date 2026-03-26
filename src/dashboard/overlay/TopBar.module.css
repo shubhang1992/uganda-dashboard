@@ -29,3 +29,19 @@
   background: rgba(255, 255, 255, 0.85);
   box-shadow: 0 4px 16px rgba(41, 40, 103, 0.1);
 }
+
+@media (max-width: 768px) {
+  .topBar {
+    position: relative;
+    top: auto;
+    right: auto;
+    padding: 0.5rem var(--space-4);
+    justify-content: flex-end;
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  .btn {
+    font-size: 11px;
+    padding: 0.4rem 0.75rem;
+  }
+}

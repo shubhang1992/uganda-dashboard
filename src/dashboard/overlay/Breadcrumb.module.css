@@ -45,3 +45,16 @@
   color: var(--color-indigo);
   white-space: nowrap;
 }
+
+@media (max-width: 768px) {
+  .breadcrumb {
+    position: relative;
+    top: auto;
+    left: auto;
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: none;
+    padding: 0.625rem var(--space-4);
+  }
+}

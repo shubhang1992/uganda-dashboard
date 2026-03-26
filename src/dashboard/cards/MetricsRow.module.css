@@ -498,3 +498,36 @@
 }
 
 .alertItem[data-type='good'] span { color: var(--color-slate); }
+
+@media (max-width: 768px) {
+  .row {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    grid-template-columns: 1fr;
+    padding: 0 var(--space-4);
+    gap: var(--space-3);
+    margin-bottom: 72px; /* space for bottom tab bar */
+  }
+
+  .card {
+    min-height: auto;
+  }
+
+  .card:hover {
+    transform: none;
+  }
+
+  .chatCard {
+    min-height: auto;
+  }
+
+  .chatCard:hover {
+    transform: none;
+  }
+
+  .chatMessages {
+    max-height: 120px;
+  }
+}
