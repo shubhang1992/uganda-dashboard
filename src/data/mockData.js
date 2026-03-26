@@ -1,5 +1,5 @@
 // Mock Data — Distributor Admin Dashboard, Universal Pensions Uganda
-// Hierarchy: Country → 4 Regions → 12 Districts → ~30 Branches → ~120 Agents → ~2000 Subscribers
+// Hierarchy: Country → 4 Regions → 56 Districts (12 active) → ~30 Branches → ~120 Agents → ~2000 Subscribers
 
 // ─── Seeded RNG for deterministic data ───────────────────────────────────────
 let _seed = 42;
@@ -58,19 +58,68 @@ export const REGIONS = {
 };
 
 // ─── DISTRICTS ───────────────────────────────────────────────────────────────
+// All 56 GADM districts. Districts with branches are marked active: true.
 export const DISTRICTS = {
-  'd-kampala':   { id: 'd-kampala',   name: 'Kampala',   parentId: 'r-central',  center: [32.5833, 0.3136] },
-  'd-wakiso':    { id: 'd-wakiso',    name: 'Wakiso',    parentId: 'r-central',  center: [32.4467, 0.4044] },
-  'd-mukono':    { id: 'd-mukono',    name: 'Mukono',    parentId: 'r-central',  center: [32.7554, 0.3533] },
-  'd-jinja':     { id: 'd-jinja',     name: 'Jinja',     parentId: 'r-eastern',  center: [33.2040, 0.4244] },
-  'd-mbale':     { id: 'd-mbale',     name: 'Mbale',     parentId: 'r-eastern',  center: [34.1755, 1.0750] },
-  'd-soroti':    { id: 'd-soroti',    name: 'Soroti',    parentId: 'r-eastern',  center: [33.6112, 1.7150] },
-  'd-gulu':      { id: 'd-gulu',      name: 'Gulu',      parentId: 'r-northern', center: [32.2995, 2.7746] },
-  'd-lira':      { id: 'd-lira',      name: 'Lira',      parentId: 'r-northern', center: [32.5338, 2.2499] },
-  'd-arua':      { id: 'd-arua',      name: 'Arua',      parentId: 'r-northern', center: [30.9110, 3.0200] },
-  'd-mbarara':   { id: 'd-mbarara',   name: 'Mbarara',   parentId: 'r-western',  center: [30.6545, -0.6046] },
-  'd-kabarole':  { id: 'd-kabarole',  name: 'Fort Portal (Kabarole)', parentId: 'r-western', center: [30.2750, 0.6710] },
-  'd-kabale':    { id: 'd-kabale',    name: 'Kabale',    parentId: 'r-western',  center: [29.9889, -1.2491] },
+  // ── Central (13) ──
+  'd-kalangala':    { id: 'd-kalangala',    name: 'Kalangala',    parentId: 'r-central',  center: [32.3412, -0.4084], active: false },
+  'd-kampala':      { id: 'd-kampala',      name: 'Kampala',      parentId: 'r-central',  center: [32.6185, 0.3021],  active: true },
+  'd-kayunga':      { id: 'd-kayunga',      name: 'Kayunga',      parentId: 'r-central',  center: [32.9466, 0.9013],  active: false },
+  'd-kiboga':       { id: 'd-kiboga',       name: 'Kiboga',       parentId: 'r-central',  center: [31.7465, 0.9831],  active: false },
+  'd-luwero':       { id: 'd-luwero',       name: 'Luwero',       parentId: 'r-central',  center: [32.2722, 1.0335],  active: false },
+  'd-masaka':       { id: 'd-masaka',       name: 'Masaka',       parentId: 'r-central',  center: [31.8699, -0.2540], active: false },
+  'd-mpigi':        { id: 'd-mpigi',        name: 'Mpigi',        parentId: 'r-central',  center: [31.9594, 0.1434],  active: false },
+  'd-mubende':      { id: 'd-mubende',      name: 'Mubende',      parentId: 'r-central',  center: [31.6833, 0.4859],  active: false },
+  'd-mukono':       { id: 'd-mukono',       name: 'Mukono',       parentId: 'r-central',  center: [33.0105, 0.1404],  active: true },
+  'd-nakasongola':  { id: 'd-nakasongola',  name: 'Nakasongola',  parentId: 'r-central',  center: [32.3083, 1.3570],  active: false },
+  'd-rakai':        { id: 'd-rakai',        name: 'Rakai',        parentId: 'r-central',  center: [31.4361, -0.5601], active: false },
+  'd-sembabule':    { id: 'd-sembabule',    name: 'Sembabule',    parentId: 'r-central',  center: [31.3050, -0.0314], active: false },
+  'd-wakiso':       { id: 'd-wakiso',       name: 'Wakiso',       parentId: 'r-central',  center: [32.4303, 0.1547],  active: true },
+  // ── Eastern (15) ──
+  'd-bugiri':       { id: 'd-bugiri',       name: 'Bugiri',       parentId: 'r-eastern',  center: [33.7925, 0.2416],  active: false },
+  'd-busia':        { id: 'd-busia',        name: 'Busia',        parentId: 'r-eastern',  center: [34.0112, 0.4163],  active: false },
+  'd-iganga':       { id: 'd-iganga',       name: 'Iganga',       parentId: 'r-eastern',  center: [33.5236, 0.7617],  active: false },
+  'd-jinja':        { id: 'd-jinja',        name: 'Jinja',        parentId: 'r-eastern',  center: [33.2174, 0.5388],  active: true },
+  'd-kaberamaido':  { id: 'd-kaberamaido',  name: 'Kaberamaido',  parentId: 'r-eastern',  center: [33.2455, 1.8276],  active: false },
+  'd-kamuli':       { id: 'd-kamuli',       name: 'Kamuli',       parentId: 'r-eastern',  center: [33.2093, 0.9958],  active: false },
+  'd-kapchorwa':    { id: 'd-kapchorwa',    name: 'Kapchorwa',    parentId: 'r-eastern',  center: [34.5531, 1.4380],  active: false },
+  'd-katakwi':      { id: 'd-katakwi',      name: 'Katakwi',      parentId: 'r-eastern',  center: [33.6099, 2.0851],  active: false },
+  'd-kumi':         { id: 'd-kumi',         name: 'Kumi',         parentId: 'r-eastern',  center: [34.0267, 1.3750],  active: false },
+  'd-mayuge':       { id: 'd-mayuge',       name: 'Mayuge',       parentId: 'r-eastern',  center: [33.4887, 0.2862],  active: false },
+  'd-mbale':        { id: 'd-mbale',        name: 'Mbale',        parentId: 'r-eastern',  center: [34.3073, 0.9730],  active: true },
+  'd-pallisa':      { id: 'd-pallisa',      name: 'Pallisa',      parentId: 'r-eastern',  center: [33.7870, 1.1862],  active: false },
+  'd-sironko':      { id: 'd-sironko',      name: 'Sironko',      parentId: 'r-eastern',  center: [34.3236, 1.3233],  active: false },
+  'd-soroti':       { id: 'd-soroti',       name: 'Soroti',       parentId: 'r-eastern',  center: [33.5436, 1.6871],  active: true },
+  'd-tororo':       { id: 'd-tororo',       name: 'Tororo',       parentId: 'r-eastern',  center: [34.0863, 0.7003],  active: false },
+  // ── Northern (13) ──
+  'd-adjumani':     { id: 'd-adjumani',     name: 'Adjumani',     parentId: 'r-northern', center: [31.7590, 3.2089],  active: false },
+  'd-apac':         { id: 'd-apac',         name: 'Apac',         parentId: 'r-northern', center: [32.5858, 2.1351],  active: false },
+  'd-arua':         { id: 'd-arua',         name: 'Arua',         parentId: 'r-northern', center: [31.0845, 3.0614],  active: true },
+  'd-gulu':         { id: 'd-gulu',         name: 'Gulu',         parentId: 'r-northern', center: [32.0353, 2.8126],  active: true },
+  'd-kitgum':       { id: 'd-kitgum',       name: 'Kitgum',       parentId: 'r-northern', center: [32.9648, 3.3043],  active: false },
+  'd-kotido':       { id: 'd-kotido',       name: 'Kotido',       parentId: 'r-northern', center: [33.9263, 3.1447],  active: false },
+  'd-lira':         { id: 'd-lira',         name: 'Lira',         parentId: 'r-northern', center: [33.0866, 2.2282],  active: true },
+  'd-moroto':       { id: 'd-moroto',       name: 'Moroto',       parentId: 'r-northern', center: [34.5340, 2.4266],  active: false },
+  'd-moyo':         { id: 'd-moyo',         name: 'Moyo',         parentId: 'r-northern', center: [31.7326, 3.5107],  active: false },
+  'd-nakapiripirit':{ id: 'd-nakapiripirit', name: 'Nakapiripirit', parentId: 'r-northern', center: [34.6549, 1.8244], active: false },
+  'd-nebbi':        { id: 'd-nebbi',        name: 'Nebbi',        parentId: 'r-northern', center: [31.1016, 2.5440],  active: false },
+  'd-pader':        { id: 'd-pader',        name: 'Pader',        parentId: 'r-northern', center: [33.0572, 2.8593],  active: false },
+  'd-yumbe':        { id: 'd-yumbe',        name: 'Yumbe',        parentId: 'r-northern', center: [31.2603, 3.3991],  active: false },
+  // ── Western (15) ──
+  'd-bundibugyo':   { id: 'd-bundibugyo',   name: 'Bundibugyo',   parentId: 'r-western',  center: [30.2464, 0.9045],  active: false },
+  'd-bushenyi':     { id: 'd-bushenyi',     name: 'Bushenyi',     parentId: 'r-western',  center: [30.1435, -0.4577], active: false },
+  'd-hoima':        { id: 'd-hoima',        name: 'Hoima',        parentId: 'r-western',  center: [31.1381, 1.4229],  active: false },
+  'd-kabale':       { id: 'd-kabale',       name: 'Kabale',       parentId: 'r-western',  center: [29.9677, -1.2081], active: true },
+  'd-kabarole':     { id: 'd-kabarole',     name: 'Kabarole',     parentId: 'r-western',  center: [30.2986, 0.5883],  active: true },
+  'd-kamwenge':     { id: 'd-kamwenge',     name: 'Kamwenge',     parentId: 'r-western',  center: [30.5023, 0.2491],  active: false },
+  'd-kanungu':      { id: 'd-kanungu',      name: 'Kanungu',      parentId: 'r-western',  center: [29.7181, -0.7766], active: false },
+  'd-kasese':       { id: 'd-kasese',       name: 'Kasese',       parentId: 'r-western',  center: [29.9884, 0.1606],  active: false },
+  'd-kibale':       { id: 'd-kibale',       name: 'Kibale',       parentId: 'r-western',  center: [30.9942, 0.9622],  active: false },
+  'd-kisoro':       { id: 'd-kisoro',       name: 'Kisoro',       parentId: 'r-western',  center: [29.6862, -1.1928], active: false },
+  'd-kyenjojo':     { id: 'd-kyenjojo',     name: 'Kyenjojo',     parentId: 'r-western',  center: [30.7522, 0.5625],  active: false },
+  'd-masindi':      { id: 'd-masindi',      name: 'Masindi',      parentId: 'r-western',  center: [31.7444, 1.8511],  active: false },
+  'd-mbarara':      { id: 'd-mbarara',      name: 'Mbarara',      parentId: 'r-western',  center: [30.6576, -0.3391], active: true },
+  'd-ntungamo':     { id: 'd-ntungamo',     name: 'Ntungamo',     parentId: 'r-western',  center: [30.3006, -0.9579], active: false },
+  'd-rukungiri':    { id: 'd-rukungiri',    name: 'Rukungiri',    parentId: 'r-western',  center: [29.8838, -0.7064], active: false },
 };
 
 // ─── BRANCHES ────────────────────────────────────────────────────────────────

@@ -249,16 +249,37 @@ function UgandaMap() {
           ))}
 
           <AnimatePresence>
-            {children.map((child) => (
-              <MapDot
-                key={child.id}
-                coordinates={child.center}
-                name={child.name}
-                activeRate={child.metrics?.activeRate || 80}
-                size={level === 'country' ? 4 : level === 'region' ? 3 : 2}
-                onClick={nextLevel ? () => drillDown(nextLevel, child.id) : undefined}
-              />
-            ))}
+            {children.map((child) => {
+              const isActive = child.active !== false;
+              return isActive ? (
+                <MapDot
+                  key={child.id}
+                  coordinates={child.center}
+                  name={child.name}
+                  activeRate={child.metrics?.activeRate || 80}
+                  size={level === 'country' ? 4 : level === 'region' ? 3 : 2}
+                  onClick={nextLevel ? () => drillDown(nextLevel, child.id) : undefined}
+                />
+              ) : (
+                <Marker key={child.id} coordinates={child.center}>
+                  <motion.g
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ duration: 0.4, ease: EASE }}
+                    onClick={(e) => { e.stopPropagation(); nextLevel && drillDown(nextLevel, child.id); }}
+                    style={{ cursor: 'pointer', outline: 'none' }}
+                    className={styles.mapDot}
+                  >
+                    <circle r={level === 'country' ? 3 : 2.5} fill="none" stroke="var(--color-gray)" strokeWidth={0.5} opacity={0.5} />
+                    <circle r={0.8} fill="var(--color-gray)" opacity={0.4} />
+                  </motion.g>
+                  <text textAnchor="middle" y={level === 'country' ? -9 : -8} className={styles.dotLabelInactive}>
+                    {child.name}
+                  </text>
+                </Marker>
+              );
+            })}
           </AnimatePresence>
         </ZoomableGroup>
       </ComposableMap>

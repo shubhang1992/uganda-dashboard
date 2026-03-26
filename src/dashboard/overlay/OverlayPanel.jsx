@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { COUNTRY, getChildEntities, getEntityById, formatUGX } from '../../data/mockData';
+import { COUNTRY, getChildEntities, getEntityById, formatUGX, DISTRICTS } from '../../data/mockData';
 import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './OverlayPanel.module.css';
 const NEXT_LEVEL = { country: 'region', region: 'district', district: 'branch', branch: 'agent' };
@@ -75,12 +75,15 @@ function StatusBar({ label, value, segments }) {
 
 export default function OverlayPanel() {
   const { level, selectedIds, drillDown, drillUp, reset } = useDashboard();
-  const metrics = getCurrentMetrics(level, selectedIds);
   const parentId = getCurrentParentId(level, selectedIds);
   const nextLevel = NEXT_LEVEL[level];
   const children = nextLevel ? getChildEntities(level, parentId) : [];
 
-  const aum = metrics.aum || metrics.totalContributions;
+  // Check if current entity is inactive (no branches/data)
+  const currentEntity = level !== 'country' ? getEntityById(level, selectedIds[level]) : null;
+  const isInactive = currentEntity && currentEntity.active === false;
+  const metrics = isInactive ? null : getCurrentMetrics(level, selectedIds);
+  const aum = metrics ? (metrics.aum || metrics.totalContributions) : 0;
 
   return (
     <motion.div
@@ -103,6 +106,18 @@ export default function OverlayPanel() {
         </button>
       )}
 
+      {isInactive && (
+        <div className={styles.emptyState}>
+          <svg viewBox="0 0 24 24" fill="none" width="32" height="32">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+          </svg>
+          <h3 className={styles.emptyTitle}>{currentEntity?.name}</h3>
+          <p className={styles.emptyText}>No active branches in this district yet. This is a coverage opportunity for network expansion.</p>
+        </div>
+      )}
+
+      {!isInactive && <>
       {/* AUM — hero number */}
       <div className={styles.aumBlock}>
         <span className={styles.aumValue}>{formatUGX(aum)}</span>
@@ -167,26 +182,35 @@ export default function OverlayPanel() {
         <CollapsibleSection title={LEVEL_LABELS[nextLevel] || 'Items'} count={children.length} defaultOpen={false}>
           <div className={styles.entityList}>
             {children.map((child) => {
-              const active = child.metrics?.activeRate || 80;
-              const warning = Math.min(100 - active, 15);
-              const poor = Math.max(100 - active - warning, 0);
+              const isChildActive = child.active !== false;
+              const activeRate = isChildActive ? (child.metrics?.activeRate || 80) : 0;
+              const warning = isChildActive ? Math.min(100 - activeRate, 15) : 0;
+              const poor = isChildActive ? Math.max(100 - activeRate - warning, 0) : 0;
               return (
-                <button key={child.id} className={styles.entityBtn} onClick={() => drillDown(nextLevel, child.id)}>
-                  <StatusBar
-                    label={child.name}
-                    value={active}
-                    segments={[
-                      { pct: active, color: 'var(--color-status-good)' },
-                      { pct: warning, color: 'var(--color-status-warning)' },
-                      { pct: poor, color: 'var(--color-status-poor)' },
-                    ]}
-                  />
+                <button key={child.id} className={styles.entityBtn} data-inactive={!isChildActive} onClick={() => drillDown(nextLevel, child.id)}>
+                  {isChildActive ? (
+                    <StatusBar
+                      label={child.name}
+                      value={activeRate}
+                      segments={[
+                        { pct: activeRate, color: 'var(--color-status-good)' },
+                        { pct: warning, color: 'var(--color-status-warning)' },
+                        { pct: poor, color: 'var(--color-status-poor)' },
+                      ]}
+                    />
+                  ) : (
+                    <div className={styles.statusRow}>
+                      <span className={styles.statusLabel}>{child.name}</span>
+                      <span className={styles.inactiveTag}>No branches</span>
+                    </div>
+                  )}
                 </button>
               );
             })}
           </div>
         </CollapsibleSection>
       )}
+      </>}
     </motion.div>
   );
 }

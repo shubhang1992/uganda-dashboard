@@ -41,6 +41,15 @@
   opacity: 0.85;
 }
 
+.dotLabelInactive {
+  font-family: var(--font-body);
+  font-size: 2.5px;
+  font-weight: 500;
+  fill: var(--color-gray);
+  pointer-events: none;
+  opacity: 0.45;
+}
+
 .regionLabel {
   font-family: var(--font-display);
   font-size: 5px;
