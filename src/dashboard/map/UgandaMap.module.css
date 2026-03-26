@@ -3,10 +3,7 @@
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse at 55% 45%, rgba(94, 99, 168, 0.08) 0%, transparent 60%),
-    radial-gradient(ellipse at 30% 70%, rgba(47, 143, 157, 0.06) 0%, transparent 50%),
-    linear-gradient(160deg, #e2e6f0 0%, #d0d5e3 40%, #c5cad8 100%);
+  background: linear-gradient(135deg, #dde1ed 0%, #cdd2e0 50%, #c8ceda 100%);
 }
 
 .map {
@@ -20,8 +17,8 @@
 }
 
 .geography {
-  stroke: rgba(41, 40, 103, 0.25);
-  stroke-width: 0.7;
+  stroke: rgba(41, 40, 103, 0.2);
+  stroke-width: 0.4;
   transition: fill 0.2s ease;
   cursor: pointer;
 }
