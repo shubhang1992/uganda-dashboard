@@ -506,15 +506,15 @@
     left: auto;
     right: auto;
     grid-template-columns: 1fr;
-    padding: 0 var(--space-4);
-    gap: var(--space-3);
-    /* Tab bar height + safe area + breathing room */
-    padding-bottom: calc(72px + env(safe-area-inset-bottom) + var(--space-4));
+    padding: var(--space-4);
+    gap: var(--space-4);
+    padding-bottom: calc(80px + env(safe-area-inset-bottom) + var(--space-6));
   }
 
   .card {
     min-height: auto;
     border-radius: var(--radius-xl);
+    background: linear-gradient(145deg, rgba(255,255,255,0.92) 0%, rgba(246,247,251,0.88) 100%);
   }
 
   .card:hover {
