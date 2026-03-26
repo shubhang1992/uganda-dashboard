@@ -1,0 +1,151 @@
+.panel {
+  position: absolute;
+  top: 3.5rem;
+  left: var(--space-4);
+  width: 340px;
+  z-index: 15;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: 1.5rem;
+  max-height: calc(100vh - 10rem);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-lavender) transparent;
+}
+
+.greeting {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  color: var(--color-indigo);
+  margin-bottom: 1rem;
+}
+
+/* KPI strip */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--color-lavender);
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.kpiValue {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 800;
+  color: var(--color-indigo);
+}
+
+.kpiLabel {
+  font-family: var(--font-body);
+  font-size: 10px;
+  color: var(--color-gray);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Entity list */
+.entityList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.listHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.listTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-indigo);
+}
+
+.listCount {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-indigo-soft);
+  background: rgba(41, 40, 103, 0.06);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-full);
+}
+
+/* Status bars */
+.entityBtn {
+  width: 100%;
+  text-align: left;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.entityBtn:hover {
+  background: rgba(41, 40, 103, 0.04);
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.statusLabel {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-slate);
+  width: 80px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.barTrack {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--radius-full);
+  display: flex;
+  overflow: hidden;
+  background: rgba(41, 40, 103, 0.04);
+}
+
+.barSegment {
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.barSegment:first-child {
+  border-radius: var(--radius-full) 0 0 var(--radius-full);
+}
+
+.barSegment:last-child {
+  border-radius: 0 var(--radius-full) var(--radius-full) 0;
+}
+
+.statusPct {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-slate);
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}

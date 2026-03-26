@@ -58,6 +58,19 @@
   --shadow-lg:  0 12px 40px rgba(41,40,103,0.16);
   --shadow-xl:  0 24px 64px rgba(41,40,103,0.20);
 
+  /* Dashboard — Glassmorphism */
+  --glass-bg:       rgba(255, 255, 255, 0.82);
+  --glass-bg-dark:  rgba(27, 26, 74, 0.85);
+  --glass-border:   rgba(217, 220, 242, 0.5);
+  --glass-blur:     16px;
+  --sidebar-width:  64px;
+  --map-bg:         #E8EAF0;
+
+  /* Status colors */
+  --color-status-good:    #2E8B57;
+  --color-status-warning: #E6A817;
+  --color-status-poor:    #DC3545;
+
   /* Transitions */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out:   cubic-bezier(0.4, 0, 0.2, 1);

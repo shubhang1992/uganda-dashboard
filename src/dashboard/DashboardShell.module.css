@@ -1,0 +1,15 @@
+.shell {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  background: var(--map-bg);
+  overflow: hidden;
+}
+
+.main {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}

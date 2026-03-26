@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSignIn } from '../contexts/SignInContext';
+import { useApp } from '../contexts/AppContext';
 import RoleSelect from './signin/RoleSelect';
 import DistributorSelect from './signin/DistributorSelect';
 import PhoneEntry from './signin/PhoneEntry';
@@ -18,6 +19,7 @@ function getStepIndex(step) {
 
 export default function SignInModal() {
   const { isOpen, close } = useSignIn();
+  const { enterDashboard } = useApp();
   const [step, setStep] = useState('role');
   const [role, setRole] = useState(null);
   const [phone, setPhone] = useState('');
@@ -72,6 +74,7 @@ export default function SignInModal() {
 
   function handleVerify() {
     close();
+    enterDashboard(role);
   }
 
   function handlePhoneBack() {
