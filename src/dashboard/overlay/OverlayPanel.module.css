@@ -55,6 +55,14 @@
   color: var(--color-indigo);
 }
 
+.entityName {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--color-indigo);
+  margin: 0;
+}
+
 /* ── AUM hero ── */
 .aumBlock {
   display: flex;

@@ -95,15 +95,18 @@ export default function OverlayPanel() {
       {level === 'country' && <h2 className={styles.greeting}>Hi Admin</h2>}
 
       {level !== 'country' && (
-        <button
-          className={styles.backBtn}
-          onClick={() => level === 'region' ? reset() : drillUp(level)}
-        >
-          <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
-            <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Back
-        </button>
+        <>
+          <button
+            className={styles.backBtn}
+            onClick={() => level === 'region' ? reset() : drillUp(level)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+              <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Back
+          </button>
+          <h2 className={styles.entityName}>{currentEntity?.name || ''}</h2>
+        </>
       )}
 
       {isInactive && (

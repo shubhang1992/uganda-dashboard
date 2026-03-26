@@ -311,6 +311,8 @@ function addMetrics(target, source) {
   target.totalContributions += source.totalContributions;
   target.totalWithdrawals += source.totalWithdrawals;
   target.complaintsCount += source.complaintsCount;
+  // Track actual active subscriber count for correct rate calculation
+  target._activeCount = (target._activeCount || 0) + Math.round(source.totalSubscribers * source.activeRate / 100);
   for (let i = 0; i < 12; i++) target.monthlyContributions[i] += source.monthlyContributions[i];
   ['male', 'female', 'other'].forEach((g) => { target.genderRatio[g] += source.genderRatio[g]; });
   Object.keys(target.ageDistribution).forEach((k) => { target.ageDistribution[k] += source.ageDistribution[k]; });
@@ -318,10 +320,12 @@ function addMetrics(target, source) {
 
 function finalizeRates(m) {
   if (m.totalSubscribers > 0) {
-    const activeCount = Math.round(m.totalSubscribers * m.activeRate / (m.totalSubscribers || 1));
-    m.activeRate = Math.round((activeCount / m.totalSubscribers) * 100);
+    m.activeRate = Math.round(((m._activeCount || 0) / m.totalSubscribers) * 100);
     m.coverageRate = randInt(55, 80);
   }
+  delete m._activeCount;
+  // AUM = contributions + simulated investment returns (~50% of contributions)
+  m.aum = Math.round(m.totalContributions * (1 + rand() * 0.3 + 0.35));
   // Normalize gender ratio to percentages
   const gTotal = m.genderRatio.male + m.genderRatio.female + m.genderRatio.other;
   if (gTotal > 0) {
@@ -368,7 +372,9 @@ Object.values(BRANCHES).forEach((branch) => {
 // Roll up: district ← branches
 Object.values(DISTRICTS).forEach((district) => {
   const m = emptyMetrics();
-  Object.values(BRANCHES).filter((b) => b.parentId === district.id).forEach((b) => addMetrics(m, b.metrics));
+  const distBranches = Object.values(BRANCHES).filter((b) => b.parentId === district.id);
+  distBranches.forEach((b) => addMetrics(m, b.metrics));
+  m.totalBranches = distBranches.length;
   m.complaintsCount = randInt(1, 6);
   finalizeRates(m);
   district.metrics = m;
@@ -377,7 +383,9 @@ Object.values(DISTRICTS).forEach((district) => {
 // Roll up: region ← districts
 Object.values(REGIONS).forEach((region) => {
   const m = emptyMetrics();
-  Object.values(DISTRICTS).filter((d) => d.parentId === region.id).forEach((d) => addMetrics(m, d.metrics));
+  const regionDistricts = Object.values(DISTRICTS).filter((d) => d.parentId === region.id);
+  regionDistricts.forEach((d) => addMetrics(m, d.metrics));
+  m.totalBranches = regionDistricts.reduce((sum, d) => sum + (d.metrics?.totalBranches || 0), 0);
   m.complaintsCount = randInt(3, 12);
   finalizeRates(m);
   region.metrics = m;
