@@ -82,7 +82,7 @@ function UgandaMap() {
 
   // Compute zoom center and level based on drill state
   let zoomCenter = CENTER;
-  let zoomLevel = 1;
+  let zoomLevel = 1.6;
 
   if (level === 'region' && selectedIds.region) {
     const cfg = REGION_ZOOM[selectedIds.region];
