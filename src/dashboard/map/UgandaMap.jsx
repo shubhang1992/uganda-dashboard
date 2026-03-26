@@ -5,33 +5,29 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { DISTRICTS, BRANCHES, REGIONS, getChildEntities } from '../../data/mockData';
 import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './UgandaMap.module.css';
+
 const GEO_URL = '/uganda-topo.json';
+const COUNTY_GEO_URL = '/uganda-counties.json';
 const NEXT_LEVEL = { country: 'region', region: 'district', district: 'branch' };
 
-// Region fill colors — more distinct
 const REGION_FILLS = {
   Central: 'rgba(94, 99, 168, 0.22)',
   Eastern: 'rgba(47, 143, 157, 0.2)',
   Northern: 'rgba(41, 40, 103, 0.18)',
   Western: 'rgba(217, 220, 242, 0.45)',
 };
-
 const REGION_FILLS_HOVER = {
   Central: 'rgba(94, 99, 168, 0.38)',
   Eastern: 'rgba(47, 143, 157, 0.35)',
   Northern: 'rgba(41, 40, 103, 0.32)',
   Western: 'rgba(217, 220, 242, 0.65)',
 };
-
-// Dimmed fills when a region is selected
 const REGION_FILLS_DIM = {
   Central: 'rgba(94, 99, 168, 0.08)',
   Eastern: 'rgba(47, 143, 157, 0.07)',
   Northern: 'rgba(41, 40, 103, 0.06)',
   Western: 'rgba(217, 220, 242, 0.18)',
 };
-
-// Active (selected) region fills — brighter
 const REGION_FILLS_ACTIVE = {
   Central: 'rgba(94, 99, 168, 0.35)',
   Eastern: 'rgba(47, 143, 157, 0.32)',
@@ -47,13 +43,6 @@ const REGION_ZOOM = {
   'r-northern': { center: [32.3, 3.0], zoom: 2 },
   'r-western': { center: [30.3, -0.2], zoom: 2.5 },
 };
-
-// Map district names in GeoJSON to region IDs
-const DISTRICT_TO_REGION = {};
-Object.values(DISTRICTS).forEach((d) => {
-  const region = REGIONS[d.parentId];
-  if (region) DISTRICT_TO_REGION[d.name] = region.name;
-});
 
 function getStatusColor(rate) {
   if (rate >= 75) return 'var(--color-status-good)';
@@ -96,7 +85,6 @@ function MapDot({ coordinates, name, activeRate, size, onClick }) {
   );
 }
 
-// Region label rendered directly on the map
 function RegionLabel({ coordinates, name }) {
   return (
     <Marker coordinates={coordinates}>
@@ -115,7 +103,6 @@ function UgandaMap() {
   const parentId = level === 'country' ? 'ug' : selectedIds[level];
   const children = nextLevel ? getChildEntities(level, parentId) : [];
 
-  // Current selected region name (for dimming others)
   const selectedRegionName = useMemo(() => {
     if (level === 'country') return null;
     if (selectedIds.region) {
@@ -125,7 +112,6 @@ function UgandaMap() {
     return null;
   }, [level, selectedIds]);
 
-  // Selected district name (for highlighting specific district)
   const selectedDistrictName = useMemo(() => {
     if (level !== 'district' && level !== 'branch') return null;
     if (selectedIds.district) {
@@ -135,7 +121,20 @@ function UgandaMap() {
     return null;
   }, [level, selectedIds]);
 
-  // Compute zoom center and level based on drill state
+  // Show counties when drilled into a district or viewing branches
+  const showCounties = level === 'district' || level === 'branch';
+
+  // Build set of county names that have branches (for highlighting)
+  const branchCounties = useMemo(() => {
+    if (!selectedDistrictName) return new Set();
+    // Get branches for the selected district
+    const districtId = selectedIds.district;
+    const branches = Object.values(BRANCHES).filter(b => b.parentId === districtId);
+    // We don't have county assignments for branches yet, so we'll highlight
+    // all counties in the district and show branch dots on top
+    return new Set(branches.map(b => b.name));
+  }, [selectedDistrictName, selectedIds]);
+
   let zoomCenter = CENTER;
   let zoomLevel = 1.6;
 
@@ -144,7 +143,7 @@ function UgandaMap() {
     if (cfg) { zoomCenter = cfg.center; zoomLevel = cfg.zoom; }
   } else if (level === 'district' && selectedIds.district) {
     const district = DISTRICTS[selectedIds.district];
-    if (district) { zoomCenter = district.center; zoomLevel = 4.5; }
+    if (district) { zoomCenter = district.center; zoomLevel = 5; }
   } else if (level === 'branch' && selectedIds.branch) {
     const branch = BRANCHES[selectedIds.branch];
     if (branch) { zoomCenter = branch.center; zoomLevel = 7; }
@@ -154,8 +153,8 @@ function UgandaMap() {
     setTooltip({
       x: e.clientX,
       y: e.clientY,
-      name: geo.properties?.name,
-      region: geo.properties?.region,
+      name: geo.properties?.name || geo.properties?.adm3_name,
+      region: geo.properties?.region || geo.properties?.district,
     });
   }, []);
 
@@ -165,15 +164,12 @@ function UgandaMap() {
 
   const handleMouseLeave = useCallback(() => setTooltip(null), []);
 
-  // Get fill color for a geography based on drill state
   const getGeoFill = useCallback((region, districtName) => {
-    // District-level: highlight selected district
     if (selectedDistrictName) {
       if (districtName === selectedDistrictName) return 'rgba(94, 99, 168, 0.4)';
       if (region === selectedRegionName) return REGION_FILLS_DIM[region] || 'rgba(200, 205, 220, 0.12)';
       return 'rgba(200, 205, 220, 0.06)';
     }
-    // Region-level: highlight selected region
     if (selectedRegionName) {
       if (region === selectedRegionName) return REGION_FILLS_ACTIVE[region] || 'rgba(94, 99, 168, 0.35)';
       return REGION_FILLS_DIM[region] || 'rgba(200, 205, 220, 0.1)';
@@ -195,10 +191,7 @@ function UgandaMap() {
     <div className={styles.mapContainer}>
       <ComposableMap
         projection="geoMercator"
-        projectionConfig={{
-          center: CENTER,
-          scale: 5500,
-        }}
+        projectionConfig={{ center: CENTER, scale: 5500 }}
         className={styles.map}
         width={800}
         height={800}
@@ -210,6 +203,7 @@ function UgandaMap() {
           maxZoom={16}
           translateExtent={[[-100, -200], [900, 1000]]}
         >
+          {/* Base layer — district boundaries */}
           <Geographies geography={GEO_URL}>
             {({ geographies }) =>
               geographies.map((geo) => {
@@ -243,11 +237,64 @@ function UgandaMap() {
             }
           </Geographies>
 
+          {/* County layer — shown when drilled into a district */}
+          {showCounties && selectedDistrictName && (
+            <Geographies geography={COUNTY_GEO_URL}>
+              {({ geographies }) =>
+                geographies
+                  .filter((geo) => geo.properties?.district === selectedDistrictName)
+                  .map((geo) => {
+                    const countyName = geo.properties?.name;
+                    return (
+                      <Geography
+                        key={`county-${geo.rsmKey}`}
+                        geography={geo}
+                        className={styles.countyGeography}
+                        fill="rgba(94, 99, 168, 0.12)"
+                        stroke="rgba(41, 40, 103, 0.4)"
+                        strokeWidth={0.3}
+                        style={{
+                          default: { outline: 'none', fill: 'rgba(94, 99, 168, 0.12)' },
+                          hover: { outline: 'none', fill: 'rgba(94, 99, 168, 0.25)' },
+                          pressed: { outline: 'none', fill: 'rgba(94, 99, 168, 0.25)' },
+                        }}
+                        onMouseEnter={(e) => handleMouseEnter(e, { properties: { name: countyName, region: selectedDistrictName + ' County' } })}
+                        onMouseMove={handleMouseMove}
+                        onMouseLeave={handleMouseLeave}
+                      />
+                    );
+                  })
+              }
+            </Geographies>
+          )}
+
+          {/* County labels — when viewing counties */}
+          {showCounties && selectedDistrictName && (
+            <Geographies geography={COUNTY_GEO_URL}>
+              {({ geographies }) =>
+                geographies
+                  .filter((geo) => geo.properties?.district === selectedDistrictName)
+                  .map((geo) => {
+                    const p = geo.properties;
+                    if (!p.center_lon || !p.center_lat) return null;
+                    return (
+                      <Marker key={`clabel-${p.name}`} coordinates={[p.center_lon, p.center_lat]}>
+                        <text textAnchor="middle" className={styles.countyLabel}>
+                          {p.name}
+                        </text>
+                      </Marker>
+                    );
+                  })
+              }
+            </Geographies>
+          )}
+
           {/* Region labels — only at country level */}
           {level === 'country' && Object.values(REGIONS).map((r) => (
             <RegionLabel key={r.id} coordinates={r.center} name={r.name} />
           ))}
 
+          {/* Entity dots */}
           <AnimatePresence>
             {children.map((child) => {
               const isActive = child.active !== false;
@@ -284,7 +331,6 @@ function UgandaMap() {
         </ZoomableGroup>
       </ComposableMap>
 
-      {/* Zoom controls */}
       <div className={styles.zoomControls}>
         <button className={styles.zoomBtn} title="Zoom functionality is via scroll wheel & drag">
           <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
@@ -298,7 +344,7 @@ function UgandaMap() {
       {tooltip && (
         <div className={styles.tooltip} style={{ left: tooltip.x, top: tooltip.y }}>
           <span className={styles.tooltipName}>{tooltip.name}</span>
-          <span className={styles.tooltipRegion}>{tooltip.region} Region</span>
+          <span className={styles.tooltipRegion}>{tooltip.region}</span>
         </div>
       )}
 

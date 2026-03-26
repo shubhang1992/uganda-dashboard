@@ -50,6 +50,22 @@
   opacity: 0.45;
 }
 
+.countyGeography {
+  transition: fill 0.2s ease;
+  cursor: default;
+}
+
+.countyLabel {
+  font-family: var(--font-body);
+  font-size: 2px;
+  font-weight: 600;
+  fill: var(--color-indigo-soft);
+  pointer-events: none;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .regionLabel {
   font-family: var(--font-display);
   font-size: 5px;
