@@ -149,8 +149,6 @@ export default function MetricsRow() {
   }
 
   const totalSubs = metrics.totalSubscribers || 0;
-  const activeSubs = Math.round(totalSubs * (metrics.activeRate / 100));
-  const inactiveSubs = totalSubs - activeSubs;
 
   return (
     <motion.div
@@ -222,77 +220,6 @@ export default function MetricsRow() {
         </AnimatePresence>
       </motion.div>
 
-      {/* Card 3: Network Health — actionable insights */}
-      <motion.div className={styles.card} variants={item} data-expanded={expanded === 'health'}>
-        <div className={styles.cardHeader}>
-          <h3 className={styles.cardTitle}>Network Health</h3>
-          <button className={styles.detailsBtn} onClick={() => toggleExpand('health')}>
-            {expanded === 'health' ? 'Collapse' : 'Details'}
-          </button>
-        </div>
-        <div className={styles.healthBody}>
-          {/* Region performance mini-leaderboard */}
-          <div className={styles.healthList}>
-            <div className={styles.healthRow}>
-              <span className={styles.healthRank} data-status="good">1</span>
-              <span className={styles.healthName}>Northern</span>
-              <span className={styles.healthStat} data-status="good">62%</span>
-            </div>
-            <div className={styles.healthRow}>
-              <span className={styles.healthRank} data-status="good">2</span>
-              <span className={styles.healthName}>Central</span>
-              <span className={styles.healthStat} data-status="good">58%</span>
-            </div>
-            <div className={styles.healthRow}>
-              <span className={styles.healthRank} data-status="warning">3</span>
-              <span className={styles.healthName}>Eastern</span>
-              <span className={styles.healthStat} data-status="warning">55%</span>
-            </div>
-            <div className={styles.healthRow}>
-              <span className={styles.healthRank} data-status="warning">4</span>
-              <span className={styles.healthName}>Western</span>
-              <span className={styles.healthStat} data-status="warning">52%</span>
-            </div>
-          </div>
-          <span className={styles.healthCaption}>Coverage by region</span>
-        </div>
-        <AnimatePresence>
-          {expanded === 'health' && (
-            <motion.div
-              className={styles.expandedContent}
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: EASE }}
-            >
-              <div className={styles.expandDivider} />
-              <div className={styles.healthAlerts}>
-                <div className={styles.alertItem} data-type="warning">
-                  <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
-                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25"/>
-                    <path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
-                  </svg>
-                  <span>{inactiveSubs.toLocaleString()} subscribers at risk of churn</span>
-                </div>
-                <div className={styles.alertItem} data-type="info">
-                  <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
-                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25"/>
-                    <path d="M8 7v4M8 5v.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
-                  </svg>
-                  <span>{metrics.complaintsCount ?? 0} open complaints need attention</span>
-                </div>
-                <div className={styles.alertItem} data-type="good">
-                  <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
-                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25"/>
-                    <path d="M5.5 8l2 2 3-3.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>Monthly contributions up 3.8% MoM</span>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
     </motion.div>
   );
 }
