@@ -93,9 +93,9 @@ export default function SignInModal() {
   }
 
   const slideVariants = {
-    enter: (dir) => ({ opacity: 0, x: dir > 0 ? 30 : -30 }),
-    center: { opacity: 1, x: 0 },
-    exit: (dir) => ({ opacity: 0, x: dir > 0 ? -30 : 30 }),
+    enter: { opacity: 0 },
+    center: { opacity: 1 },
+    exit: { opacity: 0, position: 'absolute', top: 0, left: 0, right: 0 },
   };
 
   return (
@@ -149,11 +149,10 @@ export default function SignInModal() {
 
             {/* Content area */}
             <div className={styles.body}>
-              <AnimatePresence mode="wait" custom={direction}>
+              <AnimatePresence mode="popLayout">
                 {step === 'role' && (
                   <motion.div
                     key="role"
-                    custom={direction}
                     variants={slideVariants}
                     initial="enter"
                     animate="center"
@@ -167,7 +166,6 @@ export default function SignInModal() {
                 {step === 'distributor' && (
                   <motion.div
                     key="distributor"
-                    custom={direction}
                     variants={slideVariants}
                     initial="enter"
                     animate="center"
@@ -184,7 +182,6 @@ export default function SignInModal() {
                 {step === 'phone' && (
                   <motion.div
                     key="phone"
-                    custom={direction}
                     variants={slideVariants}
                     initial="enter"
                     animate="center"
@@ -202,7 +199,6 @@ export default function SignInModal() {
                 {step === 'otp' && (
                   <motion.div
                     key="otp"
-                    custom={direction}
                     variants={slideVariants}
                     initial="enter"
                     animate="center"
