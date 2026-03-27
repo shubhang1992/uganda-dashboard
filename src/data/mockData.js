@@ -123,115 +123,114 @@ export const DISTRICTS = {
 };
 
 // ─── BRANCHES ────────────────────────────────────────────────────────────────
+// Branch distribution based on population density and economic activity
+// Kampala/Wakiso (metro): most branches. Regional hubs: 4-5. Smaller towns: 2-3.
 const BRANCH_DEFS = [
-  // Central — Kampala (3)
-  { id: 'b-kla-main',     name: 'Kampala Main',       districtId: 'd-kampala',  center: [32.5811, 0.3163] },
-  { id: 'b-kla-wandegeya',name: 'Wandegeya',          districtId: 'd-kampala',  center: [32.5750, 0.3390] },
-  { id: 'b-kla-ntinda',   name: 'Ntinda',             districtId: 'd-kampala',  center: [32.6120, 0.3480] },
-  // Wakiso (2)
-  { id: 'b-wak-entebbe',  name: 'Entebbe',            districtId: 'd-wakiso',   center: [32.4633, 0.0551] },
-  { id: 'b-wak-nansana',  name: 'Nansana',            districtId: 'd-wakiso',   center: [32.5297, 0.3648] },
-  // Mukono (2)
-  { id: 'b-muk-main',     name: 'Mukono Town',        districtId: 'd-mukono',   center: [32.7500, 0.3500] },
-  { id: 'b-muk-lugazi',   name: 'Lugazi',             districtId: 'd-mukono',   center: [32.9200, 0.3900] },
-  // Eastern — Jinja (3)
-  { id: 'b-jin-main',     name: 'Jinja Main',         districtId: 'd-jinja',    center: [33.2070, 0.4300] },
-  { id: 'b-jin-bugembe',  name: 'Bugembe',            districtId: 'd-jinja',    center: [33.2340, 0.4520] },
-  { id: 'b-jin-kakira',   name: 'Kakira',             districtId: 'd-jinja',    center: [33.2780, 0.5000] },
-  // Mbale (2)
-  { id: 'b-mbl-main',     name: 'Mbale Main',         districtId: 'd-mbale',    center: [34.1750, 1.0650] },
-  { id: 'b-mbl-nkoma',    name: 'Nkoma',              districtId: 'd-mbale',    center: [34.2100, 1.1000] },
-  // Soroti (2)
-  { id: 'b-sor-main',     name: 'Soroti Main',        districtId: 'd-soroti',   center: [33.6110, 1.7140] },
-  { id: 'b-sor-arapai',   name: 'Arapai',             districtId: 'd-soroti',   center: [33.5600, 1.7500] },
-  // Northern — Gulu (3)
-  { id: 'b-gul-main',     name: 'Gulu Main',          districtId: 'd-gulu',     center: [32.3000, 2.7700] },
-  { id: 'b-gul-layibi',   name: 'Layibi',             districtId: 'd-gulu',     center: [32.2800, 2.7850] },
-  { id: 'b-gul-bardege',  name: 'Bardege',            districtId: 'd-gulu',     center: [32.3100, 2.7900] },
-  // Lira (2)
-  { id: 'b-lir-main',     name: 'Lira Main',          districtId: 'd-lira',     center: [32.5400, 2.2500] },
-  { id: 'b-lir-ojwina',   name: 'Ojwina',             districtId: 'd-lira',     center: [32.5200, 2.2300] },
-  // Arua (3)
-  { id: 'b-aru-main',     name: 'Arua Main',          districtId: 'd-arua',     center: [30.9100, 3.0200] },
-  { id: 'b-aru-oli',      name: 'Oli',                districtId: 'd-arua',     center: [30.9300, 3.0350] },
-  { id: 'b-aru-adumi',    name: 'Adumi',              districtId: 'd-arua',     center: [30.8800, 3.0500] },
-  // Western — Mbarara (3)
-  { id: 'b-mba-main',     name: 'Mbarara Main',       districtId: 'd-mbarara',  center: [30.6580, -0.6070] },
-  { id: 'b-mba-kakoba',   name: 'Kakoba',             districtId: 'd-mbarara',  center: [30.6400, -0.6200] },
-  { id: 'b-mba-nyamitanga',name:'Nyamitanga',          districtId: 'd-mbarara',  center: [30.6700, -0.5900] },
-  // Kabarole (2)
-  { id: 'b-kab-main',     name: 'Fort Portal Main',   districtId: 'd-kabarole', center: [30.2750, 0.6710] },
-  { id: 'b-kab-rwimi',    name: 'Rwimi',              districtId: 'd-kabarole', center: [30.3300, 0.6200] },
-  // Kabale (3)
-  { id: 'b-kbl-main',     name: 'Kabale Main',        districtId: 'd-kabale',   center: [29.9900, -1.2500] },
-  { id: 'b-kbl-katuna',   name: 'Katuna',             districtId: 'd-kabale',   center: [29.9700, -1.2000] },
-  { id: 'b-kbl-maziba',   name: 'Maziba',             districtId: 'd-kabale',   center: [29.9500, -1.2800] },
-
-  // ── Additional branches for existing districts ──
-  // Kampala (4 more)
+  // ── CENTRAL REGION ──
+  // Kampala — capital city, highest density (8 branches)
+  { id: 'b-kla-main',     name: 'Kampala Central',     districtId: 'd-kampala',  center: [32.5811, 0.3163] },
+  { id: 'b-kla-wandegeya',name: 'Wandegeya',           districtId: 'd-kampala',  center: [32.5750, 0.3390] },
+  { id: 'b-kla-ntinda',   name: 'Ntinda',              districtId: 'd-kampala',  center: [32.6120, 0.3480] },
   { id: 'b-kla-kawempe',  name: 'Kawempe',             districtId: 'd-kampala',  center: [32.5680, 0.3550] },
   { id: 'b-kla-makindye', name: 'Makindye',            districtId: 'd-kampala',  center: [32.6020, 0.2960] },
   { id: 'b-kla-rubaga',   name: 'Rubaga',              districtId: 'd-kampala',  center: [32.5520, 0.3100] },
   { id: 'b-kla-nakasero', name: 'Nakasero',            districtId: 'd-kampala',  center: [32.5850, 0.3200] },
-  // Wakiso (3 more)
+  { id: 'b-kla-kisenyi',  name: 'Kisenyi',             districtId: 'd-kampala',  center: [32.5700, 0.3050] },
+  // Wakiso — Kampala metro sprawl (6 branches)
+  { id: 'b-wak-entebbe',  name: 'Entebbe',             districtId: 'd-wakiso',   center: [32.4633, 0.0551] },
+  { id: 'b-wak-nansana',  name: 'Nansana',             districtId: 'd-wakiso',   center: [32.5297, 0.3648] },
   { id: 'b-wak-kira',     name: 'Kira',                districtId: 'd-wakiso',   center: [32.6350, 0.3720] },
-  { id: 'b-wak-kasangati', name: 'Kasangati',          districtId: 'd-wakiso',   center: [32.5350, 0.4200] },
-  { id: 'b-wak-bweyogerere', name: 'Bweyogerere',      districtId: 'd-wakiso',   center: [32.6500, 0.3500] },
-  // Mukono (2 more)
+  { id: 'b-wak-kasangati',name: 'Kasangati',            districtId: 'd-wakiso',   center: [32.5350, 0.4200] },
+  { id: 'b-wak-bweyogerere',name:'Bweyogerere',         districtId: 'd-wakiso',   center: [32.6500, 0.3500] },
+  { id: 'b-wak-wakiso',   name: 'Wakiso Town',         districtId: 'd-wakiso',   center: [32.4500, 0.4000] },
+  // Mukono — satellite town (4 branches)
+  { id: 'b-muk-main',     name: 'Mukono Town',         districtId: 'd-mukono',   center: [32.7500, 0.3500] },
+  { id: 'b-muk-lugazi',   name: 'Lugazi',              districtId: 'd-mukono',   center: [32.9200, 0.3900] },
   { id: 'b-muk-seeta',    name: 'Seeta',               districtId: 'd-mukono',   center: [32.6700, 0.3600] },
   { id: 'b-muk-namanve',  name: 'Namanve',             districtId: 'd-mukono',   center: [32.7100, 0.3400] },
-  // Jinja (2 more)
-  { id: 'b-jin-walukuba', name: 'Walukuba',            districtId: 'd-jinja',    center: [33.1900, 0.4400] },
-  { id: 'b-jin-mpumudde', name: 'Mpumudde',            districtId: 'd-jinja',    center: [33.2200, 0.4600] },
-  // Mbale (2 more)
-  { id: 'b-mbl-nakaloke', name: 'Nakaloke',            districtId: 'd-mbale',    center: [34.2000, 1.0900] },
-  { id: 'b-mbl-wanale',   name: 'Wanale',              districtId: 'd-mbale',    center: [34.1600, 1.0500] },
-  // Soroti (2 more)
-  { id: 'b-sor-gweri',    name: 'Gweri',               districtId: 'd-soroti',   center: [33.6400, 1.7300] },
-  { id: 'b-sor-kamuda',   name: 'Kamuda',              districtId: 'd-soroti',   center: [33.5800, 1.6900] },
-  // Gulu (2 more)
-  { id: 'b-gul-pece',     name: 'Pece',                districtId: 'd-gulu',     center: [32.2900, 2.7600] },
-  { id: 'b-gul-laroo',    name: 'Laroo',               districtId: 'd-gulu',     center: [32.3050, 2.8000] },
-  // Lira (2 more)
-  { id: 'b-lir-adyel',    name: 'Adyel',               districtId: 'd-lira',     center: [32.5500, 2.2600] },
-  { id: 'b-lir-railway',  name: 'Railway',              districtId: 'd-lira',     center: [32.5300, 2.2400] },
-  // Arua (2 more)
-  { id: 'b-aru-mvara',    name: 'Mvara',               districtId: 'd-arua',     center: [30.9200, 3.0100] },
-  { id: 'b-aru-pangisa',  name: 'Pangisa',             districtId: 'd-arua',     center: [30.8900, 3.0400] },
-  // Mbarara (2 more)
-  { id: 'b-mba-kamukuzi', name: 'Kamukuzi',            districtId: 'd-mbarara',  center: [30.6500, -0.6100] },
-  { id: 'b-mba-ruti',     name: 'Ruti',                districtId: 'd-mbarara',  center: [30.6800, -0.5700] },
-  // Kabarole (2 more)
-  { id: 'b-kab-kijura',   name: 'Kijura',              districtId: 'd-kabarole', center: [30.2600, 0.6500] },
-  { id: 'b-kab-kahinju',  name: 'Kahinju',             districtId: 'd-kabarole', center: [30.3100, 0.6800] },
-
-  // ── New active districts — branches ──
-  // Luwero (3)
+  // Luwero (3 branches)
   { id: 'b-luw-main',     name: 'Luwero Town',         districtId: 'd-luwero',   center: [32.4730, 0.8490] },
-  { id: 'b-luw-wobulenzi', name: 'Wobulenzi',          districtId: 'd-luwero',   center: [32.5100, 0.7600] },
+  { id: 'b-luw-wobulenzi',name: 'Wobulenzi',            districtId: 'd-luwero',   center: [32.5100, 0.7600] },
   { id: 'b-luw-bombo',    name: 'Bombo',               districtId: 'd-luwero',   center: [32.5330, 0.5830] },
-  // Masaka (3)
-  { id: 'b-mas-main',     name: 'Masaka Main',         districtId: 'd-masaka',   center: [31.7340, -0.3340] },
+  // Masaka (4 branches — major southern town)
+  { id: 'b-mas-main',     name: 'Masaka Central',      districtId: 'd-masaka',   center: [31.7340, -0.3340] },
   { id: 'b-mas-nyendo',   name: 'Nyendo',              districtId: 'd-masaka',   center: [31.7200, -0.3500] },
   { id: 'b-mas-kimanya',  name: 'Kimanya',             districtId: 'd-masaka',   center: [31.7400, -0.3200] },
-  // Iganga (2)
-  { id: 'b-iga-main',     name: 'Iganga Main',         districtId: 'd-iganga',   center: [33.4860, 0.6090] },
+  { id: 'b-mas-katwe',    name: 'Katwe-Butego',        districtId: 'd-masaka',   center: [31.7100, -0.3600] },
+
+  // ── EASTERN REGION ──
+  // Jinja — industrial hub (5 branches)
+  { id: 'b-jin-main',     name: 'Jinja Central',       districtId: 'd-jinja',    center: [33.2070, 0.4300] },
+  { id: 'b-jin-bugembe',  name: 'Bugembe',             districtId: 'd-jinja',    center: [33.2340, 0.4520] },
+  { id: 'b-jin-kakira',   name: 'Kakira',              districtId: 'd-jinja',    center: [33.2780, 0.5000] },
+  { id: 'b-jin-walukuba', name: 'Walukuba',            districtId: 'd-jinja',    center: [33.1900, 0.4400] },
+  { id: 'b-jin-mpumudde', name: 'Mpumudde',            districtId: 'd-jinja',    center: [33.2200, 0.4600] },
+  // Mbale — eastern hub (4 branches)
+  { id: 'b-mbl-main',     name: 'Mbale Central',       districtId: 'd-mbale',    center: [34.1750, 1.0650] },
+  { id: 'b-mbl-nkoma',    name: 'Nkoma',               districtId: 'd-mbale',    center: [34.2100, 1.1000] },
+  { id: 'b-mbl-nakaloke', name: 'Nakaloke',            districtId: 'd-mbale',    center: [34.2000, 1.0900] },
+  { id: 'b-mbl-wanale',   name: 'Wanale',              districtId: 'd-mbale',    center: [34.1600, 1.0500] },
+  // Iganga (3 branches)
+  { id: 'b-iga-main',     name: 'Iganga Central',      districtId: 'd-iganga',   center: [33.4860, 0.6090] },
   { id: 'b-iga-nakigo',   name: 'Nakigo',              districtId: 'd-iganga',   center: [33.5100, 0.6300] },
-  // Tororo (2)
-  { id: 'b-tor-main',     name: 'Tororo Main',         districtId: 'd-tororo',   center: [34.1810, 0.6920] },
-  { id: 'b-tor-nagongera', name: 'Nagongera',           districtId: 'd-tororo',   center: [34.0500, 0.7500] },
-  // Apac (2)
-  { id: 'b-apa-main',     name: 'Apac Main',           districtId: 'd-apac',     center: [32.5350, 1.9850] },
+  { id: 'b-iga-busembatia',name:'Busembatia',           districtId: 'd-iganga',   center: [33.5500, 0.6500] },
+  // Soroti (3 branches)
+  { id: 'b-sor-main',     name: 'Soroti Central',      districtId: 'd-soroti',   center: [33.6110, 1.7140] },
+  { id: 'b-sor-arapai',   name: 'Arapai',              districtId: 'd-soroti',   center: [33.5600, 1.7500] },
+  { id: 'b-sor-gweri',    name: 'Gweri',               districtId: 'd-soroti',   center: [33.6400, 1.7300] },
+  // Tororo (3 branches — border town)
+  { id: 'b-tor-main',     name: 'Tororo Central',      districtId: 'd-tororo',   center: [34.1810, 0.6920] },
+  { id: 'b-tor-nagongera',name: 'Nagongera',            districtId: 'd-tororo',   center: [34.0500, 0.7500] },
+  { id: 'b-tor-malaba',   name: 'Malaba',              districtId: 'd-tororo',   center: [34.2700, 0.6400] },
+
+  // ── NORTHERN REGION ──
+  // Gulu — northern hub (5 branches)
+  { id: 'b-gul-main',     name: 'Gulu Central',        districtId: 'd-gulu',     center: [32.3000, 2.7700] },
+  { id: 'b-gul-layibi',   name: 'Layibi',              districtId: 'd-gulu',     center: [32.2800, 2.7850] },
+  { id: 'b-gul-bardege',  name: 'Bardege',             districtId: 'd-gulu',     center: [32.3100, 2.7900] },
+  { id: 'b-gul-pece',     name: 'Pece',                districtId: 'd-gulu',     center: [32.2900, 2.7600] },
+  { id: 'b-gul-laroo',    name: 'Laroo',               districtId: 'd-gulu',     center: [32.3050, 2.8000] },
+  // Lira (4 branches)
+  { id: 'b-lir-main',     name: 'Lira Central',        districtId: 'd-lira',     center: [32.5400, 2.2500] },
+  { id: 'b-lir-ojwina',   name: 'Ojwina',              districtId: 'd-lira',     center: [32.5200, 2.2300] },
+  { id: 'b-lir-adyel',    name: 'Adyel',               districtId: 'd-lira',     center: [32.5500, 2.2600] },
+  { id: 'b-lir-railway',  name: 'Railway',              districtId: 'd-lira',     center: [32.5300, 2.2400] },
+  // Arua — West Nile hub (4 branches)
+  { id: 'b-aru-main',     name: 'Arua Central',        districtId: 'd-arua',     center: [30.9100, 3.0200] },
+  { id: 'b-aru-oli',      name: 'Oli',                 districtId: 'd-arua',     center: [30.9300, 3.0350] },
+  { id: 'b-aru-adumi',    name: 'Adumi',               districtId: 'd-arua',     center: [30.8800, 3.0500] },
+  { id: 'b-aru-mvara',    name: 'Mvara',               districtId: 'd-arua',     center: [30.9200, 3.0100] },
+  // Apac (2 branches — smaller town)
+  { id: 'b-apa-main',     name: 'Apac Central',        districtId: 'd-apac',     center: [32.5350, 1.9850] },
   { id: 'b-apa-ibuje',    name: 'Ibuje',               districtId: 'd-apac',     center: [32.5500, 2.0200] },
-  // Bushenyi (2)
-  { id: 'b-bus-main',     name: 'Bushenyi Main',       districtId: 'd-bushenyi', center: [30.1870, -0.5420] },
+
+  // ── WESTERN REGION ──
+  // Mbarara — western hub (5 branches)
+  { id: 'b-mba-main',     name: 'Mbarara Central',     districtId: 'd-mbarara',  center: [30.6580, -0.6070] },
+  { id: 'b-mba-kakoba',   name: 'Kakoba',              districtId: 'd-mbarara',  center: [30.6400, -0.6200] },
+  { id: 'b-mba-nyamitanga',name:'Nyamitanga',            districtId: 'd-mbarara',  center: [30.6700, -0.5900] },
+  { id: 'b-mba-kamukuzi', name: 'Kamukuzi',            districtId: 'd-mbarara',  center: [30.6500, -0.6100] },
+  { id: 'b-mba-ruti',     name: 'Ruti',                districtId: 'd-mbarara',  center: [30.6800, -0.5700] },
+  // Kabarole / Fort Portal (4 branches — tourism hub)
+  { id: 'b-kab-main',     name: 'Fort Portal Central', districtId: 'd-kabarole', center: [30.2750, 0.6710] },
+  { id: 'b-kab-rwimi',    name: 'Rwimi',               districtId: 'd-kabarole', center: [30.3300, 0.6200] },
+  { id: 'b-kab-kijura',   name: 'Kijura',              districtId: 'd-kabarole', center: [30.2600, 0.6500] },
+  { id: 'b-kab-kahinju',  name: 'Kahinju',             districtId: 'd-kabarole', center: [30.3100, 0.6800] },
+  // Kabale — southwestern hub (3 branches)
+  { id: 'b-kbl-main',     name: 'Kabale Central',      districtId: 'd-kabale',   center: [29.9900, -1.2500] },
+  { id: 'b-kbl-katuna',   name: 'Katuna',              districtId: 'd-kabale',   center: [29.9700, -1.2000] },
+  { id: 'b-kbl-maziba',   name: 'Maziba',              districtId: 'd-kabale',   center: [29.9500, -1.2800] },
+  // Bushenyi (3 branches)
+  { id: 'b-bus-main',     name: 'Bushenyi Central',    districtId: 'd-bushenyi', center: [30.1870, -0.5420] },
   { id: 'b-bus-ishaka',   name: 'Ishaka',              districtId: 'd-bushenyi', center: [30.1500, -0.5200] },
-  // Hoima (3)
-  { id: 'b-hoi-main',     name: 'Hoima Main',          districtId: 'd-hoima',    center: [31.3530, 1.4310] },
-  { id: 'b-hoi-kigorobya', name: 'Kigorobya',          districtId: 'd-hoima',    center: [31.3900, 1.5100] },
+  { id: 'b-bus-kijumo',   name: 'Kijumo',              districtId: 'd-bushenyi', center: [30.2100, -0.5600] },
+  // Hoima — oil region (4 branches)
+  { id: 'b-hoi-main',     name: 'Hoima Central',       districtId: 'd-hoima',    center: [31.3530, 1.4310] },
+  { id: 'b-hoi-kigorobya',name: 'Kigorobya',            districtId: 'd-hoima',    center: [31.3900, 1.5100] },
   { id: 'b-hoi-kitoba',   name: 'Kitoba',              districtId: 'd-hoima',    center: [31.3200, 1.4000] },
-  // Kasese (3)
-  { id: 'b-kas-main',     name: 'Kasese Main',         districtId: 'd-kasese',   center: [30.0880, 0.1830] },
+  { id: 'b-hoi-buseruka', name: 'Buseruka',            districtId: 'd-hoima',    center: [31.2800, 1.4800] },
+  // Kasese — Rwenzori foothills (3 branches)
+  { id: 'b-kas-main',     name: 'Kasese Central',      districtId: 'd-kasese',   center: [30.0880, 0.1830] },
   { id: 'b-kas-hima',     name: 'Hima',                districtId: 'd-kasese',   center: [30.0500, 0.2500] },
   { id: 'b-kas-kilembe',  name: 'Kilembe',             districtId: 'd-kasese',   center: [30.0000, 0.2000] },
 ];
