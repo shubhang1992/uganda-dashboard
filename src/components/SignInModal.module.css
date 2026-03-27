@@ -119,8 +119,9 @@
 /* ── Body ── */
 .body {
   padding: 2rem;
-  overflow-y: auto;
+  overflow: hidden;
   flex: 1;
+  position: relative;
 }
 
 /* ── Mobile: full-screen ── */

@@ -93,9 +93,9 @@ export default function SignInModal() {
   }
 
   const slideVariants = {
-    enter: (dir) => ({ opacity: 0, x: dir > 0 ? 60 : -60 }),
+    enter: (dir) => ({ opacity: 0, x: dir > 0 ? 30 : -30 }),
     center: { opacity: 1, x: 0 },
-    exit: (dir) => ({ opacity: 0, x: dir > 0 ? -60 : 60 }),
+    exit: (dir) => ({ opacity: 0, x: dir > 0 ? -30 : 30 }),
   };
 
   return (
@@ -158,7 +158,7 @@ export default function SignInModal() {
                     initial="enter"
                     animate="center"
                     exit="exit"
-                    transition={{ duration: 0.3, ease: EASE }}
+                    transition={{ duration: 0.2, ease: EASE }}
                   >
                     <RoleSelect onSelect={handleRoleSelect} />
                   </motion.div>
@@ -172,7 +172,7 @@ export default function SignInModal() {
                     initial="enter"
                     animate="center"
                     exit="exit"
-                    transition={{ duration: 0.3, ease: EASE }}
+                    transition={{ duration: 0.2, ease: EASE }}
                   >
                     <DistributorSelect
                       onSelect={handleDistributorSelect}
@@ -189,7 +189,7 @@ export default function SignInModal() {
                     initial="enter"
                     animate="center"
                     exit="exit"
-                    transition={{ duration: 0.3, ease: EASE }}
+                    transition={{ duration: 0.2, ease: EASE }}
                   >
                     <PhoneEntry
                       role={role}
@@ -207,7 +207,7 @@ export default function SignInModal() {
                     initial="enter"
                     animate="center"
                     exit="exit"
-                    transition={{ duration: 0.3, ease: EASE }}
+                    transition={{ duration: 0.2, ease: EASE }}
                   >
                     <OtpVerify
                       phone={phone}
