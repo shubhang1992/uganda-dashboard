@@ -508,10 +508,15 @@
     bottom: auto;
     left: auto;
     right: auto;
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     padding: 0 var(--space-4);
     gap: var(--space-3);
     padding-bottom: calc(var(--space-8) + env(safe-area-inset-bottom));
+  }
+
+  .row > * {
+    width: 100%;
   }
 
   .card {
