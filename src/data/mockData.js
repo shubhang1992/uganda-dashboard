@@ -566,7 +566,7 @@ function generateSubscribers() {
   let subCounter = 0;
 
   agentIds.forEach((agentId) => {
-    const count = randInt(Math.max(20, subsPerAgent - 15), subsPerAgent + 15);
+    const count = randInt(Math.max(5, subsPerAgent - 5), subsPerAgent + 5);
     for (let i = 0; i < count && subCounter < TARGET_SUBS; i++) {
       subCounter++;
       const gRoll = rand();
