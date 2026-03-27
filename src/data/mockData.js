@@ -1,5 +1,5 @@
 // Mock Data — Distributor Admin Dashboard, Universal Pensions Uganda
-// Hierarchy: Country → 4 Regions → 56 Districts (20 active) → ~85 Branches → ~500 Agents → ~25,000 Subscribers
+// Hierarchy: Country → 4 Regions → 56 Districts (all active) → ~200 Branches → ~1,200 Agents → ~120,000 Subscribers
 
 // ─── Seeded RNG for deterministic data ───────────────────────────────────────
 let _seed = 42;
@@ -34,18 +34,18 @@ export const COUNTRY = {
   name: 'Uganda',
   center: [32.3, 1.4],
   metrics: {
-    aum: 485_000_000_000,
-    totalBranches: 85,
-    totalAgents: 520,
-    totalSubscribers: 25000,
-    totalContributions: 326_000_000_000,
-    totalWithdrawals: 48_500_000_000,
-    coverageRate: 36,
+    aum: 2_400_000_000_000,
+    totalBranches: 200,
+    totalAgents: 1200,
+    totalSubscribers: 120000,
+    totalContributions: 1_600_000_000_000,
+    totalWithdrawals: 240_000_000_000,
+    coverageRate: 100,
     activeRate: 78,
-    complaintsCount: 187,
-    monthlyContributions: [24_000_000_000, 24_800_000_000, 25_500_000_000, 26_200_000_000, 26_800_000_000, 27_200_000_000, 28_000_000_000, 28_500_000_000, 29_200_000_000, 29_800_000_000, 30_500_000_000, 31_200_000_000],
+    complaintsCount: 842,
+    monthlyContributions: [115_000_000_000, 118_000_000_000, 121_000_000_000, 124_000_000_000, 127_000_000_000, 130_000_000_000, 134_000_000_000, 137_000_000_000, 141_000_000_000, 144_000_000_000, 148_000_000_000, 152_000_000_000],
     genderRatio: { male: 52, female: 46, other: 2 },
-    ageDistribution: { '18-25': 3500, '26-35': 7750, '36-45': 6750, '46-55': 4500, '55+': 2500 },
+    ageDistribution: { '18-25': 16800, '26-35': 37200, '36-45': 32400, '46-55': 21600, '55+': 12000 },
   },
 };
 
@@ -61,65 +61,65 @@ export const REGIONS = {
 // All 56 GADM districts. Districts with branches are marked active: true.
 export const DISTRICTS = {
   // ── Central (13) ──
-  'd-kalangala':    { id: 'd-kalangala',    name: 'Kalangala',    parentId: 'r-central',  center: [32.3412, -0.4084], active: false },
+  'd-kalangala':    { id: 'd-kalangala',    name: 'Kalangala',    parentId: 'r-central',  center: [32.3412, -0.4084], active: true },
   'd-kampala':      { id: 'd-kampala',      name: 'Kampala',      parentId: 'r-central',  center: [32.6185, 0.3021],  active: true },
-  'd-kayunga':      { id: 'd-kayunga',      name: 'Kayunga',      parentId: 'r-central',  center: [32.9466, 0.9013],  active: false },
-  'd-kiboga':       { id: 'd-kiboga',       name: 'Kiboga',       parentId: 'r-central',  center: [31.7465, 0.9831],  active: false },
+  'd-kayunga':      { id: 'd-kayunga',      name: 'Kayunga',      parentId: 'r-central',  center: [32.9466, 0.9013],  active: true },
+  'd-kiboga':       { id: 'd-kiboga',       name: 'Kiboga',       parentId: 'r-central',  center: [31.7465, 0.9831],  active: true },
   'd-luwero':       { id: 'd-luwero',       name: 'Luwero',       parentId: 'r-central',  center: [32.2722, 1.0335],  active: true },
   'd-masaka':       { id: 'd-masaka',       name: 'Masaka',       parentId: 'r-central',  center: [31.8699, -0.2540], active: true },
-  'd-mpigi':        { id: 'd-mpigi',        name: 'Mpigi',        parentId: 'r-central',  center: [31.9594, 0.1434],  active: false },
-  'd-mubende':      { id: 'd-mubende',      name: 'Mubende',      parentId: 'r-central',  center: [31.6833, 0.4859],  active: false },
+  'd-mpigi':        { id: 'd-mpigi',        name: 'Mpigi',        parentId: 'r-central',  center: [31.9594, 0.1434],  active: true },
+  'd-mubende':      { id: 'd-mubende',      name: 'Mubende',      parentId: 'r-central',  center: [31.6833, 0.4859],  active: true },
   'd-mukono':       { id: 'd-mukono',       name: 'Mukono',       parentId: 'r-central',  center: [33.0105, 0.1404],  active: true },
-  'd-nakasongola':  { id: 'd-nakasongola',  name: 'Nakasongola',  parentId: 'r-central',  center: [32.3083, 1.3570],  active: false },
-  'd-rakai':        { id: 'd-rakai',        name: 'Rakai',        parentId: 'r-central',  center: [31.4361, -0.5601], active: false },
-  'd-sembabule':    { id: 'd-sembabule',    name: 'Sembabule',    parentId: 'r-central',  center: [31.3050, -0.0314], active: false },
+  'd-nakasongola':  { id: 'd-nakasongola',  name: 'Nakasongola',  parentId: 'r-central',  center: [32.3083, 1.3570],  active: true },
+  'd-rakai':        { id: 'd-rakai',        name: 'Rakai',        parentId: 'r-central',  center: [31.4361, -0.5601], active: true },
+  'd-sembabule':    { id: 'd-sembabule',    name: 'Sembabule',    parentId: 'r-central',  center: [31.3050, -0.0314], active: true },
   'd-wakiso':       { id: 'd-wakiso',       name: 'Wakiso',       parentId: 'r-central',  center: [32.4303, 0.1547],  active: true },
   // ── Eastern (15) ──
-  'd-bugiri':       { id: 'd-bugiri',       name: 'Bugiri',       parentId: 'r-eastern',  center: [33.7925, 0.2416],  active: false },
-  'd-busia':        { id: 'd-busia',        name: 'Busia',        parentId: 'r-eastern',  center: [34.0112, 0.4163],  active: false },
+  'd-bugiri':       { id: 'd-bugiri',       name: 'Bugiri',       parentId: 'r-eastern',  center: [33.7925, 0.2416],  active: true },
+  'd-busia':        { id: 'd-busia',        name: 'Busia',        parentId: 'r-eastern',  center: [34.0112, 0.4163],  active: true },
   'd-iganga':       { id: 'd-iganga',       name: 'Iganga',       parentId: 'r-eastern',  center: [33.5236, 0.7617],  active: true },
   'd-jinja':        { id: 'd-jinja',        name: 'Jinja',        parentId: 'r-eastern',  center: [33.2174, 0.5388],  active: true },
-  'd-kaberamaido':  { id: 'd-kaberamaido',  name: 'Kaberamaido',  parentId: 'r-eastern',  center: [33.2455, 1.8276],  active: false },
-  'd-kamuli':       { id: 'd-kamuli',       name: 'Kamuli',       parentId: 'r-eastern',  center: [33.2093, 0.9958],  active: false },
-  'd-kapchorwa':    { id: 'd-kapchorwa',    name: 'Kapchorwa',    parentId: 'r-eastern',  center: [34.5531, 1.4380],  active: false },
-  'd-katakwi':      { id: 'd-katakwi',      name: 'Katakwi',      parentId: 'r-eastern',  center: [33.6099, 2.0851],  active: false },
-  'd-kumi':         { id: 'd-kumi',         name: 'Kumi',         parentId: 'r-eastern',  center: [34.0267, 1.3750],  active: false },
-  'd-mayuge':       { id: 'd-mayuge',       name: 'Mayuge',       parentId: 'r-eastern',  center: [33.4887, 0.2862],  active: false },
+  'd-kaberamaido':  { id: 'd-kaberamaido',  name: 'Kaberamaido',  parentId: 'r-eastern',  center: [33.2455, 1.8276],  active: true },
+  'd-kamuli':       { id: 'd-kamuli',       name: 'Kamuli',       parentId: 'r-eastern',  center: [33.2093, 0.9958],  active: true },
+  'd-kapchorwa':    { id: 'd-kapchorwa',    name: 'Kapchorwa',    parentId: 'r-eastern',  center: [34.5531, 1.4380],  active: true },
+  'd-katakwi':      { id: 'd-katakwi',      name: 'Katakwi',      parentId: 'r-eastern',  center: [33.6099, 2.0851],  active: true },
+  'd-kumi':         { id: 'd-kumi',         name: 'Kumi',         parentId: 'r-eastern',  center: [34.0267, 1.3750],  active: true },
+  'd-mayuge':       { id: 'd-mayuge',       name: 'Mayuge',       parentId: 'r-eastern',  center: [33.4887, 0.2862],  active: true },
   'd-mbale':        { id: 'd-mbale',        name: 'Mbale',        parentId: 'r-eastern',  center: [34.3073, 0.9730],  active: true },
-  'd-pallisa':      { id: 'd-pallisa',      name: 'Pallisa',      parentId: 'r-eastern',  center: [33.7870, 1.1862],  active: false },
-  'd-sironko':      { id: 'd-sironko',      name: 'Sironko',      parentId: 'r-eastern',  center: [34.3236, 1.3233],  active: false },
+  'd-pallisa':      { id: 'd-pallisa',      name: 'Pallisa',      parentId: 'r-eastern',  center: [33.7870, 1.1862],  active: true },
+  'd-sironko':      { id: 'd-sironko',      name: 'Sironko',      parentId: 'r-eastern',  center: [34.3236, 1.3233],  active: true },
   'd-soroti':       { id: 'd-soroti',       name: 'Soroti',       parentId: 'r-eastern',  center: [33.5436, 1.6871],  active: true },
   'd-tororo':       { id: 'd-tororo',       name: 'Tororo',       parentId: 'r-eastern',  center: [34.0863, 0.7003],  active: true },
   // ── Northern (13) ──
-  'd-adjumani':     { id: 'd-adjumani',     name: 'Adjumani',     parentId: 'r-northern', center: [31.7590, 3.2089],  active: false },
+  'd-adjumani':     { id: 'd-adjumani',     name: 'Adjumani',     parentId: 'r-northern', center: [31.7590, 3.2089],  active: true },
   'd-apac':         { id: 'd-apac',         name: 'Apac',         parentId: 'r-northern', center: [32.5858, 2.1351],  active: true },
   'd-arua':         { id: 'd-arua',         name: 'Arua',         parentId: 'r-northern', center: [31.0845, 3.0614],  active: true },
   'd-gulu':         { id: 'd-gulu',         name: 'Gulu',         parentId: 'r-northern', center: [32.0353, 2.8126],  active: true },
-  'd-kitgum':       { id: 'd-kitgum',       name: 'Kitgum',       parentId: 'r-northern', center: [32.9648, 3.3043],  active: false },
-  'd-kotido':       { id: 'd-kotido',       name: 'Kotido',       parentId: 'r-northern', center: [33.9263, 3.1447],  active: false },
+  'd-kitgum':       { id: 'd-kitgum',       name: 'Kitgum',       parentId: 'r-northern', center: [32.9648, 3.3043],  active: true },
+  'd-kotido':       { id: 'd-kotido',       name: 'Kotido',       parentId: 'r-northern', center: [33.9263, 3.1447],  active: true },
   'd-lira':         { id: 'd-lira',         name: 'Lira',         parentId: 'r-northern', center: [33.0866, 2.2282],  active: true },
-  'd-moroto':       { id: 'd-moroto',       name: 'Moroto',       parentId: 'r-northern', center: [34.5340, 2.4266],  active: false },
-  'd-moyo':         { id: 'd-moyo',         name: 'Moyo',         parentId: 'r-northern', center: [31.7326, 3.5107],  active: false },
-  'd-nakapiripirit':{ id: 'd-nakapiripirit', name: 'Nakapiripirit', parentId: 'r-northern', center: [34.6549, 1.8244], active: false },
-  'd-nebbi':        { id: 'd-nebbi',        name: 'Nebbi',        parentId: 'r-northern', center: [31.1016, 2.5440],  active: false },
-  'd-pader':        { id: 'd-pader',        name: 'Pader',        parentId: 'r-northern', center: [33.0572, 2.8593],  active: false },
-  'd-yumbe':        { id: 'd-yumbe',        name: 'Yumbe',        parentId: 'r-northern', center: [31.2603, 3.3991],  active: false },
+  'd-moroto':       { id: 'd-moroto',       name: 'Moroto',       parentId: 'r-northern', center: [34.5340, 2.4266],  active: true },
+  'd-moyo':         { id: 'd-moyo',         name: 'Moyo',         parentId: 'r-northern', center: [31.7326, 3.5107],  active: true },
+  'd-nakapiripirit':{ id: 'd-nakapiripirit', name: 'Nakapiripirit', parentId: 'r-northern', center: [34.6549, 1.8244], active: true },
+  'd-nebbi':        { id: 'd-nebbi',        name: 'Nebbi',        parentId: 'r-northern', center: [31.1016, 2.5440],  active: true },
+  'd-pader':        { id: 'd-pader',        name: 'Pader',        parentId: 'r-northern', center: [33.0572, 2.8593],  active: true },
+  'd-yumbe':        { id: 'd-yumbe',        name: 'Yumbe',        parentId: 'r-northern', center: [31.2603, 3.3991],  active: true },
   // ── Western (15) ──
-  'd-bundibugyo':   { id: 'd-bundibugyo',   name: 'Bundibugyo',   parentId: 'r-western',  center: [30.2464, 0.9045],  active: false },
+  'd-bundibugyo':   { id: 'd-bundibugyo',   name: 'Bundibugyo',   parentId: 'r-western',  center: [30.2464, 0.9045],  active: true },
   'd-bushenyi':     { id: 'd-bushenyi',     name: 'Bushenyi',     parentId: 'r-western',  center: [30.1435, -0.4577], active: true },
   'd-hoima':        { id: 'd-hoima',        name: 'Hoima',        parentId: 'r-western',  center: [31.1381, 1.4229],  active: true },
   'd-kabale':       { id: 'd-kabale',       name: 'Kabale',       parentId: 'r-western',  center: [29.9677, -1.2081], active: true },
   'd-kabarole':     { id: 'd-kabarole',     name: 'Kabarole',     parentId: 'r-western',  center: [30.2986, 0.5883],  active: true },
-  'd-kamwenge':     { id: 'd-kamwenge',     name: 'Kamwenge',     parentId: 'r-western',  center: [30.5023, 0.2491],  active: false },
-  'd-kanungu':      { id: 'd-kanungu',      name: 'Kanungu',      parentId: 'r-western',  center: [29.7181, -0.7766], active: false },
+  'd-kamwenge':     { id: 'd-kamwenge',     name: 'Kamwenge',     parentId: 'r-western',  center: [30.5023, 0.2491],  active: true },
+  'd-kanungu':      { id: 'd-kanungu',      name: 'Kanungu',      parentId: 'r-western',  center: [29.7181, -0.7766], active: true },
   'd-kasese':       { id: 'd-kasese',       name: 'Kasese',       parentId: 'r-western',  center: [29.9884, 0.1606],  active: true },
-  'd-kibale':       { id: 'd-kibale',       name: 'Kibale',       parentId: 'r-western',  center: [30.9942, 0.9622],  active: false },
-  'd-kisoro':       { id: 'd-kisoro',       name: 'Kisoro',       parentId: 'r-western',  center: [29.6862, -1.1928], active: false },
-  'd-kyenjojo':     { id: 'd-kyenjojo',     name: 'Kyenjojo',     parentId: 'r-western',  center: [30.7522, 0.5625],  active: false },
-  'd-masindi':      { id: 'd-masindi',      name: 'Masindi',      parentId: 'r-western',  center: [31.7444, 1.8511],  active: false },
+  'd-kibale':       { id: 'd-kibale',       name: 'Kibale',       parentId: 'r-western',  center: [30.9942, 0.9622],  active: true },
+  'd-kisoro':       { id: 'd-kisoro',       name: 'Kisoro',       parentId: 'r-western',  center: [29.6862, -1.1928], active: true },
+  'd-kyenjojo':     { id: 'd-kyenjojo',     name: 'Kyenjojo',     parentId: 'r-western',  center: [30.7522, 0.5625],  active: true },
+  'd-masindi':      { id: 'd-masindi',      name: 'Masindi',      parentId: 'r-western',  center: [31.7444, 1.8511],  active: true },
   'd-mbarara':      { id: 'd-mbarara',      name: 'Mbarara',      parentId: 'r-western',  center: [30.6576, -0.3391], active: true },
-  'd-ntungamo':     { id: 'd-ntungamo',     name: 'Ntungamo',     parentId: 'r-western',  center: [30.3006, -0.9579], active: false },
-  'd-rukungiri':    { id: 'd-rukungiri',    name: 'Rukungiri',    parentId: 'r-western',  center: [29.8838, -0.7064], active: false },
+  'd-ntungamo':     { id: 'd-ntungamo',     name: 'Ntungamo',     parentId: 'r-western',  center: [30.3006, -0.9579], active: true },
+  'd-rukungiri':    { id: 'd-rukungiri',    name: 'Rukungiri',    parentId: 'r-western',  center: [29.8838, -0.7064], active: true },
 };
 
 // ─── BRANCHES ────────────────────────────────────────────────────────────────
@@ -233,6 +233,143 @@ const BRANCH_DEFS = [
   { id: 'b-kas-main',     name: 'Kasese Central',      districtId: 'd-kasese',   center: [30.0880, 0.1830] },
   { id: 'b-kas-hima',     name: 'Hima',                districtId: 'd-kasese',   center: [30.0500, 0.2500] },
   { id: 'b-kas-kilembe',  name: 'Kilembe',             districtId: 'd-kasese',   center: [30.0000, 0.2000] },
+
+  // ── NEWLY ACTIVATED DISTRICTS (36 districts, 2-3 branches each) ──
+
+  // ── CENTRAL — newly activated ──
+  // Kalangala (2 branches — island district)
+  { id: 'b-kal-main',     name: 'Kalangala Central',   districtId: 'd-kalangala',  center: [32.3412, -0.4084] },
+  { id: 'b-kal-lutoboka',  name: 'Lutoboka',           districtId: 'd-kalangala',  center: [32.3200, -0.4250] },
+  // Kayunga (3 branches)
+  { id: 'b-kay-main',     name: 'Kayunga Central',     districtId: 'd-kayunga',    center: [32.9466, 0.9013] },
+  { id: 'b-kay-busaana',  name: 'Busaana',             districtId: 'd-kayunga',    center: [32.9700, 0.9200] },
+  { id: 'b-kay-nazigo',   name: 'Nazigo',              districtId: 'd-kayunga',    center: [32.9250, 0.8800] },
+  // Kiboga (2 branches)
+  { id: 'b-kib-main',     name: 'Kiboga Central',      districtId: 'd-kiboga',     center: [31.7465, 0.9831] },
+  { id: 'b-kib-bukomero', name: 'Bukomero',            districtId: 'd-kiboga',     center: [31.7200, 0.9600] },
+  // Mpigi (3 branches)
+  { id: 'b-mpi-main',     name: 'Mpigi Central',       districtId: 'd-mpigi',      center: [31.9594, 0.1434] },
+  { id: 'b-mpi-buwama',   name: 'Buwama',              districtId: 'd-mpigi',      center: [31.9400, 0.1200] },
+  { id: 'b-mpi-nkozi',    name: 'Nkozi',               districtId: 'd-mpigi',      center: [31.9800, 0.1600] },
+  // Mubende (3 branches)
+  { id: 'b-mub-main',     name: 'Mubende Central',     districtId: 'd-mubende',    center: [31.6833, 0.4859] },
+  { id: 'b-mub-kasambya', name: 'Kasambya',            districtId: 'd-mubende',    center: [31.6600, 0.5050] },
+  { id: 'b-mub-kitenga',  name: 'Kitenga',             districtId: 'd-mubende',    center: [31.7050, 0.4650] },
+  // Nakasongola (2 branches)
+  { id: 'b-nak-main',     name: 'Nakasongola Central', districtId: 'd-nakasongola',center: [32.3083, 1.3570] },
+  { id: 'b-nak-lwampanga',name: 'Lwampanga',            districtId: 'd-nakasongola',center: [32.3300, 1.3800] },
+  // Rakai (3 branches)
+  { id: 'b-rak-main',     name: 'Rakai Central',       districtId: 'd-rakai',      center: [31.4361, -0.5601] },
+  { id: 'b-rak-kyotera',  name: 'Kyotera',             districtId: 'd-rakai',      center: [31.4600, -0.5800] },
+  { id: 'b-rak-kalisizo', name: 'Kalisizo',            districtId: 'd-rakai',      center: [31.4100, -0.5400] },
+  // Sembabule (2 branches)
+  { id: 'b-sem-main',     name: 'Sembabule Central',   districtId: 'd-sembabule',  center: [31.3050, -0.0314] },
+  { id: 'b-sem-mateete',  name: 'Mateete',             districtId: 'd-sembabule',  center: [31.2800, -0.0500] },
+
+  // ── EASTERN — newly activated ──
+  // Bugiri (3 branches)
+  { id: 'b-bug-main',     name: 'Bugiri Central',      districtId: 'd-bugiri',     center: [33.7925, 0.2416] },
+  { id: 'b-bug-nankoma',  name: 'Nankoma',             districtId: 'd-bugiri',     center: [33.8100, 0.2600] },
+  { id: 'b-bug-kapyanga', name: 'Kapyanga',            districtId: 'd-bugiri',     center: [33.7700, 0.2200] },
+  // Busia (3 branches — border town)
+  { id: 'b-bsi-main',     name: 'Busia Central',       districtId: 'd-busia',      center: [34.0112, 0.4163] },
+  { id: 'b-bsi-masafu',   name: 'Masafu',              districtId: 'd-busia',      center: [34.0300, 0.4350] },
+  { id: 'b-bsi-dabani',   name: 'Dabani',              districtId: 'd-busia',      center: [33.9900, 0.3950] },
+  // Kaberamaido (2 branches)
+  { id: 'b-kbe-main',     name: 'Kaberamaido Central', districtId: 'd-kaberamaido',center: [33.2455, 1.8276] },
+  { id: 'b-kbe-kalaki',   name: 'Kalaki',              districtId: 'd-kaberamaido',center: [33.2700, 1.8500] },
+  // Kamuli (3 branches)
+  { id: 'b-kam-main',     name: 'Kamuli Central',      districtId: 'd-kamuli',     center: [33.2093, 0.9958] },
+  { id: 'b-kam-namwendwa',name: 'Namwendwa',            districtId: 'd-kamuli',     center: [33.2300, 1.0150] },
+  { id: 'b-kam-balawoli', name: 'Balawoli',            districtId: 'd-kamuli',     center: [33.1900, 0.9750] },
+  // Kapchorwa (2 branches)
+  { id: 'b-kpc-main',     name: 'Kapchorwa Central',   districtId: 'd-kapchorwa',  center: [34.5531, 1.4380] },
+  { id: 'b-kpc-sipi',     name: 'Sipi',                districtId: 'd-kapchorwa',  center: [34.5300, 1.4200] },
+  // Katakwi (2 branches)
+  { id: 'b-ktk-main',     name: 'Katakwi Central',     districtId: 'd-katakwi',    center: [33.6099, 2.0851] },
+  { id: 'b-ktk-toroma',   name: 'Toroma',              districtId: 'd-katakwi',    center: [33.6300, 2.1050] },
+  // Kumi (3 branches)
+  { id: 'b-kum-main',     name: 'Kumi Central',        districtId: 'd-kumi',       center: [34.0267, 1.3750] },
+  { id: 'b-kum-ngora',    name: 'Ngora',               districtId: 'd-kumi',       center: [34.0050, 1.3950] },
+  { id: 'b-kum-mukongoro',name: 'Mukongoro',            districtId: 'd-kumi',       center: [34.0500, 1.3550] },
+  // Mayuge (3 branches)
+  { id: 'b-may-main',     name: 'Mayuge Central',      districtId: 'd-mayuge',     center: [33.4887, 0.2862] },
+  { id: 'b-may-malongo',  name: 'Malongo',             districtId: 'd-mayuge',     center: [33.5100, 0.3050] },
+  { id: 'b-may-baitambogwe',name:'Baitambogwe',         districtId: 'd-mayuge',     center: [33.4650, 0.2650] },
+  // Pallisa (3 branches)
+  { id: 'b-pal-main',     name: 'Pallisa Central',     districtId: 'd-pallisa',    center: [33.7870, 1.1862] },
+  { id: 'b-pal-kibuku',   name: 'Kibuku',              districtId: 'd-pallisa',    center: [33.8100, 1.2050] },
+  { id: 'b-pal-butebo',   name: 'Butebo',              districtId: 'd-pallisa',    center: [33.7650, 1.1650] },
+  // Sironko (2 branches)
+  { id: 'b-sir-main',     name: 'Sironko Central',     districtId: 'd-sironko',    center: [34.3236, 1.3233] },
+  { id: 'b-sir-budadiri', name: 'Budadiri',            districtId: 'd-sironko',    center: [34.3450, 1.3050] },
+
+  // ── NORTHERN — newly activated ──
+  // Adjumani (2 branches)
+  { id: 'b-adj-main',     name: 'Adjumani Central',    districtId: 'd-adjumani',   center: [31.7590, 3.2089] },
+  { id: 'b-adj-pakele',   name: 'Pakele',              districtId: 'd-adjumani',   center: [31.7800, 3.2300] },
+  // Kitgum (3 branches)
+  { id: 'b-kit-main',     name: 'Kitgum Central',      districtId: 'd-kitgum',     center: [32.9648, 3.3043] },
+  { id: 'b-kit-labongo',  name: 'Labongo',             districtId: 'd-kitgum',     center: [32.9450, 3.3250] },
+  { id: 'b-kit-omiya',    name: 'Omiya Anyima',        districtId: 'd-kitgum',     center: [32.9850, 3.2850] },
+  // Kotido (2 branches)
+  { id: 'b-kot-main',     name: 'Kotido Central',      districtId: 'd-kotido',     center: [33.9263, 3.1447] },
+  { id: 'b-kot-panyangara',name:'Panyangara',            districtId: 'd-kotido',     center: [33.9050, 3.1650] },
+  // Moroto (2 branches)
+  { id: 'b-mor-main',     name: 'Moroto Central',      districtId: 'd-moroto',     center: [34.5340, 2.4266] },
+  { id: 'b-mor-nadunget', name: 'Nadunget',            districtId: 'd-moroto',     center: [34.5550, 2.4450] },
+  // Moyo (2 branches)
+  { id: 'b-moy-main',     name: 'Moyo Central',        districtId: 'd-moyo',       center: [31.7326, 3.5107] },
+  { id: 'b-moy-obongi',   name: 'Obongi',              districtId: 'd-moyo',       center: [31.7550, 3.5300] },
+  // Nakapiripirit (2 branches)
+  { id: 'b-nkp-main',     name: 'Nakapiripirit Central',districtId:'d-nakapiripirit',center:[34.6549, 1.8244] },
+  { id: 'b-nkp-namalu',   name: 'Namalu',              districtId: 'd-nakapiripirit',center:[34.6750, 1.8450] },
+  // Nebbi (3 branches)
+  { id: 'b-neb-main',     name: 'Nebbi Central',       districtId: 'd-nebbi',      center: [31.1016, 2.5440] },
+  { id: 'b-neb-pakwach',  name: 'Pakwach',             districtId: 'd-nebbi',      center: [31.1250, 2.5650] },
+  { id: 'b-neb-parombo',  name: 'Parombo',             districtId: 'd-nebbi',      center: [31.0800, 2.5200] },
+  // Pader (2 branches)
+  { id: 'b-pad-main',     name: 'Pader Central',       districtId: 'd-pader',      center: [33.0572, 2.8593] },
+  { id: 'b-pad-atanga',   name: 'Atanga',              districtId: 'd-pader',      center: [33.0350, 2.8800] },
+  // Yumbe (2 branches)
+  { id: 'b-yum-main',     name: 'Yumbe Central',       districtId: 'd-yumbe',      center: [31.2603, 3.3991] },
+  { id: 'b-yum-kei',      name: 'Kei Bridge',          districtId: 'd-yumbe',      center: [31.2400, 3.4200] },
+
+  // ── WESTERN — newly activated ──
+  // Bundibugyo (2 branches)
+  { id: 'b-bun-main',     name: 'Bundibugyo Central',  districtId: 'd-bundibugyo', center: [30.2464, 0.9045] },
+  { id: 'b-bun-ntandi',   name: 'Ntandi',              districtId: 'd-bundibugyo', center: [30.2250, 0.8850] },
+  // Kamwenge (3 branches)
+  { id: 'b-kmw-main',     name: 'Kamwenge Central',    districtId: 'd-kamwenge',   center: [30.5023, 0.2491] },
+  { id: 'b-kmw-biguli',   name: 'Biguli',              districtId: 'd-kamwenge',   center: [30.4800, 0.2700] },
+  { id: 'b-kmw-kahunge',  name: 'Kahunge',             districtId: 'd-kamwenge',   center: [30.5250, 0.2280] },
+  // Kanungu (3 branches)
+  { id: 'b-kan-main',     name: 'Kanungu Central',     districtId: 'd-kanungu',    center: [29.7181, -0.7766] },
+  { id: 'b-kan-kambuga',  name: 'Kambuga',             districtId: 'd-kanungu',    center: [29.7400, -0.7550] },
+  { id: 'b-kan-kihihi',   name: 'Kihihi',              districtId: 'd-kanungu',    center: [29.6950, -0.7950] },
+  // Kibale (3 branches)
+  { id: 'b-kbl2-main',    name: 'Kibale Central',      districtId: 'd-kibale',     center: [30.9942, 0.9622] },
+  { id: 'b-kbl2-kagadi',  name: 'Kagadi',              districtId: 'd-kibale',     center: [30.9700, 0.9450] },
+  { id: 'b-kbl2-kakumiro',name: 'Kakumiro',             districtId: 'd-kibale',     center: [31.0150, 0.9800] },
+  // Kisoro (2 branches)
+  { id: 'b-kis-main',     name: 'Kisoro Central',      districtId: 'd-kisoro',     center: [29.6862, -1.1928] },
+  { id: 'b-kis-nyakabande',name:'Nyakabande',            districtId: 'd-kisoro',     center: [29.6650, -1.2100] },
+  // Kyenjojo (3 branches)
+  { id: 'b-kye-main',     name: 'Kyenjojo Central',    districtId: 'd-kyenjojo',   center: [30.7522, 0.5625] },
+  { id: 'b-kye-katooke',  name: 'Katooke',             districtId: 'd-kyenjojo',   center: [30.7300, 0.5450] },
+  { id: 'b-kye-butunduzi',name: 'Butunduzi',            districtId: 'd-kyenjojo',   center: [30.7750, 0.5800] },
+  // Masindi (3 branches)
+  { id: 'b-msd-main',     name: 'Masindi Central',     districtId: 'd-masindi',    center: [31.7444, 1.8511] },
+  { id: 'b-msd-pakanyi',  name: 'Pakanyi',             districtId: 'd-masindi',    center: [31.7200, 1.8300] },
+  { id: 'b-msd-kigumba',  name: 'Kigumba',             districtId: 'd-masindi',    center: [31.7700, 1.8700] },
+  // Ntungamo (3 branches)
+  { id: 'b-ntu-main',     name: 'Ntungamo Central',    districtId: 'd-ntungamo',   center: [30.3006, -0.9579] },
+  { id: 'b-ntu-rubaare',  name: 'Rubaare',             districtId: 'd-ntungamo',   center: [30.2800, -0.9350] },
+  { id: 'b-ntu-itojo',    name: 'Itojo',               districtId: 'd-ntungamo',   center: [30.3200, -0.9800] },
+  // Rukungiri (3 branches)
+  { id: 'b-ruk-main',     name: 'Rukungiri Central',   districtId: 'd-rukungiri',  center: [29.8838, -0.7064] },
+  { id: 'b-ruk-kebisoni', name: 'Kebisoni',            districtId: 'd-rukungiri',  center: [29.8600, -0.7250] },
+  { id: 'b-ruk-nyakishenyi',name:'Nyakishenyi',          districtId: 'd-rukungiri',  center: [29.9050, -0.6850] },
 ];
 
 export const BRANCHES = {};
@@ -277,7 +414,7 @@ function generateSubscribers() {
   if (_subscribersCache) return _subscribersCache;
   const subs = {};
   const agentIds = Object.keys(AGENTS);
-  const TARGET_SUBS = 25000;
+  const TARGET_SUBS = 120000;
   const subsPerAgent = Math.ceil(TARGET_SUBS / agentIds.length);
   let subCounter = 0;
 
