@@ -561,7 +561,7 @@ function generateSubscribers() {
   if (_subscribersCache) return _subscribersCache;
   const subs = {};
   const agentIds = Object.keys(AGENTS);
-  const TARGET_SUBS = 120000;
+  const TARGET_SUBS = 30000;
   const subsPerAgent = Math.ceil(TARGET_SUBS / agentIds.length);
   let subCounter = 0;
 
@@ -691,9 +691,15 @@ function finalizeRates(m) {
 
 // Compute agent-level metrics from subscribers
 const subs = generateSubscribers();
+// Pre-group subscribers by agent for O(1) lookup instead of O(n) filter
+const subsByAgent = {};
+Object.values(subs).forEach((s) => {
+  if (!subsByAgent[s.parentId]) subsByAgent[s.parentId] = [];
+  subsByAgent[s.parentId].push(s);
+});
 Object.values(AGENTS).forEach((agent) => {
   const m = emptyMetrics();
-  const agentSubs = Object.values(subs).filter((s) => s.parentId === agent.id);
+  const agentSubs = subsByAgent[agent.id] || [];
   m.totalSubscribers = agentSubs.length;
   m.totalAgents = 1;
   let activeCount = 0;
