@@ -372,6 +372,82 @@
   opacity: 0.6;
 }
 
+/* ── Panel header with collapse toggle ── */
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.collapseBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  color: var(--color-gray);
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.collapseBtn:hover {
+  background: rgba(41, 40, 103, 0.06);
+  color: var(--color-indigo);
+}
+
+/* ── Collapsed pill ── */
+.collapsedPill {
+  position: absolute;
+  top: calc(var(--space-6) + 2.5rem);
+  left: var(--space-6);
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  background: linear-gradient(145deg, rgba(255,255,255,0.82) 0%, rgba(246,247,251,0.76) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.6);
+  border-radius: var(--radius-full);
+  padding: 0.625rem 1.25rem 0.625rem 1rem;
+  box-shadow:
+    0 4px 20px rgba(41,40,103,0.08),
+    0 1px 0 rgba(255,255,255,0.5) inset;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.collapsedPill:hover {
+  box-shadow:
+    0 6px 28px rgba(41,40,103,0.12),
+    0 1px 0 rgba(255,255,255,0.5) inset;
+  transform: translateX(2px);
+}
+
+.collapsedPill svg {
+  color: var(--color-indigo-soft);
+  flex-shrink: 0;
+}
+
+.collapsedLabel {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-indigo);
+}
+
+.collapsedValue {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-indigo-soft);
+  padding-left: 0.5rem;
+  border-left: 1px solid rgba(41, 40, 103, 0.1);
+}
+
 @media (max-width: 768px) {
   .panel {
     position: relative;
@@ -388,4 +464,11 @@
   .greeting { display: none; }
 
   .countLabel { font-size: 10px; }
+
+  .collapsedPill {
+    position: relative;
+    top: auto;
+    left: auto;
+    margin: var(--space-3) var(--space-4);
+  }
 }

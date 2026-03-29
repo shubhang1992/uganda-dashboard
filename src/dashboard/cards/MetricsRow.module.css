@@ -4,7 +4,7 @@
   right: var(--space-4);
   display: flex;
   gap: var(--space-3);
-  align-items: flex-end;
+  align-items: stretch;
   z-index: 15;
 }
 
@@ -164,9 +164,22 @@
 .chatHeader {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid rgba(41,40,103,0.05);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.chatHeader:hover {
+  background: rgba(41, 40, 103, 0.02);
+}
+
+.chatHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .chatDot {
@@ -501,6 +514,59 @@
 }
 
 .alertItem[data-type='good'] span { color: var(--color-slate); }
+
+/* ── Collapsible card controls ── */
+.cardToggle {
+  color: var(--color-gray);
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+
+.cardToggle[data-open='true'] {
+  transform: rotate(180deg);
+}
+
+.cardHeaderToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.cardHeaderToggle:hover {
+  background: rgba(41, 40, 103, 0.02);
+}
+
+.cardBody {
+  overflow: hidden;
+}
+
+.detailsBtnRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.25rem;
+}
+
+/* Collapsed card states */
+.card[data-collapsed='true'] {
+  min-height: auto;
+  gap: 0;
+  padding: 0;
+}
+
+.card[data-collapsed='true'] .cardHeaderToggle {
+  padding: 0.75rem 1rem;
+}
+
+.chatCard[data-collapsed='true'] {
+  min-height: auto;
+}
+
+.chatCard[data-collapsed='true'] .chatHeader {
+  border-bottom: none;
+}
 
 @media (max-width: 768px) {
   .row {

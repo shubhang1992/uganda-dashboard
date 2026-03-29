@@ -1,362 +1,481 @@
-import { memo, useState, useCallback, useMemo } from 'react';
-import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps';
-import { motion, AnimatePresence } from 'framer-motion';
+import { memo, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { MapContainer, TileLayer, GeoJSON, Marker, Tooltip, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { DISTRICTS, BRANCHES, REGIONS, getChildEntities } from '../../data/mockData';
-import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './UgandaMap.module.css';
 
-const GEO_URL = '/uganda-topo.json';
-const COUNTY_GEO_URL = '/uganda-counties.json';
-const NEXT_LEVEL = { country: 'region', region: 'district', district: 'branch' };
+// ─── Constants ────────────────────────────────────────────────────────────────
+const UGANDA_CENTER = [1.37, 32.3];
+const UGANDA_BOUNDS = [[-1.5, 29.55], [4.25, 35.0]];
 
-const REGION_FILLS = {
-  Central: 'rgba(94, 99, 168, 0.22)',
-  Eastern: 'rgba(47, 143, 157, 0.2)',
-  Northern: 'rgba(41, 40, 103, 0.18)',
-  Western: 'rgba(217, 220, 242, 0.45)',
-};
-const REGION_FILLS_HOVER = {
-  Central: 'rgba(94, 99, 168, 0.38)',
-  Eastern: 'rgba(47, 143, 157, 0.35)',
-  Northern: 'rgba(41, 40, 103, 0.32)',
-  Western: 'rgba(217, 220, 242, 0.65)',
-};
-const REGION_FILLS_DIM = {
-  Central: 'rgba(94, 99, 168, 0.08)',
-  Eastern: 'rgba(47, 143, 157, 0.07)',
-  Northern: 'rgba(41, 40, 103, 0.06)',
-  Western: 'rgba(217, 220, 242, 0.18)',
-};
-const REGION_FILLS_ACTIVE = {
-  Central: 'rgba(94, 99, 168, 0.35)',
-  Eastern: 'rgba(47, 143, 157, 0.32)',
-  Northern: 'rgba(41, 40, 103, 0.28)',
-  Western: 'rgba(217, 220, 242, 0.6)',
+const REGION_NAME_TO_ID = {};
+Object.values(REGIONS).forEach((r) => { REGION_NAME_TO_ID[r.name] = r.id; });
+
+const DISTRICT_NAME_TO_ID = {};
+Object.values(DISTRICTS).forEach((d) => { DISTRICT_NAME_TO_ID[d.name] = d.id; });
+
+// Brand palette
+const REGION_COLORS = {
+  Central: { fill: '#5E63A8', glow: 'rgba(94, 99, 168, 0.35)' },
+  Eastern: { fill: '#2F8F9D', glow: 'rgba(47, 143, 157, 0.35)' },
+  Northern: { fill: '#3D3C80', glow: 'rgba(61, 60, 128, 0.35)' },
+  Western: { fill: '#7B7FC4', glow: 'rgba(123, 127, 196, 0.35)' },
 };
 
-const CENTER = [32.3, 1.3];
+// ─── Soft bokeh glow icon — radial gradient halo at region centroids ─────────
+function createGlowIcon(color, id, size = 180) {
+  const gradId = `rg-${id}`;
+  const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <defs>
+      <radialGradient id="${gradId}" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
+        <stop offset="30%" stop-color="${color}" stop-opacity="0.15"/>
+        <stop offset="70%" stop-color="${color}" stop-opacity="0.04"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="url(#${gradId})" />
+  </svg>`;
+  return L.divIcon({
+    html: svgStr,
+    className: styles.glowIcon,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
 
-const REGION_ZOOM = {
-  'r-central': { center: [32.2, 0.2], zoom: 3 },
-  'r-eastern': { center: [33.8, 1.2], zoom: 2.5 },
-  'r-northern': { center: [32.3, 3.0], zoom: 2 },
-  'r-western': { center: [30.3, -0.2], zoom: 2.5 },
-};
+// ─── Custom dot icon builder ──────────────────────────────────────────────────
+function createDotIcon(color, size = 10) {
+  const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${size * 3}" height="${size * 3}" viewBox="0 0 ${size * 3} ${size * 3}">
+    <circle cx="${size * 1.5}" cy="${size * 1.5}" r="${size * 1.3}" fill="${color}" opacity="0.18"/>
+    <circle cx="${size * 1.5}" cy="${size * 1.5}" r="${size * 0.8}" fill="${color}" opacity="0.35"/>
+    <circle cx="${size * 1.5}" cy="${size * 1.5}" r="${size * 0.45}" fill="${color}" opacity="0.9"/>
+    <circle cx="${size * 1.5}" cy="${size * 1.5}" r="${size * 0.15}" fill="white" opacity="0.7"/>
+  </svg>`;
+  return L.divIcon({
+    html: svgStr,
+    className: styles.dotIcon,
+    iconSize: [size * 3, size * 3],
+    iconAnchor: [size * 1.5, size * 1.5],
+  });
+}
 
 function getStatusColor(rate) {
-  if (rate >= 75) return 'var(--color-status-good)';
-  if (rate >= 50) return 'var(--color-status-warning)';
-  return 'var(--color-status-poor)';
+  if (rate >= 75) return '#2E8B57';
+  if (rate >= 50) return '#E6A817';
+  return '#DC3545';
 }
 
-function MapDot({ coordinates, name, activeRate, size, onClick }) {
-  const color = getStatusColor(activeRate);
+// ─── Status dot legend ──────────────────────────────────────────────────────
+function StatusLegend() {
   return (
-    <Marker coordinates={coordinates}>
-      <motion.g
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0, opacity: 0 }}
-        transition={{ duration: 0.4, ease: EASE }}
-        onClick={(e) => { e.stopPropagation(); onClick?.(); }}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
-        tabIndex={onClick ? 0 : undefined}
-        role={onClick ? 'button' : undefined}
-        aria-label={`${name}, ${activeRate}% active`}
-        style={{ cursor: onClick ? 'pointer' : 'default', outline: 'none' }}
-        className={styles.mapDot}
-      >
-        <motion.circle
-          r={size * 3}
-          fill={color}
-          opacity={0.12}
-          animate={{ r: [size * 2.5, size * 3.5, size * 2.5], opacity: [0.12, 0.06, 0.12] }}
-          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <circle r={size * 1.8} fill={color} opacity={0.2} />
-        <circle r={size} fill={color} opacity={0.85} />
-        <circle r={size * 0.35} fill="white" opacity={0.7} />
-      </motion.g>
-      <text textAnchor="middle" y={-size - 6} className={styles.dotLabel}>
-        {name}
-      </text>
-    </Marker>
+    <div className={styles.legend}>
+      <div className={styles.legendEntry}>
+        <span className={styles.legendDotSmall} data-status="good" />
+        <span>≥75% active</span>
+      </div>
+      <div className={styles.legendEntry}>
+        <span className={styles.legendDotSmall} data-status="warning" />
+        <span>50–74%</span>
+      </div>
+      <div className={styles.legendEntry}>
+        <span className={styles.legendDotSmall} data-status="poor" />
+        <span>&lt;50%</span>
+      </div>
+    </div>
   );
 }
 
-function RegionLabel({ coordinates, name }) {
-  return (
-    <Marker coordinates={coordinates}>
-      <text textAnchor="middle" className={styles.regionLabel}>
-        {name}
-      </text>
-    </Marker>
-  );
+// ─── Tile opacity controller ─────────────────────────────────────────────────
+function TileOpacityController({ level }) {
+  const map = useMap();
+  useEffect(() => {
+    const opacity = level === 'country' ? 0.2 : 0.08;
+    map.eachLayer((layer) => {
+      if (layer instanceof L.TileLayer) {
+        layer.setOpacity(opacity);
+      }
+    });
+  }, [map, level]);
+  return null;
 }
 
+// ─── Map controller ──────────────────────────────────────────────────────────
+function MapController({ bounds, center, zoom, fitOptions }) {
+  const map = useMap();
+  useEffect(() => {
+    if (bounds) {
+      const opts = { padding: [50, 50], maxZoom: 10, duration: 0.8, ...fitOptions };
+      map.fitBounds(bounds, opts);
+    } else if (center && zoom) {
+      map.flyTo(center, zoom, { duration: 0.8 });
+    }
+  }, [map, bounds, center, zoom, fitOptions]);
+  return null;
+}
+
+// ─── Main component ──────────────────────────────────────────────────────────
 function UgandaMap() {
   const { level, selectedIds, drillDown } = useDashboard();
-  const [tooltip, setTooltip] = useState(null);
-  const nextLevel = NEXT_LEVEL[level];
+  const [regionsGeo, setRegionsGeo] = useState(null);
+  const [districtsGeo, setDistrictsGeo] = useState(null);
+  const geoLayerRef = useRef(null);
+
+  useEffect(() => {
+    fetch('/uganda-regions.geojson')
+      .then((r) => r.json())
+      .then(setRegionsGeo)
+      .catch(console.error);
+    fetch('/uganda-districts.geojson')
+      .then((r) => r.json())
+      .then(setDistrictsGeo)
+      .catch(console.error);
+  }, []);
+
+  const selectedRegionId = selectedIds.region;
+  const selectedDistrictId = selectedIds.district;
+  const selectedBranchId = selectedIds.branch;
+  const selectedRegion = selectedRegionId ? REGIONS[selectedRegionId] : null;
+  const selectedDistrict = selectedDistrictId ? DISTRICTS[selectedDistrictId] : null;
+
+  const regionDistricts = useMemo(() => {
+    if (!districtsGeo || !selectedRegion) return null;
+    return {
+      ...districtsGeo,
+      features: districtsGeo.features.filter(
+        (f) => f.properties.region === selectedRegion.name
+      ),
+    };
+  }, [districtsGeo, selectedRegion]);
+
+  const selectedDistrictGeo = useMemo(() => {
+    if (!districtsGeo || !selectedDistrict) return null;
+    const feat = districtsGeo.features.find(
+      (f) => f.properties.name === selectedDistrict.name
+    );
+    if (!feat) return null;
+    return { type: 'FeatureCollection', features: [feat] };
+  }, [districtsGeo, selectedDistrict]);
+
 
   const parentId = level === 'country' ? 'ug' : selectedIds[level];
+  const nextLevelMap = { country: 'region', region: 'district', district: 'branch', branch: 'agent' };
+  const nextLevel = nextLevelMap[level];
   const children = nextLevel ? getChildEntities(level, parentId) : [];
 
-  const selectedRegionName = useMemo(() => {
-    if (level === 'country') return null;
-    if (selectedIds.region) {
-      const r = REGIONS[selectedIds.region];
-      return r?.name || null;
+  const mapView = useMemo(() => {
+    if (level === 'branch' && selectedBranchId) {
+      const branch = BRANCHES[selectedBranchId];
+      if (branch) return { center: [branch.center[1], branch.center[0]], zoom: 13 };
     }
-    return null;
-  }, [level, selectedIds]);
-
-  const selectedDistrictName = useMemo(() => {
-    if (level !== 'district' && level !== 'branch') return null;
-    if (selectedIds.district) {
-      const d = DISTRICTS[selectedIds.district];
-      return d?.name || null;
+    if (level === 'district' && selectedDistrict) {
+      return { center: [selectedDistrict.center[1], selectedDistrict.center[0]], zoom: 10 };
     }
-    return null;
-  }, [level, selectedIds]);
+    if (level === 'region' && selectedRegion) {
+      if (regionDistricts && regionDistricts.features.length > 0) {
+        const layer = L.geoJSON(regionDistricts);
+        return { bounds: layer.getBounds() };
+      }
+      return { center: [selectedRegion.center[1], selectedRegion.center[0]], zoom: 8 };
+    }
+    return { bounds: UGANDA_BOUNDS, fitOptions: { paddingTopLeft: [340, 30], paddingBottomRight: [30, 60] } };
+  }, [level, selectedRegion, selectedDistrict, selectedBranchId, regionDistricts]);
 
-  // Show counties when drilled into a district or viewing branches
-  const showCounties = level === 'district' || level === 'branch';
+  // ─── Style functions ─────────────────────────────────────────────────────────
 
-  // Build set of county names that have branches (for highlighting)
-  const branchCounties = useMemo(() => {
-    if (!selectedDistrictName) return new Set();
-    // Get branches for the selected district
-    const districtId = selectedIds.district;
-    const branches = Object.values(BRANCHES).filter(b => b.parentId === districtId);
-    // We don't have county assignments for branches yet, so we'll highlight
-    // all counties in the district and show branch dots on top
-    return new Set(branches.map(b => b.name));
-  }, [selectedDistrictName, selectedIds]);
+  // Base country fill — bright white land mass, strong contrast vs gray background
+  const baseCountryStyle = useMemo(() => ({
+    fillColor: '#f2f3f7',
+    fillOpacity: 1,
+    color: '#d0d3de',
+    weight: 0.6,
+    opacity: 0.5,
+  }), []);
 
-  let zoomCenter = CENTER;
-  let zoomLevel = 1.6;
+  // Region overlays — very subtle tints, glow dots provide the color
+  const regionOverlayStyle = useCallback((feature) => {
+    const name = feature.properties.name;
+    const colors = REGION_COLORS[name] || { fill: '#5E63A8', glow: 'rgba(94,99,168,0.35)' };
 
-  if (level === 'region' && selectedIds.region) {
-    const cfg = REGION_ZOOM[selectedIds.region];
-    if (cfg) { zoomCenter = cfg.center; zoomLevel = cfg.zoom; }
-  } else if (level === 'district' && selectedIds.district) {
-    const district = DISTRICTS[selectedIds.district];
-    if (district) { zoomCenter = district.center; zoomLevel = 5; }
-  } else if (level === 'branch' && selectedIds.branch) {
-    const branch = BRANCHES[selectedIds.branch];
-    if (branch) { zoomCenter = branch.center; zoomLevel = 7; }
-  }
+    if (level === 'country') {
+      return {
+        fillColor: colors.fill,
+        fillOpacity: 0.08,
+        color: '#c8cad6',
+        weight: 0.6,
+        opacity: 0.4,
+      };
+    }
 
-  const handleMouseEnter = useCallback((e, geo) => {
-    setTooltip({
-      x: e.clientX,
-      y: e.clientY,
-      name: geo.properties?.name || geo.properties?.adm3_name,
-      region: geo.properties?.region || geo.properties?.district,
+    const isSelected = selectedRegion && selectedRegion.name === name;
+    return {
+      fillColor: colors.fill,
+      fillOpacity: isSelected ? 0.1 : 0.03,
+      color: '#c8cad6',
+      weight: isSelected ? 0.6 : 0.3,
+      opacity: isSelected ? 0.4 : 0.15,
+    };
+  }, [level, selectedRegion]);
+
+  const districtStyle = useCallback((feature) => {
+    const name = feature.properties.name;
+    const region = feature.properties.region;
+    const colors = REGION_COLORS[region] || { fill: '#5E63A8', glow: 'rgba(94,99,168,0.35)' };
+    const isSelected = selectedDistrict && selectedDistrict.name === name;
+
+    // No fill — outlines only. Prevents district polygons from showing color over water.
+    // The region overlay layer handles the area coloring.
+    return {
+      fillColor: 'transparent',
+      fillOpacity: 0,
+      color: isSelected ? colors.fill : '#a0a5bc',
+      weight: isSelected ? 1.5 : 0.5,
+      opacity: isSelected ? 0.5 : 0.3,
+    };
+  }, [selectedDistrict]);
+
+  const selectedDistrictStyle = useCallback(() => ({
+    fillColor: '#5E63A8',
+    fillOpacity: 0.1,
+    color: '#292867',
+    weight: 2,
+    opacity: 0.6,
+  }), []);
+
+  // ─── Hover — glow effect + fill brightening ──────────────────────────────────
+  const highlightRegion = useCallback((e) => {
+    const layer = e.target;
+    const name = layer.feature.properties.name;
+    const colors = REGION_COLORS[name] || { fill: '#5E63A8', glow: 'rgba(94,99,168,0.35)' };
+    layer.setStyle({
+      fillOpacity: 0.25,
+      color: colors.fill,
+      weight: 1.2,
+      opacity: 0.4,
     });
+    const el = layer.getElement();
+    if (el) {
+      el.style.filter = `drop-shadow(0 0 10px ${colors.glow})`;
+    }
+    layer.bringToFront();
   }, []);
 
-  const handleMouseMove = useCallback((e) => {
-    setTooltip((prev) => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+  const highlightDistrict = useCallback((e) => {
+    const layer = e.target;
+    const region = layer.feature.properties.region;
+    const colors = REGION_COLORS[region] || { fill: '#5E63A8', glow: 'rgba(94,99,168,0.35)' };
+    layer.setStyle({
+      fillColor: colors.fill,
+      fillOpacity: 0.12,
+      color: colors.fill,
+      weight: 1.2,
+      opacity: 0.5,
+    });
+    const el = layer.getElement();
+    if (el) {
+      el.style.filter = `drop-shadow(0 0 8px ${colors.glow})`;
+    }
+    layer.bringToFront();
   }, []);
 
-  const handleMouseLeave = useCallback(() => setTooltip(null), []);
+  const resetHighlight = useCallback((e, styleFunc) => {
+    const layer = e.target;
+    layer.setStyle(styleFunc(layer.feature));
+    const el = layer.getElement();
+    if (el) {
+      el.style.filter = '';
+    }
+  }, []);
 
-  const getGeoFill = useCallback((region, districtName) => {
-    if (selectedDistrictName) {
-      if (districtName === selectedDistrictName) return 'rgba(94, 99, 168, 0.4)';
-      if (region === selectedRegionName) return REGION_FILLS_DIM[region] || 'rgba(200, 205, 220, 0.12)';
-      return 'rgba(200, 205, 220, 0.06)';
-    }
-    if (selectedRegionName) {
-      if (region === selectedRegionName) return REGION_FILLS_ACTIVE[region] || 'rgba(94, 99, 168, 0.35)';
-      return REGION_FILLS_DIM[region] || 'rgba(200, 205, 220, 0.1)';
-    }
-    return REGION_FILLS[region] || 'rgba(200, 205, 220, 0.3)';
-  }, [selectedRegionName, selectedDistrictName]);
+  // ─── Event handlers ──────────────────────────────────────────────────────────
+  const onRegionClick = useCallback((e) => {
+    const name = e.target.feature.properties.name;
+    const regionId = REGION_NAME_TO_ID[name];
+    if (regionId) drillDown('region', regionId);
+  }, [drillDown]);
 
-  const getGeoHoverFill = useCallback((region, districtName) => {
-    if (selectedDistrictName && districtName !== selectedDistrictName) {
-      return getGeoFill(region, districtName);
-    }
-    if (selectedRegionName && region !== selectedRegionName) {
-      return REGION_FILLS_DIM[region] || 'rgba(200, 205, 220, 0.1)';
-    }
-    return REGION_FILLS_HOVER[region] || 'rgba(41, 40, 103, 0.2)';
-  }, [selectedRegionName, selectedDistrictName, getGeoFill]);
+  const onDistrictClick = useCallback((e) => {
+    const name = e.target.feature.properties.name;
+    const districtId = DISTRICT_NAME_TO_ID[name];
+    if (districtId) drillDown('district', districtId);
+  }, [drillDown]);
+
+  const onEachRegion = useCallback((feature, layer) => {
+    layer.on({
+      click: onRegionClick,
+      mouseover: highlightRegion,
+      mouseout: (e) => resetHighlight(e, regionOverlayStyle),
+    });
+    layer.bindTooltip(feature.properties.name, {
+      sticky: true,
+      className: styles.mapTooltip,
+      direction: 'top',
+      offset: [0, -10],
+    });
+  }, [onRegionClick, highlightRegion, resetHighlight, regionOverlayStyle]);
+
+  const onEachDistrict = useCallback((feature, layer) => {
+    layer.on({
+      click: onDistrictClick,
+      mouseover: highlightDistrict,
+      mouseout: (e) => resetHighlight(e, districtStyle),
+    });
+    layer.bindTooltip(
+      `<strong>${feature.properties.name}</strong><br/><span style="opacity:0.6">${feature.properties.region}</span>`,
+      {
+        sticky: true,
+        className: styles.mapTooltip,
+        direction: 'top',
+        offset: [0, -10],
+      }
+    );
+  }, [onDistrictClick, highlightDistrict, resetHighlight, districtStyle]);
+
+  const regionKey = useMemo(
+    () => `regions-${level}-${selectedRegionId || 'none'}`,
+    [level, selectedRegionId]
+  );
+  const districtKey = useMemo(
+    () => `districts-${selectedRegionId}-${selectedDistrictId || 'none'}`,
+    [selectedRegionId, selectedDistrictId]
+  );
 
   return (
-    <div className={styles.mapContainer}>
-      <ComposableMap
-        projection="geoMercator"
-        projectionConfig={{ center: CENTER, scale: 5500 }}
+    <div className={styles.mapContainer} data-level={level}>
+      <MapContainer
+        center={UGANDA_CENTER}
+        zoom={7.5}
         className={styles.map}
-        width={800}
-        height={800}
+        zoomControl={false}
+        attributionControl={false}
+        minZoom={6}
+        maxZoom={16}
+        maxBounds={[[-3, 28], [6, 37]]}
+        maxBoundsViscosity={0.8}
+        zoomDelta={0.5}
+        zoomSnap={0.5}
+        wheelPxPerZoomLevel={120}
       >
-        <ZoomableGroup
-          center={zoomCenter}
-          zoom={zoomLevel}
-          minZoom={0.8}
-          maxZoom={16}
-          translateExtent={[[-100, -200], [900, 1000]]}
-        >
-          {/* Base layer — district boundaries */}
-          <Geographies geography={GEO_URL}>
-            {({ geographies }) =>
-              geographies.map((geo) => {
-                const region = geo.properties?.region;
-                const districtName = geo.properties?.name;
-                const fillColor = getGeoFill(region, districtName);
-                const hoverColor = getGeoHoverFill(region, districtName);
-                const isActiveDistrict = districtName === selectedDistrictName;
-                const isActive = isActiveDistrict || (region === selectedRegionName && !selectedDistrictName);
-                const isDimmed = (selectedRegionName || selectedDistrictName) && !isActive;
+        {/* Tile layer — CartoDB Positron, very reduced */}
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
+          opacity={0.2}
+        />
 
-                return (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    className={styles.geography}
-                    fill={fillColor}
-                    stroke={isActive ? 'rgba(41, 40, 103, 0.35)' : isDimmed ? 'rgba(41, 40, 103, 0.08)' : 'rgba(41, 40, 103, 0.2)'}
-                    strokeWidth={isActive ? 0.8 : 0.4}
-                    style={{
-                      default: { outline: 'none', fill: fillColor },
-                      hover: { outline: 'none', fill: hoverColor, strokeWidth: isDimmed ? 0.4 : 1 },
-                      pressed: { outline: 'none', fill: hoverColor },
-                    }}
-                    onMouseEnter={(e) => handleMouseEnter(e, geo)}
-                    onMouseMove={handleMouseMove}
-                    onMouseLeave={handleMouseLeave}
-                  />
-                );
-              })
-            }
-          </Geographies>
+        <TileOpacityController level={level} />
 
-          {/* County layer — shown when drilled into a district */}
-          {showCounties && selectedDistrictName && (
-            <Geographies geography={COUNTY_GEO_URL}>
-              {({ geographies }) =>
-                geographies
-                  .filter((geo) => geo.properties?.district === selectedDistrictName)
-                  .map((geo) => {
-                    const countyName = geo.properties?.name;
-                    return (
-                      <Geography
-                        key={`county-${geo.rsmKey}`}
-                        geography={geo}
-                        className={styles.countyGeography}
-                        fill="rgba(94, 99, 168, 0.12)"
-                        stroke="rgba(41, 40, 103, 0.4)"
-                        strokeWidth={0.3}
-                        style={{
-                          default: { outline: 'none', fill: 'rgba(94, 99, 168, 0.12)' },
-                          hover: { outline: 'none', fill: 'rgba(94, 99, 168, 0.25)' },
-                          pressed: { outline: 'none', fill: 'rgba(94, 99, 168, 0.25)' },
-                        }}
-                        onMouseEnter={(e) => handleMouseEnter(e, { properties: { name: countyName, region: selectedDistrictName + ' County' } })}
-                        onMouseMove={handleMouseMove}
-                        onMouseLeave={handleMouseLeave}
-                      />
-                    );
-                  })
-              }
-            </Geographies>
-          )}
+        <MapController
+          bounds={mapView.bounds}
+          center={mapView.center}
+          zoom={mapView.zoom}
+          fitOptions={mapView.fitOptions}
+        />
 
-          {/* County labels — when viewing counties */}
-          {showCounties && selectedDistrictName && (
-            <Geographies geography={COUNTY_GEO_URL}>
-              {({ geographies }) =>
-                geographies
-                  .filter((geo) => geo.properties?.district === selectedDistrictName)
-                  .map((geo) => {
-                    const p = geo.properties;
-                    if (!p.center_lon || !p.center_lat) return null;
-                    return (
-                      <Marker key={`clabel-${p.name}`} coordinates={[p.center_lon, p.center_lat]}>
-                        <text textAnchor="middle" className={styles.countyLabel}>
-                          {p.name}
-                        </text>
-                      </Marker>
-                    );
-                  })
-              }
-            </Geographies>
-          )}
+        {/* Layer 1: Base country fill — bright white land, covers water */}
+        {regionsGeo && (
+          <GeoJSON
+            key="country-base"
+            data={regionsGeo}
+            style={() => baseCountryStyle}
+            interactive={false}
+          />
+        )}
 
-          {/* Region labels — only at country level */}
-          {level === 'country' && Object.values(REGIONS).map((r) => (
-            <RegionLabel key={r.id} coordinates={r.center} name={r.name} />
-          ))}
-
-          {/* Entity dots */}
-          <AnimatePresence>
-            {children.map((child) => {
-              const isActive = child.active !== false;
-              return isActive ? (
-                <MapDot
-                  key={child.id}
-                  coordinates={child.center}
-                  name={child.name}
-                  activeRate={child.metrics?.activeRate || 80}
-                  size={level === 'country' ? 4 : level === 'region' ? 3 : 2}
-                  onClick={nextLevel ? () => drillDown(nextLevel, child.id) : undefined}
-                />
-              ) : (
-                <Marker key={child.id} coordinates={child.center}>
-                  <motion.g
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    transition={{ duration: 0.4, ease: EASE }}
-                    onClick={(e) => { e.stopPropagation(); nextLevel && drillDown(nextLevel, child.id); }}
-                    style={{ cursor: 'pointer', outline: 'none' }}
-                    className={styles.mapDot}
-                  >
-                    <circle r={level === 'country' ? 3 : 2.5} fill="none" stroke="var(--color-gray)" strokeWidth={0.5} opacity={0.5} />
-                    <circle r={0.8} fill="var(--color-gray)" opacity={0.4} />
-                  </motion.g>
-                  <text textAnchor="middle" y={level === 'country' ? -9 : -8} className={styles.dotLabelInactive}>
-                    {child.name}
-                  </text>
-                </Marker>
-              );
+        {/* Layer 1b: Faint district outlines — adds geographic detail at country level */}
+        {districtsGeo && level === 'country' && (
+          <GeoJSON
+            key="districts-bg"
+            data={districtsGeo}
+            style={() => ({
+              fillColor: 'transparent',
+              fillOpacity: 0,
+              color: '#b0b5c8',
+              weight: 0.3,
+              opacity: 0.35,
             })}
-          </AnimatePresence>
-        </ZoomableGroup>
-      </ComposableMap>
+            interactive={false}
+          />
+        )}
 
-      <div className={styles.zoomControls}>
-        <button className={styles.zoomBtn} title="Zoom functionality is via scroll wheel & drag">
-          <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
-            <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5"/>
-            <path d="M13.5 13.5L17 17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            <path d="M9 6.5v5M6.5 9h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-        </button>
-      </div>
+        {/* Layer 2: Colored region overlays — always visible for context */}
+        {regionsGeo && (
+          <GeoJSON
+            key={regionKey}
+            data={regionsGeo}
+            style={regionOverlayStyle}
+            {...(level === 'country' ? { onEachFeature: onEachRegion } : {})}
+          />
+        )}
 
-      {tooltip && (
-        <div className={styles.tooltip} style={{ left: tooltip.x, top: tooltip.y }}>
-          <span className={styles.tooltipName}>{tooltip.name}</span>
-          <span className={styles.tooltipRegion}>{tooltip.region}</span>
-        </div>
-      )}
+        {/* Layer 3: Soft bokeh glow halos at region centroids — country level */}
+        {level === 'country' && Object.values(REGIONS).map((r) => {
+          const colors = REGION_COLORS[r.name];
+          if (!colors) return null;
+          return (
+            <Marker
+              key={`glow-${r.id}`}
+              position={[r.center[1], r.center[0]]}
+              icon={createGlowIcon(colors.fill, r.id, 180)}
+              interactive={false}
+            />
+          );
+        })}
 
-      {level === 'country' && (
-        <div className={styles.tapHint}>
-          <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25"/>
-            <path d="M8 5.5v5M5.5 8h5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
-          </svg>
-          Tap a region to explore
-        </div>
-      )}
+        {/* Layer 4: District boundaries — shown at region level */}
+        {regionDistricts && level === 'region' && (
+          <GeoJSON
+            key={districtKey}
+            data={regionDistricts}
+            style={districtStyle}
+            onEachFeature={onEachDistrict}
+          />
+        )}
+
+        {/* Layer 5: Selected district highlight */}
+        {selectedDistrictGeo && (level === 'district' || level === 'branch') && (
+          <GeoJSON
+            key={`selected-${selectedDistrictId}`}
+            data={selectedDistrictGeo}
+            style={selectedDistrictStyle}
+          />
+        )}
+
+        {/* Layer 6: Entity dots */}
+        {(level === 'district' || level === 'branch') && children.map((child) => {
+          if (child.active === false) return null;
+          const rate = child.metrics?.activeRate || 80;
+          const color = getStatusColor(rate);
+          const size = level === 'district' ? 8 : 6;
+          return (
+            <Marker
+              key={child.id}
+              position={[child.center[1], child.center[0]]}
+              icon={createDotIcon(color, size)}
+              eventHandlers={{
+                click: () => {
+                  if (nextLevel) drillDown(nextLevel, child.id);
+                },
+              }}
+            >
+              <Tooltip
+                direction="top"
+                offset={[0, -size]}
+                className={styles.mapTooltip}
+              >
+                <strong>{child.name}</strong>
+                <br />
+                <span style={{ opacity: 0.6 }}>{rate}% active</span>
+              </Tooltip>
+            </Marker>
+          );
+        })}
+      </MapContainer>
+
+
+      {/* Status legend */}
+      {(level === 'district' || level === 'branch') && <StatusLegend />}
     </div>
   );
 }

@@ -33,7 +33,7 @@ function getMockResponse(msg) {
 }
 
 // ── Chat Card ──
-function ChatCard() {
+function ChatCard({ open, onToggle }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: 'Ask me anything about your network data.' },
   ]);
@@ -58,44 +58,61 @@ function ChatCard() {
   }
 
   return (
-    <div className={styles.chatCard}>
-      <div className={styles.chatHeader}>
-        <div className={styles.chatDot} />
-        <span className={styles.chatTitle}>Data Assistant</span>
-      </div>
-      <div className={styles.chatMessages} ref={listRef} aria-live="polite" aria-relevant="additions">
-        {messages.map((m, i) => (
-          <div key={i} className={styles.chatMsg} data-role={m.role}>
-            <div className={styles.chatBubble} data-role={m.role}>{m.text}</div>
-          </div>
-        ))}
-        {isTyping && (
-          <div className={styles.chatMsg} data-role="assistant">
-            <div className={styles.chatBubble} data-role="assistant" aria-label="Typing">
-              <span className={styles.typingDots}><span /><span /><span /></span>
-            </div>
-          </div>
-        )}
-      </div>
-      {messages.length <= 1 && (
-        <div className={styles.chatSuggestions}>
-          {SUGGESTIONS.map((s) => (
-            <button key={s} className={styles.chatSuggest} onClick={() => handleSend(s)}>{s}</button>
-          ))}
+    <div className={styles.chatCard} data-collapsed={!open}>
+      <button className={styles.chatHeader} onClick={onToggle} type="button">
+        <div className={styles.chatHeaderLeft}>
+          <div className={styles.chatDot} />
+          <span className={styles.chatTitle}>Talk to your data</span>
         </div>
-      )}
-      <div className={styles.chatInput}>
-        <input
-          className={styles.chatField}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } }}
-          placeholder="Ask about your data..."
-        />
-        <button className={styles.chatSend} onClick={() => handleSend()} disabled={!input.trim()}>
-          <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 8l12-6-6 12V8H2z" fill="currentColor"/></svg>
-        </button>
-      </div>
+        <svg className={styles.cardToggle} data-open={open} width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M4 5.5l3 3 3-3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            className={styles.cardBody}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: EASE }}
+          >
+            <div className={styles.chatMessages} ref={listRef} aria-live="polite" aria-relevant="additions">
+              {messages.map((m, i) => (
+                <div key={i} className={styles.chatMsg} data-role={m.role}>
+                  <div className={styles.chatBubble} data-role={m.role}>{m.text}</div>
+                </div>
+              ))}
+              {isTyping && (
+                <div className={styles.chatMsg} data-role="assistant">
+                  <div className={styles.chatBubble} data-role="assistant" aria-label="Typing">
+                    <span className={styles.typingDots}><span /><span /><span /></span>
+                  </div>
+                </div>
+              )}
+            </div>
+            {messages.length <= 1 && (
+              <div className={styles.chatSuggestions}>
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} className={styles.chatSuggest} onClick={() => handleSend(s)}>{s}</button>
+                ))}
+              </div>
+            )}
+            <div className={styles.chatInput}>
+              <input
+                className={styles.chatField}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } }}
+                placeholder="Ask about your data..."
+              />
+              <button className={styles.chatSend} onClick={() => handleSend()} disabled={!input.trim()}>
+                <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 8l12-6-6 12V8H2z" fill="currentColor"/></svg>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -147,7 +164,17 @@ const item = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transiti
 export default function MetricsRow() {
   const { level, selectedIds } = useDashboard();
   const metrics = getCurrentMetrics(level, selectedIds);
-  const [expanded, setExpanded] = useState(null); // 'demographics' | 'coverage' | null
+  const [expanded, setExpanded] = useState(null);
+
+  // Cards auto-collapse at overview levels, expand when drilling deeper
+  const [chatOpen, setChatOpen] = useState(level !== 'country' && level !== 'region');
+  const [demoOpen, setDemoOpen] = useState(level !== 'country' && level !== 'region');
+
+  useEffect(() => {
+    const isOverview = level === 'country' || level === 'region';
+    setChatOpen(!isOverview);
+    setDemoOpen(!isOverview);
+  }, [level]);
 
   function toggleExpand(card) {
     setExpanded((prev) => prev === card ? null : card);
@@ -165,79 +192,96 @@ export default function MetricsRow() {
     >
       {/* Card 1: AI Data Assistant */}
       <motion.div variants={item}>
-        <ChatCard />
+        <ChatCard open={chatOpen} onToggle={() => setChatOpen(!chatOpen)} />
       </motion.div>
 
       {/* Card 2: Demographics (expandable) */}
-      <motion.div className={styles.card} variants={item} data-expanded={expanded === 'demographics'}>
-        <div className={styles.cardHeader}>
+      <motion.div className={styles.card} variants={item} data-expanded={expanded === 'demographics'} data-collapsed={!demoOpen}>
+        <button className={styles.cardHeaderToggle} onClick={() => setDemoOpen(!demoOpen)} type="button">
           <h3 className={styles.cardTitle}>Demographics</h3>
-          <button className={styles.detailsBtn} onClick={() => toggleExpand('demographics')}>
-            {expanded === 'demographics' ? 'Collapse' : 'Details'}
-          </button>
-        </div>
-        <div className={styles.demoBody}>
-          <div className={styles.demoLeft}>
-            <DonutChart ratio={metrics.genderRatio} />
-            <div className={styles.demoLegend}>
-              <span className={styles.legendItem}>
-                <span className={styles.legendDot} style={{ background: 'var(--color-indigo)' }} />
-                Male {metrics.genderRatio?.male}%
-              </span>
-              <span className={styles.legendItem}>
-                <span className={styles.legendDot} style={{ background: 'var(--color-teal)' }} />
-                Female {metrics.genderRatio?.female}%
-              </span>
-              {(metrics.genderRatio?.other || 0) > 0 && (
-                <span className={styles.legendItem}>
-                  <span className={styles.legendDot} style={{ background: 'var(--color-status-warning)' }} />
-                  Other {metrics.genderRatio.other}%
-                </span>
-              )}
-            </div>
-          </div>
-          <div className={styles.demoRight}>
-            <AgeBarChart distribution={metrics.ageDistribution} />
-          </div>
-        </div>
-        <AnimatePresence>
-          {expanded === 'demographics' && (
+          <svg className={styles.cardToggle} data-open={demoOpen} width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M4 5.5l3 3 3-3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+        <AnimatePresence initial={false}>
+          {demoOpen && (
             <motion.div
-              className={styles.expandedContent}
+              className={styles.cardBody}
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: EASE }}
+              transition={{ duration: 0.25, ease: EASE }}
             >
-              <div className={styles.expandDivider} />
-              <div className={styles.expandSubtitle}>Gender (count)</div>
-              <div className={styles.expandGrid}>
-                <div className={styles.expandItem}>
-                  <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.male || 0) / 100).toLocaleString()}</span>
-                  <span className={styles.expandLabel}>Male</span>
-                </div>
-                <div className={styles.expandItem}>
-                  <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.female || 0) / 100).toLocaleString()}</span>
-                  <span className={styles.expandLabel}>Female</span>
-                </div>
-                <div className={styles.expandItem}>
-                  <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.other || 0) / 100).toLocaleString()}</span>
-                  <span className={styles.expandLabel}>Other</span>
-                </div>
-                <div className={styles.expandItem}>
-                  <span className={styles.expandNum}>{totalSubs.toLocaleString()}</span>
-                  <span className={styles.expandLabel}>Total</span>
-                </div>
+              <div className={styles.detailsBtnRow}>
+                <button className={styles.detailsBtn} onClick={() => toggleExpand('demographics')}>
+                  {expanded === 'demographics' ? 'Collapse' : 'Details'}
+                </button>
               </div>
-              <div className={styles.expandSubtitle}>Age distribution (count)</div>
-              <div className={styles.expandGrid}>
-                {Object.entries(metrics.ageDistribution || {}).map(([bracket, count]) => (
-                  <div key={bracket} className={styles.expandItem}>
-                    <span className={styles.expandNum}>{count.toLocaleString()}</span>
-                    <span className={styles.expandLabel}>{bracket}</span>
+              <div className={styles.demoBody}>
+                <div className={styles.demoLeft}>
+                  <DonutChart ratio={metrics.genderRatio} />
+                  <div className={styles.demoLegend}>
+                    <span className={styles.legendItem}>
+                      <span className={styles.legendDot} style={{ background: 'var(--color-indigo)' }} />
+                      Male {metrics.genderRatio?.male}%
+                    </span>
+                    <span className={styles.legendItem}>
+                      <span className={styles.legendDot} style={{ background: 'var(--color-teal)' }} />
+                      Female {metrics.genderRatio?.female}%
+                    </span>
+                    {(metrics.genderRatio?.other || 0) > 0 && (
+                      <span className={styles.legendItem}>
+                        <span className={styles.legendDot} style={{ background: 'var(--color-status-warning)' }} />
+                        Other {metrics.genderRatio.other}%
+                      </span>
+                    )}
                   </div>
-                ))}
+                </div>
+                <div className={styles.demoRight}>
+                  <AgeBarChart distribution={metrics.ageDistribution} />
+                </div>
               </div>
+              <AnimatePresence>
+                {expanded === 'demographics' && (
+                  <motion.div
+                    className={styles.expandedContent}
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: EASE }}
+                  >
+                    <div className={styles.expandDivider} />
+                    <div className={styles.expandSubtitle}>Gender (count)</div>
+                    <div className={styles.expandGrid}>
+                      <div className={styles.expandItem}>
+                        <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.male || 0) / 100).toLocaleString()}</span>
+                        <span className={styles.expandLabel}>Male</span>
+                      </div>
+                      <div className={styles.expandItem}>
+                        <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.female || 0) / 100).toLocaleString()}</span>
+                        <span className={styles.expandLabel}>Female</span>
+                      </div>
+                      <div className={styles.expandItem}>
+                        <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.other || 0) / 100).toLocaleString()}</span>
+                        <span className={styles.expandLabel}>Other</span>
+                      </div>
+                      <div className={styles.expandItem}>
+                        <span className={styles.expandNum}>{totalSubs.toLocaleString()}</span>
+                        <span className={styles.expandLabel}>Total</span>
+                      </div>
+                    </div>
+                    <div className={styles.expandSubtitle}>Age distribution (count)</div>
+                    <div className={styles.expandGrid}>
+                      {Object.entries(metrics.ageDistribution || {}).map(([bracket, count]) => (
+                        <div key={bracket} className={styles.expandItem}>
+                          <span className={styles.expandNum}>{count.toLocaleString()}</span>
+                          <span className={styles.expandLabel}>{bracket}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>

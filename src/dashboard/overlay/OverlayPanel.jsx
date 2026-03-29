@@ -75,6 +75,8 @@ function StatusBar({ label, value, segments }) {
 
 export default function OverlayPanel() {
   const { level, selectedIds, drillDown, drillUp, reset } = useDashboard();
+  const [collapsed, setCollapsed] = useState(false);
+
   const parentId = getCurrentParentId(level, selectedIds);
   const nextLevel = NEXT_LEVEL[level];
   const children = nextLevel ? getChildEntities(level, parentId) : [];
@@ -85,125 +87,164 @@ export default function OverlayPanel() {
   const metrics = isInactive ? null : getCurrentMetrics(level, selectedIds);
   const aum = metrics ? (metrics.aum || metrics.totalContributions) : 0;
 
+  const entityName = level === 'country' ? 'Overview' : (currentEntity?.name || '');
+
   return (
-    <motion.div
-      className={styles.panel}
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.5, ease: EASE }}
-    >
-      {level === 'country' && <h2 className={styles.greeting}>Hi Admin</h2>}
-
-      {level !== 'country' && (
-        <>
-          <button
-            className={styles.backBtn}
-            onClick={() => level === 'region' ? reset() : drillUp(level)}
-          >
-            <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
-              <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Back
-          </button>
-          <h2 className={styles.entityName}>{currentEntity?.name || ''}</h2>
-        </>
-      )}
-
-      {isInactive && (
-        <div className={styles.emptyState}>
-          <svg viewBox="0 0 24 24" fill="none" width="32" height="32">
-            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5"/>
-            <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+    <AnimatePresence mode="wait">
+      {collapsed ? (
+        <motion.button
+          key="collapsed-pill"
+          className={styles.collapsedPill}
+          onClick={() => setCollapsed(false)}
+          initial={{ opacity: 0, x: -12 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -12 }}
+          transition={{ duration: 0.3, ease: EASE }}
+          aria-label="Expand panel"
+        >
+          <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+            <path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          <h3 className={styles.emptyTitle}>{currentEntity?.name}</h3>
-          <p className={styles.emptyText}>No active branches in this district yet. This is a coverage opportunity for network expansion.</p>
-        </div>
-      )}
+          <span className={styles.collapsedLabel}>{entityName}</span>
+          {!isInactive && (
+            <span className={styles.collapsedValue}>{formatUGX(aum)}</span>
+          )}
+        </motion.button>
+      ) : (
+        <motion.div
+          key="expanded-panel"
+          className={styles.panel}
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ duration: 0.5, ease: EASE }}
+        >
+          {/* Panel header: greeting/back + collapse toggle */}
+          <div className={styles.panelHeader}>
+            {level === 'country' && <h2 className={styles.greeting}>Hi Admin</h2>}
+            {level !== 'country' && (
+              <button
+                className={styles.backBtn}
+                onClick={() => level === 'region' ? reset() : drillUp(level)}
+              >
+                <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+                  <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Back
+              </button>
+            )}
+            <button
+              className={styles.collapseBtn}
+              onClick={() => setCollapsed(true)}
+              aria-label="Collapse panel"
+            >
+              <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
+                <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
 
-      {!isInactive && <>
-      {/* AUM — hero number */}
-      <div className={styles.aumBlock}>
-        <span className={styles.aumValue}>{formatUGX(aum)}</span>
-        <span className={styles.aumLabel}>Assets Under Management</span>
-      </div>
+          {level !== 'country' && (
+            <h2 className={styles.entityName}>{currentEntity?.name || ''}</h2>
+          )}
 
-      {/* Quick stats row */}
-      <div className={styles.quickStats}>
-        <div className={styles.stat}>
-          <span className={styles.statNum}>{formatUGX(metrics.totalContributions)}</span>
-          <span className={styles.statLabel}>Contributions</span>
-        </div>
-        <div className={styles.statDivider} />
-        <div className={styles.stat}>
-          <span className={styles.statNum}>{formatUGX(metrics.totalWithdrawals)}</span>
-          <span className={styles.statLabel}>Withdrawals</span>
-        </div>
-      </div>
-
-      {/* Entity counts */}
-      <div className={styles.countRow}>
-        <div className={styles.countItem}>
-          <span className={styles.countNum}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
-          <span className={styles.countLabel}>Subscribers</span>
-        </div>
-        <div className={styles.countItem}>
-          <span className={styles.countNum}>{metrics.totalAgents ?? 0}</span>
-          <span className={styles.countLabel}>Agents</span>
-        </div>
-        <div className={styles.countItem}>
-          <span className={styles.countNum}>{metrics.totalBranches ?? 0}</span>
-          <span className={styles.countLabel}>Branches</span>
-        </div>
-        <div className={styles.countItem}>
-          <span className={styles.countNum}>{metrics.coverageRate || 0}%</span>
-          <span className={styles.countLabel}>Coverage</span>
-        </div>
-      </div>
-
-      {/* Activity — active vs inactive subscribers */}
-      <CollapsibleSection title="Activity" defaultOpen={false} key={`activity-${level}-${parentId}`}>
-        <div className={styles.activityContent}>
-          <div className={styles.activeBarRow}>
-            <div className={styles.barTrackLg}>
-              <div className={styles.barSegment} style={{ width: `${metrics.activeRate}%`, background: 'var(--color-status-good)' }} />
-              <div className={styles.barSegment} style={{ width: `${100 - metrics.activeRate}%`, background: 'var(--color-lavender)' }} />
+          {isInactive && (
+            <div className={styles.emptyState}>
+              <svg viewBox="0 0 24 24" fill="none" width="32" height="32">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+              </svg>
+              <h3 className={styles.emptyTitle}>{currentEntity?.name}</h3>
+              <p className={styles.emptyText}>No active branches in this district yet. This is a coverage opportunity for network expansion.</p>
             </div>
-            <div className={styles.activeLabels}>
-              <span className={styles.activeLabel}>
-                {Math.round((metrics.totalSubscribers || 0) * (metrics.activeRate / 100)).toLocaleString()} active
-              </span>
-              <span className={styles.inactiveLabel}>
-                {Math.round((metrics.totalSubscribers || 0) * ((100 - metrics.activeRate) / 100)).toLocaleString()} inactive
-              </span>
+          )}
+
+          {!isInactive && <>
+          {/* AUM — hero number */}
+          <div className={styles.aumBlock}>
+            <span className={styles.aumValue}>{formatUGX(aum)}</span>
+            <span className={styles.aumLabel}>Assets Under Management</span>
+          </div>
+
+          {/* Quick stats row */}
+          <div className={styles.quickStats}>
+            <div className={styles.stat}>
+              <span className={styles.statNum}>{formatUGX(metrics.totalContributions)}</span>
+              <span className={styles.statLabel}>Contributions</span>
+            </div>
+            <div className={styles.statDivider} />
+            <div className={styles.stat}>
+              <span className={styles.statNum}>{formatUGX(metrics.totalWithdrawals)}</span>
+              <span className={styles.statLabel}>Withdrawals</span>
             </div>
           </div>
-        </div>
-      </CollapsibleSection>
 
-      {/* Region/child list */}
-      {children.length > 0 && nextLevel && (
-        <CollapsibleSection title={LEVEL_LABELS[nextLevel] || 'Items'} count={children.length} defaultOpen={false} key={`children-${level}-${parentId}`}>
-          <div className={styles.entityList}>
-            {children.map((child) => {
-              const isChildActive = child.active !== false;
-              const subCount = child.metrics?.totalSubscribers || 0;
-              return (
-                <button key={child.id} className={styles.entityBtn} data-inactive={!isChildActive} onClick={() => drillDown(nextLevel, child.id)}>
-                  <div className={styles.statusRow}>
-                    <span className={styles.statusLabel}>{child.name}</span>
-                    {isChildActive ? (
-                      <span className={styles.statusCount}>{subCount.toLocaleString()} subscribers</span>
-                    ) : (
-                      <span className={styles.inactiveTag}>No branches</span>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
+          {/* Entity counts */}
+          <div className={styles.countRow}>
+            <div className={styles.countItem}>
+              <span className={styles.countNum}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
+              <span className={styles.countLabel}>Subscribers</span>
+            </div>
+            <div className={styles.countItem}>
+              <span className={styles.countNum}>{metrics.totalAgents ?? 0}</span>
+              <span className={styles.countLabel}>Agents</span>
+            </div>
+            <div className={styles.countItem}>
+              <span className={styles.countNum}>{metrics.totalBranches ?? 0}</span>
+              <span className={styles.countLabel}>Branches</span>
+            </div>
+            <div className={styles.countItem}>
+              <span className={styles.countNum}>{metrics.coverageRate || 0}%</span>
+              <span className={styles.countLabel}>Coverage</span>
+            </div>
           </div>
-        </CollapsibleSection>
+
+          {/* Activity — active vs inactive subscribers */}
+          <CollapsibleSection title="Activity" defaultOpen={false} key={`activity-${level}-${parentId}`}>
+            <div className={styles.activityContent}>
+              <div className={styles.activeBarRow}>
+                <div className={styles.barTrackLg}>
+                  <div className={styles.barSegment} style={{ width: `${metrics.activeRate}%`, background: 'var(--color-status-good)' }} />
+                  <div className={styles.barSegment} style={{ width: `${100 - metrics.activeRate}%`, background: 'var(--color-lavender)' }} />
+                </div>
+                <div className={styles.activeLabels}>
+                  <span className={styles.activeLabel}>
+                    {Math.round((metrics.totalSubscribers || 0) * (metrics.activeRate / 100)).toLocaleString()} active
+                  </span>
+                  <span className={styles.inactiveLabel}>
+                    {Math.round((metrics.totalSubscribers || 0) * ((100 - metrics.activeRate) / 100)).toLocaleString()} inactive
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CollapsibleSection>
+
+          {/* Region/child list */}
+          {children.length > 0 && nextLevel && (
+            <CollapsibleSection title={LEVEL_LABELS[nextLevel] || 'Items'} count={children.length} defaultOpen={false} key={`children-${level}-${parentId}`}>
+              <div className={styles.entityList}>
+                {children.map((child) => {
+                  const isChildActive = child.active !== false;
+                  const subCount = child.metrics?.totalSubscribers || 0;
+                  return (
+                    <button key={child.id} className={styles.entityBtn} data-inactive={!isChildActive} onClick={() => drillDown(nextLevel, child.id)}>
+                      <div className={styles.statusRow}>
+                        <span className={styles.statusLabel}>{child.name}</span>
+                        {isChildActive ? (
+                          <span className={styles.statusCount}>{subCount.toLocaleString()} subscribers</span>
+                        ) : (
+                          <span className={styles.inactiveTag}>No branches</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </CollapsibleSection>
+          )}
+          </>}
+        </motion.div>
       )}
-      </>}
-    </motion.div>
+    </AnimatePresence>
   );
 }
