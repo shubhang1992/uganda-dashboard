@@ -3,18 +3,12 @@ import { MapContainer, TileLayer, GeoJSON, Marker, Tooltip, useMap } from 'react
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { DISTRICTS, BRANCHES, REGIONS, getChildEntities } from '../../data/mockData';
+import { useAllEntities, useChildren } from '../../hooks/useEntity';
 import styles from './UgandaMap.module.css';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const UGANDA_CENTER = [1.37, 32.3];
 const UGANDA_BOUNDS = [[-1.5, 29.55], [4.25, 35.0]];
-
-const REGION_NAME_TO_ID = {};
-Object.values(REGIONS).forEach((r) => { REGION_NAME_TO_ID[r.name] = r.id; });
-
-const DISTRICT_NAME_TO_ID = {};
-Object.values(DISTRICTS).forEach((d) => { DISTRICT_NAME_TO_ID[d.name] = d.id; });
 
 // Brand palette
 const REGION_COLORS = {
@@ -123,6 +117,17 @@ function UgandaMap() {
   const [districtsGeo, setDistrictsGeo] = useState(null);
   const geoLayerRef = useRef(null);
 
+  // Entity data via hooks
+  const { data: regionsArr = [] } = useAllEntities('region');
+  const { data: districtsArr = [] } = useAllEntities('district');
+  const { data: branchesArr = [] } = useAllEntities('branch');
+
+  const REGIONS_MAP = useMemo(() => Object.fromEntries(regionsArr.map((r) => [r.id, r])), [regionsArr]);
+  const DISTRICTS_MAP = useMemo(() => Object.fromEntries(districtsArr.map((d) => [d.id, d])), [districtsArr]);
+  const BRANCHES_MAP = useMemo(() => Object.fromEntries(branchesArr.map((b) => [b.id, b])), [branchesArr]);
+  const REGION_NAME_TO_ID = useMemo(() => Object.fromEntries(regionsArr.map((r) => [r.name, r.id])), [regionsArr]);
+  const DISTRICT_NAME_TO_ID = useMemo(() => Object.fromEntries(districtsArr.map((d) => [d.name, d.id])), [districtsArr]);
+
   useEffect(() => {
     fetch('/uganda-regions.geojson')
       .then((r) => r.json())
@@ -137,8 +142,8 @@ function UgandaMap() {
   const selectedRegionId = selectedIds.region;
   const selectedDistrictId = selectedIds.district;
   const selectedBranchId = selectedIds.branch;
-  const selectedRegion = selectedRegionId ? REGIONS[selectedRegionId] : null;
-  const selectedDistrict = selectedDistrictId ? DISTRICTS[selectedDistrictId] : null;
+  const selectedRegion = selectedRegionId ? REGIONS_MAP[selectedRegionId] : null;
+  const selectedDistrict = selectedDistrictId ? DISTRICTS_MAP[selectedDistrictId] : null;
 
   const regionDistricts = useMemo(() => {
     if (!districtsGeo || !selectedRegion) return null;
@@ -163,11 +168,11 @@ function UgandaMap() {
   const parentId = level === 'country' ? 'ug' : selectedIds[level];
   const nextLevelMap = { country: 'region', region: 'district', district: 'branch', branch: 'agent' };
   const nextLevel = nextLevelMap[level];
-  const children = nextLevel ? getChildEntities(level, parentId) : [];
+  const { data: children = [] } = useChildren(level, parentId);
 
   const mapView = useMemo(() => {
     if (level === 'branch' && selectedBranchId) {
-      const branch = BRANCHES[selectedBranchId];
+      const branch = BRANCHES_MAP[selectedBranchId];
       if (branch) return { center: [branch.center[1], branch.center[0]], zoom: 13 };
     }
     if (level === 'district' && selectedDistrict) {
@@ -294,13 +299,13 @@ function UgandaMap() {
     const name = e.target.feature.properties.name;
     const regionId = REGION_NAME_TO_ID[name];
     if (regionId) drillDown('region', regionId);
-  }, [drillDown]);
+  }, [drillDown, REGION_NAME_TO_ID]);
 
   const onDistrictClick = useCallback((e) => {
     const name = e.target.feature.properties.name;
     const districtId = DISTRICT_NAME_TO_ID[name];
     if (districtId) drillDown('district', districtId);
-  }, [drillDown]);
+  }, [drillDown, DISTRICT_NAME_TO_ID]);
 
   const onEachRegion = useCallback((feature, layer) => {
     layer.on({
@@ -410,7 +415,7 @@ function UgandaMap() {
         )}
 
         {/* Layer 3: Soft bokeh glow halos at region centroids — country level */}
-        {level === 'country' && Object.values(REGIONS).map((r) => {
+        {level === 'country' && regionsArr.map((r) => {
           const colors = REGION_COLORS[r.name];
           if (!colors) return null;
           return (

@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useSignIn } from '../contexts/SignInContext';
-import { useApp } from '../contexts/AppContext';
+import { useAuth } from '../contexts/AuthContext';
+import { hasDashboard } from '../services/auth';
 import RoleSelect from './signin/RoleSelect';
 import DistributorSelect from './signin/DistributorSelect';
 import PhoneEntry from './signin/PhoneEntry';
@@ -18,7 +20,8 @@ function getStepIndex(step) {
 
 export default function SignInModal() {
   const { isOpen, close } = useSignIn();
-  const { enterDashboard } = useApp();
+  const { login } = useAuth();
+  const navigate = useNavigate();
   const [step, setStep] = useState('role');
   const [role, setRole] = useState(null);
   const [phone, setPhone] = useState('');
@@ -73,7 +76,8 @@ export default function SignInModal() {
 
   function handleVerify() {
     close();
-    enterDashboard(role);
+    login({ role, phone, name: 'Demo User' });
+    navigate(hasDashboard(role) ? '/dashboard' : '/coming-soon');
   }
 
   function handlePhoneBack() {

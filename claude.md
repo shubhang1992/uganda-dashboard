@@ -2,7 +2,7 @@
 
 ## Technical context
 
-**Stack:** React 19 + Vite 8 + Framer Motion + CSS Modules
+**Stack:** React 19 + Vite 8 + Framer Motion + CSS Modules + React Router + TanStack React Query + Leaflet
 **Deployment:** Vercel (auto-deploy on push to `main`)
 **Live URL:** uganda-dashboard.vercel.app
 
@@ -10,67 +10,98 @@
 - All styling uses **CSS Modules** (`.module.css` per component) — no Tailwind
 - Design tokens are **CSS custom properties** in `src/index.css` (colors, spacing, typography, shadows, radii)
 - Animations use **Framer Motion** — `motion.div`, `useScroll`, `AnimatePresence`, staggered variants
-- Financial calculations (future value, formatting) are centralized in `src/utils/finance.js`
+- Financial calculations (future value, formatting) are centralized in `src/utils/finance.js` — `formatUGX()` lives here, not in mockData
 - Mobile breakpoints: 600px (phone), 768px (tablet), 900px (large tablet), 1024px (desktop)
 - The shared easing curve is `[0.16, 1, 0.3, 1]` (ease-out-expo), used across all animations
 - Brand primary color: `--color-indigo` (#292867) — avoid red except for error states
 - Logo: two PNGs with transparent backgrounds — `logo.png` (color, for light backgrounds) and `logo-white.png` (grey, brightened via CSS for dark backgrounds)
+- **Data access rule:** Components and dashboard files must NEVER import from `src/data/mockData.js` directly. Use hooks from `src/hooks/useEntity.js` which call services from `src/services/`. Only service files may import mockData.
+- **Routing rule:** All navigation uses `react-router-dom`. Use `useNavigate()` for programmatic navigation, never state-based view switching.
+- **Auth rule:** Use `useAuth()` from `AuthContext` for login/logout/role checks. Session persists in localStorage.
+- **Environment rule:** API URLs and config go in `.env` and are accessed via `src/config/env.js`. No hardcoded API endpoints.
 
 ### Architecture
 
-**View switching:** `AppContext` manages `view` ('landing' | 'dashboard') and `role`. Sign-in modal calls `enterDashboard(role)` after OTP verification. No router library — state-based switching.
+**Routing:** `react-router-dom` handles all navigation. Landing page at `/`, dashboard at `/dashboard/*`, coming-soon at `/coming-soon`. Dashboard drill-down is URL-based: `/dashboard/regions/:id`, `/dashboard/districts/:id`, etc. Deep links and browser back button work.
+
+**Auth:** `AuthContext` manages user session with localStorage persistence. Login stores `{ role, phone, name }`. Page refresh preserves the session. Protected routes redirect unauthenticated users to `/`.
+
+**Data access:** Three-layer architecture — components → hooks → services → mockData. No component imports from `mockData.js` directly. When backend arrives, only the service files change.
+- `src/services/` — data access layer (currently wraps mockData, future: API calls)
+- `src/hooks/useEntity.js` — React Query hooks (`useEntity`, `useChildren`, `useAllEntities`, etc.)
+- `src/data/mockData.js` — mock data source (only imported by services)
+
+**Providers (in `main.jsx`):** `BrowserRouter` → `QueryClientProvider` → `AuthProvider` → `App`
 
 **Landing page:**
-- `App.jsx` renders either landing page or `DashboardShell` based on `AppContext.view`
-- Landing sections: Navbar → Hero → HowItWorks → TimeJourney → ForYou → Trust → CTA → Footer + StickyMobileCTA + SignInModal
+- `App.jsx` uses `<Routes>` to render landing, dashboard, or coming-soon
+- Landing sections: Navbar → Hero → HowItWorks → TimeJourney → ForYou → Trust → CTA → Footer + StickyMobileCTA
+- `SignInModal` is rendered outside Routes so it can overlay any page
 - `SignInContext` provides `{ isOpen, open, close }` for the sign-in modal
-- `TimeJourney.jsx` is the most complex landing component — desktop wheel scroll + mobile horizontal swipe with rAF batching
 
 **Sign-in flow:**
 - Modal with 4 steps: Role Select → (Distributor Sub-select) → Phone Entry → OTP Verify
 - Main roles: Subscriber, Employer, Distributor, Admin
 - Distributor sub-roles: Distributor Admin, Branch Admin, Agent
-- Any OTP accepted (prototype) — calls `enterDashboard(role)` on verify
+- Any OTP accepted (prototype) — calls `auth.login()` then `navigate('/dashboard')` or `/coming-soon`
 
 **Dashboard (Distributor Admin):**
 - `DashboardShell.jsx` is the root — fixed viewport, CSS grid: sidebar (64px) + main area
-- `DashboardContext` manages drill-down state machine with `useReducer`
+- `DashboardContext` derives drill-down state from the URL via `useLocation()`/`useNavigate()`
 - Drill levels: country → region → district → branch → agent → subscriber
-- Actions: `drillDown(level, id)`, `drillUp(level)`, `goToLevel(level)`, `reset()`
+- Navigation actions (`drillDown`, `drillUp`, `goToLevel`, `reset`) translate to URL changes
+- Modal state (ViewBranches, CreateBranch, ViewAgents) remains in DashboardContext as UI state
 
-### Dashboard file structure
+### Project file structure
 ```
-src/dashboard/
-  DashboardShell.jsx          — Root layout (sidebar + map + overlays)
-  map/
-    UgandaMap.jsx             — Full-bleed SVG map with ZoomableGroup (pan/zoom)
-  sidebar/
-    Sidebar.jsx               — Dark indigo icon rail with tooltips
-  overlay/
-    OverlayPanel.jsx          — Top-left glassmorphism card (KPIs, collapsible sections)
-    Breadcrumb.jsx            — Drill-down path navigation
-    TopBar.jsx                — Filter + Download buttons (top-right)
-  cards/
-    MetricsRow.jsx            — Bottom card row (AI chat + Demographics)
-src/data/
-    mockData.js               — All mock data (4 regions, 12 districts, 30 branches, 120 agents, 2000 subscribers)
+src/
+  config/
+    env.js                    — Centralised environment variables
+  constants/
+    levels.js                 — Hierarchy level constants, URL segment maps
+  services/
+    api.js                    — Base API client (ready for backend)
+    entities.js               — Entity CRUD (currently wraps mockData)
+    auth.js                   — Auth service (mock OTP)
+    search.js                 — Search service (client-side mock)
+    chat.js                   — AI chat responses (built from real data)
+  hooks/
+    useEntity.js              — React Query hooks for all entity data
+  contexts/
+    AuthContext.jsx            — Session persistence + login/logout
+    DashboardContext.jsx       — URL-based drill-down + modal UI state
+    SignInContext.jsx           — Sign-in modal open/close
+  dashboard/
+    DashboardShell.jsx        — Root layout (sidebar + map + overlays)
+    map/UgandaMap.jsx         — Full-bleed Leaflet map with drill-down
+    sidebar/Sidebar.jsx       — Dark indigo icon rail with tooltips
+    overlay/OverlayPanel.jsx  — Top-left glassmorphism card (KPIs, entity list)
+    overlay/Breadcrumb.jsx    — Drill-down path navigation
+    overlay/TopBar.jsx        — Filter + Download buttons (top-right)
+    cards/MetricsRow.jsx      — Bottom card row (AI chat + Demographics)
+    branch/ViewBranches.jsx   — Branch list + detail slide-in
+    branch/CreateBranch.jsx   — Multi-step branch creation form
+    agent/ViewAgents.jsx      — Agent list + detail slide-in
+  data/
+    mockData.js               — Mock data (only imported by src/services/)
 ```
 
-### Dashboard data architecture
+### Data architecture
 - Mock data in `src/data/mockData.js` — flat lookup maps keyed by ID for O(1) access
-- Hierarchy: Country → Regions (4) → Districts (12, real Ugandan names) → Branches (~30) → Agents (~120) → Subscribers (~2000, lazy-generated via Proxy)
+- Hierarchy: Country → Regions (4) → Districts (135, all real Ugandan GADM names) → Branches (~314) → Agents (~2,000) → Subscribers (~30,000, lazy-generated via Proxy)
 - Metrics aggregated bottom-up at module load time (agent ← subscribers, branch ← agents, etc.)
-- Key exports: `COUNTRY`, `REGIONS`, `DISTRICTS`, `BRANCHES`, `AGENTS`, `SUBSCRIBERS`, `getChildEntities()`, `getEntityById()`, `getBreadcrumbPath()`, `formatUGX()`
-- Map GeoJSON: `public/uganda-topo.json` — 56 real GADM districts with region assignments
+- **No component imports from mockData** — all data flows through `services/` → `hooks/useEntity.js` → components
+- Map GeoJSON: `public/uganda-districts.geojson` and `public/uganda-regions.geojson` — 135 real GADM districts with region assignments
+- React Query provides caching, deduplication, and stale-while-revalidate for all data
 
 ### Dashboard UI patterns
 
 **Map:**
-- Full-bleed background using `react-simple-maps` with `ZoomableGroup` for pan/drag/zoom
-- GeoJSON from GADM (56 districts) with region color-coding (indigo palette)
+- Full-bleed background using `react-leaflet` (Leaflet) with CartoDB Positron tiles
+- GeoJSON from GADM (135 districts) with region color-coding (indigo palette)
 - Animated glowing dot indicators at entity positions (green/yellow/red by active rate)
 - Hover tooltips showing district name + region
-- Map zooms on drill-down via `ZoomableGroup` center/zoom props
+- Map zooms on drill-down via Leaflet `flyTo` / `fitBounds`
 
 **Glassmorphism cards (dashboard-specific):**
 - Background: `linear-gradient(145deg, rgba(255,255,255,0.78) 0%, rgba(246,247,251,0.72) 100%)`
@@ -198,12 +229,14 @@ The Uganda platform is a multi-user ecosystem with 6 roles across 4 sign-in cate
 ### Current build status:
 - ✅ Landing page (complete)
 - ✅ Sign-in flow (complete — all roles)
+- ✅ Frontend architecture (complete — services layer, React Query, auth persistence, URL routing, env config)
 - ✅ Distributor Admin dashboard (in progress — map, overlays, analytics, AI chat)
 - ⬜ Subscriber dashboard (not started)
 - ⬜ Employer dashboard (not started)
 - ⬜ Branch Admin dashboard (not started)
 - ⬜ Agent dashboard (not started)
 - ⬜ Admin dashboard (not started)
+- ⬜ Backend integration (architecture ready — swap service files when API exists)
 
 ## Product thinking
 Claude should understand that this is not just a portal.

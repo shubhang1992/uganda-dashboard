@@ -1,13 +1,12 @@
 import { useDashboard } from '../../contexts/DashboardContext';
-import { getBreadcrumbPath } from '../../data/mockData';
+import { useBreadcrumb } from '../../hooks/useEntity';
 import styles from './Breadcrumb.module.css';
 
 export default function Breadcrumb() {
   const { level, selectedIds, goToLevel } = useDashboard();
+  const { data: crumbs } = useBreadcrumb(level, selectedIds);
 
-  if (level === 'country') return null;
-
-  const crumbs = getBreadcrumbPath(level, selectedIds);
+  if (level === 'country' || !crumbs) return null;
 
   return (
     <nav className={styles.breadcrumb} aria-label="Navigation">

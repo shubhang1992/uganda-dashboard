@@ -27,7 +27,7 @@ const STATS = [
     ),
   },
   {
-    value: '97%',
+    value: '83%',
     label: 'On-time contribution rate',
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">

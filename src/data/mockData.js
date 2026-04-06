@@ -1,5 +1,5 @@
 // Mock Data — Distributor Admin Dashboard, Universal Pensions Uganda
-// Hierarchy: Country → 4 Regions → 135 Districts → ~310 Branches → ~2,000 Agents → ~120,000 Subscribers
+// Hierarchy: Country → 4 Regions → 135 Districts → ~314 Branches → ~2,000 Agents → ~30,000 Subscribers
 
 // ─── Seeded RNG for deterministic data ───────────────────────────────────────
 let _seed = 42;
@@ -17,6 +17,12 @@ function ugandanName(gender) {
   return `${first} ${pick(LAST_NAMES)}`;
 }
 
+// Valid Ugandan mobile prefixes: MTN (76,77,78), Airtel (70,74,75), UTL (71)
+const UG_MOBILE_PREFIXES = ['70','71','74','75','76','77','78'];
+function ugandanPhone() {
+  return `+256${pick(UG_MOBILE_PREFIXES)}${randInt(1000000, 9999999)}`;
+}
+
 // ─── Monthly contribution trend generator ────────────────────────────────────
 function monthlyTrend(base, growth = 0.03, variance = 0.08) {
   const arr = [];
@@ -28,25 +34,12 @@ function monthlyTrend(base, growth = 0.03, variance = 0.08) {
   return arr;
 }
 
-// ─── COUNTRY ─────────────────────────────────────────────────────────────────
+// ─── COUNTRY (metrics aggregated from regions after data generation) ─────────
 export const COUNTRY = {
   id: 'ug',
   name: 'Uganda',
   center: [32.3, 1.4],
-  metrics: {
-    aum: 2_400_000_000_000,
-    totalBranches: 310,
-    totalAgents: 2000,
-    totalSubscribers: 120000,
-    totalContributions: 1_600_000_000_000,
-    totalWithdrawals: 240_000_000_000,
-    coverageRate: 100,
-    activeRate: 78,
-    complaintsCount: 842,
-    monthlyContributions: [5_750_000_000_000, 5_900_000_000_000, 6_050_000_000_000, 6_200_000_000_000, 6_350_000_000_000, 6_500_000_000_000, 6_700_000_000_000, 6_850_000_000_000, 7_050_000_000_000, 7_200_000_000_000, 7_400_000_000_000, 7_600_000_000_000],
-    genderRatio: { male: 52, female: 46, other: 2 },
-    ageDistribution: { '18-25': 16800, '26-35': 37200, '36-45': 32400, '46-55': 21600, '55+': 12000 },
-  },
+  metrics: null, // populated after region roll-up
 };
 
 // ─── REGIONS ─────────────────────────────────────────────────────────────────
@@ -57,10 +50,7 @@ export const REGIONS = {
   'r-western': { id: 'r-western', name: 'Western', parentId: 'ug', center: [30.27, -0.61], metrics: null },
 };
 
-// ─── DISTRICTS ───────────────────────────────────────────────────────────────
-// All 56 GADM districts. Districts with branches are marked active: true.
-// ─── DISTRICTS ───────────────────────────────────────────────────────────────
-// All 135 districts. All active.
+// All 135 GADM districts.
 export const DISTRICTS = {
   'd-buikwe': { id: 'd-buikwe', name: 'Buikwe', parentId: 'r-central', center: [33.0388, 0.3016], active: true },
   'd-bukomansimbi': { id: 'd-bukomansimbi', name: 'Bukomansimbi', parentId: 'r-central', center: [31.6237, -0.1285], active: true },
@@ -524,7 +514,17 @@ const BRANCH_DEFS = [
 
 export const BRANCHES = {};
 BRANCH_DEFS.forEach((b) => {
-  BRANCHES[b.id] = { ...b, parentId: b.districtId, metrics: null };
+  const mGender = rand() < 0.55 ? 'male' : 'female';
+  const mName = ugandanName(mGender);
+  BRANCHES[b.id] = {
+    ...b,
+    parentId: b.districtId,
+    managerName: mName,
+    managerPhone: ugandanPhone(),
+    managerEmail: `${mName.toLowerCase().replace(/\s+/g, '.')}@upensions.ug`,
+    status: rand() < 0.9 ? 'active' : 'inactive',
+    metrics: null,
+  };
   delete BRANCHES[b.id].districtId;
 });
 
@@ -545,7 +545,7 @@ Object.keys(BRANCHES).forEach((branchId) => {
       name: ugandanName(gender),
       parentId: branchId,
       center: [branchCenter[0] + (rand() - 0.5) * 0.02, branchCenter[1] + (rand() - 0.5) * 0.02],
-      phone: `+2567${randInt(0, 9)}${randInt(1000000, 9999999)}`,
+      phone: ugandanPhone(),
       rating: Math.round((3 + rand() * 2) * 10) / 10, // 3.0 - 5.0
       performance: randInt(45, 100),
       status: pick(AGENT_STATUSES),
@@ -557,6 +557,7 @@ Object.keys(BRANCHES).forEach((branchId) => {
 // ─── SUBSCRIBERS (generated lazily) ──────────────────────────────────────────
 const PRODUCTS = ['SavePlus', 'PensionBasic', 'PensionPremium', 'EducationSaver', 'HealthCover'];
 const KYC_STATUSES = ['complete', 'complete', 'complete', 'complete', 'complete', 'complete', 'complete', 'pending', 'pending', 'incomplete']; // ~70% complete
+const EMAIL_DOMAINS = ['gmail.com', 'gmail.com', 'gmail.com', 'yahoo.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'mail.ug'];
 
 let _subscribersCache = null;
 
@@ -598,11 +599,17 @@ function generateSubscribers() {
         heldProducts.push(prod);
       }
 
+      // Distribute registration dates: ~25% in 2024, ~45% in 2025, ~30% in 2026 (up to March)
+      const yearRoll = rand();
+      const regYear = yearRoll < 0.25 ? 2024 : yearRoll < 0.70 ? 2025 : 2026;
+      const regMonth = regYear === 2026 ? randInt(1, 3) : randInt(1, 12);
+      const regDay = randInt(1, 28);
+
       subs[id] = {
         id,
         name,
-        email: `${name.toLowerCase().replace(/\s/g, '.')}${subCounter}@mail.ug`,
-        phone: `+2567${randInt(0, 9)}${randInt(1000000, 9999999)}`,
+        email: `${name.toLowerCase().replace(/\s/g, '.')}${randInt(10, 999)}@${pick(EMAIL_DOMAINS)}`,
+        phone: ugandanPhone(),
         gender,
         age,
         parentId: agentId,
@@ -611,7 +618,7 @@ function generateSubscribers() {
         contributionHistory: contribHistory,
         totalContributions: totalC,
         totalWithdrawals: totalW,
-        registeredDate: `${2024 + (subCounter % 2)}-${String(randInt(1, 12)).padStart(2, '0')}-${String(randInt(1, 28)).padStart(2, '0')}`,
+        registeredDate: `${regYear}-${String(regMonth).padStart(2, '0')}-${String(regDay).padStart(2, '0')}`,
         productsHeld: heldProducts,
       };
     }
@@ -642,7 +649,7 @@ function ageBucket(age) {
   if (age <= 35) return '26-35';
   if (age <= 45) return '36-45';
   if (age <= 55) return '46-55';
-  return '55+';
+  return '56+';
 }
 
 function emptyMetrics() {
@@ -651,12 +658,28 @@ function emptyMetrics() {
     totalAgents: 0,
     totalContributions: 0,
     totalWithdrawals: 0,
+    aum: 0,
     coverageRate: 0,
     activeRate: 0,
-    complaintsCount: 0,
     monthlyContributions: new Array(12).fill(0),
     genderRatio: { male: 0, female: 0, other: 0 },
-    ageDistribution: { '18-25': 0, '26-35': 0, '36-45': 0, '46-55': 0, '55+': 0 },
+    ageDistribution: { '18-25': 0, '26-35': 0, '36-45': 0, '46-55': 0, '56+': 0 },
+    newSubscribersToday: 0,
+    prevNewSubscribersToday: 0,
+    dailyContributions: 0,
+    prevDailyContributions: 0,
+    dailyWithdrawals: 0,
+    prevDailyWithdrawals: 0,
+    newSubscribersThisWeek: 0,
+    prevNewSubscribersThisWeek: 0,
+    weeklyContributions: 0,
+    prevWeeklyContributions: 0,
+    weeklyWithdrawals: 0,
+    prevWeeklyWithdrawals: 0,
+    newSubscribersThisMonth: 0,
+    prevNewSubscribersThisMonth: 0,
+    monthlyWithdrawals: 0,
+    prevMonthlyWithdrawals: 0,
   };
 }
 
@@ -665,9 +688,27 @@ function addMetrics(target, source) {
   target.totalAgents += source.totalAgents;
   target.totalContributions += source.totalContributions;
   target.totalWithdrawals += source.totalWithdrawals;
-  target.complaintsCount += source.complaintsCount;
+  target.aum += source.aum;
+  target.newSubscribersToday += source.newSubscribersToday;
+  target.prevNewSubscribersToday += source.prevNewSubscribersToday;
+  target.dailyContributions += source.dailyContributions;
+  target.prevDailyContributions += source.prevDailyContributions;
+  target.dailyWithdrawals += source.dailyWithdrawals;
+  target.prevDailyWithdrawals += source.prevDailyWithdrawals;
+  target.newSubscribersThisWeek += source.newSubscribersThisWeek;
+  target.prevNewSubscribersThisWeek += source.prevNewSubscribersThisWeek;
+  target.weeklyContributions += source.weeklyContributions;
+  target.prevWeeklyContributions += source.prevWeeklyContributions;
+  target.weeklyWithdrawals += source.weeklyWithdrawals;
+  target.prevWeeklyWithdrawals += source.prevWeeklyWithdrawals;
+  target.newSubscribersThisMonth += source.newSubscribersThisMonth;
+  target.prevNewSubscribersThisMonth += source.prevNewSubscribersThisMonth;
+  target.monthlyWithdrawals += source.monthlyWithdrawals;
+  target.prevMonthlyWithdrawals += source.prevMonthlyWithdrawals;
   // Track actual active subscriber count for correct rate calculation
   target._activeCount = (target._activeCount || 0) + Math.round(source.totalSubscribers * source.activeRate / 100);
+  // Track coverage as weighted sum for correct rollup
+  target._coverageWeighted = (target._coverageWeighted || 0) + source.coverageRate * source.totalSubscribers;
   for (let i = 0; i < 12; i++) target.monthlyContributions[i] += source.monthlyContributions[i];
   ['male', 'female', 'other'].forEach((g) => { target.genderRatio[g] += source.genderRatio[g]; });
   Object.keys(target.ageDistribution).forEach((k) => { target.ageDistribution[k] += source.ageDistribution[k]; });
@@ -676,19 +717,17 @@ function addMetrics(target, source) {
 function finalizeRates(m) {
   if (m.totalSubscribers > 0) {
     m.activeRate = Math.round(((m._activeCount || 0) / m.totalSubscribers) * 100);
-    m.coverageRate = randInt(55, 80);
+    // Coverage = weighted average from children, or agent-level seed value
+    m.coverageRate = Math.round((m._coverageWeighted || 0) / m.totalSubscribers);
   }
   delete m._activeCount;
-  // AUM = contributions + simulated investment returns (~50% of contributions)
-  m.aum = Math.round(m.totalContributions * (1 + rand() * 0.3 + 0.35));
-  // Normalize gender ratio to percentages
+  delete m._coverageWeighted;
+  // Normalize gender ratio to percentages (ensure they always sum to exactly 100)
   const gTotal = m.genderRatio.male + m.genderRatio.female + m.genderRatio.other;
   if (gTotal > 0) {
-    m.genderRatio = {
-      male: Math.round((m.genderRatio.male / gTotal) * 100),
-      female: Math.round((m.genderRatio.female / gTotal) * 100),
-      other: Math.round((m.genderRatio.other / gTotal) * 100),
-    };
+    const malePct = Math.round((m.genderRatio.male / gTotal) * 100);
+    const femalePct = Math.round((m.genderRatio.female / gTotal) * 100);
+    m.genderRatio = { male: malePct, female: femalePct, other: 100 - malePct - femalePct };
   }
 }
 
@@ -715,17 +754,44 @@ Object.values(AGENTS).forEach((agent) => {
     s.contributionHistory.forEach((v, i) => { m.monthlyContributions[i] += v; });
   });
   m.activeRate = m.totalSubscribers ? Math.round((activeCount / m.totalSubscribers) * 100) : 0;
-  m.coverageRate = randInt(55, 80);
-  m.complaintsCount = randInt(0, 3);
+  m._activeCount = activeCount; // preserve for bottom-up aggregation
+  // AUM = contributions + simulated investment returns (35-55% of contributions)
+  m.aum = Math.round(m.totalContributions * (1.35 + rand() * 0.2));
+  // Coverage derived from active rate + local variability (correlated but not identical)
+  m.coverageRate = Math.min(95, Math.round(m.activeRate * 0.75 + randInt(5, 20)));
+  m._coverageWeighted = m.coverageRate * m.totalSubscribers; // seed for weighted rollup
+  // Monthly
+  m.newSubscribersThisMonth = randInt(Math.max(1, Math.floor(m.totalSubscribers * 0.03)), Math.max(2, Math.ceil(m.totalSubscribers * 0.08)));
+  m.prevNewSubscribersThisMonth = Math.max(1, Math.round(m.newSubscribersThisMonth * (0.75 + rand() * 0.35)));
+  m.monthlyWithdrawals = Math.round((m.totalWithdrawals / 12) * (0.8 + rand() * 0.4));
+  m.prevMonthlyWithdrawals = Math.max(1, Math.round(m.monthlyWithdrawals * (0.85 + rand() * 0.3)));
+  // Weekly (roughly 1/4 of monthly with variance)
+  m.newSubscribersThisWeek = Math.max(1, Math.round(m.newSubscribersThisMonth / (3.5 + rand() * 1.5)));
+  m.prevNewSubscribersThisWeek = Math.max(1, Math.round(m.newSubscribersThisWeek * (0.8 + rand() * 0.3)));
+  m.weeklyContributions = Math.round((m.monthlyContributions[11] || 0) / (3.5 + rand() * 1.5));
+  m.prevWeeklyContributions = Math.max(1, Math.round(m.weeklyContributions * (0.85 + rand() * 0.3)));
+  m.weeklyWithdrawals = Math.round(m.monthlyWithdrawals / (3.5 + rand() * 1.5));
+  m.prevWeeklyWithdrawals = Math.max(1, Math.round(m.weeklyWithdrawals * (0.85 + rand() * 0.3)));
+  // Daily (roughly 1/7 of weekly with variance)
+  m.newSubscribersToday = Math.max(1, Math.round(m.newSubscribersThisWeek / (5 + rand() * 4)));
+  m.prevNewSubscribersToday = Math.max(1, Math.round(m.newSubscribersToday * (0.7 + rand() * 0.5)));
+  m.dailyContributions = Math.round(m.weeklyContributions / (5 + rand() * 4));
+  m.prevDailyContributions = Math.max(1, Math.round(m.dailyContributions * (0.75 + rand() * 0.4)));
+  m.dailyWithdrawals = Math.round(m.weeklyWithdrawals / (5 + rand() * 4));
+  m.prevDailyWithdrawals = Math.max(1, Math.round(m.dailyWithdrawals * (0.75 + rand() * 0.4)));
   finalizeRates(m);
   agent.metrics = m;
+  // Derive performance and rating from actual metrics so they correlate
+  agent.performance = Math.min(100, Math.round(
+    m.activeRate * 0.4 + Math.min(m.totalSubscribers / 20, 1) * 30 + randInt(15, 30)
+  ));
+  agent.rating = Math.min(5, Math.round((agent.performance / 22 + rand() * 0.4) * 10) / 10);
 });
 
 // Roll up: branch ← agents
 Object.values(BRANCHES).forEach((branch) => {
   const m = emptyMetrics();
   Object.values(AGENTS).filter((a) => a.parentId === branch.id).forEach((a) => addMetrics(m, a.metrics));
-  m.complaintsCount = randInt(0, 5);
   finalizeRates(m);
   branch.metrics = m;
 });
@@ -736,7 +802,6 @@ Object.values(DISTRICTS).forEach((district) => {
   const distBranches = Object.values(BRANCHES).filter((b) => b.parentId === district.id);
   distBranches.forEach((b) => addMetrics(m, b.metrics));
   m.totalBranches = distBranches.length;
-  m.complaintsCount = randInt(1, 6);
   finalizeRates(m);
   district.metrics = m;
 });
@@ -747,10 +812,18 @@ Object.values(REGIONS).forEach((region) => {
   const regionDistricts = Object.values(DISTRICTS).filter((d) => d.parentId === region.id);
   regionDistricts.forEach((d) => addMetrics(m, d.metrics));
   m.totalBranches = regionDistricts.reduce((sum, d) => sum + (d.metrics?.totalBranches || 0), 0);
-  m.complaintsCount = randInt(3, 12);
   finalizeRates(m);
   region.metrics = m;
 });
+
+// Roll up: country ← regions
+{
+  const m = emptyMetrics();
+  Object.values(REGIONS).forEach((r) => addMetrics(m, r.metrics));
+  m.totalBranches = Object.keys(BRANCHES).length;
+  finalizeRates(m);
+  COUNTRY.metrics = m;
+}
 
 // ─── LEVEL CONSTANTS & LOOKUP MAPS ───────────────────────────────────────────
 export const LEVELS = { COUNTRY: 'country', REGION: 'region', DISTRICT: 'district', BRANCH: 'branch', AGENT: 'agent', SUBSCRIBER: 'subscriber' };
@@ -801,15 +874,7 @@ export function getBreadcrumbPath(currentLevel, selectedIds) {
   return crumbs;
 }
 
-/** Format UGX amounts with K/M/B suffixes */
-export function formatUGX(amount) {
-  const abs = Math.abs(amount);
-  const sign = amount < 0 ? '-' : '';
-  if (abs >= 1_000_000_000) return `${sign}UGX ${(abs / 1_000_000_000).toFixed(1)}B`;
-  if (abs >= 1_000_000) return `${sign}UGX ${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}UGX ${(abs / 1_000).toFixed(1)}K`;
-  return `${sign}UGX ${abs}`;
-}
+// formatUGX is in src/utils/finance.js — single source of truth
 
 /** Get all entities at a given level */
 export function getAllEntities(level) {
@@ -823,4 +888,29 @@ export function getParentEntity(level, id) {
   const order = [LEVELS.COUNTRY, LEVELS.REGION, LEVELS.DISTRICT, LEVELS.BRANCH, LEVELS.AGENT];
   const idx = order.indexOf(level);
   return idx > 0 ? getEntityById(order[idx - 1], entity.parentId) : COUNTRY;
+}
+
+/** Get top performing branch by monthly contribution within an entity's scope */
+export function getTopBranch(level, parentId) {
+  let branches = [];
+  if (level === 'country') {
+    branches = Object.values(BRANCHES);
+  } else if (level === 'region') {
+    const regionDistricts = Object.values(DISTRICTS).filter((d) => d.parentId === parentId);
+    regionDistricts.forEach((d) => {
+      branches.push(...Object.values(BRANCHES).filter((b) => b.parentId === d.id));
+    });
+  } else if (level === 'district') {
+    branches = Object.values(BRANCHES).filter((b) => b.parentId === parentId);
+  } else {
+    return null;
+  }
+  if (branches.length === 0) return null;
+  let top = branches[0];
+  let topVal = top.metrics?.monthlyContributions?.[11] || 0;
+  for (const b of branches) {
+    const val = b.metrics?.monthlyContributions?.[11] || 0;
+    if (val > topVal) { topVal = val; top = b; }
+  }
+  return { name: top.name, contribution: topVal };
 }

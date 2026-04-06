@@ -1,23 +1,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { COUNTRY, getChildEntities, getEntityById, formatUGX, DISTRICTS } from '../../data/mockData';
-import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { useCurrentEntity, useChildren, useTopBranch, useSearch } from '../../hooks/useEntity';
+import { CHILD_LEVEL } from '../../constants/levels';
+import { formatUGX, EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './OverlayPanel.module.css';
-const NEXT_LEVEL = { country: 'region', region: 'district', district: 'branch', branch: 'agent' };
 const LEVEL_LABELS = { region: 'Regions', district: 'Districts', branch: 'Branches', agent: 'Agents' };
-
-function getCurrentMetrics(level, selectedIds) {
-  if (level === 'country') return COUNTRY.metrics;
-  const id = selectedIds[level];
-  const entity = getEntityById(level, id);
-  return entity?.metrics || COUNTRY.metrics;
-}
-
-function getCurrentParentId(level, selectedIds) {
-  if (level === 'country') return 'ug';
-  return selectedIds[level];
-}
+const LEVEL_TAG = { region: 'Region', district: 'District', branch: 'Branch', agent: 'Agent' };
 
 function ChevronIcon({ expanded }) {
   return (
@@ -73,79 +62,272 @@ function StatusBar({ label, value, segments }) {
   );
 }
 
-export default function OverlayPanel() {
-  const { level, selectedIds, drillDown, drillUp, reset } = useDashboard();
-  const [collapsed, setCollapsed] = useState(false);
+function GlobalSearch({ onNavigate }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const { data: results = [] } = useSearch(query);
 
-  const parentId = getCurrentParentId(level, selectedIds);
-  const nextLevel = NEXT_LEVEL[level];
-  const children = nextLevel ? getChildEntities(level, parentId) : [];
+  function handleSelect(item) {
+    onNavigate(item.level, item.id);
+    setQuery('');
+    setOpen(false);
+  }
 
-  // Check if current entity is inactive (no branches/data)
-  const currentEntity = level !== 'country' ? getEntityById(level, selectedIds[level]) : null;
-  const isInactive = currentEntity && currentEntity.active === false;
-  const metrics = isInactive ? null : getCurrentMetrics(level, selectedIds);
-  const aum = metrics ? (metrics.aum || metrics.totalContributions) : 0;
+  function handleClose() {
+    setQuery('');
+    setOpen(false);
+  }
 
-  const entityName = level === 'country' ? 'Overview' : (currentEntity?.name || '');
+  if (!open) {
+    return (
+      <button className={styles.searchToggle} onClick={() => setOpen(true)} aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.75"/>
+          <path d="M16 16l4.5 4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+        </svg>
+        <span>Search…</span>
+      </button>
+    );
+  }
 
   return (
-    <AnimatePresence mode="wait">
-      {collapsed ? (
-        <motion.button
-          key="collapsed-pill"
-          className={styles.collapsedPill}
-          onClick={() => setCollapsed(false)}
-          initial={{ opacity: 0, x: -12 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -12 }}
-          transition={{ duration: 0.3, ease: EASE }}
-          aria-label="Expand panel"
-        >
-          <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
-            <path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+    <div className={styles.globalSearch}>
+      <div className={styles.searchBarCompact}>
+        <svg className={styles.searchBarIcon} viewBox="0 0 24 24" fill="none" width="13" height="13">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.75"/>
+          <path d="M16 16l4.5 4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+        </svg>
+        <input
+          className={styles.searchBarInput}
+          type="text"
+          placeholder="Region, district, branch…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          autoFocus
+          onBlur={() => setTimeout(handleClose, 150)}
+        />
+        <button className={styles.searchBarClose} onMouseDown={handleClose} aria-label="Close search">
+          <svg viewBox="0 0 24 24" fill="none" width="12" height="12">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
           </svg>
-          <span className={styles.collapsedLabel}>{entityName}</span>
-          {!isInactive && (
-            <span className={styles.collapsedValue}>{formatUGX(aum)}</span>
-          )}
-        </motion.button>
-      ) : (
-        <motion.div
-          key="expanded-panel"
-          className={styles.panel}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.5, ease: EASE }}
-        >
-          {/* Panel header: greeting/back + collapse toggle */}
-          <div className={styles.panelHeader}>
-            {level === 'country' && <h2 className={styles.greeting}>Hi Admin</h2>}
-            {level !== 'country' && (
-              <button
-                className={styles.backBtn}
-                onClick={() => level === 'region' ? reset() : drillUp(level)}
-              >
-                <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
-                  <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Back
-              </button>
-            )}
-            <button
-              className={styles.collapseBtn}
-              onClick={() => setCollapsed(true)}
-              aria-label="Collapse panel"
-            >
-              <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
-                <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+        </button>
+      </div>
+      {results.length > 0 && (
+        <div className={styles.searchResults}>
+          {results.map((item) => (
+            <button key={item.id} className={styles.searchResultBtn} onMouseDown={() => handleSelect(item)}>
+              <span className={styles.searchResultName}>{item.name}</span>
+              <span className={styles.searchResultLevel}>{item.label}</span>
             </button>
-          </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const PERIODS = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+];
+
+function pctChange(curr, prev) {
+  if (!prev) return 0;
+  return Math.round(((curr - prev) / prev) * 100);
+}
+
+function ChangeBadge({ value }) {
+  return (
+    <span className={styles.changeBadge} data-positive={value >= 0}>
+      <svg viewBox="0 0 10 10" width="8" height="8" fill="none">
+        {value >= 0
+          ? <path d="M5 2l3.5 5H1.5z" fill="currentColor"/>
+          : <path d="M5 8L1.5 3h7z" fill="currentColor"/>}
+      </svg>
+      {Math.abs(value)}%
+    </span>
+  );
+}
+
+function MetricRow({ variant, icon, value, label, change }) {
+  return (
+    <div className={styles.monthlyRow} data-variant={variant}>
+      <div className={styles.monthlyIcon} data-variant={variant}>{icon}</div>
+      <div className={styles.monthlyText}>
+        <span className={styles.monthlyValue}>{value}</span>
+        <span className={styles.monthlyLabel}>{label}</span>
+      </div>
+      {change != null && <ChangeBadge value={change} />}
+    </div>
+  );
+}
+
+const SubsIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" width="15" height="15">
+    <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4-4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+    <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="1.75"/>
+    <path d="M19 8v6M22 11h-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+const ContribIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" width="15" height="15">
+    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+const WithdrawIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" width="15" height="15">
+    <path d="M21 12l-4 4-4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M17 16V4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+    <path d="M3 20h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+  </svg>
+);
+const StarIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" width="15" height="15">
+    <path d="M12 2l2.09 6.26L20 9.27l-4.91 3.82L16.18 20 12 16.77 7.82 20l1.09-6.91L4 9.27l5.91-1.01L12 2z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+function TimePeriodCard({ metrics, level, parentId }) {
+  const [activeIdx, setActiveIdx] = useState(2); // default: This Month
+  const period = PERIODS[activeIdx].key;
+  const { data: topBranch } = useTopBranch(level, parentId);
+
+  const data = {
+    today: {
+      subs: metrics.newSubscribersToday || 0,
+      subsChange: pctChange(metrics.newSubscribersToday, metrics.prevNewSubscribersToday),
+      contrib: metrics.dailyContributions || 0,
+      contribChange: pctChange(metrics.dailyContributions, metrics.prevDailyContributions),
+      withdraw: metrics.dailyWithdrawals || 0,
+      withdrawChange: pctChange(metrics.dailyWithdrawals, metrics.prevDailyWithdrawals),
+      changeLabel: 'vs yesterday',
+    },
+    week: {
+      subs: metrics.newSubscribersThisWeek || 0,
+      subsChange: pctChange(metrics.newSubscribersThisWeek, metrics.prevNewSubscribersThisWeek),
+      contrib: metrics.weeklyContributions || 0,
+      contribChange: pctChange(metrics.weeklyContributions, metrics.prevWeeklyContributions),
+      withdraw: metrics.weeklyWithdrawals || 0,
+      withdrawChange: pctChange(metrics.weeklyWithdrawals, metrics.prevWeeklyWithdrawals),
+      changeLabel: 'vs last week',
+    },
+    month: {
+      subs: metrics.newSubscribersThisMonth || 0,
+      subsChange: pctChange(metrics.newSubscribersThisMonth, metrics.prevNewSubscribersThisMonth),
+      contrib: metrics.monthlyContributions?.[11] || 0,
+      contribChange: pctChange(metrics.monthlyContributions?.[11], metrics.monthlyContributions?.[10]),
+      withdraw: metrics.monthlyWithdrawals || 0,
+      withdrawChange: pctChange(metrics.monthlyWithdrawals, metrics.prevMonthlyWithdrawals),
+      changeLabel: 'vs last month',
+    },
+  };
+
+  const d = data[period];
+
+  return (
+    <div className={styles.periodCard}>
+      <div className={styles.periodTabs}>
+        {PERIODS.map((p, i) => (
+          <button
+            key={p.key}
+            className={styles.periodTab}
+            data-active={i === activeIdx}
+            onClick={() => setActiveIdx(i)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={period}
+          className={styles.monthlyList}
+          initial={{ opacity: 0, x: activeIdx > 1 ? 8 : -8 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: activeIdx > 1 ? -8 : 8 }}
+          transition={{ duration: 0.15, ease: EASE }}
+        >
+          <MetricRow
+            variant="subscribers" icon={<SubsIcon />}
+            value={d.subs.toLocaleString()} label="New Subscribers"
+            change={d.subsChange}
+          />
+          <MetricRow
+            variant="contribution" icon={<ContribIcon />}
+            value={formatUGX(d.contrib)} label="Contributions"
+            change={d.contribChange}
+          />
+          <MetricRow
+            variant="withdrawal" icon={<WithdrawIcon />}
+            value={formatUGX(d.withdraw)} label="Withdrawals"
+            change={d.withdrawChange}
+          />
+          {topBranch && (
+            <MetricRow
+              variant="branch" icon={<StarIcon />}
+              value={topBranch.name} label={`Top Branch · ${formatUGX(topBranch.contribution)}`}
+            />
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+export default function OverlayPanel() {
+  const { level, selectedIds, drillDown, drillUp, reset, branchMenuOpen, agentMenuOpen } = useDashboard();
+
+  const parentId = level === 'country' ? 'ug' : selectedIds[level];
+  const nextLevel = CHILD_LEVEL[level] || null;
+  const { data: currentEntity } = useCurrentEntity(level, selectedIds);
+  const { data: children = [] } = useChildren(level, parentId);
+
+  if (!currentEntity) return null;
+
+  const isInactive = currentEntity.active === false;
+  const metrics = isInactive ? null : currentEntity.metrics;
+  const aum = metrics ? (metrics.aum || metrics.totalContributions) : 0;
+
+  function handleSearchNavigate(targetLevel, targetId) {
+    // With URL-based routing, just drill directly to the target
+    drillDown(targetLevel, targetId);
+  }
+
+  return (
+    <motion.div
+      className={styles.panel}
+      initial={{ opacity: 0, x: -20 }}
+      animate={{
+        opacity: 1,
+        x: 0,
+        left: (branchMenuOpen || agentMenuOpen) ? 'calc(100% - 310px - var(--space-6))' : 'var(--space-6)',
+      }}
+      transition={{ duration: 0.45, ease: EASE }}
+    >
+      {/* Panel header: title/back + search */}
+      <div className={styles.panelHeader}>
+        {level === 'country' ? (
+          <h2 className={styles.greeting}>Summary</h2>
+        ) : (
+          <button
+            className={styles.backBtn}
+            onClick={() => level === 'region' ? reset() : drillUp(level)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+              <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Back
+          </button>
+        )}
+        <GlobalSearch onNavigate={handleSearchNavigate} />
+      </div>
 
           {level !== 'country' && (
-            <h2 className={styles.entityName}>{currentEntity?.name || ''}</h2>
+            <div className={styles.entityHeader}>
+              <span className={styles.levelTag}>{LEVEL_TAG[level] || level}</span>
+              <h2 className={styles.entityName}>{currentEntity?.name || ''}</h2>
+            </div>
           )}
 
           {isInactive && (
@@ -179,45 +361,43 @@ export default function OverlayPanel() {
             </div>
           </div>
 
-          {/* Entity counts */}
-          <div className={styles.countRow}>
-            <div className={styles.countItem}>
-              <span className={styles.countNum}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
-              <span className={styles.countLabel}>Subscribers</span>
+          {/* Entity counts + activity bar */}
+          <div className={styles.countsBlock}>
+            <div className={styles.countRow}>
+              <div className={styles.countItem}>
+                <span className={styles.countNum}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
+                <span className={styles.countLabel}>Subscribers</span>
+              </div>
+              <div className={styles.countItem}>
+                <span className={styles.countNum}>{metrics.totalAgents ?? 0}</span>
+                <span className={styles.countLabel}>Agents</span>
+              </div>
+              <div className={styles.countItem}>
+                <span className={styles.countNum}>{metrics.totalBranches ?? 0}</span>
+                <span className={styles.countLabel}>Branches</span>
+              </div>
+              <div className={styles.countItem}>
+                <span className={styles.countNum}>{metrics.coverageRate || 0}%</span>
+                <span className={styles.countLabel}>Coverage</span>
+              </div>
             </div>
-            <div className={styles.countItem}>
-              <span className={styles.countNum}>{metrics.totalAgents ?? 0}</span>
-              <span className={styles.countLabel}>Agents</span>
-            </div>
-            <div className={styles.countItem}>
-              <span className={styles.countNum}>{metrics.totalBranches ?? 0}</span>
-              <span className={styles.countLabel}>Branches</span>
-            </div>
-            <div className={styles.countItem}>
-              <span className={styles.countNum}>{metrics.coverageRate || 0}%</span>
-              <span className={styles.countLabel}>Coverage</span>
+            <div className={styles.activityInline}>
+              <div className={styles.activityBarTrack}>
+                <div className={styles.activityBarFill} style={{ width: `${metrics.activeRate}%` }} />
+              </div>
+              <div className={styles.activityLabels}>
+                <span className={styles.activityActive}>
+                  {Math.round((metrics.totalSubscribers || 0) * (metrics.activeRate / 100)).toLocaleString()} active
+                </span>
+                <span className={styles.activityInactive}>
+                  {Math.round((metrics.totalSubscribers || 0) * ((100 - metrics.activeRate) / 100)).toLocaleString()} inactive
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Activity — active vs inactive subscribers */}
-          <CollapsibleSection title="Activity" defaultOpen={false} key={`activity-${level}-${parentId}`}>
-            <div className={styles.activityContent}>
-              <div className={styles.activeBarRow}>
-                <div className={styles.barTrackLg}>
-                  <div className={styles.barSegment} style={{ width: `${metrics.activeRate}%`, background: 'var(--color-status-good)' }} />
-                  <div className={styles.barSegment} style={{ width: `${100 - metrics.activeRate}%`, background: 'var(--color-lavender)' }} />
-                </div>
-                <div className={styles.activeLabels}>
-                  <span className={styles.activeLabel}>
-                    {Math.round((metrics.totalSubscribers || 0) * (metrics.activeRate / 100)).toLocaleString()} active
-                  </span>
-                  <span className={styles.inactiveLabel}>
-                    {Math.round((metrics.totalSubscribers || 0) * ((100 - metrics.activeRate) / 100)).toLocaleString()} inactive
-                  </span>
-                </div>
-              </div>
-            </div>
-          </CollapsibleSection>
+          {/* Time-period highlights: Today / This Week / This Month */}
+          <TimePeriodCard metrics={metrics} level={level} parentId={parentId} />
 
           {/* Region/child list */}
           {children.length > 0 && nextLevel && (
@@ -243,8 +423,6 @@ export default function OverlayPanel() {
             </CollapsibleSection>
           )}
           </>}
-        </motion.div>
-      )}
-    </AnimatePresence>
+    </motion.div>
   );
 }

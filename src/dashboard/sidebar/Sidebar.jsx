@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
-import { useApp } from '../../contexts/AppContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import styles from './Sidebar.module.css';
 
@@ -125,14 +126,64 @@ const BOTTOM_ITEMS = [
   },
 ];
 
+const BRANCH_SUB = [
+  {
+    id: 'create-branch',
+    label: 'Create New Branch',
+    desc: 'Set up a new branch location',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+        <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    id: 'view-branches',
+    label: 'View Existing Branches',
+    desc: 'Manage and monitor all branches',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+        <path d="M3 21h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+        <path d="M5 21V7l7-4 7 4v14" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+        <rect x="9" y="13" width="6" height="8" rx="1" stroke="currentColor" strokeWidth="1.75" />
+      </svg>
+    ),
+  },
+];
+
+const AGENT_SUB = [
+  {
+    id: 'view-agents',
+    label: 'View Existing Agents',
+    desc: 'Manage and monitor all agents',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+        <circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.75" />
+        <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+        <circle cx="18" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.75" />
+        <path d="M21 21v-1.5a3 3 0 00-3-3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+];
+
 export default function Sidebar() {
   const [active, setActive] = useState('overview');
   const [hovered, setHovered] = useState(null);
   const [moreOpen, setMoreOpen] = useState(false);
-  const { exitDashboard } = useApp();
-  const { reset } = useDashboard();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const { reset, branchMenuOpen, setBranchMenuOpen, setCreateBranchOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, setViewAgentsOpen } = useDashboard();
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
+
+  /* Close submenus on outside click */
+  useEffect(() => {
+    if (!branchMenuOpen && !agentMenuOpen) return;
+    const handler = () => { setBranchMenuOpen(false); setAgentMenuOpen(false); };
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [branchMenuOpen, agentMenuOpen]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -143,14 +194,45 @@ export default function Sidebar() {
 
   function handleClick(id) {
     setMoreOpen(false);
+    if (id === 'branches') {
+      setAgentMenuOpen(false);
+      setBranchMenuOpen((prev) => !prev);
+      setActive(id);
+      return;
+    }
+    if (id === 'agents') {
+      setBranchMenuOpen(false);
+      setAgentMenuOpen((prev) => !prev);
+      setActive(id);
+      return;
+    }
+    setBranchMenuOpen(false);
+    setAgentMenuOpen(false);
     if (id === 'logout') {
-      exitDashboard();
+      logout();
+      navigate('/');
       return;
     }
     if (id === 'overview') {
       reset();
     }
     setActive(id);
+  }
+
+  function handleBranchSub(subId) {
+    setBranchMenuOpen(false);
+    if (subId === 'create-branch') {
+      setCreateBranchOpen(true);
+    } else if (subId === 'view-branches') {
+      setViewBranchesOpen(true);
+    }
+  }
+
+  function handleAgentSub(subId) {
+    setAgentMenuOpen(false);
+    if (subId === 'view-agents') {
+      setViewAgentsOpen(true);
+    }
   }
 
   return (
@@ -165,27 +247,106 @@ export default function Sidebar() {
 
       <div className={styles.navItems}>
         {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            className={styles.navBtn}
-            data-active={active === item.id}
-            onClick={() => handleClick(item.id)}
-            onMouseEnter={() => setHovered(item.id)}
-            onMouseLeave={() => setHovered(null)}
-            title={item.label}
-          >
-            <span className={styles.iconWrap}>{item.icon}</span>
-            {hovered === item.id && (
-              <motion.span
-                className={styles.tooltip}
-                initial={{ opacity: 0, x: -4 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.15 }}
-              >
-                {item.label}
-              </motion.span>
+          <div key={item.id} className={styles.navBtnWrap}>
+            <button
+              className={styles.navBtn}
+              data-active={active === item.id}
+              onClick={(e) => { if (item.id === 'branches' || item.id === 'agents') e.stopPropagation(); handleClick(item.id); }}
+              onMouseEnter={() => setHovered(item.id)}
+              onMouseLeave={() => setHovered(null)}
+              title={item.label}
+            >
+              <span className={styles.iconWrap}>{item.icon}</span>
+              {hovered === item.id && !branchMenuOpen && !agentMenuOpen && (
+                <motion.span
+                  className={styles.tooltip}
+                  initial={{ opacity: 0, x: -4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  {item.label}
+                </motion.span>
+              )}
+            </button>
+
+            {/* Branch submenu flyout */}
+            {item.id === 'branches' && (
+              <AnimatePresence>
+                {branchMenuOpen && (
+                  <motion.div
+                    className={styles.subMenu}
+                    initial={{ opacity: 0, x: -8, scale: 0.96 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: -8, scale: 0.96 }}
+                    transition={{ duration: 0.22, ease: EASE_OUT_EXPO }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className={styles.subMenuArrow} />
+                    <div className={styles.subMenuHeader}>
+                      <span className={styles.subMenuTitle}>Branches</span>
+                      <span className={styles.subMenuCount}>310</span>
+                    </div>
+                    <div className={styles.subMenuDivider} />
+                    {BRANCH_SUB.map((sub, i) => (
+                      <motion.button
+                        key={sub.id}
+                        className={styles.subMenuItem}
+                        onClick={() => handleBranchSub(sub.id)}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.2, delay: 0.06 * (i + 1), ease: EASE_OUT_EXPO }}
+                      >
+                        <span className={styles.subMenuIcon}>{sub.icon}</span>
+                        <div className={styles.subMenuText}>
+                          <span className={styles.subMenuLabel}>{sub.label}</span>
+                          <span className={styles.subMenuDesc}>{sub.desc}</span>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             )}
-          </button>
+
+            {/* Agent submenu flyout */}
+            {item.id === 'agents' && (
+              <AnimatePresence>
+                {agentMenuOpen && (
+                  <motion.div
+                    className={styles.subMenu}
+                    initial={{ opacity: 0, x: -8, scale: 0.96 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: -8, scale: 0.96 }}
+                    transition={{ duration: 0.22, ease: EASE_OUT_EXPO }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className={styles.subMenuArrow} />
+                    <div className={styles.subMenuHeader}>
+                      <span className={styles.subMenuTitle}>Agents</span>
+                      <span className={styles.subMenuCount}>2,036</span>
+                    </div>
+                    <div className={styles.subMenuDivider} />
+                    {AGENT_SUB.map((sub, i) => (
+                      <motion.button
+                        key={sub.id}
+                        className={styles.subMenuItem}
+                        onClick={() => handleAgentSub(sub.id)}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.2, delay: 0.06 * (i + 1), ease: EASE_OUT_EXPO }}
+                      >
+                        <span className={styles.subMenuIcon}>{sub.icon}</span>
+                        <div className={styles.subMenuText}>
+                          <span className={styles.subMenuLabel}>{sub.label}</span>
+                          <span className={styles.subMenuDesc}>{sub.desc}</span>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
+          </div>
         ))}
       </div>
 

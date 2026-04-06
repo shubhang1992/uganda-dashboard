@@ -112,13 +112,13 @@ const IMPACT_TIERS = [
   { min: 0,          text: 'Start your first deposit' },
   { min: 60_000,     text: '3 months of mobile data' },
   { min: 300_000,    text: 'A medical emergency visit' },
-  { min: 600_000,    text: '1 year of school fees' },
-  { min: 1_500_000,  text: 'A boda-boda for income' },
-  { min: 3_000_000,  text: '1 year of rent in Kampala' },
+  { min: 600_000,    text: '1 term of school fees' },
+  { min: 1_500_000,  text: 'A secondhand boda-boda' },
+  { min: 3_000_000,  text: '1 year of rent outside Kampala' },
   { min: 5_000_000,  text: 'A plot of land in your district' },
-  { min: 10_000_000, text: '5 years of family expenses' },
-  { min: 20_000_000, text: '10 years of financial security' },
-  { min: 30_000_000, text: 'Full retirement independence' },
+  { min: 10_000_000, text: '1 year of full family support' },
+  { min: 20_000_000, text: '3 years of basic financial security' },
+  { min: 30_000_000, text: 'A strong retirement foundation' },
 ];
 
 function getImpact(balance) {
@@ -144,7 +144,7 @@ const MILESTONES = [
   { minYear: 2033, maxYear: 2037, text: "A full year of school fees — covered.",                   sub: "Your child's future is more secure." },
   { minYear: 2037, maxYear: 2043, text: "Returns now outpace your contributions.",                 sub: "Your money is working harder than you." },
   { minYear: 2043, maxYear: 2050, text: "You could buy a plot of land in your district.",          sub: "This is generational wealth." },
-  { minYear: 2050, maxYear: 2058, text: "A decade of financial security — built.",                 sub: "Most Ugandans retire with nothing formal." },
+  { minYear: 2050, maxYear: 2058, text: "Years of financial security — built.",                    sub: "Most Ugandans retire with nothing formal." },
   { minYear: 2058, maxYear: 2066, text: "Your retirement has a date, a number, and a foundation.", sub: "UGX 5K a month became everything." },
 ];
 

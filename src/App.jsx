@@ -1,5 +1,6 @@
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { SignInProvider } from './contexts/SignInContext';
-import { AppProvider, useApp } from './contexts/AppContext';
+import { useAuth } from './contexts/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -12,6 +13,7 @@ import Footer from './components/Footer';
 import StickyMobileCTA from './components/StickyMobileCTA';
 import SignInModal from './components/SignInModal';
 import DashboardShell from './dashboard/DashboardShell';
+import { hasDashboard } from './services/auth';
 
 const ROLE_LABELS = {
   subscriber: 'Subscriber',
@@ -22,8 +24,33 @@ const ROLE_LABELS = {
   admin: 'Admin',
 };
 
+function LandingPage() {
+  return (
+    <>
+      <Navbar />
+      <main>
+        <Hero />
+        <HowItWorks />
+        <TimeJourney />
+        <ForYou />
+        <Trust />
+        <CTA />
+      </main>
+      <Footer />
+      <StickyMobileCTA />
+    </>
+  );
+}
+
 function ComingSoon() {
-  const { role, exitDashboard } = useApp();
+  const { role, logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleBack() {
+    logout();
+    navigate('/');
+  }
+
   return (
     <div style={{
       display: 'flex',
@@ -67,7 +94,7 @@ function ComingSoon() {
         We&apos;re building your personalised dashboard experience. Check back soon.
       </p>
       <button
-        onClick={exitDashboard}
+        onClick={handleBack}
         style={{
           background: 'var(--color-indigo)',
           color: 'white',
@@ -87,45 +114,26 @@ function ComingSoon() {
   );
 }
 
-function AppContent() {
-  const { view } = useApp();
-
-  if (view === 'dashboard') {
-    return (
-      <ErrorBoundary>
-        <DashboardShell />
-      </ErrorBoundary>
-    );
-  }
-
-  if (view === 'coming-soon') {
-    return <ComingSoon />;
-  }
-
+function ProtectedDashboard() {
+  const { isAuthenticated, role } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+  if (!hasDashboard(role)) return <Navigate to="/coming-soon" replace />;
   return (
-    <>
-      <Navbar />
-      <main>
-        <Hero />
-        <HowItWorks />
-        <TimeJourney />
-        <ForYou />
-        <Trust />
-        <CTA />
-      </main>
-      <Footer />
-      <StickyMobileCTA />
-      <SignInModal />
-    </>
+    <ErrorBoundary>
+      <DashboardShell />
+    </ErrorBoundary>
   );
 }
 
 export default function App() {
   return (
-    <AppProvider>
-      <SignInProvider>
-        <AppContent />
-      </SignInProvider>
-    </AppProvider>
+    <SignInProvider>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/coming-soon" element={<ComingSoon />} />
+        <Route path="/dashboard/*" element={<ProtectedDashboard />} />
+      </Routes>
+      <SignInModal />
+    </SignInProvider>
   );
 }

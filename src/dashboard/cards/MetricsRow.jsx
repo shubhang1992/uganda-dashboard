@@ -1,36 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { COUNTRY, getEntityById } from '../../data/mockData';
+import { useCurrentEntity } from '../../hooks/useEntity';
+import { getChatResponse } from '../../services/chat';
 import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './MetricsRow.module.css';
 
-function getCurrentMetrics(level, selectedIds) {
-  if (level === 'country') return COUNTRY.metrics;
-  const id = selectedIds[level];
-  const entity = getEntityById(level, id);
-  return entity?.metrics || COUNTRY.metrics;
-}
-
-// ── Mock AI ──
 const SUGGESTIONS = ['Top agents?', 'Coverage by region?', 'Active subscribers?', 'Gender split?'];
-
-const MOCK_RESPONSES = {
-  default: "I can help you analyse your pension network data. Ask about subscribers, agents, coverage, or contributions!",
-  agent: "Top 3 agents: Sarah Nambi (92%), Moses Okello (89%), Grace Achieng (87%). Average performance: 78%.",
-  coverage: "Coverage: Northern 62%, Central 58%, Eastern 55%, Western 52%. Overall: 67%.",
-  subscriber: "2,000 subscribers. 82% active. Growth: 3.8% MoM. Central leads with 680.",
-  gender: "Gender: 52% male, 46% female, 2% other. Eastern has the most balanced split.",
-};
-
-function getMockResponse(msg) {
-  const l = msg.toLowerCase();
-  if (l.includes('agent') || l.includes('top')) return MOCK_RESPONSES.agent;
-  if (l.includes('coverage') || l.includes('region')) return MOCK_RESPONSES.coverage;
-  if (l.includes('subscriber') || l.includes('active')) return MOCK_RESPONSES.subscriber;
-  if (l.includes('gender') || l.includes('split')) return MOCK_RESPONSES.gender;
-  return MOCK_RESPONSES.default;
-}
 
 // ── Chat Card ──
 function ChatCard({ open, onToggle }) {
@@ -51,14 +27,16 @@ function ChatCard({ open, onToggle }) {
     setMessages((prev) => [...prev, { role: 'user', text: msg }]);
     setInput('');
     setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      setMessages((prev) => [...prev, { role: 'assistant', text: getMockResponse(msg) }]);
-    }, 900);
+    getChatResponse(msg).then((response) => {
+      setTimeout(() => {
+        setIsTyping(false);
+        setMessages((prev) => [...prev, { role: 'assistant', text: response }]);
+      }, 900);
+    });
   }
 
   return (
-    <div className={styles.chatCard} data-collapsed={!open}>
+    <motion.div className={styles.chatCard} data-collapsed={!open} variants={item}>
       <button className={styles.chatHeader} onClick={onToggle} type="button">
         <div className={styles.chatHeaderLeft}>
           <div className={styles.chatDot} />
@@ -113,7 +91,7 @@ function ChatCard({ open, onToggle }) {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
 
@@ -163,23 +141,20 @@ const item = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transiti
 
 export default function MetricsRow() {
   const { level, selectedIds } = useDashboard();
-  const metrics = getCurrentMetrics(level, selectedIds);
+  const { data: entity } = useCurrentEntity(level, selectedIds);
+  const metrics = entity?.metrics;
   const [expanded, setExpanded] = useState(null);
 
   // Cards auto-collapse at overview levels, expand when drilling deeper
+  // Each card toggles independently; key-based re-mount resets on navigation
   const [chatOpen, setChatOpen] = useState(level !== 'country' && level !== 'region');
   const [demoOpen, setDemoOpen] = useState(level !== 'country' && level !== 'region');
-
-  useEffect(() => {
-    const isOverview = level === 'country' || level === 'region';
-    setChatOpen(!isOverview);
-    setDemoOpen(!isOverview);
-  }, [level]);
 
   function toggleExpand(card) {
     setExpanded((prev) => prev === card ? null : card);
   }
 
+  if (!metrics) return null;
   const totalSubs = metrics.totalSubscribers || 0;
 
   return (
@@ -191,9 +166,7 @@ export default function MetricsRow() {
       key={level + JSON.stringify(selectedIds)}
     >
       {/* Card 1: AI Data Assistant */}
-      <motion.div variants={item}>
-        <ChatCard open={chatOpen} onToggle={() => setChatOpen(!chatOpen)} />
-      </motion.div>
+      <ChatCard open={chatOpen} onToggle={() => setChatOpen(!chatOpen)} />
 
       {/* Card 2: Demographics (expandable) */}
       <motion.div className={styles.card} variants={item} data-expanded={expanded === 'demographics'} data-collapsed={!demoOpen}>

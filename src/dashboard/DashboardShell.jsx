@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../utils/finance';
 import { DashboardProvider, useDashboard } from '../contexts/DashboardContext';
-import { useApp } from '../contexts/AppContext';
+import { useAuth } from '../contexts/AuthContext';
 import logo from '../assets/logo.png';
 import Sidebar from './sidebar/Sidebar';
 import UgandaMap from './map/UgandaMap';
@@ -10,6 +11,9 @@ import OverlayPanel from './overlay/OverlayPanel';
 import Breadcrumb from './overlay/Breadcrumb';
 import MetricsRow from './cards/MetricsRow';
 import TopBar from './overlay/TopBar';
+import CreateBranch from './branch/CreateBranch';
+import ViewBranches from './branch/ViewBranches';
+import ViewAgents from './agent/ViewAgents';
 import styles from './DashboardShell.module.css';
 
 const DRAWER_ITEMS = [
@@ -57,7 +61,8 @@ function MobileHeader({ onMenuToggle, menuOpen }) {
 }
 
 function MobileDrawer({ open, onClose }) {
-  const { exitDashboard } = useApp();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   return (
     <AnimatePresence>
       {open && (
@@ -86,7 +91,7 @@ function MobileDrawer({ open, onClose }) {
             </nav>
             <button
               className={styles.drawerLogout}
-              onClick={() => { onClose(); exitDashboard(); }}
+              onClick={() => { onClose(); logout(); navigate('/'); }}
             >
               Log out
             </button>
@@ -112,6 +117,9 @@ export default function DashboardShell() {
           <TopBar />
           <MetricsRow />
         </div>
+        <CreateBranch />
+        <ViewBranches />
+        <ViewAgents />
       </div>
     </DashboardProvider>
   );
