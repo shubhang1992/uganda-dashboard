@@ -103,10 +103,13 @@ export default function OtpVerify({ phone, onVerify, onBack }) {
               onKeyDown={(e) => handleKeyDown(i, e)}
               data-error={!!error}
               data-filled={!!d}
+              aria-label={`Digit ${i + 1} of ${OTP_LENGTH}`}
+              spellCheck={false}
+              {...(i === 0 ? { autoComplete: 'one-time-code' } : {})}
             />
           ))}
         </div>
-        {error && <p className={styles.error}>{error}</p>}
+        {error && <p className={styles.error} role="alert">{error}</p>}
 
         <button type="submit" className={styles.submit}>
           Verify & sign in

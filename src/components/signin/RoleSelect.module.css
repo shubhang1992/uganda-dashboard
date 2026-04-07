@@ -35,7 +35,7 @@
   border: 1.5px solid var(--color-lavender);
   border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
   text-align: center;
   position: relative;
   overflow: hidden;
@@ -77,7 +77,7 @@
   border: 1px solid rgba(41, 40, 103, 0.1);
   border-radius: var(--radius-md);
   color: var(--color-indigo);
-  transition: all 0.25s ease;
+  transition: background 0.25s ease, color 0.25s ease;
 }
 
 .card:hover .icon {

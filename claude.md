@@ -2,7 +2,7 @@
 
 ## Technical context
 
-**Stack:** React 19 + Vite 8 + Framer Motion + CSS Modules + React Router + TanStack React Query + Leaflet
+**Stack:** React 19 + Vite 6 + Framer Motion + CSS Modules + React Router + TanStack React Query + Leaflet
 **Deployment:** Vercel (auto-deploy on push to `main`)
 **Live URL:** uganda-dashboard.vercel.app
 
@@ -20,6 +20,20 @@
 - **Auth rule:** Use `useAuth()` from `AuthContext` for login/logout/role checks. Session persists in localStorage.
 - **Environment rule:** API URLs and config go in `.env` and are accessed via `src/config/env.js`. No hardcoded API endpoints.
 
+### Accessibility conventions — MUST FOLLOW
+- **Focus visibility:** Global `:focus-visible` baseline in `index.css` (2px `--color-indigo-soft` outline). Never use `outline: none` without a `:focus-visible` replacement.
+- **Transitions:** Never use `transition: all` — always list properties explicitly (e.g., `transition: background 0.2s ease, color 0.2s ease`).
+- **Reduced motion:** `<MotionConfig reducedMotion="user">` wraps the app in `main.jsx`. CSS `prefers-reduced-motion` media query in `index.css` handles CSS animations. Framer Motion JS animations are handled by the MotionConfig provider.
+- **Modals & drawers:** Must have Escape key handler to close, `overscroll-behavior: contain` to prevent background scroll bleed.
+- **Icon-only buttons:** Must have `aria-label`. Do not rely on `title` attribute alone.
+- **Form inputs:** Must have `aria-label` or associated `<label>`. Use correct `type`, `inputMode`, `autoComplete`, and `spellCheck={false}` on codes/phones.
+- **Touch targets:** `touch-action: manipulation` set globally on buttons and links in `index.css`. Minimum 44px touch targets on mobile.
+- **Skip link:** `index.html` has a skip-to-content link targeting `#main` on the `<main>` element in `App.jsx`.
+- **Typography:** Use `text-wrap: balance` on headings. Use `font-variant-numeric: tabular-nums` on number/stat displays. Use `…` (ellipsis character) not `...` in placeholder text.
+- **Images:** All `<img>` tags must have explicit `width` and `height` attributes. Below-fold images use `loading="lazy"`.
+- **Large lists:** Use `content-visibility: auto` with `contain-intrinsic-size` on list items for performance (applied in ViewBranches and ViewAgents).
+- **Decorative icons:** SVGs that are purely decorative (next to a text label) must have `aria-hidden="true"`.
+
 ### Architecture
 
 **Routing:** `react-router-dom` handles all navigation. Landing page at `/`, dashboard at `/dashboard/*`, coming-soon at `/coming-soon`. Dashboard drill-down is URL-based: `/dashboard/regions/:id`, `/dashboard/districts/:id`, etc. Deep links and browser back button work.
@@ -31,7 +45,7 @@
 - `src/hooks/useEntity.js` — React Query hooks (`useEntity`, `useChildren`, `useAllEntities`, etc.)
 - `src/data/mockData.js` — mock data source (only imported by services)
 
-**Providers (in `main.jsx`):** `BrowserRouter` → `QueryClientProvider` → `AuthProvider` → `App`
+**Providers (in `main.jsx`):** `BrowserRouter` → `QueryClientProvider` → `AuthProvider` → `MotionConfig` → `App`
 
 **Landing page:**
 - `App.jsx` uses `<Routes>` to render landing, dashboard, or coming-soon

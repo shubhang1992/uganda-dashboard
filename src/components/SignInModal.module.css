@@ -15,6 +15,7 @@
   align-items: center;
   justify-content: center;
   pointer-events: none;
+  overscroll-behavior: contain;
 }
 
 .modal {

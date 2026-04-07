@@ -67,12 +67,16 @@ export default function PhoneEntry({ role, onSubmit, onBack }) {
             onChange={handleChange}
             placeholder="7XX XXX XXX"
             autoFocus
+            aria-label="Phone number"
+            name="phone"
+            autoComplete="tel"
+            spellCheck={false}
           />
         </div>
         {error && <p className={styles.error}>{error}</p>}
 
         <button type="submit" className={styles.submit}>
-          Continue
+          Send verification code
         </button>
       </form>
     </div>

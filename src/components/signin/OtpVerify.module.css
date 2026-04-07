@@ -78,12 +78,12 @@
   font-weight: 800;
   color: var(--color-indigo);
   text-align: center;
-  outline: none;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   caret-color: var(--color-indigo);
 }
 
-.otpInput:focus {
+.otpInput:focus-visible {
+  outline: none;
   border-color: var(--color-indigo);
   background: var(--color-white);
   box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);

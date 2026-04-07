@@ -28,7 +28,7 @@ function LandingPage() {
   return (
     <>
       <Navbar />
-      <main>
+      <main id="main">
         <Hero />
         <HowItWorks />
         <TimeJourney />

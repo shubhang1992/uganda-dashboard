@@ -37,6 +37,7 @@
   letter-spacing: -0.03em;
   color: var(--color-indigo);
   margin-bottom: 0.875rem;
+  text-wrap: balance;
 }
 
 .headingAccent {

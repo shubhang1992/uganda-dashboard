@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, useScroll, useMotionValueEvent, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../utils/finance';
 import { useSignIn } from '../contexts/SignInContext';
@@ -26,6 +26,15 @@ export default function Navbar() {
     setMenuOpen(false);
   }
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleEsc(e) {
+      if (e.key === 'Escape') closeMenu();
+    }
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [menuOpen]);
+
   return (
     <>
       <motion.nav
@@ -37,7 +46,7 @@ export default function Navbar() {
       >
         <div className={styles.inner}>
           <a href="/" className={styles.logo} aria-label="Universal Pensions home">
-            <img src={logo} alt="Universal Pensions" className={styles.logoImg} />
+            <img src={logo} alt="Universal Pensions" className={styles.logoImg} width={120} height={36} />
           </a>
 
           {/* Desktop links */}

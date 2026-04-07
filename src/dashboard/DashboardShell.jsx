@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../utils/finance';
@@ -44,7 +44,7 @@ function MobileHeader({ onMenuToggle, menuOpen }) {
             </svg>
           </button>
         )}
-        <img src={logo} alt="Universal Pensions" className={styles.mobileHeaderLogo} />
+        <img src={logo} alt="Universal Pensions" className={styles.mobileHeaderLogo} width={120} height={36} />
       </div>
       <button
         className={styles.hamburger}
@@ -63,6 +63,16 @@ function MobileHeader({ onMenuToggle, menuOpen }) {
 function MobileDrawer({ open, onClose }) {
   const { logout } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!open) return;
+    function handleEsc(e) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [open, onClose]);
+
   return (
     <AnimatePresence>
       {open && (

@@ -29,6 +29,15 @@ export default function SignInModal() {
   const prevStep = useRef('role');
 
   useEffect(() => {
+    if (!isOpen) return;
+    function handleEsc(e) {
+      if (e.key === 'Escape') close();
+    }
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [isOpen, close]);
+
+  useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -131,7 +140,7 @@ export default function SignInModal() {
                 <div className={styles.headerOrb1} />
                 <div className={styles.headerOrb2} />
               </div>
-              <img src={logo} alt="Universal Pensions" className={styles.logo} />
+              <img src={logo} alt="Universal Pensions" className={styles.logo} width={100} height={28} />
 
               {/* Step indicator */}
               <div className={styles.steps}>

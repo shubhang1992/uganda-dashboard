@@ -510,7 +510,7 @@ export default function CreateBranch() {
                             options={districtOptions}
                             value={district}
                             onChange={setDistrict}
-                            placeholder="Search district..."
+                            placeholder="Search district…"
                           />
                           {errors.district && <span className={styles.error}>{errors.district}</span>}
                         </div>
@@ -532,7 +532,7 @@ export default function CreateBranch() {
                             options={townOptions}
                             value={cityTown}
                             onChange={setCityTown}
-                            placeholder="Search or type city / town..."
+                            placeholder="Search or type city / town…"
                             allowCustom
                           />
                           {errors.cityTown && <span className={styles.error}>{errors.cityTown}</span>}
@@ -544,7 +544,7 @@ export default function CreateBranch() {
                             className={styles.textarea}
                             value={address}
                             onChange={(e) => setAddress(e.target.value)}
-                            placeholder="Plot number, street / road name, building..."
+                            placeholder="Plot number, street / road name, building…"
                             rows={2}
                             data-error={!!errors.address}
                           />

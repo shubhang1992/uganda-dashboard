@@ -24,6 +24,7 @@
   box-shadow:
     -16px 0 56px rgba(41, 40, 103, 0.14),
     -2px 0 8px rgba(41, 40, 103, 0.06);
+  overscroll-behavior: contain;
 }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
@@ -41,7 +42,7 @@
   height: 44px;
   border-radius: var(--radius-md);
   color: var(--color-gray);
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
   margin-bottom: var(--space-3);
 }
 
@@ -95,7 +96,7 @@
   border: 2px solid rgba(217, 220, 242, 0.6);
   color: var(--color-gray);
   background: rgba(255, 255, 255, 0.7);
-  transition: all 0.3s var(--ease-out-expo);
+  transition: border-color 0.3s var(--ease-out-expo), background 0.3s var(--ease-out-expo), color 0.3s var(--ease-out-expo), box-shadow 0.3s var(--ease-out-expo);
 }
 
 .progressStep[data-active='true'] .progressDot {
@@ -189,6 +190,10 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
+.input:focus-visible {
+  box-shadow: 0 0 0 2px rgba(41, 40, 103, 0.15);
+}
+
 .input:focus {
   border-color: var(--color-indigo);
   box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
@@ -225,6 +230,10 @@
   min-height: 72px;
   line-height: 1.5;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.textarea:focus-visible {
+  box-shadow: 0 0 0 2px rgba(41, 40, 103, 0.15);
 }
 
 .textarea:focus {
@@ -307,6 +316,10 @@
   letter-spacing: 0.04em;
 }
 
+.phoneInput:focus-visible {
+  box-shadow: 0 0 0 2px rgba(41, 40, 103, 0.15);
+}
+
 .phoneInput::placeholder {
   color: var(--color-gray);
   opacity: 0.6;
@@ -330,6 +343,10 @@
   backdrop-filter: blur(8px);
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.selectInput:focus-visible {
+  box-shadow: 0 0 0 2px rgba(41, 40, 103, 0.15);
 }
 
 .selectInput:focus {
@@ -642,7 +659,7 @@
   padding: 0.625rem 1.25rem;
   border-radius: var(--radius-full);
   border: 1.5px solid rgba(217, 220, 242, 0.6);
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 
 .backBtn:hover {

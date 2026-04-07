@@ -82,9 +82,11 @@ function ChatCard({ open, onToggle }) {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } }}
-                placeholder="Ask about your data..."
+                placeholder="Ask about your data\u2026"
+                aria-label="Chat message"
+                name="chat"
               />
-              <button className={styles.chatSend} onClick={() => handleSend()} disabled={!input.trim()}>
+              <button className={styles.chatSend} onClick={() => handleSend()} disabled={!input.trim()} aria-label="Send message">
                 <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 8l12-6-6 12V8H2z" fill="currentColor"/></svg>
               </button>
             </div>

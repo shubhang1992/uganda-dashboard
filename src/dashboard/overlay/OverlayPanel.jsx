@@ -105,6 +105,9 @@ function GlobalSearch({ onNavigate }) {
           onChange={(e) => setQuery(e.target.value)}
           autoFocus
           onBlur={() => setTimeout(handleClose, 150)}
+          aria-label="Search entities"
+          name="search"
+          autoComplete="off"
         />
         <button className={styles.searchBarClose} onMouseDown={handleClose} aria-label="Close search">
           <svg viewBox="0 0 24 24" fill="none" width="12" height="12">
@@ -282,6 +285,9 @@ export default function OverlayPanel() {
   const nextLevel = CHILD_LEVEL[level] || null;
   const { data: currentEntity } = useCurrentEntity(level, selectedIds);
   const { data: children = [] } = useChildren(level, parentId);
+
+  // At branch/agent level, the slide-in panels take over
+  if (level === 'branch' || level === 'agent') return null;
 
   if (!currentEntity) return null;
 

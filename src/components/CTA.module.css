@@ -90,6 +90,7 @@
   letter-spacing: -0.03em;
   color: var(--color-white);
   margin-bottom: 1.25rem;
+  text-wrap: balance;
 }
 
 .accent {

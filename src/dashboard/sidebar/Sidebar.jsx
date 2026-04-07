@@ -255,6 +255,7 @@ export default function Sidebar() {
               onMouseEnter={() => setHovered(item.id)}
               onMouseLeave={() => setHovered(null)}
               title={item.label}
+              aria-label={item.label}
             >
               <span className={styles.iconWrap}>{item.icon}</span>
               {hovered === item.id && !branchMenuOpen && !agentMenuOpen && (
@@ -361,6 +362,7 @@ export default function Sidebar() {
             onMouseEnter={() => setHovered(item.id)}
             onMouseLeave={() => setHovered(null)}
             title={item.label}
+            aria-label={item.label}
           >
             <span className={styles.iconWrap}>{item.icon}</span>
             {hovered === item.id && (
@@ -385,6 +387,7 @@ export default function Sidebar() {
             className={styles.mobileBtn}
             data-active={active === item.id}
             onClick={() => handleClick(item.id)}
+            aria-label={item.label}
           >
             <span className={styles.iconWrap}>{item.icon}</span>
             <span className={styles.mobileLabel}>{item.label}</span>
@@ -396,6 +399,7 @@ export default function Sidebar() {
             className={styles.mobileBtn}
             data-active={moreOpen}
             onClick={(e) => { e.stopPropagation(); setMoreOpen(!moreOpen); }}
+            aria-label="More options"
           >
             <span className={styles.iconWrap}>
               <svg viewBox="0 0 24 24" fill="none" width="22" height="22">

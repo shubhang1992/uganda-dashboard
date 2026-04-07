@@ -33,6 +33,7 @@
   font-weight: 800;
   color: var(--color-white);
   letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
 }
 
 .statLabel {
@@ -70,6 +71,7 @@
   line-height: 1.15;
   letter-spacing: -0.03em;
   color: var(--color-indigo);
+  text-wrap: balance;
 }
 
 .testimonialGrid {

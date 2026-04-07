@@ -460,7 +460,7 @@ export default function ViewAgents() {
                       className={styles.searchInput}
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search agents, branches, districts..."
+                      placeholder="Search agents, branches, districts…"
                     />
                     {search && (
                       <button className={styles.searchClear} onClick={() => setSearch('')} aria-label="Clear search">

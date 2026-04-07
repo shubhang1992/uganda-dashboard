@@ -14,7 +14,7 @@ export default function Footer() {
       <div className="container">
         <div className={styles.top}>
           <div className={styles.brand}>
-            <img src={logo} alt="Universal Pensions" className={styles.logo} />
+            <img src={logo} alt="Universal Pensions" className={styles.logo} width={140} height={40} loading="lazy" />
             <p className={styles.tagline}>
               Making long-term savings simple, accessible, and meaningful for every Ugandan.
             </p>

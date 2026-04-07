@@ -425,7 +425,7 @@ function EditBranch({ branch, section, onSave, onCancel }) {
               </div>
               <div className={styles.field}>
                 <label className={styles.label}>Phone Number</label>
-                <input className={styles.input} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+256..." />
+                <input className={styles.input} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+256…" />
               </div>
               <div className={styles.field}>
                 <label className={styles.label}>Email Address</label>
@@ -685,7 +685,7 @@ export default function ViewBranches() {
                       className={styles.searchInput}
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search branches, districts, managers..."
+                      placeholder="Search branches, districts, managers…"
                     />
                     {search && (
                       <button className={styles.searchClear} onClick={() => setSearch('')} aria-label="Clear search">

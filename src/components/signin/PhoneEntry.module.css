@@ -117,7 +117,6 @@
 .input {
   flex: 1;
   border: none;
-  outline: none;
   font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: 600;
@@ -126,6 +125,10 @@
   height: 56px;
   letter-spacing: 0.06em;
   background: transparent;
+}
+
+.input:focus-visible {
+  outline: none;
 }
 
 .input::placeholder {
