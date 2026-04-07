@@ -1,9 +1,9 @@
 import { memo, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, GeoJSON, Marker, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { useAllEntities, useChildren } from '../../hooks/useEntity';
+import { useAllEntities } from '../../hooks/useEntity';
 import styles from './UgandaMap.module.css';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -38,48 +38,6 @@ function createGlowIcon(color, id, size = 180) {
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
-}
-
-// ─── Custom dot icon builder ──────────────────────────────────────────────────
-function createDotIcon(color, size = 10) {
-  const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${size * 3}" height="${size * 3}" viewBox="0 0 ${size * 3} ${size * 3}">
-    <circle cx="${size * 1.5}" cy="${size * 1.5}" r="${size * 1.3}" fill="${color}" opacity="0.18"/>
-    <circle cx="${size * 1.5}" cy="${size * 1.5}" r="${size * 0.8}" fill="${color}" opacity="0.35"/>
-    <circle cx="${size * 1.5}" cy="${size * 1.5}" r="${size * 0.45}" fill="${color}" opacity="0.9"/>
-    <circle cx="${size * 1.5}" cy="${size * 1.5}" r="${size * 0.15}" fill="white" opacity="0.7"/>
-  </svg>`;
-  return L.divIcon({
-    html: svgStr,
-    className: styles.dotIcon,
-    iconSize: [size * 3, size * 3],
-    iconAnchor: [size * 1.5, size * 1.5],
-  });
-}
-
-function getStatusColor(rate) {
-  if (rate >= 75) return '#2E8B57';
-  if (rate >= 50) return '#E6A817';
-  return '#DC3545';
-}
-
-// ─── Status dot legend ──────────────────────────────────────────────────────
-function StatusLegend() {
-  return (
-    <div className={styles.legend}>
-      <div className={styles.legendEntry}>
-        <span className={styles.legendDotSmall} data-status="good" />
-        <span>≥75% active</span>
-      </div>
-      <div className={styles.legendEntry}>
-        <span className={styles.legendDotSmall} data-status="warning" />
-        <span>50–74%</span>
-      </div>
-      <div className={styles.legendEntry}>
-        <span className={styles.legendDotSmall} data-status="poor" />
-        <span>&lt;50%</span>
-      </div>
-    </div>
-  );
 }
 
 // ─── Tile opacity controller ─────────────────────────────────────────────────
@@ -141,7 +99,6 @@ function UgandaMap() {
 
   const selectedRegionId = selectedIds.region;
   const selectedDistrictId = selectedIds.district;
-  const selectedBranchId = selectedIds.branch;
   const selectedRegion = selectedRegionId ? REGIONS_MAP[selectedRegionId] : null;
   const selectedDistrict = selectedDistrictId ? DISTRICTS_MAP[selectedDistrictId] : null;
 
@@ -165,15 +122,10 @@ function UgandaMap() {
   }, [districtsGeo, selectedDistrict]);
 
 
-  const parentId = level === 'country' ? 'ug' : selectedIds[level];
-  const nextLevelMap = { country: 'region', region: 'district', district: 'branch', branch: 'agent' };
-  const nextLevel = nextLevelMap[level];
-  const { data: children = [] } = useChildren(level, parentId);
-
   const mapView = useMemo(() => {
-    if (level === 'branch' && selectedBranchId) {
-      const branch = BRANCHES_MAP[selectedBranchId];
-      if (branch) return { center: [branch.center[1], branch.center[0]], zoom: 13 };
+    // At branch/agent level, stay at district zoom — slide-in panel shows the data
+    if ((level === 'branch' || level === 'agent') && selectedDistrict) {
+      return { center: [selectedDistrict.center[1], selectedDistrict.center[0]], zoom: 10 };
     }
     if (level === 'district' && selectedDistrict) {
       return { center: [selectedDistrict.center[1], selectedDistrict.center[0]], zoom: 10 };
@@ -186,7 +138,7 @@ function UgandaMap() {
       return { center: [selectedRegion.center[1], selectedRegion.center[0]], zoom: 8 };
     }
     return { bounds: UGANDA_BOUNDS, fitOptions: { paddingTopLeft: [340, 30], paddingBottomRight: [30, 60] } };
-  }, [level, selectedRegion, selectedDistrict, selectedBranchId, regionDistricts]);
+  }, [level, selectedRegion, selectedDistrict, regionDistricts]);
 
   // ─── Style functions ─────────────────────────────────────────────────────────
 
@@ -447,40 +399,7 @@ function UgandaMap() {
           />
         )}
 
-        {/* Layer 6: Entity dots */}
-        {(level === 'district' || level === 'branch') && children.map((child) => {
-          if (child.active === false) return null;
-          const rate = child.metrics?.activeRate || 80;
-          const color = getStatusColor(rate);
-          const size = level === 'district' ? 8 : 6;
-          return (
-            <Marker
-              key={child.id}
-              position={[child.center[1], child.center[0]]}
-              icon={createDotIcon(color, size)}
-              eventHandlers={{
-                click: () => {
-                  if (nextLevel) drillDown(nextLevel, child.id);
-                },
-              }}
-            >
-              <Tooltip
-                direction="top"
-                offset={[0, -size]}
-                className={styles.mapTooltip}
-              >
-                <strong>{child.name}</strong>
-                <br />
-                <span style={{ opacity: 0.6 }}>{rate}% active</span>
-              </Tooltip>
-            </Marker>
-          );
-        })}
       </MapContainer>
-
-
-      {/* Status legend */}
-      {(level === 'district' || level === 'branch') && <StatusLegend />}
     </div>
   );
 }

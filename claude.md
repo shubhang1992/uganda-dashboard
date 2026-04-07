@@ -55,6 +55,7 @@
 
 **Sign-in flow:**
 - Modal with 4 steps: Role Select → (Distributor Sub-select) → Phone Entry → OTP Verify
+- CreateBranch flow: 3 steps — Branch Details → Branch Admin → Review (no map/location step)
 - Main roles: Subscriber, Employer, Distributor, Admin
 - Distributor sub-roles: Distributor Admin, Branch Admin, Agent
 - Any OTP accepted (prototype) — calls `auth.login()` then `navigate('/dashboard')` or `/coming-soon`
@@ -65,6 +66,7 @@
 - Drill levels: country → region → district → branch → agent → subscriber
 - Navigation actions (`drillDown`, `drillUp`, `goToLevel`, `reset`) translate to URL changes
 - Modal state (ViewBranches, CreateBranch, ViewAgents) remains in DashboardContext as UI state
+- **Drill-target state:** `drillTargetBranchId`/`drillTargetAgentId` track entities opened via map drill-down. `closeDrillPanel()` clears state + navigates back to district. Auto-opened by a `useEffect` watching `level`/`entityId`.
 
 ### Project file structure
 ```
@@ -113,9 +115,11 @@ src/
 **Map:**
 - Full-bleed background using `react-leaflet` (Leaflet) with CartoDB Positron tiles
 - GeoJSON from GADM (135 districts) with region color-coding (indigo palette)
-- Animated glowing dot indicators at entity positions (green/yellow/red by active rate)
+- Soft bokeh glow halos at region centroids for visual context
 - Hover tooltips showing district name + region
 - Map zooms on drill-down via Leaflet `flyTo` / `fitBounds`
+- At branch/agent level, map stays at district zoom — slide-in panels handle the data
+- **Map → panel handoff:** Drilling to branch/agent level auto-opens ViewBranches/ViewAgents with the entity pre-selected. Back/close navigates to district level. Sidebar opening clears drill targets to show full list.
 
 **Glassmorphism cards (dashboard-specific):**
 - Background: `linear-gradient(145deg, rgba(255,255,255,0.78) 0%, rgba(246,247,251,0.72) 100%)`

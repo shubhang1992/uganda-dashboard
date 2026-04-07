@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import { createContext, useContext, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SEGMENT_TO_LEVEL, LEVEL_TO_SEGMENT, PARENT_LEVEL } from '../constants/levels';
 import { getEntitySync } from '../services/entities';
@@ -48,6 +48,52 @@ export function DashboardProvider({ children }) {
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   const [viewAgentsOpen, setViewAgentsOpen] = useState(false);
 
+  // Map drill-down → slide-in panel handoff
+  const [drillTargetBranchId, setDrillTargetBranchId] = useState(null);
+  const [drillTargetAgentId, setDrillTargetAgentId] = useState(null);
+  const drillBranchRef = useRef(null);
+  const drillAgentRef = useRef(null);
+
+  // Auto-open slide-in panels when URL reaches branch/agent level
+  useEffect(() => {
+    if (level === 'branch' && entityId) {
+      drillBranchRef.current = entityId;
+      setDrillTargetBranchId(entityId);
+      setViewBranchesOpen(true);
+    } else if (level === 'agent' && entityId) {
+      drillAgentRef.current = entityId;
+      setDrillTargetAgentId(entityId);
+      setViewAgentsOpen(true);
+    } else {
+      if (drillBranchRef.current) {
+        drillBranchRef.current = null;
+        setDrillTargetBranchId(null);
+        setViewBranchesOpen(false);
+      }
+      if (drillAgentRef.current) {
+        drillAgentRef.current = null;
+        setDrillTargetAgentId(null);
+        setViewAgentsOpen(false);
+      }
+    }
+  }, [level, entityId]);
+
+  // Close drill-triggered panel and navigate back to district level
+  const closeDrillPanel = useCallback(() => {
+    const districtId = selectedIds.district;
+    drillBranchRef.current = null;
+    drillAgentRef.current = null;
+    setDrillTargetBranchId(null);
+    setDrillTargetAgentId(null);
+    setViewBranchesOpen(false);
+    setViewAgentsOpen(false);
+    if (districtId) {
+      navigate(`/dashboard/${LEVEL_TO_SEGMENT.district}/${districtId}`);
+    } else {
+      navigate('/dashboard');
+    }
+  }, [selectedIds, navigate]);
+
   // Navigation actions — translate to URL changes
   const drillDown = useCallback((targetLevel, id) => {
     const segment = LEVEL_TO_SEGMENT[targetLevel];
@@ -96,11 +142,15 @@ export function DashboardProvider({ children }) {
     viewBranchesOpen, setViewBranchesOpen,
     agentMenuOpen, setAgentMenuOpen,
     viewAgentsOpen, setViewAgentsOpen,
+    drillTargetBranchId, setDrillTargetBranchId,
+    drillTargetAgentId, setDrillTargetAgentId,
+    closeDrillPanel,
   }), [
     level, selectedIds,
     drillDown, drillUp, goToLevel, reset,
     branchMenuOpen, createBranchOpen, viewBranchesOpen,
     agentMenuOpen, viewAgentsOpen,
+    drillTargetBranchId, drillTargetAgentId, closeDrillPanel,
   ]);
 
   return (

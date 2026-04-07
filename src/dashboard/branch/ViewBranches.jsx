@@ -460,7 +460,7 @@ const SORT_OPTIONS = [
 ];
 
 export default function ViewBranches() {
-  const { viewBranchesOpen, setViewBranchesOpen } = useDashboard();
+  const { viewBranchesOpen, setViewBranchesOpen, drillTargetBranchId, closeDrillPanel } = useDashboard();
 
   const [view, setView] = useState('list');
   const [selectedBranch, setSelectedBranch] = useState(null);
@@ -495,6 +495,22 @@ export default function ViewBranches() {
   }, [allAgentsRaw]);
 
   const allBranches = allBranchesRaw;
+
+  // Auto-select branch when opened via map drill-down
+  useEffect(() => {
+    if (viewBranchesOpen && drillTargetBranchId && allBranchesRaw.length > 0) {
+      const branch = allBranchesRaw.find(b => b.id === drillTargetBranchId);
+      if (branch) {
+        setSelectedBranch(branch);
+        setView('detail');
+      }
+    }
+  }, [viewBranchesOpen, drillTargetBranchId, allBranchesRaw]);
+
+  function handleClose() {
+    if (drillTargetBranchId) closeDrillPanel();
+    else setViewBranchesOpen(false);
+  }
 
   // Aggregate stats for summary strip
   const totals = useMemo(() => {
@@ -562,11 +578,11 @@ export default function ViewBranches() {
   useEffect(() => {
     if (!viewBranchesOpen) return;
     function onKey(e) {
-      if (e.key === 'Escape') setViewBranchesOpen(false);
+      if (e.key === 'Escape') handleClose();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [viewBranchesOpen, setViewBranchesOpen]);
+  }, [viewBranchesOpen, drillTargetBranchId]);
 
   useEffect(() => {
     if (!regionDropOpen && !sortDropOpen) return;
@@ -595,7 +611,10 @@ export default function ViewBranches() {
   function handleBack() {
     if (view === 'edit') { setView('detail'); setEditSection(null); }
     else if (view === 'agent') { setView('detail'); setSelectedAgent(null); }
-    else if (view === 'detail') { setView('list'); setSelectedBranch(null); }
+    else if (view === 'detail') {
+      if (drillTargetBranchId) closeDrillPanel();
+      else { setView('list'); setSelectedBranch(null); }
+    }
   }
 
   let headerTitle = 'Existing Branches';
@@ -622,7 +641,7 @@ export default function ViewBranches() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            onClick={() => setViewBranchesOpen(false)}
+            onClick={handleClose}
           />
         )}
       </AnimatePresence>
@@ -662,7 +681,7 @@ export default function ViewBranches() {
                   </AnimatePresence>
                   <p className={styles.subtitle}>{headerSubtitle}</p>
                 </div>
-                <button className={styles.closeBtn} onClick={() => setViewBranchesOpen(false)} aria-label="Close">
+                <button className={styles.closeBtn} onClick={handleClose} aria-label="Close">
                   <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
                     <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
                   </svg>

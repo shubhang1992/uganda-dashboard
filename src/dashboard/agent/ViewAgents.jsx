@@ -270,7 +270,7 @@ function AgentDetail({ agent, branchesMap, districtsMap, regionsMap }) {
 /*  ViewAgents — main panel                                                   */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export default function ViewAgents() {
-  const { viewAgentsOpen, setViewAgentsOpen } = useDashboard();
+  const { viewAgentsOpen, setViewAgentsOpen, drillTargetAgentId, closeDrillPanel } = useDashboard();
 
   const { data: allAgentsRaw = [] } = useAllEntities('agent');
   const { data: allBranchesRaw = [] } = useAllEntities('branch');
@@ -296,6 +296,22 @@ export default function ViewAgents() {
   const sortBtnRef = useRef(null);
 
   const allAgents = allAgentsRaw;
+
+  // Auto-select agent when opened via map drill-down
+  useEffect(() => {
+    if (viewAgentsOpen && drillTargetAgentId && allAgentsRaw.length > 0) {
+      const agent = allAgentsRaw.find(a => a.id === drillTargetAgentId);
+      if (agent) {
+        setSelectedAgent(agent);
+        setView('detail');
+      }
+    }
+  }, [viewAgentsOpen, drillTargetAgentId, allAgentsRaw]);
+
+  function handleClose() {
+    if (drillTargetAgentId) closeDrillPanel();
+    else setViewAgentsOpen(false);
+  }
 
   const totals = useMemo(() => {
     const t = { subs: 0, aum: 0 };
@@ -361,7 +377,7 @@ export default function ViewAgents() {
 
   useEffect(() => {
     if (!viewAgentsOpen) return;
-    function onKey(e) { if (e.key === 'Escape') setViewAgentsOpen(false); }
+    function onKey(e) { if (e.key === 'Escape') handleClose(); }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [viewAgentsOpen, setViewAgentsOpen]);
@@ -377,7 +393,10 @@ export default function ViewAgents() {
   }, [regionDropOpen, sortDropOpen]);
 
   function handleSelectAgent(agent) { setSelectedAgent(agent); setView('detail'); }
-  function handleBack() { setView('list'); setSelectedAgent(null); }
+  function handleBack() {
+    if (drillTargetAgentId) closeDrillPanel();
+    else { setView('list'); setSelectedAgent(null); }
+  }
 
   let headerTitle = 'Existing Agents';
   let headerSubtitle = `${allAgents.length} agents across Uganda`;
@@ -397,7 +416,7 @@ export default function ViewAgents() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            onClick={() => setViewAgentsOpen(false)}
+            onClick={handleClose}
           />
         )}
       </AnimatePresence>
@@ -437,7 +456,7 @@ export default function ViewAgents() {
                   </AnimatePresence>
                   <p className={styles.subtitle}>{headerSubtitle}</p>
                 </div>
-                <button className={styles.closeBtn} onClick={() => setViewAgentsOpen(false)} aria-label="Close">
+                <button className={styles.closeBtn} onClick={handleClose} aria-label="Close">
                   <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
                     <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
                   </svg>

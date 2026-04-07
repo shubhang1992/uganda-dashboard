@@ -173,7 +173,7 @@ export default function Sidebar() {
   const [moreOpen, setMoreOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const { reset, branchMenuOpen, setBranchMenuOpen, setCreateBranchOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, setViewAgentsOpen } = useDashboard();
+  const { reset, branchMenuOpen, setBranchMenuOpen, setCreateBranchOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, setViewAgentsOpen, setDrillTargetBranchId, setDrillTargetAgentId } = useDashboard();
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
 
@@ -224,6 +224,7 @@ export default function Sidebar() {
     if (subId === 'create-branch') {
       setCreateBranchOpen(true);
     } else if (subId === 'view-branches') {
+      setDrillTargetBranchId(null);
       setViewBranchesOpen(true);
     }
   }
@@ -231,6 +232,7 @@ export default function Sidebar() {
   function handleAgentSub(subId) {
     setAgentMenuOpen(false);
     if (subId === 'view-agents') {
+      setDrillTargetAgentId(null);
       setViewAgentsOpen(true);
     }
   }

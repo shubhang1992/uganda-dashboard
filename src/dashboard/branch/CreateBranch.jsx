@@ -1,8 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { useAllEntities } from '../../hooks/useEntity';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useDashboard } from '../../contexts/DashboardContext';
@@ -11,7 +8,6 @@ import styles from './CreateBranch.module.css';
 /* ─── Step definitions ─────────────────────────────────────────────────────── */
 const STEPS = [
   { id: 'details', label: 'Branch Details' },
-  { id: 'location', label: 'Location' },
   { id: 'admin', label: 'Branch Admin' },
   { id: 'review', label: 'Review' },
 ];
@@ -35,17 +31,6 @@ const townOptions = TOWNS.map((t) => ({
 
 /* ─── Region name lookup ───────────────────────────────────────────────────── */
 /* regionName is now a function inside the component */
-
-/* ─── Custom map pin icon (brand indigo) ───────────────────────────────────── */
-const PIN_ICON = L.divIcon({
-  className: '',
-  iconSize: [28, 40],
-  iconAnchor: [14, 40],
-  html: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">
-    <path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z" fill="#292867"/>
-    <circle cx="14" cy="14" r="5" fill="white"/>
-  </svg>`,
-});
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  SearchableSelect — type-to-filter dropdown with optional free text       */
@@ -157,15 +142,6 @@ function SearchableSelect({ options, value, onChange, placeholder, allowCustom }
   );
 }
 
-/* ─── Map fly-to helper ────────────────────────────────────────────────────── */
-function FlyTo({ center, zoom }) {
-  const map = useMap();
-  useEffect(() => {
-    if (center) map.flyTo(center, zoom, { duration: 0.8 });
-  }, [center, zoom, map]);
-  return null;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  CreateBranch — multi-step slide-in panel                                  */
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -196,12 +172,7 @@ export default function CreateBranch() {
   const [landmark, setLandmark] = useState('');
   const [poBox, setPoBox] = useState('');
 
-  /* Step 2 — Location */
-  const [coords, setCoords] = useState(null);
-  const [geocoding, setGeocoding] = useState(false);
-  const [geocodeError, setGeocodeError] = useState('');
-
-  /* Step 3 — Admin details */
+  /* Step 2 — Admin details */
   const [adminName, setAdminName] = useState('');
   const [adminPhone, setAdminPhone] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
@@ -228,9 +199,6 @@ export default function CreateBranch() {
       setAddress('');
       setLandmark('');
       setPoBox('');
-      setCoords(null);
-      setGeocoding(false);
-      setGeocodeError('');
       setAdminName('');
       setAdminPhone('');
       setAdminEmail('');
@@ -238,35 +206,6 @@ export default function CreateBranch() {
     }, 400);
     return () => clearTimeout(t);
   }, [createBranchOpen]);
-
-  /* ── Geocode address ─────────────────────────────────────────────────────── */
-  /* Uses Nominatim (OpenStreetMap) — swap to Google Geocoding API for prod   */
-  async function geocodeAddress() {
-    if (!district) return;
-    const parts = [address, cityTown?.name, district.name, 'Uganda'].filter(Boolean);
-    const q = parts.join(', ');
-
-    setGeocoding(true);
-    setGeocodeError('');
-
-    try {
-      const params = new URLSearchParams({ q, format: 'json', limit: '1', countrycodes: 'ug' });
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`);
-      const data = await res.json();
-
-      if (data.length > 0) {
-        setCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
-      } else {
-        setCoords({ lat: district.center[1], lng: district.center[0] });
-        setGeocodeError('Exact address not found — showing district centre. Drag the pin to adjust.');
-      }
-    } catch {
-      setCoords({ lat: district.center[1], lng: district.center[0] });
-      setGeocodeError('Could not geocode address — showing district centre.');
-    } finally {
-      setGeocoding(false);
-    }
-  }
 
   /* ── Validation ──────────────────────────────────────────────────────────── */
   function validateStep1() {
@@ -279,7 +218,7 @@ export default function CreateBranch() {
     return Object.keys(e).length === 0;
   }
 
-  function validateStep3() {
+  function validateStep2() {
     const e = {};
     if (!adminName.trim()) e.adminName = 'Full name is required';
     if (adminPhone.length < 9) e.adminPhone = 'Enter a valid 9-digit phone number';
@@ -289,14 +228,8 @@ export default function CreateBranch() {
 
   /* ── Navigation ──────────────────────────────────────────────────────────── */
   function handleNext() {
-    if (step === 0) {
-      if (!validateStep1()) return;
-      setErrors({});
-      setStep(1);
-      geocodeAddress();
-      return;
-    }
-    if (step === 2 && !validateStep3()) return;
+    if (step === 0 && !validateStep1()) return;
+    if (step === 1 && !validateStep2()) return;
     setErrors({});
     setStep((s) => s + 1);
   }
@@ -573,88 +506,8 @@ export default function CreateBranch() {
                       </motion.div>
                     )}
 
-                    {/* Step 2: Location */}
+                    {/* Step 2: Admin Details */}
                     {step === 1 && (
-                      <motion.div
-                        key="s-location"
-                        className={styles.stepContent}
-                        initial={{ opacity: 0, x: 24 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -24 }}
-                        transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
-                      >
-                        <div className={styles.addressSummary}>
-                          <div className={styles.addressSummaryIcon}>
-                            <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
-                              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
-                              <circle cx="12" cy="10" r="3" stroke="currentColor" strokeWidth="1.75" />
-                            </svg>
-                          </div>
-                          <div className={styles.addressSummaryText}>
-                            <span className={styles.addressSummaryTitle}>{branchName}</span>
-                            <span className={styles.addressSummaryAddr}>
-                              {[address, cityTown?.name, district?.name, region].filter(Boolean).join(', ')}
-                            </span>
-                            {landmark && <span className={styles.addressSummaryLandmark}>{landmark}</span>}
-                          </div>
-                        </div>
-
-                        <p className={styles.hint}>
-                          Drag the pin to adjust the exact location if needed.
-                        </p>
-
-                        {geocoding && (
-                          <div className={styles.geocodingBar}>
-                            <div className={styles.spinner} />
-                            <span>Locating address...</span>
-                          </div>
-                        )}
-                        {geocodeError && <p className={styles.geocodeWarn}>{geocodeError}</p>}
-
-                        <div className={styles.mapWrap}>
-                          {coords && (
-                            <MapContainer
-                              center={[coords.lat, coords.lng]}
-                              zoom={14}
-                              className={styles.map}
-                              scrollWheelZoom
-                              zoomControl
-                            >
-                              <TileLayer
-                                url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                                attribution="&copy; OSM &copy; CARTO"
-                              />
-                              <Marker
-                                position={[coords.lat, coords.lng]}
-                                icon={PIN_ICON}
-                                draggable
-                                eventHandlers={{
-                                  dragend: (e) => {
-                                    const { lat, lng } = e.target.getLatLng();
-                                    setCoords({ lat, lng });
-                                  },
-                                }}
-                              />
-                              <FlyTo center={[coords.lat, coords.lng]} zoom={14} />
-                            </MapContainer>
-                          )}
-                        </div>
-
-                        <div className={styles.coordsRow}>
-                          <div className={styles.coordItem}>
-                            <span className={styles.coordLabel}>Latitude</span>
-                            <span className={styles.coordValue}>{coords?.lat?.toFixed(6) || '—'}</span>
-                          </div>
-                          <div className={styles.coordItem}>
-                            <span className={styles.coordLabel}>Longitude</span>
-                            <span className={styles.coordValue}>{coords?.lng?.toFixed(6) || '—'}</span>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {/* Step 3: Admin Details */}
-                    {step === 2 && (
                       <motion.div
                         key="s-admin"
                         className={styles.stepContent}
@@ -711,8 +564,8 @@ export default function CreateBranch() {
                       </motion.div>
                     )}
 
-                    {/* Step 4: Review */}
-                    {step === 3 && (
+                    {/* Step 3: Review */}
+                    {step === 2 && (
                       <motion.div
                         key="s-review"
                         className={styles.stepContent}
@@ -731,35 +584,6 @@ export default function CreateBranch() {
                             <ReviewRow label="Address" value={address} />
                             {landmark && <ReviewRow label="Landmark" value={landmark} />}
                             {poBox && <ReviewRow label="P.O. Box" value={poBox} />}
-                          </div>
-                        </div>
-
-                        <div className={styles.reviewCard}>
-                          <h4 className={styles.reviewHeading}>Location</h4>
-                          <div className={styles.reviewMapWrap}>
-                            {coords && (
-                              <MapContainer
-                                center={[coords.lat, coords.lng]}
-                                zoom={13}
-                                className={styles.reviewMap}
-                                zoomControl={false}
-                                scrollWheelZoom={false}
-                                dragging={false}
-                              >
-                                <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
-                                <Marker position={[coords.lat, coords.lng]} icon={PIN_ICON} />
-                              </MapContainer>
-                            )}
-                          </div>
-                          <div className={styles.coordsRow} style={{ marginTop: '0.5rem' }}>
-                            <div className={styles.coordItem}>
-                              <span className={styles.coordLabel}>Lat</span>
-                              <span className={styles.coordValue}>{coords?.lat?.toFixed(6)}</span>
-                            </div>
-                            <div className={styles.coordItem}>
-                              <span className={styles.coordLabel}>Lng</span>
-                              <span className={styles.coordValue}>{coords?.lng?.toFixed(6)}</span>
-                            </div>
                           </div>
                         </div>
 
