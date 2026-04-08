@@ -291,7 +291,17 @@ tbody .rowNum {
     min-width: 36px;
   }
 
+  .pageBtn {
+    width: 44px;
+    height: 44px;
+  }
+
   .pageSizeWrap {
     display: none;
+  }
+
+  .pagination {
+    padding: 0.5rem;
+    gap: var(--space-2);
   }
 }

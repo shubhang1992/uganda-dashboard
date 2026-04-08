@@ -141,4 +141,9 @@
     border-radius: 0;
     border: none;
   }
+
+  .header {
+    padding: var(--space-4) var(--space-5);
+    padding-top: max(var(--space-4), env(safe-area-inset-top));
+  }
 }

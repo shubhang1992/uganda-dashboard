@@ -152,5 +152,7 @@
   .close {
     top: 0.75rem;
     right: 0.75rem;
+    width: 44px;
+    height: 44px;
   }
 }

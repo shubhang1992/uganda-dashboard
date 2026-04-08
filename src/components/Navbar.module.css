@@ -230,3 +230,9 @@
     padding: 0 1.25rem;
   }
 }
+
+@media (max-width: 360px) {
+  .inner {
+    padding: 0 1rem;
+  }
+}

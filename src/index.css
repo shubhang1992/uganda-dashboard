@@ -172,6 +172,12 @@ a:focus-visible {
   }
 }
 
+@media (max-width: 360px) {
+  .container {
+    padding: 0 var(--space-4);
+  }
+}
+
 /* Respect users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

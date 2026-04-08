@@ -207,3 +207,18 @@
     font-size: var(--text-sm);
   }
 }
+
+@media (max-width: 360px) {
+  .tab {
+    padding: 0.5rem 0.75rem;
+    font-size: 11px;
+  }
+
+  .panel {
+    padding: 1rem;
+  }
+
+  .panelHeadline {
+    font-size: 1.25rem;
+  }
+}

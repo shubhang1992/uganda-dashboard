@@ -12,8 +12,10 @@
   color: var(--color-gray);
   margin-bottom: 1.25rem;
   width: fit-content;
-  padding: 0.25rem 0;
+  padding: 0.5rem 0.5rem;
+  min-height: 44px;
   transition: color 0.2s ease;
+  border-radius: var(--radius-sm);
 }
 
 .back:hover {
@@ -174,8 +176,10 @@
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--color-indigo);
-  padding: 0.25rem;
+  padding: 0.625rem 0.75rem;
+  min-height: 44px;
   transition: opacity 0.2s ease;
+  border-radius: var(--radius-sm);
 }
 
 .resendBtn:hover {
@@ -191,5 +195,18 @@
 
   .otpRow {
     gap: 0.375rem;
+  }
+}
+
+@media (max-width: 320px) {
+  .otpInput {
+    width: 36px;
+    height: 46px;
+    font-size: var(--text-lg);
+    border-width: 1px;
+  }
+
+  .otpRow {
+    gap: 0.25rem;
   }
 }

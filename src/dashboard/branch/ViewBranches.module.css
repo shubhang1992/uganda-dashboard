@@ -467,6 +467,9 @@
   font-weight: 700;
   color: var(--color-indigo);
   letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .branchLocation {
@@ -474,6 +477,9 @@
   font-size: var(--text-xs);
   color: var(--color-gray);
   margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .branchActiveBar {
@@ -1476,10 +1482,12 @@
 
   .toolbar {
     padding: var(--space-3) var(--space-5) 0;
+    flex-wrap: wrap;
   }
 
   .statusChips {
     padding: var(--space-3) var(--space-5) 0;
+    flex-wrap: wrap;
   }
 
   .summaryStrip {

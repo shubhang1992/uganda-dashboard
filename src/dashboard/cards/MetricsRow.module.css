@@ -771,6 +771,19 @@
     color: var(--color-slate);
   }
 
+  @media (max-width: 374px) {
+    .demoBody {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .demoLeft {
+      flex-direction: row;
+      justify-content: center;
+      gap: 1rem;
+    }
+  }
+
   .expandGrid {
     grid-template-columns: repeat(2, 1fr);
     gap: 0.625rem;

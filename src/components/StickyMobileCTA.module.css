@@ -41,4 +41,9 @@
     outline: 2px solid #292867;
     outline-offset: 2px;
   }
+
+  /* Offset for landing page content hidden behind the sticky bar */
+  :global(main) {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
 }

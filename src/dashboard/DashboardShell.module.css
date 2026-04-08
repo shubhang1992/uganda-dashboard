@@ -63,8 +63,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border-radius: var(--radius-md);
     color: var(--color-indigo);
     transition: background 0.15s ease;
@@ -136,7 +136,7 @@
     top: 0;
     right: 0;
     bottom: 0;
-    width: 260px;
+    width: min(260px, 85vw);
     background: var(--color-white);
     z-index: 100;
     padding: var(--space-8) var(--space-6);
@@ -159,6 +159,7 @@
     font-weight: 600;
     color: var(--color-slate);
     padding: 0.75rem 0.75rem;
+    min-height: 44px;
     border-radius: var(--radius-md);
     transition: background 0.15s ease, color 0.15s ease;
   }

@@ -43,8 +43,8 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-md);
   color: var(--color-indigo);
   background: var(--color-white);
@@ -138,5 +138,16 @@
   .exportBtn {
     padding: 0.5rem;
     border-radius: var(--radius-md);
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .header {
+    flex-wrap: wrap;
+  }
+
+  .filters {
+    width: 100%;
   }
 }

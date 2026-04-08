@@ -239,3 +239,19 @@
     justify-content: center;
   }
 }
+
+@media (max-width: 360px) {
+  .card {
+    padding: 1.5rem 1rem;
+  }
+
+  .heading {
+    font-size: 1.35rem;
+  }
+
+  .primaryBtn,
+  .secondaryBtn {
+    padding: 0.75rem 1.25rem;
+    font-size: var(--text-sm);
+  }
+}

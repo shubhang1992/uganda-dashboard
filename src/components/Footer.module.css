@@ -148,4 +148,8 @@
     align-items: flex-start;
     padding-bottom: 4rem;
   }
+
+  .logo {
+    width: 140px;
+  }
 }

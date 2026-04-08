@@ -71,7 +71,11 @@ function MobileDrawer({ open, onClose }) {
       if (e.key === 'Escape') onClose();
     }
     document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleEsc);
+      document.body.style.overflow = '';
+    };
   }, [open, onClose]);
 
   return (

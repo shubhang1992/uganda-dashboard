@@ -220,6 +220,23 @@
     scroll-snap-align: center;
     padding: 1.5rem;
   }
+
+  /* Scroll fade hint */
+  .testimonials {
+    position: relative;
+  }
+
+  .testimonials::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 2rem;
+    background: linear-gradient(to right, transparent, var(--color-white));
+    pointer-events: none;
+    z-index: 1;
+  }
 }
 
 @media (max-width: 400px) {

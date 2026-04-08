@@ -12,8 +12,10 @@
   color: var(--color-gray);
   margin-bottom: 1.25rem;
   width: fit-content;
-  padding: 0.25rem 0;
+  padding: 0.5rem 0.5rem;
+  min-height: 44px;
   transition: color 0.2s ease;
+  border-radius: var(--radius-sm);
 }
 
 .back:hover {
