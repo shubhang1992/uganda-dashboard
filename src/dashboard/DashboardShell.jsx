@@ -64,6 +64,12 @@ function MobileHeader({ onMenuToggle, menuOpen }) {
 function MobileDrawer({ open, onClose }) {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const {
+    reset,
+    setBranchMenuOpen, setCreateBranchOpen, setViewBranchesOpen,
+    setAgentMenuOpen, setViewAgentsOpen,
+    setViewReportsOpen,
+  } = useDashboard();
 
   useEffect(() => {
     if (!open) return;
@@ -77,6 +83,34 @@ function MobileDrawer({ open, onClose }) {
       document.body.style.overflow = '';
     };
   }, [open, onClose]);
+
+  function handleItem(id) {
+    onClose();
+    // Close all panels first
+    setBranchMenuOpen(false);
+    setAgentMenuOpen(false);
+    setViewBranchesOpen(false);
+    setViewAgentsOpen(false);
+    setCreateBranchOpen(false);
+    setViewReportsOpen(false);
+
+    switch (id) {
+      case 'overview':
+        reset();
+        break;
+      case 'branches':
+        setViewBranchesOpen(true);
+        break;
+      case 'agents':
+        setViewAgentsOpen(true);
+        break;
+      case 'reports':
+        setViewReportsOpen(true);
+        break;
+      default:
+        break;
+    }
+  }
 
   return (
     <AnimatePresence>
@@ -99,7 +133,7 @@ function MobileDrawer({ open, onClose }) {
           >
             <nav className={styles.drawerNav}>
               {DRAWER_ITEMS.map((item) => (
-                <button key={item.id} className={styles.drawerItem} onClick={onClose}>
+                <button key={item.id} className={styles.drawerItem} onClick={() => handleItem(item.id)}>
                   {item.label}
                 </button>
               ))}

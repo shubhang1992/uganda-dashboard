@@ -310,7 +310,7 @@ export default function OverlayPanel() {
       animate={{
         opacity: 1,
         x: 0,
-        left: (branchMenuOpen || agentMenuOpen) ? 'calc(100% - 310px - var(--space-6))' : 'var(--space-6)',
+        left: window.innerWidth <= 768 ? 'auto' : (branchMenuOpen || agentMenuOpen) ? 'calc(100% - 310px - var(--space-6))' : 'var(--space-6)',
       }}
       transition={{ duration: 0.45, ease: EASE }}
     >
