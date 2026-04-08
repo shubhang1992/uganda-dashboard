@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useChildren, useTopBranch, useSearch } from '../../hooks/useEntity';
 import { CHILD_LEVEL } from '../../constants/levels';
 import { formatUGX, EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './OverlayPanel.module.css';
+
+const MQ = '(max-width: 768px)';
+function subscribeMQ(cb) { const m = window.matchMedia(MQ); m.addEventListener('change', cb); return () => m.removeEventListener('change', cb); }
+function getIsMobile() { return window.matchMedia(MQ).matches; }
+function useIsMobile() { return useSyncExternalStore(subscribeMQ, getIsMobile); }
 const LEVEL_LABELS = { region: 'Regions', district: 'Districts', branch: 'Branches', agent: 'Agents' };
 const LEVEL_TAG = { region: 'Region', district: 'District', branch: 'Branch', agent: 'Agent' };
 
@@ -282,6 +287,7 @@ function TimePeriodCard({ metrics, level, parentId }) {
 }
 
 export default function OverlayPanel() {
+  const isMobile = useIsMobile();
   const { level, selectedIds, drillDown, drillUp, reset, branchMenuOpen, agentMenuOpen } = useDashboard();
 
   const parentId = level === 'country' ? 'ug' : selectedIds[level];
@@ -310,7 +316,7 @@ export default function OverlayPanel() {
       animate={{
         opacity: 1,
         x: 0,
-        left: window.innerWidth <= 768 ? 'auto' : (branchMenuOpen || agentMenuOpen) ? 'calc(100% - 310px - var(--space-6))' : 'var(--space-6)',
+        left: isMobile ? 'auto' : (branchMenuOpen || agentMenuOpen) ? 'calc(100% - 310px - var(--space-6))' : 'var(--space-6)',
       }}
       transition={{ duration: 0.45, ease: EASE }}
     >

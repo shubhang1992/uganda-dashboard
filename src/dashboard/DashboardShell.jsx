@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../utils/finance';
@@ -16,6 +16,15 @@ import ViewBranches from './branch/ViewBranches';
 import ViewAgents from './agent/ViewAgents';
 import ViewReports from './reports/ViewReports';
 import styles from './DashboardShell.module.css';
+
+const MQ = '(max-width: 768px)';
+function subscribeMQ(cb) {
+  const mql = window.matchMedia(MQ);
+  mql.addEventListener('change', cb);
+  return () => mql.removeEventListener('change', cb);
+}
+function getIsMobile() { return window.matchMedia(MQ).matches; }
+function useIsMobile() { return useSyncExternalStore(subscribeMQ, getIsMobile); }
 
 const DRAWER_ITEMS = [
   { id: 'overview', label: 'Overview' },
@@ -152,10 +161,11 @@ function MobileDrawer({ open, onClose }) {
 }
 
 function DashboardContent() {
+  const isMobile = useIsMobile();
   return (
     <>
       <div className={styles.main}>
-        <UgandaMap />
+        {!isMobile && <UgandaMap />}
         <Breadcrumb />
         <OverlayPanel />
         <TopBar />
