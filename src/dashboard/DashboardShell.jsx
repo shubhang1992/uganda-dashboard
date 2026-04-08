@@ -15,6 +15,7 @@ import CreateBranch from './branch/CreateBranch';
 import ViewBranches from './branch/ViewBranches';
 import ViewAgents from './agent/ViewAgents';
 import ViewReports from './reports/ViewReports';
+import CommissionPanel from './commissions/CommissionPanel';
 import styles from './DashboardShell.module.css';
 
 const MQ = '(max-width: 768px)';
@@ -31,6 +32,7 @@ const DRAWER_ITEMS = [
   { id: 'branches', label: 'View Branches' },
   { id: 'agents', label: 'View Agents' },
   { id: 'subscribers', label: 'Subscribers' },
+  { id: 'commissions', label: 'Commissions' },
   { id: 'reports', label: 'Reports' },
   { id: 'settings', label: 'Settings' },
 ];
@@ -78,6 +80,7 @@ function MobileDrawer({ open, onClose }) {
     setBranchMenuOpen, setCreateBranchOpen, setViewBranchesOpen,
     setAgentMenuOpen, setViewAgentsOpen,
     setViewReportsOpen,
+    setCommissionsOpen,
   } = useDashboard();
 
   useEffect(() => {
@@ -102,6 +105,7 @@ function MobileDrawer({ open, onClose }) {
     setViewAgentsOpen(false);
     setCreateBranchOpen(false);
     setViewReportsOpen(false);
+    setCommissionsOpen(false);
 
     switch (id) {
       case 'overview':
@@ -112,6 +116,9 @@ function MobileDrawer({ open, onClose }) {
         break;
       case 'agents':
         setViewAgentsOpen(true);
+        break;
+      case 'commissions':
+        setCommissionsOpen(true);
         break;
       case 'reports':
         setViewReportsOpen(true);
@@ -175,6 +182,7 @@ function DashboardContent() {
       <ViewBranches />
       <ViewAgents />
       <ViewReports />
+      <CommissionPanel />
     </>
   );
 }

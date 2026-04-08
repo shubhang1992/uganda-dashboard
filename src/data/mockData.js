@@ -825,6 +825,104 @@ Object.values(REGIONS).forEach((region) => {
   COUNTRY.metrics = m;
 }
 
+// ─── COMMISSIONS ────────────────────────────────────────────────────────────
+// Commission rate (flat fee per subscriber who makes their first contribution)
+export const COMMISSION_CONFIG = {
+  ratePerSubscriber: 5000, // UGX per subscriber
+};
+
+// Generate commission records tied to agents + subscribers
+// A commission is created when a subscriber makes their first contribution.
+// We derive "first contribution date" from registeredDate + a small offset.
+export const COMMISSIONS = {};
+let commissionCounter = 0;
+
+Object.values(AGENTS).forEach((agent) => {
+  const agentSubs = subsByAgent[agent.id] || [];
+  agentSubs.forEach((sub) => {
+    // Only subscribers with contributions get a commission
+    if (sub.totalContributions <= 0) return;
+
+    commissionCounter++;
+    const id = `c-${String(commissionCounter).padStart(5, '0')}`;
+
+    // First contribution date = registered date + 1-30 days
+    const regParts = sub.registeredDate.split('-').map(Number);
+    const regDate = new Date(regParts[0], regParts[1] - 1, regParts[2]);
+    const firstContribOffset = randInt(1, 30);
+    const firstContribDate = new Date(regDate.getTime() + firstContribOffset * 86400000);
+    const firstContribStr = `${firstContribDate.getFullYear()}-${String(firstContribDate.getMonth() + 1).padStart(2, '0')}-${String(firstContribDate.getDate()).padStart(2, '0')}`;
+
+    // Due date = first contribution date + 30 days
+    const dueDate = new Date(firstContribDate.getTime() + 30 * 86400000);
+    const dueDateStr = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
+
+    // Determine status: paid (~65%), due (~30%), disputed (~5%)
+    const now = new Date(2026, 3, 8); // April 8, 2026 — current mock date
+    const statusRoll = rand();
+    let status, paidDate = null, agentConfirmed = false;
+
+    if (dueDate > now) {
+      // Future due date — always "due"
+      status = 'due';
+    } else if (statusRoll < 0.65) {
+      status = 'paid';
+      // Paid within 0-14 days of due date
+      const paidOffset = randInt(0, 14);
+      const pd = new Date(dueDate.getTime() + paidOffset * 86400000);
+      paidDate = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}-${String(pd.getDate()).padStart(2, '0')}`;
+      agentConfirmed = rand() < 0.85; // 85% agent-confirmed
+    } else if (statusRoll < 0.95) {
+      status = 'due'; // overdue
+    } else {
+      status = 'disputed';
+    }
+
+    // ~25% of due commissions have a settlement request raised by the agent
+    const settlementRequested = status === 'due' && rand() < 0.25;
+
+    // Disputed commissions get a dispute reason
+    const DISPUTE_REASONS = [
+      'Subscriber denies onboarding',
+      'Duplicate commission entry',
+      'Incorrect commission amount',
+      'Subscriber KYC incomplete',
+      'Agent ID mismatch',
+    ];
+    const disputeReason = status === 'disputed' ? pick(DISPUTE_REASONS) : null;
+
+    COMMISSIONS[id] = {
+      id,
+      agentId: agent.id,
+      branchId: agent.parentId,
+      subscriberId: sub.id,
+      subscriberName: sub.name,
+      amount: COMMISSION_CONFIG.ratePerSubscriber,
+      status,
+      firstContributionDate: firstContribStr,
+      dueDate: dueDateStr,
+      paidDate,
+      agentConfirmed,
+      settlementRequested,
+      disputeReason,
+    };
+  });
+});
+
+// Pre-index commissions by agent for O(1) lookups
+export const commissionsByAgent = {};
+Object.values(COMMISSIONS).forEach((c) => {
+  if (!commissionsByAgent[c.agentId]) commissionsByAgent[c.agentId] = [];
+  commissionsByAgent[c.agentId].push(c);
+});
+
+// Pre-index commissions by branch
+export const commissionsByBranch = {};
+Object.values(COMMISSIONS).forEach((c) => {
+  if (!commissionsByBranch[c.branchId]) commissionsByBranch[c.branchId] = [];
+  commissionsByBranch[c.branchId].push(c);
+});
+
 // ─── LEVEL CONSTANTS & LOOKUP MAPS ───────────────────────────────────────────
 export const LEVELS = { COUNTRY: 'country', REGION: 'region', DISTRICT: 'district', BRANCH: 'branch', AGENT: 'agent', SUBSCRIBER: 'subscriber' };
 

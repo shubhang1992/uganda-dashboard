@@ -65,7 +65,7 @@
 - `DashboardContext` derives drill-down state from the URL via `useLocation()`/`useNavigate()`
 - Drill levels: country → region → district → branch → agent → subscriber
 - Navigation actions (`drillDown`, `drillUp`, `goToLevel`, `reset`) translate to URL changes
-- Modal state (ViewBranches, CreateBranch, ViewAgents) remains in DashboardContext as UI state
+- Modal state (ViewBranches, CreateBranch, ViewAgents, CommissionPanel) remains in DashboardContext as UI state
 - **Drill-target state:** `drillTargetBranchId`/`drillTargetAgentId` track entities opened via map drill-down. `closeDrillPanel()` clears state + navigates back to district. Auto-opened by a `useEffect` watching `level`/`entityId`.
 
 ### Project file structure
@@ -78,11 +78,13 @@ src/
   services/
     api.js                    — Base API client (ready for backend)
     entities.js               — Entity CRUD (currently wraps mockData)
+    commissions.js            — Commission CRUD, settlement, rate config
     auth.js                   — Auth service (mock OTP)
     search.js                 — Search service (client-side mock)
     chat.js                   — AI chat responses (built from real data)
   hooks/
     useEntity.js              — React Query hooks for all entity data
+    useCommission.js          — React Query hooks for commission data
   contexts/
     AuthContext.jsx            — Session persistence + login/logout
     DashboardContext.jsx       — URL-based drill-down + modal UI state
@@ -98,6 +100,7 @@ src/
     branch/ViewBranches.jsx   — Branch list + detail slide-in
     branch/CreateBranch.jsx   — Multi-step branch creation form
     agent/ViewAgents.jsx      — Agent list + detail slide-in
+    commissions/CommissionPanel.jsx — Commission settlement slide-in (home, agents, detail, subscribers, disputed, requests)
   data/
     mockData.js               — Mock data (only imported by src/services/)
 ```
@@ -105,6 +108,7 @@ src/
 ### Data architecture
 - Mock data in `src/data/mockData.js` — flat lookup maps keyed by ID for O(1) access
 - Hierarchy: Country → Regions (4) → Districts (135, all real Ugandan GADM names) → Branches (~314) → Agents (~2,000) → Subscribers (~30,000, lazy-generated via Proxy)
+- Commissions: ~30,000 records tied to agents/subscribers. Statuses: paid, due, disputed, rejected. Pre-indexed by agent and branch for O(1) lookups. Commission rate stored in `COMMISSION_CONFIG`.
 - Metrics aggregated bottom-up at module load time (agent ← subscribers, branch ← agents, etc.)
 - **No component imports from mockData** — all data flows through `services/` → `hooks/useEntity.js` → components
 - Map GeoJSON: `public/uganda-districts.geojson` and `public/uganda-regions.geojson` — 135 real GADM districts with region assignments
@@ -146,6 +150,18 @@ src/
 - Mock responses matching network data
 - Suggested prompt pills on first load
 - Will be connected to LLM + DB in production
+
+**Commission Panel (slide-in):**
+- Entry: wallet icon in sidebar, or mobile drawer "Commissions" item
+- Uses **replace-model** navigation: single panel swaps content with breadcrumb trail (not stacked panels)
+- Views: home → agents (filterable by paid/due) → agent-detail → subscribers | disputed agents → dispute-detail | settlement requests → request-detail
+- Home view: overview hero (total + progress bar + inline rate config), two primary cards (settled/pending), settle CTA, needs-attention section (disputed + requests with accent bars)
+- Commission rate: flat fee per subscriber, configurable inline on home view
+- Commission trigger: subscriber's first contribution
+- Maker-checker: `agentConfirmed` field tracks agent-side confirmation (agent UI not yet built)
+- Bulk actions: multi-select with checkboxes on disputed/requests list views, floating action bar for approve/reject across multiple agents
+- Settlement modal: confirmation dialog with amount + transaction count before processing
+- Data: `src/hooks/useCommission.js` → `src/services/commissions.js` → `mockData.js` (same 3-layer pattern)
 
 ### Dashboard design tokens (in index.css)
 ```css
@@ -248,7 +264,7 @@ The Uganda platform is a multi-user ecosystem with 6 roles across 4 sign-in cate
 - ✅ Landing page (complete)
 - ✅ Sign-in flow (complete — all roles)
 - ✅ Frontend architecture (complete — services layer, React Query, auth persistence, URL routing, env config)
-- ✅ Distributor Admin dashboard (in progress — map, overlays, analytics, AI chat)
+- ✅ Distributor Admin dashboard (in progress — map, overlays, analytics, AI chat, commission settlement)
 - ⬜ Subscriber dashboard (not started)
 - ⬜ Employer dashboard (not started)
 - ⬜ Branch Admin dashboard (not started)

@@ -57,6 +57,18 @@ const MOBILE_NAV = [
 const NAV_ITEMS = [
   ...MOBILE_NAV,
   {
+    id: 'commissions',
+    label: 'Commissions',
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
+        <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.75"/>
+        <path d="M2 10h20" stroke="currentColor" strokeWidth="1.75"/>
+        <path d="M6 15h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+        <path d="M14 15h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
     id: 'reports',
     label: 'Reports',
     icon: (
@@ -172,7 +184,7 @@ export default function Sidebar() {
   const [moreOpen, setMoreOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const { section, reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, setDrillTargetBranchId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen } = useDashboard();
+  const { section, reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, setDrillTargetBranchId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen, setCommissionsOpen } = useDashboard();
   const [active, setActive] = useState('overview');
 
   // Sync active state when reports panel opens/closes
@@ -180,6 +192,12 @@ export default function Sidebar() {
     if (viewReportsOpen) setActive('reports');
     else if (active === 'reports') setActive('overview');
   }, [viewReportsOpen]);
+
+  // Sync active state when commissions panel opens/closes
+  useEffect(() => {
+    if (commissionsOpen) setActive('commissions');
+    else if (active === 'commissions') setActive('overview');
+  }, [commissionsOpen]);
 
   // Keep branch submenu open while a branch panel is visible
   useEffect(() => {
@@ -241,6 +259,7 @@ export default function Sidebar() {
     if (id === 'branches') {
       setAgentMenuOpen(false);
       setViewReportsOpen(false);
+      setCommissionsOpen(false);
       setBranchMenuOpen((prev) => !prev);
       setActive(id);
       return;
@@ -248,6 +267,7 @@ export default function Sidebar() {
     if (id === 'agents') {
       setBranchMenuOpen(false);
       setViewReportsOpen(false);
+      setCommissionsOpen(false);
       setAgentMenuOpen((prev) => !prev);
       setActive(id);
       return;
@@ -263,12 +283,20 @@ export default function Sidebar() {
       setViewReportsOpen(false);
       reset();
     }
+    if (id === 'commissions') {
+      setViewReportsOpen(false);
+      setCommissionsOpen(true);
+      setActive(id);
+      return;
+    }
     if (id === 'reports') {
+      setCommissionsOpen(false);
       setViewReportsOpen(true);
       setActive(id);
       return;
     }
     setViewReportsOpen(false);
+    setCommissionsOpen(false);
     setActive(id);
   }
 

@@ -53,6 +53,7 @@ export function DashboardProvider({ children }) {
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   const [viewAgentsOpen, setViewAgentsOpen] = useState(false);
   const [viewReportsOpen, setViewReportsOpen] = useState(false);
+  const [commissionsOpen, setCommissionsOpen] = useState(false);
 
   // Map drill-down → slide-in panel handoff
   const [drillTargetBranchId, setDrillTargetBranchId] = useState(null);
@@ -157,6 +158,7 @@ export function DashboardProvider({ children }) {
     agentMenuOpen, setAgentMenuOpen,
     viewAgentsOpen, setViewAgentsOpen,
     viewReportsOpen, setViewReportsOpen,
+    commissionsOpen, setCommissionsOpen,
     drillTargetBranchId, setDrillTargetBranchId,
     drillTargetAgentId, setDrillTargetAgentId,
     closeDrillPanel,
@@ -164,7 +166,7 @@ export function DashboardProvider({ children }) {
     level, selectedIds, section, reportId,
     drillDown, drillUp, goToLevel, reset,
     branchMenuOpen, createBranchOpen, viewBranchesOpen,
-    agentMenuOpen, viewAgentsOpen, viewReportsOpen,
+    agentMenuOpen, viewAgentsOpen, viewReportsOpen, commissionsOpen,
     drillTargetBranchId, drillTargetAgentId, closeDrillPanel,
   ]);
 
