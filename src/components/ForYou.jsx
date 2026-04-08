@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../utils/finance';
 import styles from './ForYou.module.css';
@@ -60,6 +60,22 @@ const ROLES = [
 export default function ForYou() {
   const [active, setActive] = useState('subscriber');
   const role = ROLES.find((r) => r.id === active);
+  const tabRefs = useRef([]);
+
+  const handleTabKeyDown = useCallback((e, index) => {
+    let next;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      next = (index + 1) % ROLES.length;
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      next = (index - 1 + ROLES.length) % ROLES.length;
+    } else {
+      return;
+    }
+    setActive(ROLES[next].id);
+    tabRefs.current[next]?.focus();
+  }, []);
 
   return (
     <section className={styles.section} id="for-you">
@@ -84,14 +100,19 @@ export default function ForYou() {
         </motion.div>
 
         <div className={styles.tabs} role="tablist" aria-label="User roles">
-          {ROLES.map((r) => (
+          {ROLES.map((r, index) => (
             <button
               key={r.id}
+              ref={(el) => { tabRefs.current[index] = el; }}
+              id={`tab-${r.id}`}
               role="tab"
               aria-selected={active === r.id}
+              aria-controls="foryou-tabpanel"
+              tabIndex={active === r.id ? 0 : -1}
               className={styles.tab}
               data-active={active === r.id}
               onClick={() => setActive(r.id)}
+              onKeyDown={(e) => handleTabKeyDown(e, index)}
             >
               <span className={styles.tabEmoji}>{r.emoji}</span>
               {r.label}
@@ -108,8 +129,9 @@ export default function ForYou() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
+            id="foryou-tabpanel"
             role="tabpanel"
-            aria-label={`${role.label} features`}
+            aria-labelledby={`tab-${active}`}
           >
             <div className={styles.panelLeft}>
               <h3 className={styles.panelHeadline}>{role.headline}</h3>

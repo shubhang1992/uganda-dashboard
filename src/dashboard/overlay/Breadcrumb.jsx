@@ -13,7 +13,7 @@ export default function Breadcrumb() {
       {crumbs.map((crumb, i) => (
         <span key={crumb.level} className={styles.item}>
           {i > 0 && (
-            <svg className={styles.chevron} width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <svg aria-hidden="true" className={styles.chevron} width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M5 2l5 5-5 5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           )}

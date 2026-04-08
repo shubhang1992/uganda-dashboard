@@ -14,6 +14,7 @@ const ROLE_LABELS = {
 export default function PhoneEntry({ role, onSubmit, onBack }) {
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   function handleChange(e) {
     const val = e.target.value.replace(/\D/g, '').slice(0, 9);
@@ -21,19 +22,24 @@ export default function PhoneEntry({ role, onSubmit, onBack }) {
     if (error) setError('');
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     if (phone.length < 9) {
       setError('Enter a valid 9-digit phone number');
       return;
     }
-    onSubmit(phone);
+    setLoading(true);
+    try {
+      await onSubmit(phone);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <div className={styles.wrapper}>
       <button className={styles.back} onClick={onBack} type="button">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
         Back
@@ -41,7 +47,7 @@ export default function PhoneEntry({ role, onSubmit, onBack }) {
 
       {/* Visual icon */}
       <div className={styles.visual}>
-        <svg viewBox="0 0 48 48" fill="none" width="48" height="48">
+        <svg aria-hidden="true" viewBox="0 0 48 48" fill="none" width="48" height="48">
           <rect x="12" y="4" width="24" height="40" rx="4" stroke="currentColor" strokeWidth="2"/>
           <circle cx="24" cy="38" r="2" fill="currentColor"/>
           <path d="M20 8h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -65,7 +71,7 @@ export default function PhoneEntry({ role, onSubmit, onBack }) {
             className={styles.input}
             value={phone}
             onChange={handleChange}
-            placeholder="7XX XXX XXX"
+            placeholder="7XX XXX XXX\u2026"
             autoFocus
             aria-label="Phone number"
             name="phone"
@@ -73,10 +79,16 @@ export default function PhoneEntry({ role, onSubmit, onBack }) {
             spellCheck={false}
           />
         </div>
-        {error && <p className={styles.error}>{error}</p>}
+        {error && <p className={styles.error} role="alert">{error}</p>}
 
-        <button type="submit" className={styles.submit}>
-          Send verification code
+        <button type="submit" className={styles.submit} disabled={loading}>
+          {loading ? (
+            <span className={styles.spinnerWrap}>
+              <span className={styles.spinner} />
+            </span>
+          ) : (
+            'Send verification code'
+          )}
         </button>
       </form>
     </div>

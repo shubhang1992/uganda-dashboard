@@ -48,6 +48,14 @@ export async function createBranch(data) {
   return { id: `b-new-${Date.now()}`, ...data, status: 'active', metrics: null };
 }
 
+export async function getAllAtLevelMap(level) {
+  // Returns entities as a { id: entity } map for O(1) lookups (used by reports)
+  const list = await getAllAtLevel(level);
+  const map = {};
+  list.forEach((e) => { map[e.id] = e; });
+  return map;
+}
+
 // Synchronous entity lookup — used by DashboardContext for URL → state derivation.
 // When backend is ready, the API should return ancestor IDs with each entity,
 // or the URL can encode the full path, removing the need for this function.

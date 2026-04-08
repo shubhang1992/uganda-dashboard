@@ -26,7 +26,7 @@ export default function Footer() {
           <nav className={styles.linksGrid} aria-label="Footer navigation">
             {Object.entries(LINKS).map(([group, items]) => (
               <div key={group} className={styles.linkGroup}>
-                <div className={styles.groupLabel}>{group}</div>
+                <h3 className={styles.groupLabel}>{group}</h3>
                 <ul className={styles.linkList}>
                   {items.map((item) => (
                     <li key={item}>

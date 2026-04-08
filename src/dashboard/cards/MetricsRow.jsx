@@ -37,12 +37,12 @@ function ChatCard({ open, onToggle }) {
 
   return (
     <motion.div className={styles.chatCard} data-collapsed={!open} variants={item}>
-      <button className={styles.chatHeader} onClick={onToggle} type="button">
+      <button className={styles.chatHeader} onClick={onToggle} type="button" aria-expanded={open}>
         <div className={styles.chatHeaderLeft}>
           <div className={styles.chatDot} />
           <span className={styles.chatTitle}>Talk to your data</span>
         </div>
-        <svg className={styles.cardToggle} data-open={open} width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <svg aria-hidden="true" className={styles.cardToggle} data-open={open} width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path d="M4 5.5l3 3 3-3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
@@ -85,9 +85,10 @@ function ChatCard({ open, onToggle }) {
                 placeholder="Ask about your data\u2026"
                 aria-label="Chat message"
                 name="chat"
+                autoComplete="off"
               />
               <button className={styles.chatSend} onClick={() => handleSend()} disabled={!input.trim()} aria-label="Send message">
-                <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 8l12-6-6 12V8H2z" fill="currentColor"/></svg>
+                <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 8l12-6-6 12V8H2z" fill="currentColor"/></svg>
               </button>
             </div>
           </motion.div>
@@ -106,7 +107,7 @@ function DonutChart({ ratio }) {
   const female = (ratio.female / 100) * circ;
   const other = ((ratio.other || 0) / 100) * circ;
   return (
-    <svg viewBox="0 0 64 64" className={styles.donut}>
+    <svg viewBox="0 0 64 64" className={styles.donut} role="img" aria-label="Gender distribution chart">
       <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-lavender)" strokeWidth="7" />
       <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-indigo)" strokeWidth="7"
         strokeDasharray={`${male} ${circ - male}`} transform="rotate(-90 32 32)" strokeLinecap="round" />
@@ -127,7 +128,7 @@ function AgeBarChart({ distribution }) {
   const entries = Object.entries(distribution);
   const max = Math.max(...entries.map(([, v]) => v));
   return (
-    <div className={styles.ageBars}>
+    <div className={styles.ageBars} role="img" aria-label="Age distribution chart">
       {entries.map(([label, value]) => (
         <div key={label} className={styles.ageBar}>
           <div className={styles.ageBarFill} style={{ height: `${(value / max) * 100}%` }} />
@@ -172,9 +173,9 @@ export default function MetricsRow() {
 
       {/* Card 2: Demographics (expandable) */}
       <motion.div className={styles.card} variants={item} data-expanded={expanded === 'demographics'} data-collapsed={!demoOpen}>
-        <button className={styles.cardHeaderToggle} onClick={() => setDemoOpen(!demoOpen)} type="button">
+        <button className={styles.cardHeaderToggle} onClick={() => setDemoOpen(!demoOpen)} type="button" aria-expanded={demoOpen}>
           <h3 className={styles.cardTitle}>Demographics</h3>
-          <svg className={styles.cardToggle} data-open={demoOpen} width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <svg aria-hidden="true" className={styles.cardToggle} data-open={demoOpen} width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M4 5.5l3 3 3-3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>

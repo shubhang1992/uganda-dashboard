@@ -12,7 +12,7 @@ const STEPS = [
       </svg>
     ),
     title: 'Register in 3 minutes',
-    desc: "Phone number and National ID — that's it. No branch visit, no paperwork.",
+    desc: "Phone number and National ID — that\u2019s it. No branch visit, no paperwork.",
     highlight: 'Any network · Any phone',
   },
   {
@@ -35,7 +35,7 @@ const STEPS = [
       </svg>
     ),
     title: 'Your money earns 10% a year',
-    desc: "Uganda's pension funds consistently return around 10% annually.",
+    desc: "Uganda\u2019s pension funds consistently return around 10% annually.",
     highlight: 'Above bank deposit rates',
   },
   {

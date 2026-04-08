@@ -38,6 +38,11 @@
   color: var(--color-indigo);
 }
 
+.link:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
+}
+
 .current {
   font-family: var(--font-display);
   font-size: var(--text-xs);

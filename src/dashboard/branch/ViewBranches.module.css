@@ -13,18 +13,21 @@
 /* ── Panel ───────────────────────────────────────────────────────────────── */
 .panel {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
   width: 560px;
   background: linear-gradient(180deg, #F8F9FC 0%, #F0F1F8 100%);
   z-index: 210;
   display: flex;
   flex-direction: column;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-lavender);
   box-shadow:
-    -16px 0 56px rgba(41, 40, 103, 0.14),
-    -2px 0 8px rgba(41, 40, 103, 0.06);
+    0 24px 80px rgba(41, 40, 103, 0.18),
+    0 8px 24px rgba(41, 40, 103, 0.08);
   overscroll-behavior: contain;
+  overflow: hidden;
 }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
@@ -199,6 +202,11 @@
   background: rgba(255, 255, 255, 0.9);
 }
 
+.filterBtn:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
+}
+
 .filterBtn[data-active='true'] {
   border-color: var(--color-indigo);
   background: rgba(41, 40, 103, 0.06);
@@ -244,6 +252,11 @@
 
 .filterOption:hover {
   background: rgba(41, 40, 103, 0.04);
+}
+
+.filterOption:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
 }
 
 .filterOption[data-selected='true'] {
@@ -295,6 +308,11 @@
   border-color: var(--color-indigo-soft);
   color: var(--color-indigo);
   background: rgba(255, 255, 255, 0.8);
+}
+
+.statusChip:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
 }
 
 .statusChip[data-active='true'] {
@@ -367,6 +385,14 @@
   overflow-x: hidden;
 }
 
+/* ── Virtualized list scaffolding ────────────────────────────────────────── */
+.virtualList {
+  position: relative;
+  width: 100%;
+  padding: 0 var(--space-5);
+  box-sizing: border-box;
+}
+
 /* ── Branch list ─────────────────────────────────────────────────────────── */
 .listCount {
   font-family: var(--font-body);
@@ -380,13 +406,11 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
-  margin: var(--space-2) var(--space-5) 0;
   border-radius: var(--radius-md);
   cursor: pointer;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 72px;
-  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-  width: calc(100% - var(--space-5) * 2);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
   text-align: left;
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.72) 0%, rgba(246, 247, 251, 0.65) 100%);
   backdrop-filter: blur(8px);
@@ -403,7 +427,11 @@
   box-shadow:
     0 6px 20px rgba(41, 40, 103, 0.08),
     0 1px 0 rgba(255, 255, 255, 0.7) inset;
-  transform: translateY(-1px);
+}
+
+.branchItem:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
 }
 
 .branchAccent {
@@ -502,6 +530,7 @@
   color: var(--color-slate);
   letter-spacing: -0.02em;
   line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 
 .statLabel {
@@ -1043,6 +1072,11 @@
   transform: translateY(-1px);
 }
 
+.agentItem:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
+}
+
 .agentAvatar {
   width: 38px;
   height: 38px;
@@ -1422,6 +1456,11 @@
 @media (max-width: 768px) {
   .panel {
     width: 100%;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 0;
+    border: none;
   }
 
   .header {

@@ -6,7 +6,7 @@ const ROLES = [
   {
     id: 'subscriber', label: 'Subscriber', desc: 'Individual saver',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="24" height="24">
         <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.75"/>
         <path d="M5 21v-1a7 7 0 0114 0v1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
       </svg>
@@ -15,7 +15,7 @@ const ROLES = [
   {
     id: 'employer', label: 'Employer', desc: 'Manage employee contributions',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="24" height="24">
         <rect x="3" y="6" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.75"/>
         <path d="M3 10h18" stroke="currentColor" strokeWidth="1.75"/>
         <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" stroke="currentColor" strokeWidth="1.75"/>
@@ -25,7 +25,7 @@ const ROLES = [
   {
     id: 'distributor', label: 'Distributor', desc: 'Distribution network',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="24" height="24">
         <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75"/>
         <circle cx="12" cy="3" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
         <circle cx="12" cy="21" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
@@ -38,7 +38,7 @@ const ROLES = [
   {
     id: 'admin', label: 'Admin', desc: 'Platform admin',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="24" height="24">
         <path d="M12 3L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-4z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
         <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>

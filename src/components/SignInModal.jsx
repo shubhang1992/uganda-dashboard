@@ -28,6 +28,9 @@ export default function SignInModal() {
   const [direction, setDirection] = useState(1);
   const prevStep = useRef('role');
 
+  const modalRef = useRef(null);
+  const previouslyFocused = useRef(null);
+
   useEffect(() => {
     if (!isOpen) return;
     function handleEsc(e) {
@@ -36,6 +39,56 @@ export default function SignInModal() {
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
   }, [isOpen, close]);
+
+  // Focus trap: save previous focus, trap Tab inside modal, restore on close
+  useEffect(() => {
+    if (!isOpen) return;
+
+    previouslyFocused.current = document.activeElement;
+
+    const selector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    function handleKeyDown(e) {
+      if (e.key !== 'Tab') return;
+      const modal = modalRef.current;
+      if (!modal) return;
+      const focusable = Array.from(modal.querySelectorAll(selector)).filter(
+        (el) => el.offsetParent !== null
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Focus the first focusable element inside the modal
+    requestAnimationFrame(() => {
+      const modal = modalRef.current;
+      if (modal) {
+        const first = modal.querySelector(selector);
+        if (first) first.focus();
+      }
+    });
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      if (previouslyFocused.current && previouslyFocused.current.focus) {
+        previouslyFocused.current.focus();
+      }
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -125,6 +178,7 @@ export default function SignInModal() {
 
           <div className={styles.modalWrap}>
           <motion.div
+            ref={modalRef}
             className={styles.modal}
             initial={{ opacity: 0, y: 50, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -154,7 +208,7 @@ export default function SignInModal() {
               </div>
 
               <button className={styles.close} onClick={() => close()} aria-label="Close">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
                   <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                 </svg>
               </button>

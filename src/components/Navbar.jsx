@@ -86,6 +86,7 @@ export default function Navbar() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
               onClick={closeMenu}
+              aria-hidden="true"
             />
             <motion.div
               className={styles.drawer}

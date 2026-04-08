@@ -8,11 +8,16 @@ const DashboardContext = createContext(null);
 // Derive level + entityId from the URL pathname
 function parsePath(pathname) {
   const path = pathname.replace(/^\/dashboard\/?/, '');
-  if (!path) return { level: 'country', entityId: null };
+  if (!path) return { level: 'country', entityId: null, section: 'map' };
+  // Reports section
+  if (path === 'reports' || path.startsWith('reports/')) {
+    const reportId = path.split('/')[1] || null;
+    return { level: 'country', entityId: null, section: 'reports', reportId };
+  }
   const [segment, entityId] = path.split('/');
   const level = SEGMENT_TO_LEVEL[segment];
-  if (level && entityId) return { level, entityId };
-  return { level: 'country', entityId: null };
+  if (level && entityId) return { level, entityId, section: 'map' };
+  return { level: 'country', entityId: null, section: 'map' };
 }
 
 // Walk the parent chain to build selectedIds from a single entity
@@ -38,7 +43,7 @@ export function DashboardProvider({ children }) {
   const navigate = useNavigate();
 
   // Derive drill-down state from URL
-  const { level, entityId } = useMemo(() => parsePath(location.pathname), [location.pathname]);
+  const { level, entityId, section, reportId } = useMemo(() => parsePath(location.pathname), [location.pathname]);
   const selectedIds = useMemo(() => buildSelectedIds(level, entityId), [level, entityId]);
 
   // UI-only state (not URL-based)
@@ -47,12 +52,21 @@ export function DashboardProvider({ children }) {
   const [viewBranchesOpen, setViewBranchesOpen] = useState(false);
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   const [viewAgentsOpen, setViewAgentsOpen] = useState(false);
+  const [viewReportsOpen, setViewReportsOpen] = useState(false);
 
   // Map drill-down → slide-in panel handoff
   const [drillTargetBranchId, setDrillTargetBranchId] = useState(null);
   const [drillTargetAgentId, setDrillTargetAgentId] = useState(null);
   const drillBranchRef = useRef(null);
   const drillAgentRef = useRef(null);
+
+  // Auto-open reports panel when URL is /dashboard/reports, then redirect to /dashboard
+  useEffect(() => {
+    if (section === 'reports') {
+      setViewReportsOpen(true);
+      navigate('/dashboard', { replace: true });
+    }
+  }, [section, navigate]);
 
   // Auto-open slide-in panels when URL reaches branch/agent level
   useEffect(() => {
@@ -135,21 +149,22 @@ export function DashboardProvider({ children }) {
   }, [navigate]);
 
   const value = useMemo(() => ({
-    level, selectedIds,
+    level, selectedIds, section, reportId,
     drillDown, drillUp, goToLevel, reset,
     branchMenuOpen, setBranchMenuOpen,
     createBranchOpen, setCreateBranchOpen,
     viewBranchesOpen, setViewBranchesOpen,
     agentMenuOpen, setAgentMenuOpen,
     viewAgentsOpen, setViewAgentsOpen,
+    viewReportsOpen, setViewReportsOpen,
     drillTargetBranchId, setDrillTargetBranchId,
     drillTargetAgentId, setDrillTargetAgentId,
     closeDrillPanel,
   }), [
-    level, selectedIds,
+    level, selectedIds, section, reportId,
     drillDown, drillUp, goToLevel, reset,
     branchMenuOpen, createBranchOpen, viewBranchesOpen,
-    agentMenuOpen, viewAgentsOpen,
+    agentMenuOpen, viewAgentsOpen, viewReportsOpen,
     drillTargetBranchId, drillTargetAgentId, closeDrillPanel,
   ]);
 

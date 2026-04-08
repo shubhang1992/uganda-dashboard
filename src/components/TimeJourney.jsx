@@ -18,7 +18,7 @@ const SHELF_ITEMS = [
     label: 'Emergency fund',
     threshold: 60_000,
     icon: (
-      <svg viewBox="0 0 32 32" fill="none">
+      <svg aria-hidden="true" viewBox="0 0 32 32" fill="none">
         <path d="M16 4l2 6h6l-5 4 2 6-5-4-5 4 2-6-5-4h6z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
       </svg>
     ),
@@ -28,7 +28,7 @@ const SHELF_ITEMS = [
     label: 'Medical cover',
     threshold: 300_000,
     icon: (
-      <svg viewBox="0 0 32 32" fill="none">
+      <svg aria-hidden="true" viewBox="0 0 32 32" fill="none">
         <rect x="8" y="8" width="16" height="16" rx="3" stroke="currentColor" strokeWidth="1.5"/>
         <path d="M16 12v8M12 16h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
       </svg>
@@ -39,7 +39,7 @@ const SHELF_ITEMS = [
     label: 'School fees',
     threshold: 600_000,
     icon: (
-      <svg viewBox="0 0 32 32" fill="none">
+      <svg aria-hidden="true" viewBox="0 0 32 32" fill="none">
         <path d="M6 14l10-5 10 5-10 5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
         <path d="M10 16v6c0 0 3 2 6 2s6-2 6-2v-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
@@ -50,7 +50,7 @@ const SHELF_ITEMS = [
     label: 'Boda-boda',
     threshold: 1_500_000,
     icon: (
-      <svg viewBox="0 0 32 32" fill="none">
+      <svg aria-hidden="true" viewBox="0 0 32 32" fill="none">
         <circle cx="10" cy="22" r="4" stroke="currentColor" strokeWidth="1.5"/>
         <circle cx="22" cy="22" r="4" stroke="currentColor" strokeWidth="1.5"/>
         <path d="M14 22l3-8h4l2 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -63,7 +63,7 @@ const SHELF_ITEMS = [
     label: 'Home deposit',
     threshold: 3_000_000,
     icon: (
-      <svg viewBox="0 0 32 32" fill="none">
+      <svg aria-hidden="true" viewBox="0 0 32 32" fill="none">
         <path d="M6 16l10-9 10 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M9 14v11h14V14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M14 25v-6h4v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -75,7 +75,7 @@ const SHELF_ITEMS = [
     label: 'Plot of land',
     threshold: 5_000_000,
     icon: (
-      <svg viewBox="0 0 32 32" fill="none">
+      <svg aria-hidden="true" viewBox="0 0 32 32" fill="none">
         <rect x="6" y="8" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/>
         <path d="M6 20l7-5 5 3 8-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         <circle cx="22" cy="13" r="2" stroke="currentColor" strokeWidth="1.5"/>
@@ -87,7 +87,7 @@ const SHELF_ITEMS = [
     label: 'Family security',
     threshold: 10_000_000,
     icon: (
-      <svg viewBox="0 0 32 32" fill="none">
+      <svg aria-hidden="true" viewBox="0 0 32 32" fill="none">
         <path d="M16 4C16 4 6 8 6 16c0 6 4.5 10 10 12 5.5-2 10-6 10-12 0-8-10-12-10-12z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
         <path d="M12 16l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
@@ -98,7 +98,7 @@ const SHELF_ITEMS = [
     label: 'Retirement',
     threshold: 25_000_000,
     icon: (
-      <svg viewBox="0 0 32 32" fill="none">
+      <svg aria-hidden="true" viewBox="0 0 32 32" fill="none">
         <circle cx="16" cy="10" r="4" stroke="currentColor" strokeWidth="1.5"/>
         <path d="M8 28c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
         <path d="M20 6l4-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -141,11 +141,11 @@ function getImpactIdx(balance) {
 const MILESTONES = [
   { minYear: 2025, maxYear: 2029, text: "You started saving. Most people never do.",               sub: "The habit is forming." },
   { minYear: 2029, maxYear: 2033, text: "Enough to cover a medical emergency.",                    sub: "Your first safety net is real." },
-  { minYear: 2033, maxYear: 2037, text: "A full year of school fees — covered.",                   sub: "Your child's future is more secure." },
+  { minYear: 2033, maxYear: 2037, text: "A full year of school fees — covered.",                   sub: "Your child\u2019s future is more secure." },
   { minYear: 2037, maxYear: 2043, text: "Returns now outpace your contributions.",                 sub: "Your money is working harder than you." },
   { minYear: 2043, maxYear: 2050, text: "You could buy a plot of land in your district.",          sub: "This is generational wealth." },
   { minYear: 2050, maxYear: 2058, text: "Years of financial security — built.",                    sub: "Most Ugandans retire with nothing formal." },
-  { minYear: 2058, maxYear: 2066, text: "Your retirement has a date, a number, and a foundation.", sub: "UGX 5K a month became everything." },
+  { minYear: 2058, maxYear: 2066, text: "Your retirement has a date, a number, and a foundation.", sub: "UGX\u00a05K a month became everything." },
 ];
 
 function getMilestone(year) {
@@ -201,7 +201,7 @@ function LifeShelf({ balance }) {
                 animate={{ scale: 1 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 15 }}
               >
-                <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+                <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
                   <path d="M3 8l3.5 3.5L13 5" stroke="#2E8B57" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </motion.div>
@@ -334,7 +334,7 @@ export default function TimeJourney() {
       <div className={styles.header}>
         <span className={styles.tag}>Your 40-year journey</span>
         <h2 className={styles.heading}>
-          See what <span className={styles.accent}>UGX 5K/month</span> becomes
+          See what <span className={styles.accent}>UGX&nbsp;5K/month</span> becomes
         </h2>
         <p className={styles.sub}>
           <span className={styles.desktopOnly}>Scroll inside the card to move through 40 years of growth.</span>

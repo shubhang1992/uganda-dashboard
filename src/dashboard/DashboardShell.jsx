@@ -14,6 +14,7 @@ import TopBar from './overlay/TopBar';
 import CreateBranch from './branch/CreateBranch';
 import ViewBranches from './branch/ViewBranches';
 import ViewAgents from './agent/ViewAgents';
+import ViewReports from './reports/ViewReports';
 import styles from './DashboardShell.module.css';
 
 const DRAWER_ITEMS = [
@@ -39,7 +40,7 @@ function MobileHeader({ onMenuToggle, menuOpen }) {
       <div className={styles.mobileHeaderLeft}>
         {isDeep && (
           <button className={styles.backBtn} onClick={handleBack} aria-label="Go back">
-            <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
               <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
@@ -112,6 +113,24 @@ function MobileDrawer({ open, onClose }) {
   );
 }
 
+function DashboardContent() {
+  return (
+    <>
+      <div className={styles.main}>
+        <UgandaMap />
+        <Breadcrumb />
+        <OverlayPanel />
+        <TopBar />
+        <MetricsRow />
+      </div>
+      <CreateBranch />
+      <ViewBranches />
+      <ViewAgents />
+      <ViewReports />
+    </>
+  );
+}
+
 export default function DashboardShell() {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
@@ -120,16 +139,7 @@ export default function DashboardShell() {
         <Sidebar />
         <MobileHeader onMenuToggle={() => setMenuOpen(!menuOpen)} menuOpen={menuOpen} />
         <MobileDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
-        <div className={styles.main}>
-          <UgandaMap />
-          <Breadcrumb />
-          <OverlayPanel />
-          <TopBar />
-          <MetricsRow />
-        </div>
-        <CreateBranch />
-        <ViewBranches />
-        <ViewAgents />
+        <DashboardContent />
       </div>
     </DashboardProvider>
   );

@@ -47,6 +47,14 @@ export function useAllEntities(level) {
   });
 }
 
+export function useAllEntitiesMap(level) {
+  return useQuery({
+    queryKey: ['entitiesMap', level],
+    queryFn: () => entities.getAllAtLevelMap(level),
+    enabled: !!level,
+  });
+}
+
 export function useTopBranch(level, parentId) {
   return useQuery({
     queryKey: ['topBranch', level, parentId],

@@ -75,6 +75,11 @@
     background: rgba(41, 40, 103, 0.06);
   }
 
+  .backBtn:focus-visible {
+    outline: 2px solid #292867;
+    outline-offset: 2px;
+  }
+
   .hamburger {
     display: flex;
     flex-direction: column;
@@ -89,6 +94,11 @@
 
   .hamburger:active {
     background: rgba(41, 40, 103, 0.06);
+  }
+
+  .hamburger:focus-visible {
+    outline: 2px solid #292867;
+    outline-offset: 2px;
   }
 
   .hamburgerLine {
@@ -159,6 +169,11 @@
     color: var(--color-indigo);
   }
 
+  .drawerItem:focus-visible {
+    outline: 2px solid #292867;
+    outline-offset: 2px;
+  }
+
   .drawerLogout {
     font-family: var(--font-display);
     font-size: var(--text-sm);
@@ -172,5 +187,10 @@
 
   .drawerLogout:active {
     color: var(--color-indigo);
+  }
+
+  .drawerLogout:focus-visible {
+    outline: 2px solid #292867;
+    outline-offset: 2px;
   }
 }

@@ -187,6 +187,14 @@ export default function CreateBranch() {
     bodyRef.current?.scrollTo(0, 0);
   }, [step]);
 
+  /* ── Escape key to close panel ────────────────────────────────────────────── */
+  useEffect(() => {
+    if (!createBranchOpen) return;
+    function onKey(e) { if (e.key === 'Escape') setCreateBranchOpen(false); }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [createBranchOpen, setCreateBranchOpen]);
+
   /* ── Reset form when panel closes ────────────────────────────────────────── */
   useEffect(() => {
     if (createBranchOpen) return;
@@ -431,8 +439,10 @@ export default function CreateBranch() {
                             className={styles.input}
                             value={branchName}
                             onChange={(e) => setBranchName(e.target.value)}
-                            placeholder="e.g. Gulu Main Branch"
+                            placeholder="e.g. Gulu Main Branch\u2026"
                             data-error={!!errors.branchName}
+                            name="branchName"
+                            autoComplete="off"
                           />
                           {errors.branchName && <span className={styles.error}>{errors.branchName}</span>}
                         </div>
@@ -480,6 +490,8 @@ export default function CreateBranch() {
                             placeholder="Plot number, street / road name, building…"
                             rows={2}
                             data-error={!!errors.address}
+                            name="address"
+                            autoComplete="street-address"
                           />
                           {errors.address && <span className={styles.error}>{errors.address}</span>}
                         </div>
@@ -490,7 +502,9 @@ export default function CreateBranch() {
                             className={styles.input}
                             value={landmark}
                             onChange={(e) => setLandmark(e.target.value)}
-                            placeholder="e.g. Next to Total petrol station"
+                            placeholder="e.g. Next to Total petrol station\u2026"
+                            name="landmark"
+                            autoComplete="off"
                           />
                         </div>
 
@@ -500,7 +514,9 @@ export default function CreateBranch() {
                             className={styles.input}
                             value={poBox}
                             onChange={(e) => setPoBox(e.target.value)}
-                            placeholder="e.g. P.O. Box 12345, Gulu"
+                            placeholder="e.g. P.O. Box 12345, Gulu\u2026"
+                            name="poBox"
+                            autoComplete="off"
                           />
                         </div>
                       </motion.div>
@@ -526,8 +542,10 @@ export default function CreateBranch() {
                             className={styles.input}
                             value={adminName}
                             onChange={(e) => setAdminName(e.target.value)}
-                            placeholder="e.g. James Okello"
+                            placeholder="e.g. James Okello\u2026"
                             data-error={!!errors.adminName}
+                            name="adminName"
+                            autoComplete="name"
                           />
                           {errors.adminName && <span className={styles.error}>{errors.adminName}</span>}
                         </div>
@@ -546,6 +564,8 @@ export default function CreateBranch() {
                               value={adminPhone}
                               onChange={handlePhoneChange}
                               placeholder="7XX XXX XXX"
+                              name="phone"
+                              autoComplete="tel"
                             />
                           </div>
                           {errors.adminPhone && <span className={styles.error}>{errors.adminPhone}</span>}
@@ -558,7 +578,9 @@ export default function CreateBranch() {
                             className={styles.input}
                             value={adminEmail}
                             onChange={(e) => setAdminEmail(e.target.value)}
-                            placeholder="e.g. james@example.com"
+                            placeholder="e.g. james@example.com\u2026"
+                            name="email"
+                            autoComplete="email"
                           />
                         </div>
                       </motion.div>

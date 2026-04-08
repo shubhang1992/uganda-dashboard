@@ -48,7 +48,7 @@ export default function CTA() {
                 <div className={styles.miniLabel}>Projected balance at 65</div>
                 <div className={styles.miniValue}>UGX 32M</div>
                 <div className={styles.miniBadge}>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <path d="M2 8l2.5-3 2 2 3.5-5" stroke="#2E8B57" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   Starting today

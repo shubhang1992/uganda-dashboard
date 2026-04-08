@@ -6,7 +6,7 @@ const SUB_ROLES = [
   {
     id: 'distributor', label: 'Distributor Admin', desc: 'Network-level oversight',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="24" height="24">
         <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75"/>
         <circle cx="12" cy="3" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
         <circle cx="12" cy="21" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
@@ -19,7 +19,7 @@ const SUB_ROLES = [
   {
     id: 'branch', label: 'Branch Admin', desc: 'Local operations',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="24" height="24">
         <path d="M3 21h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
         <path d="M5 21V7l7-4 7 4v14" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
         <rect x="9" y="13" width="6" height="8" rx="1" stroke="currentColor" strokeWidth="1.75"/>
@@ -30,7 +30,7 @@ const SUB_ROLES = [
   {
     id: 'agent', label: 'Agent', desc: 'Field enrolment',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="24" height="24">
         <circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.75"/>
         <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
         <path d="M18 8v6M15 11h6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
@@ -59,7 +59,7 @@ export default function DistributorSelect({ onSelect, onBack }) {
       transition={{ duration: 0.35, ease: EASE }}
     >
       <button className={styles.back} onClick={onBack} type="button">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
         Back
@@ -87,7 +87,7 @@ export default function DistributorSelect({ onSelect, onBack }) {
               <span className={styles.label}>{role.label}</span>
               <span className={styles.desc}>{role.desc}</span>
             </div>
-            <svg className={styles.arrow} width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <svg aria-hidden="true" className={styles.arrow} width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </motion.button>

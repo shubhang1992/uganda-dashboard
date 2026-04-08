@@ -121,9 +121,41 @@
   margin-top: 0.5rem;
 }
 
+.submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .submit:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 32px rgba(41, 40, 103, 0.3);
+}
+
+.submit:disabled:hover {
+  transform: none;
+  box-shadow: 0 4px 20px rgba(41, 40, 103, 0.25);
+}
+
+.spinnerWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.25em;
+}
+
+.spinner {
+  display: inline-block;
+  width: 1.25em;
+  height: 1.25em;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .resend {

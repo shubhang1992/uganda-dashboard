@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAllEntities } from '../../hooks/useEntity';
 import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
 import { useDashboard } from '../../contexts/DashboardContext';
@@ -33,17 +34,17 @@ function getTrend(today, weekAvg) {
 const TrendArrow = ({ trend }) => (
   <span className={styles.trendBadge} data-trend={trend}>
     {trend === 'up' && (
-      <svg viewBox="0 0 12 12" fill="none" width="10" height="10">
+      <svg aria-hidden="true" viewBox="0 0 12 12" fill="none" width="10" height="10">
         <path d="M6 9V3M6 3L3 6M6 3l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     )}
     {trend === 'down' && (
-      <svg viewBox="0 0 12 12" fill="none" width="10" height="10">
+      <svg aria-hidden="true" viewBox="0 0 12 12" fill="none" width="10" height="10">
         <path d="M6 3v6M6 9L3 6M6 9l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     )}
     {trend === 'flat' && (
-      <svg viewBox="0 0 12 12" fill="none" width="10" height="10">
+      <svg aria-hidden="true" viewBox="0 0 12 12" fill="none" width="10" height="10">
         <path d="M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     )}
@@ -68,13 +69,13 @@ function branchAgents(branchId, agentsByBranch) {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 const Icons = {
   subscribers: (
-    <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
+    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
       <circle cx="10" cy="6" r="3.5" stroke="currentColor" strokeWidth="1.5" />
       <path d="M3.5 18v-.5a6.5 6.5 0 0113 0v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   ),
   agents: (
-    <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
+    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
       <circle cx="7.5" cy="6" r="3" stroke="currentColor" strokeWidth="1.5" />
       <path d="M2 17v-.5a5.5 5.5 0 0111 0v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       <circle cx="14.5" cy="7.5" r="2" stroke="currentColor" strokeWidth="1.5" />
@@ -82,38 +83,38 @@ const Icons = {
     </svg>
   ),
   aum: (
-    <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
+    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
       <rect x="2" y="7" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
       <path d="M6 7V5a4 4 0 018 0v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       <circle cx="10" cy="12.5" r="1.5" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   ),
   activeRate: (
-    <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
+    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
       <path d="M10 2a8 8 0 110 16 8 8 0 010-16z" stroke="currentColor" strokeWidth="1.5" />
       <path d="M7 10l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   contributions: (
-    <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
+    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
       <path d="M2 18V6l4-4h8l4 4v12" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
       <path d="M2 10h16" stroke="currentColor" strokeWidth="1.5" />
       <path d="M10 10v8" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   ),
   phone: (
-    <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+    <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
       <path d="M6.2 7.4a6.5 6.5 0 002.4 2.4l1.2-1.2a.8.8 0 01.9-.2c.8.3 1.7.4 2.5.4a.8.8 0 01.8.8v2.6a.8.8 0 01-.8.8A12.2 12.2 0 011 1.8a.8.8 0 01.8-.8h2.6a.8.8 0 01.8.8c0 .8.2 1.7.4 2.5a.8.8 0 01-.2.9z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
     </svg>
   ),
   email: (
-    <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+    <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
       <rect x="1.5" y="3" width="13" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
       <path d="M1.5 4.5L8 9l6.5-4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   person: (
-    <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
       <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.75" />
       <path d="M5 21v-1a7 7 0 0114 0v1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
@@ -128,7 +129,7 @@ function Stars({ rating }) {
   return (
     <div className={styles.ratingWrap}>
       {[1,2,3,4,5].map((i) => (
-        <svg key={i} viewBox="0 0 16 16" width="12" height="12" className={styles.ratingStar} data-filled={i <= full}>
+        <svg aria-hidden="true" key={i} viewBox="0 0 16 16" width="12" height="12" className={styles.ratingStar} data-filled={i <= full}>
           <path d="M8 1.5l1.76 3.56 3.93.57-2.84 2.77.67 3.91L8 10.27 4.48 12.31l.67-3.91L2.31 5.63l3.93-.57z"
             fill={i <= full ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
         </svg>
@@ -305,7 +306,7 @@ function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch }) {
         <div className={styles.sectionHeader}>
           <span className={styles.sectionTitle}>Branch Admin</span>
           <button className={styles.editBtn} onClick={() => onEdit('admin')}>
-            <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
               <path d="M11.5 1.5l3 3L5 14H2v-3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
             </svg>
             Edit
@@ -383,7 +384,7 @@ function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch }) {
                 </div>
                 <span className={styles.agentPerf} data-level={level}>{agent.performance}%</span>
                 <span className={styles.chevronAgent}>
-                  <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="14" height="14">
                     <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </span>
@@ -421,21 +422,21 @@ function EditBranch({ branch, section, onSave, onCancel }) {
             <>
               <div className={styles.field}>
                 <label className={styles.label}>Full Name</label>
-                <input className={styles.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Manager name" />
+                <input className={styles.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Manager name" name="managerName" autoComplete="name" />
               </div>
               <div className={styles.field}>
                 <label className={styles.label}>Phone Number</label>
-                <input className={styles.input} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+256…" />
+                <input className={styles.input} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+256…" name="phone" type="tel" autoComplete="tel" />
               </div>
               <div className={styles.field}>
                 <label className={styles.label}>Email Address</label>
-                <input className={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" />
+                <input className={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" name="email" type="email" autoComplete="email" />
               </div>
             </>
           ) : (
             <div className={styles.field}>
               <label className={styles.label}>Branch Name</label>
-              <input className={styles.input} value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="Branch name" />
+              <input className={styles.input} value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="Branch name" name="branchName" autoComplete="off" />
             </div>
           )}
         </div>
@@ -475,6 +476,7 @@ export default function ViewBranches() {
   const [statusFilter, setStatusFilter] = useState('all');
 
   const bodyRef = useRef(null);
+  const virtualListRef = useRef(null);
   const regionBtnRef = useRef(null);
   const sortBtnRef = useRef(null);
 
@@ -557,6 +559,18 @@ export default function ViewBranches() {
 
   const regionOptions = allRegionsRaw;
 
+  /* ── Virtualizer for branch list ──────────────────────────────────────── */
+  const ESTIMATED_ITEM_HEIGHT = 72; // matches contain-intrinsic-size in CSS
+  const ITEM_GAP = 8; // var(--space-2)
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: useCallback(() => bodyRef.current, []),
+    estimateSize: useCallback(() => ESTIMATED_ITEM_HEIGHT, []),
+    gap: ITEM_GAP,
+    overscan: 8,
+    scrollMargin: virtualListRef.current?.offsetTop ?? 0,
+  });
+
   useEffect(() => {
     if (viewBranchesOpen) return;
     const t = setTimeout(() => {
@@ -604,6 +618,8 @@ export default function ViewBranches() {
   }
 
   function handleToggleStatus() {
+    const action = selectedBranch.status === 'active' ? 'deactivate' : 'activate';
+    if (!window.confirm(`Are you sure you want to ${action} this branch?`)) return;
     selectedBranch.status = selectedBranch.status === 'active' ? 'inactive' : 'active';
     setSelectedBranch({ ...selectedBranch });
   }
@@ -661,7 +677,7 @@ export default function ViewBranches() {
               <div className={styles.headerTop}>
                 {view !== 'list' && (
                   <button className={styles.backBtn} onClick={handleBack} aria-label="Go back">
-                    <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
                       <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>
@@ -682,7 +698,7 @@ export default function ViewBranches() {
                   <p className={styles.subtitle}>{headerSubtitle}</p>
                 </div>
                 <button className={styles.closeBtn} onClick={handleClose} aria-label="Close">
-                  <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
                     <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
                   </svg>
                 </button>
@@ -695,7 +711,7 @@ export default function ViewBranches() {
                 <div className={styles.toolbar}>
                   <div className={styles.searchWrap}>
                     <span className={styles.searchIcon}>
-                      <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                      <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="14" height="14">
                         <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
                         <path d="M14 14l-3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                       </svg>
@@ -705,10 +721,13 @@ export default function ViewBranches() {
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       placeholder="Search branches, districts, managers…"
+                      aria-label="Search branches"
+                      name="search"
+                      autoComplete="off"
                     />
                     {search && (
                       <button className={styles.searchClear} onClick={() => setSearch('')} aria-label="Clear search">
-                        <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+                        <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
                           <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                         </svg>
                       </button>
@@ -720,7 +739,7 @@ export default function ViewBranches() {
                       data-active={!!regionFilter}
                       onClick={() => setRegionDropOpen((p) => !p)}
                     >
-                      <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+                      <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
                         <path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                       </svg>
                       {regionFilter ? REGIONS_MAP[regionFilter]?.name : 'Region'}
@@ -763,7 +782,7 @@ export default function ViewBranches() {
                       data-active={sortKey !== 'subscribers'}
                       onClick={() => setSortDropOpen((p) => !p)}
                     >
-                      <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+                      <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
                         <path d="M4 2v12M4 14l-3-3M4 14l3-3M12 14V2M12 2l-3 3M12 2l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                       {SORT_OPTIONS.find((o) => o.key === sortKey)?.label || 'Sort'}
@@ -847,7 +866,7 @@ export default function ViewBranches() {
                     {filtered.length === 0 ? (
                       <div className={styles.emptyState}>
                         <div className={styles.emptyIcon}>
-                          <svg viewBox="0 0 48 48" fill="none" width="48" height="48">
+                          <svg aria-hidden="true" viewBox="0 0 48 48" fill="none" width="48" height="48">
                             <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="1.5" />
                             <path d="M16 20h16M16 28h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                           </svg>
@@ -856,44 +875,59 @@ export default function ViewBranches() {
                         <div className={styles.emptyDesc}>Try adjusting your search or filters</div>
                       </div>
                     ) : (
-                      filtered.map((branch, i) => (
-                        <motion.button
-                          key={branch.id}
-                          className={styles.branchItem}
-                          onClick={() => handleSelectBranch(branch)}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.2, delay: Math.min(i * 0.015, 0.3), ease: EASE_OUT_EXPO }}
-                        >
-                          <span className={styles.branchAccent} data-status={getStatus(branch.metrics.activeRate)} />
-                          <div className={styles.branchInfo}>
-                            <div className={styles.branchName}>{branch.name}</div>
-                            <div className={styles.branchLocation}>{districtName(branch, DISTRICTS_MAP)}, {regionName(branch, DISTRICTS_MAP, REGIONS_MAP)}</div>
-                            <div className={styles.branchActiveBar}>
-                              <div className={styles.branchActiveBarFill} data-status={getStatus(branch.metrics.activeRate)} style={{ width: `${branch.metrics.activeRate}%` }} />
-                            </div>
-                          </div>
-                          <div className={styles.branchStats}>
-                            <div className={styles.stat}>
-                              <span className={styles.statValue}>{branch.metrics.totalAgents}</span>
-                              <span className={styles.statLabel}>Agents</span>
-                            </div>
-                            <div className={styles.stat}>
-                              <span className={styles.statValue}>{branch.metrics.totalSubscribers}</span>
-                              <span className={styles.statLabel}>Subs</span>
-                            </div>
-                            <div className={styles.stat}>
-                              <span className={styles.statValue}>{branch.metrics.activeRate}%</span>
-                              <span className={styles.statLabel}>Active</span>
-                            </div>
-                          </div>
-                          <span className={styles.chevron}>
-                            <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
-                              <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </span>
-                        </motion.button>
-                      ))
+                      <div
+                        ref={virtualListRef}
+                        className={styles.virtualList}
+                        style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+                      >
+                          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                            const branch = filtered[virtualRow.index];
+                            return (
+                              <button
+                                key={branch.id}
+                                className={styles.branchItem}
+                                onClick={() => handleSelectBranch(branch)}
+                                data-index={virtualRow.index}
+                                ref={rowVirtualizer.measureElement}
+                                style={{
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0,
+                                  width: '100%',
+                                  transform: `translateY(${virtualRow.start - rowVirtualizer.options.scrollMargin}px)`,
+                                }}
+                              >
+                                <span className={styles.branchAccent} data-status={getStatus(branch.metrics.activeRate)} />
+                                <div className={styles.branchInfo}>
+                                  <div className={styles.branchName}>{branch.name}</div>
+                                  <div className={styles.branchLocation}>{districtName(branch, DISTRICTS_MAP)}, {regionName(branch, DISTRICTS_MAP, REGIONS_MAP)}</div>
+                                  <div className={styles.branchActiveBar}>
+                                    <div className={styles.branchActiveBarFill} data-status={getStatus(branch.metrics.activeRate)} style={{ width: `${branch.metrics.activeRate}%` }} />
+                                  </div>
+                                </div>
+                                <div className={styles.branchStats}>
+                                  <div className={styles.stat}>
+                                    <span className={styles.statValue}>{branch.metrics.totalAgents}</span>
+                                    <span className={styles.statLabel}>Agents</span>
+                                  </div>
+                                  <div className={styles.stat}>
+                                    <span className={styles.statValue}>{branch.metrics.totalSubscribers}</span>
+                                    <span className={styles.statLabel}>Subs</span>
+                                  </div>
+                                  <div className={styles.stat}>
+                                    <span className={styles.statValue}>{branch.metrics.activeRate}%</span>
+                                    <span className={styles.statLabel}>Active</span>
+                                  </div>
+                                </div>
+                                <span className={styles.chevron}>
+                                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="14" height="14">
+                                    <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                </span>
+                              </button>
+                            );
+                          })}
+                      </div>
                     )}
                     {/* Bottom padding for scrolling past bottom cards */}
                     <div style={{ height: 'var(--space-4)' }} />
@@ -952,7 +986,7 @@ export default function ViewBranches() {
                 )}
                 <div className={styles.footerSpacer} />
                 <button className={styles.editBtn} onClick={() => handleEdit('details')}>
-                  <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
                     <path d="M11.5 1.5l3 3L5 14H2v-3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
                   </svg>
                   Edit Details

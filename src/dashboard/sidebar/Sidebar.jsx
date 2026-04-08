@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
@@ -11,7 +11,7 @@ const MOBILE_NAV = [
     id: 'overview',
     label: 'Overview',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
         <rect x="3" y="3" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.75"/>
         <rect x="13" y="3" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.75"/>
         <rect x="3" y="13" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.75"/>
@@ -23,7 +23,7 @@ const MOBILE_NAV = [
     id: 'branches',
     label: 'Branches',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
         <path d="M3 21h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
         <path d="M5 21V7l7-4 7 4v14" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
         <rect x="9" y="13" width="6" height="8" rx="1" stroke="currentColor" strokeWidth="1.75"/>
@@ -34,7 +34,7 @@ const MOBILE_NAV = [
     id: 'agents',
     label: 'Agents',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
         <circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.75"/>
         <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
         <circle cx="18" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.75"/>
@@ -46,7 +46,7 @@ const MOBILE_NAV = [
     id: 'subscribers',
     label: 'Subscribers',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
         <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.75"/>
         <path d="M5 21v-1a7 7 0 0114 0v1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
       </svg>
@@ -60,7 +60,7 @@ const NAV_ITEMS = [
     id: 'reports',
     label: 'Reports',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
         <path d="M3 3v18h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M7 14l4-4 4 4 5-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
@@ -73,7 +73,7 @@ const MORE_ITEMS = [
     id: 'reports',
     label: 'Reports',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
         <path d="M3 3v18h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M7 14l4-4 4 4 5-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
@@ -83,7 +83,7 @@ const MORE_ITEMS = [
     id: 'settings',
     label: 'Settings',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
         <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75"/>
         <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
       </svg>
@@ -93,7 +93,7 @@ const MORE_ITEMS = [
     id: 'logout',
     label: 'Log out',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
         <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
         <polyline points="16,17 21,12 16,7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
         <line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
@@ -107,7 +107,7 @@ const BOTTOM_ITEMS = [
     id: 'settings',
     label: 'Settings',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
         <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75"/>
         <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
       </svg>
@@ -117,7 +117,7 @@ const BOTTOM_ITEMS = [
     id: 'logout',
     label: 'Log out',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
         <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
         <polyline points="16,17 21,12 16,7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
         <line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
@@ -132,7 +132,7 @@ const BRANCH_SUB = [
     label: 'Create New Branch',
     desc: 'Set up a new branch location',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
         <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
       </svg>
     ),
@@ -142,7 +142,7 @@ const BRANCH_SUB = [
     label: 'View Existing Branches',
     desc: 'Manage and monitor all branches',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
         <path d="M3 21h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
         <path d="M5 21V7l7-4 7 4v14" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
         <rect x="9" y="13" width="6" height="8" rx="1" stroke="currentColor" strokeWidth="1.75" />
@@ -157,7 +157,7 @@ const AGENT_SUB = [
     label: 'View Existing Agents',
     desc: 'Manage and monitor all agents',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
         <circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.75" />
         <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
         <circle cx="18" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.75" />
@@ -168,22 +168,66 @@ const AGENT_SUB = [
 ];
 
 export default function Sidebar() {
-  const [active, setActive] = useState('overview');
   const [hovered, setHovered] = useState(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const { reset, branchMenuOpen, setBranchMenuOpen, setCreateBranchOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, setViewAgentsOpen, setDrillTargetBranchId, setDrillTargetAgentId } = useDashboard();
+  const { section, reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, setDrillTargetBranchId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen } = useDashboard();
+  const [active, setActive] = useState('overview');
+
+  // Sync active state when reports panel opens/closes
+  useEffect(() => {
+    if (viewReportsOpen) setActive('reports');
+    else if (active === 'reports') setActive('overview');
+  }, [viewReportsOpen]);
+
+  // Keep branch submenu open while a branch panel is visible
+  useEffect(() => {
+    if (createBranchOpen || viewBranchesOpen) {
+      setBranchMenuOpen(true);
+      setActive('branches');
+    }
+  }, [createBranchOpen, viewBranchesOpen]);
+
+  // Keep agent submenu open while agent panel is visible
+  useEffect(() => {
+    if (viewAgentsOpen) {
+      setAgentMenuOpen(true);
+      setActive('agents');
+    }
+  }, [viewAgentsOpen]);
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
 
-  /* Close submenus on outside click */
+  // Track when a panel just closed to give the submenu a grace period
+  const panelClosedAt = useRef(0);
+  const prevBranchPanel = useRef(false);
+  const prevAgentPanel = useRef(false);
+
+  useEffect(() => {
+    const wasBranchOpen = prevBranchPanel.current;
+    const wasAgentOpen = prevAgentPanel.current;
+    const isBranchOpen = createBranchOpen || viewBranchesOpen;
+    const isAgentOpen = viewAgentsOpen;
+    prevBranchPanel.current = isBranchOpen;
+    prevAgentPanel.current = isAgentOpen;
+    if ((wasBranchOpen && !isBranchOpen) || (wasAgentOpen && !isAgentOpen)) {
+      panelClosedAt.current = Date.now();
+    }
+  }, [createBranchOpen, viewBranchesOpen, viewAgentsOpen]);
+
+  /* Close submenus on outside click — keep open when related panel is visible or just closed */
   useEffect(() => {
     if (!branchMenuOpen && !agentMenuOpen) return;
-    const handler = () => { setBranchMenuOpen(false); setAgentMenuOpen(false); };
+    const handler = () => {
+      // Grace period: don't close submenu within 500ms of a panel closing
+      if (Date.now() - panelClosedAt.current < 500) return;
+      if (branchMenuOpen && !createBranchOpen && !viewBranchesOpen) setBranchMenuOpen(false);
+      if (agentMenuOpen && !viewAgentsOpen) setAgentMenuOpen(false);
+    };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
-  }, [branchMenuOpen, agentMenuOpen]);
+  }, [branchMenuOpen, agentMenuOpen, createBranchOpen, viewBranchesOpen, viewAgentsOpen]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -196,12 +240,14 @@ export default function Sidebar() {
     setMoreOpen(false);
     if (id === 'branches') {
       setAgentMenuOpen(false);
+      setViewReportsOpen(false);
       setBranchMenuOpen((prev) => !prev);
       setActive(id);
       return;
     }
     if (id === 'agents') {
       setBranchMenuOpen(false);
+      setViewReportsOpen(false);
       setAgentMenuOpen((prev) => !prev);
       setActive(id);
       return;
@@ -214,23 +260,31 @@ export default function Sidebar() {
       return;
     }
     if (id === 'overview') {
+      setViewReportsOpen(false);
       reset();
     }
+    if (id === 'reports') {
+      setViewReportsOpen(true);
+      setActive(id);
+      return;
+    }
+    setViewReportsOpen(false);
     setActive(id);
   }
 
   function handleBranchSub(subId) {
-    setBranchMenuOpen(false);
     if (subId === 'create-branch') {
+      setViewBranchesOpen(false);
+      setDrillTargetBranchId(null);
       setCreateBranchOpen(true);
     } else if (subId === 'view-branches') {
+      setCreateBranchOpen(false);
       setDrillTargetBranchId(null);
       setViewBranchesOpen(true);
     }
   }
 
   function handleAgentSub(subId) {
-    setAgentMenuOpen(false);
     if (subId === 'view-agents') {
       setDrillTargetAgentId(null);
       setViewAgentsOpen(true);
@@ -240,7 +294,7 @@ export default function Sidebar() {
   return (
     <nav className={styles.sidebar}>
       <div className={styles.logo}>
-        <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="24" height="24">
           <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
           <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
           <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
@@ -258,6 +312,8 @@ export default function Sidebar() {
               onMouseLeave={() => setHovered(null)}
               title={item.label}
               aria-label={item.label}
+              {...(item.id === 'branches' ? { 'aria-expanded': branchMenuOpen } : {})}
+              {...(item.id === 'agents' ? { 'aria-expanded': agentMenuOpen } : {})}
             >
               <span className={styles.iconWrap}>{item.icon}</span>
               {hovered === item.id && !branchMenuOpen && !agentMenuOpen && (
@@ -290,22 +346,26 @@ export default function Sidebar() {
                       <span className={styles.subMenuCount}>310</span>
                     </div>
                     <div className={styles.subMenuDivider} />
-                    {BRANCH_SUB.map((sub, i) => (
-                      <motion.button
-                        key={sub.id}
-                        className={styles.subMenuItem}
-                        onClick={() => handleBranchSub(sub.id)}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.2, delay: 0.06 * (i + 1), ease: EASE_OUT_EXPO }}
-                      >
-                        <span className={styles.subMenuIcon}>{sub.icon}</span>
-                        <div className={styles.subMenuText}>
-                          <span className={styles.subMenuLabel}>{sub.label}</span>
-                          <span className={styles.subMenuDesc}>{sub.desc}</span>
-                        </div>
-                      </motion.button>
-                    ))}
+                    {BRANCH_SUB.map((sub, i) => {
+                      const isActive = (sub.id === 'create-branch' && createBranchOpen) || (sub.id === 'view-branches' && viewBranchesOpen);
+                      return (
+                        <motion.button
+                          key={sub.id}
+                          className={styles.subMenuItem}
+                          data-active={isActive}
+                          onClick={() => handleBranchSub(sub.id)}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2, delay: 0.06 * (i + 1), ease: EASE_OUT_EXPO }}
+                        >
+                          <span className={styles.subMenuIcon}>{sub.icon}</span>
+                          <div className={styles.subMenuText}>
+                            <span className={styles.subMenuLabel}>{sub.label}</span>
+                            <span className={styles.subMenuDesc}>{sub.desc}</span>
+                          </div>
+                        </motion.button>
+                      );
+                    })}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -329,22 +389,26 @@ export default function Sidebar() {
                       <span className={styles.subMenuCount}>2,036</span>
                     </div>
                     <div className={styles.subMenuDivider} />
-                    {AGENT_SUB.map((sub, i) => (
-                      <motion.button
-                        key={sub.id}
-                        className={styles.subMenuItem}
-                        onClick={() => handleAgentSub(sub.id)}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.2, delay: 0.06 * (i + 1), ease: EASE_OUT_EXPO }}
-                      >
-                        <span className={styles.subMenuIcon}>{sub.icon}</span>
-                        <div className={styles.subMenuText}>
-                          <span className={styles.subMenuLabel}>{sub.label}</span>
-                          <span className={styles.subMenuDesc}>{sub.desc}</span>
-                        </div>
-                      </motion.button>
-                    ))}
+                    {AGENT_SUB.map((sub, i) => {
+                      const isActive = sub.id === 'view-agents' && viewAgentsOpen;
+                      return (
+                        <motion.button
+                          key={sub.id}
+                          className={styles.subMenuItem}
+                          data-active={isActive}
+                          onClick={() => handleAgentSub(sub.id)}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2, delay: 0.06 * (i + 1), ease: EASE_OUT_EXPO }}
+                        >
+                          <span className={styles.subMenuIcon}>{sub.icon}</span>
+                          <div className={styles.subMenuText}>
+                            <span className={styles.subMenuLabel}>{sub.label}</span>
+                            <span className={styles.subMenuDesc}>{sub.desc}</span>
+                          </div>
+                        </motion.button>
+                      );
+                    })}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -404,7 +468,7 @@ export default function Sidebar() {
             aria-label="More options"
           >
             <span className={styles.iconWrap}>
-              <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
                 <circle cx="12" cy="5" r="1.5" fill="currentColor"/>
                 <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
                 <circle cx="12" cy="19" r="1.5" fill="currentColor"/>

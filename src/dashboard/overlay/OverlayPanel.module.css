@@ -259,6 +259,11 @@
   background: rgba(41, 40, 103, 0.03);
 }
 
+.periodTab:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
+}
+
 .periodTab[data-active='true'] {
   color: var(--color-indigo);
   background: rgba(41, 40, 103, 0.06);
@@ -408,6 +413,11 @@
 
 .sectionHeader:hover { background: rgba(41, 40, 103, 0.03); }
 
+.sectionHeader:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
+}
+
 .sectionTitle {
   font-family: var(--font-display);
   font-size: 10px;
@@ -465,6 +475,11 @@
   border-color: var(--color-indigo);
   color: var(--color-indigo);
   background: rgba(41, 40, 103, 0.04);
+}
+
+.searchToggle:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
 }
 
 /* ── Global search — expanded bar ── */
@@ -533,6 +548,11 @@
   color: var(--color-indigo);
 }
 
+.searchBarClose:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
+}
+
 /* ── Search results dropdown ── */
 .searchResults {
   position: absolute;
@@ -571,6 +591,11 @@
 
 .searchResultBtn:hover {
   background: rgba(41, 40, 103, 0.05);
+}
+
+.searchResultBtn:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
 }
 
 .searchResultName {
@@ -616,6 +641,11 @@
 }
 
 .entityBtn:hover { background: rgba(41, 40, 103, 0.04); }
+
+.entityBtn:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
+}
 
 .statusRow {
   display: flex;

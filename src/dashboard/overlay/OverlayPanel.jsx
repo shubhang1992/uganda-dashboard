@@ -11,6 +11,7 @@ const LEVEL_TAG = { region: 'Region', district: 'District', branch: 'Branch', ag
 function ChevronIcon({ expanded }) {
   return (
     <svg
+      aria-hidden="true"
       width="14" height="14" viewBox="0 0 14 14" fill="none"
       className={styles.chevron}
       data-expanded={expanded}
@@ -24,7 +25,7 @@ function CollapsibleSection({ title, count, defaultOpen, children }) {
   const [open, setOpen] = useState(defaultOpen ?? true);
   return (
     <div className={styles.section}>
-      <button className={styles.sectionHeader} onClick={() => setOpen(!open)}>
+      <button className={styles.sectionHeader} onClick={() => setOpen(!open)} aria-expanded={open}>
         <span className={styles.sectionTitle}>{title}</span>
         <div className={styles.sectionRight}>
           {count != null && <span className={styles.sectionCount}>{count}</span>}
@@ -81,7 +82,7 @@ function GlobalSearch({ onNavigate }) {
   if (!open) {
     return (
       <button className={styles.searchToggle} onClick={() => setOpen(true)} aria-label="Search">
-        <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="14" height="14">
           <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.75"/>
           <path d="M16 16l4.5 4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
         </svg>
@@ -93,7 +94,7 @@ function GlobalSearch({ onNavigate }) {
   return (
     <div className={styles.globalSearch}>
       <div className={styles.searchBarCompact}>
-        <svg className={styles.searchBarIcon} viewBox="0 0 24 24" fill="none" width="13" height="13">
+        <svg aria-hidden="true" className={styles.searchBarIcon} viewBox="0 0 24 24" fill="none" width="13" height="13">
           <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.75"/>
           <path d="M16 16l4.5 4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
         </svg>
@@ -110,7 +111,7 @@ function GlobalSearch({ onNavigate }) {
           autoComplete="off"
         />
         <button className={styles.searchBarClose} onMouseDown={handleClose} aria-label="Close search">
-          <svg viewBox="0 0 24 24" fill="none" width="12" height="12">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="12" height="12">
             <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
           </svg>
         </button>
@@ -143,7 +144,7 @@ function pctChange(curr, prev) {
 function ChangeBadge({ value }) {
   return (
     <span className={styles.changeBadge} data-positive={value >= 0}>
-      <svg viewBox="0 0 10 10" width="8" height="8" fill="none">
+      <svg aria-hidden="true" viewBox="0 0 10 10" width="8" height="8" fill="none">
         {value >= 0
           ? <path d="M5 2l3.5 5H1.5z" fill="currentColor"/>
           : <path d="M5 8L1.5 3h7z" fill="currentColor"/>}
@@ -167,26 +168,26 @@ function MetricRow({ variant, icon, value, label, change }) {
 }
 
 const SubsIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" width="15" height="15">
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="15" height="15">
     <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4-4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
     <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="1.75"/>
     <path d="M19 8v6M22 11h-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 const ContribIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" width="15" height="15">
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="15" height="15">
     <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 const WithdrawIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" width="15" height="15">
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="15" height="15">
     <path d="M21 12l-4 4-4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
     <path d="M17 16V4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
     <path d="M3 20h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
   </svg>
 );
 const StarIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" width="15" height="15">
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="15" height="15">
     <path d="M12 2l2.09 6.26L20 9.27l-4.91 3.82L16.18 20 12 16.77 7.82 20l1.09-6.91L4 9.27l5.91-1.01L12 2z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
@@ -230,13 +231,15 @@ function TimePeriodCard({ metrics, level, parentId }) {
 
   return (
     <div className={styles.periodCard}>
-      <div className={styles.periodTabs}>
+      <div className={styles.periodTabs} role="tablist">
         {PERIODS.map((p, i) => (
           <button
             key={p.key}
             className={styles.periodTab}
             data-active={i === activeIdx}
             onClick={() => setActiveIdx(i)}
+            role="tab"
+            aria-selected={i === activeIdx}
           >
             {p.label}
           </button>
@@ -320,7 +323,7 @@ export default function OverlayPanel() {
             className={styles.backBtn}
             onClick={() => level === 'region' ? reset() : drillUp(level)}
           >
-            <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="16" height="16">
               <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             Back
@@ -338,7 +341,7 @@ export default function OverlayPanel() {
 
           {isInactive && (
             <div className={styles.emptyState}>
-              <svg viewBox="0 0 24 24" fill="none" width="32" height="32">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="32" height="32">
                 <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5"/>
                 <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
               </svg>

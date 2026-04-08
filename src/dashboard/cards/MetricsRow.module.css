@@ -72,6 +72,11 @@
   background: rgba(41, 40, 103, 0.08);
 }
 
+.detailsBtn:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
+}
+
 /* Expanded state */
 .card[data-expanded='true'] {
   position: relative;
@@ -266,6 +271,11 @@
   color: var(--color-indigo);
 }
 
+.chatSuggest:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
+}
+
 .chatInput {
   display: flex;
   align-items: center;
@@ -302,6 +312,11 @@
   color: var(--color-white);
   flex-shrink: 0;
   transition: opacity 0.2s ease;
+}
+
+.chatSend:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
 }
 
 .chatSend:disabled { opacity: 0.25; pointer-events: none; }
@@ -543,6 +558,11 @@
 
 .cardHeaderToggle:hover {
   background: rgba(41, 40, 103, 0.02);
+}
+
+.cardHeaderToggle:focus-visible {
+  outline: 2px solid #292867;
+  outline-offset: 2px;
 }
 
 .cardBody {
