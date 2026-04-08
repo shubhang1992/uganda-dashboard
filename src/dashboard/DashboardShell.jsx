@@ -19,8 +19,8 @@ import styles from './DashboardShell.module.css';
 
 const DRAWER_ITEMS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'branches', label: 'Branches' },
-  { id: 'agents', label: 'Agents' },
+  { id: 'branches', label: 'View Branches' },
+  { id: 'agents', label: 'View Agents' },
   { id: 'subscribers', label: 'Subscribers' },
   { id: 'reports', label: 'Reports' },
   { id: 'settings', label: 'Settings' },
