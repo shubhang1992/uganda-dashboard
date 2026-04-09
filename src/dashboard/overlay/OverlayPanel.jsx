@@ -312,6 +312,10 @@ export default function OverlayPanel() {
     setViewReportsOpen(true);
   }, [setReportContext, setViewReportsOpen]);
 
+  const handleSearchNavigate = useCallback((targetLevel, targetId) => {
+    drillDown(targetLevel, targetId);
+  }, [drillDown]);
+
   // At branch/agent level, the slide-in panels take over
   if (level === 'branch' || level === 'agent') return null;
 
@@ -320,10 +324,6 @@ export default function OverlayPanel() {
   const isInactive = currentEntity.active === false;
   const metrics = isInactive ? null : currentEntity.metrics;
   const aum = metrics ? (metrics.aum || metrics.totalContributions) : 0;
-
-  const handleSearchNavigate = useCallback((targetLevel, targetId) => {
-    drillDown(targetLevel, targetId);
-  }, [drillDown]);
 
   return (
     <motion.div
