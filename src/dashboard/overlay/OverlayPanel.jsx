@@ -1,7 +1,8 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useState, useCallback, useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useChildren, useTopBranch, useSearch } from '../../hooks/useEntity';
+import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { CHILD_LEVEL } from '../../constants/levels';
 import { formatUGX, EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './OverlayPanel.module.css';
@@ -159,16 +160,22 @@ function ChangeBadge({ value }) {
   );
 }
 
-function MetricRow({ variant, icon, value, label, change }) {
+function MetricRow({ variant, icon, value, label, change, onClick }) {
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className={styles.monthlyRow} data-variant={variant}>
+    <Tag className={styles.monthlyRow} data-variant={variant} data-clickable={!!onClick} onClick={onClick}>
       <div className={styles.monthlyIcon} data-variant={variant}>{icon}</div>
       <div className={styles.monthlyText}>
         <span className={styles.monthlyValue}>{value}</span>
         <span className={styles.monthlyLabel}>{label}</span>
       </div>
       {change != null && <ChangeBadge value={change} />}
-    </div>
+      {onClick && (
+        <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="10" height="10" className={styles.monthlyChevron}>
+          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </Tag>
   );
 }
 
@@ -197,7 +204,7 @@ const StarIcon = () => (
   </svg>
 );
 
-function TimePeriodCard({ metrics, level, parentId }) {
+function TimePeriodCard({ metrics, level, parentId, onMetricClick }) {
   const [activeIdx, setActiveIdx] = useState(2); // default: This Month
   const period = PERIODS[activeIdx].key;
   const { data: topBranch } = useTopBranch(level, parentId);
@@ -263,21 +270,25 @@ function TimePeriodCard({ metrics, level, parentId }) {
             variant="subscribers" icon={<SubsIcon />}
             value={d.subs.toLocaleString()} label="New Subscribers"
             change={d.subsChange}
+            onClick={onMetricClick ? () => onMetricClick('subscriber-growth') : undefined}
           />
           <MetricRow
             variant="contribution" icon={<ContribIcon />}
             value={formatUGX(d.contrib)} label="Contributions"
             change={d.contribChange}
+            onClick={onMetricClick ? () => onMetricClick('contributions-collections') : undefined}
           />
           <MetricRow
             variant="withdrawal" icon={<WithdrawIcon />}
             value={formatUGX(d.withdraw)} label="Withdrawals"
             change={d.withdrawChange}
+            onClick={onMetricClick ? () => onMetricClick('withdrawals-payouts') : undefined}
           />
           {topBranch && (
             <MetricRow
               variant="branch" icon={<StarIcon />}
               value={topBranch.name} label={`Top Branch · ${formatUGX(topBranch.contribution)}`}
+              onClick={onMetricClick ? () => onMetricClick('branch-performance') : undefined}
             />
           )}
         </motion.div>
@@ -288,12 +299,18 @@ function TimePeriodCard({ metrics, level, parentId }) {
 
 export default function OverlayPanel() {
   const isMobile = useIsMobile();
-  const { level, selectedIds, drillDown, drillUp, reset, branchMenuOpen, agentMenuOpen } = useDashboard();
+  const { level, selectedIds, drillDown, drillUp, reset, branchMenuOpen, agentMenuOpen, subscriberMenuOpen, setViewReportsOpen, setReportContext, setCommissionsOpen } = useDashboard();
 
   const parentId = level === 'country' ? 'ug' : selectedIds[level];
   const nextLevel = CHILD_LEVEL[level] || null;
   const { data: currentEntity } = useCurrentEntity(level, selectedIds);
   const { data: children = [] } = useChildren(level, parentId);
+  const { data: commissionSummary } = useEntityCommissionSummary(level, parentId);
+
+  const openReport = useCallback((reportId) => {
+    setReportContext(reportId);
+    setViewReportsOpen(true);
+  }, [setReportContext, setViewReportsOpen]);
 
   // At branch/agent level, the slide-in panels take over
   if (level === 'branch' || level === 'agent') return null;
@@ -304,10 +321,9 @@ export default function OverlayPanel() {
   const metrics = isInactive ? null : currentEntity.metrics;
   const aum = metrics ? (metrics.aum || metrics.totalContributions) : 0;
 
-  function handleSearchNavigate(targetLevel, targetId) {
-    // With URL-based routing, just drill directly to the target
+  const handleSearchNavigate = useCallback((targetLevel, targetId) => {
     drillDown(targetLevel, targetId);
-  }
+  }, [drillDown]);
 
   return (
     <motion.div
@@ -316,7 +332,7 @@ export default function OverlayPanel() {
       animate={{
         opacity: 1,
         x: 0,
-        left: isMobile ? 'auto' : (branchMenuOpen || agentMenuOpen) ? 'calc(100% - 310px - var(--space-6))' : 'var(--space-6)',
+        left: isMobile ? 'auto' : (branchMenuOpen || agentMenuOpen || subscriberMenuOpen) ? 'calc(100% - 310px - var(--space-6))' : 'var(--space-6)',
       }}
       transition={{ duration: 0.45, ease: EASE }}
     >
@@ -379,18 +395,18 @@ export default function OverlayPanel() {
           {/* Entity counts + activity bar */}
           <div className={styles.countsBlock}>
             <div className={styles.countRow}>
-              <div className={styles.countItem}>
+              <button className={styles.countItem} data-clickable onClick={() => openReport('all-subscribers')}>
                 <span className={styles.countNum}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
                 <span className={styles.countLabel}>Subscribers</span>
-              </div>
-              <div className={styles.countItem}>
+              </button>
+              <button className={styles.countItem} data-clickable onClick={() => openReport('all-agents')}>
                 <span className={styles.countNum}>{metrics.totalAgents ?? 0}</span>
                 <span className={styles.countLabel}>Agents</span>
-              </div>
-              <div className={styles.countItem}>
+              </button>
+              <button className={styles.countItem} data-clickable onClick={() => openReport('all-branches')}>
                 <span className={styles.countNum}>{metrics.totalBranches ?? 0}</span>
                 <span className={styles.countLabel}>Branches</span>
-              </div>
+              </button>
               <div className={styles.countItem}>
                 <span className={styles.countNum}>{metrics.coverageRate || 0}%</span>
                 <span className={styles.countLabel}>Coverage</span>
@@ -411,8 +427,41 @@ export default function OverlayPanel() {
             </div>
           </div>
 
+          {/* Commission summary */}
+          {commissionSummary && commissionSummary.countTotal > 0 && (
+            <button className={styles.commissionBlock} onClick={() => setCommissionsOpen(true)}>
+              <div className={styles.commissionHeader}>
+                <span className={styles.commissionTitle}>Commissions</span>
+                <span className={styles.commissionRate}>{commissionSummary.settlementRate}% settled</span>
+              </div>
+              <div className={styles.commissionBar}>
+                <div className={styles.commissionBarFill} data-status="settled" style={{ flex: commissionSummary.countPaid }} />
+                <div className={styles.commissionBarFill} data-status="due" style={{ flex: commissionSummary.countDue }} />
+                {commissionSummary.countDisputed > 0 && (
+                  <div className={styles.commissionBarFill} data-status="disputed" style={{ flex: commissionSummary.countDisputed }} />
+                )}
+              </div>
+              <div className={styles.commissionStats}>
+                <span className={styles.commissionStat}>
+                  <span className={styles.commissionDot} data-status="settled" />
+                  {formatUGX(commissionSummary.totalPaid)}
+                </span>
+                <span className={styles.commissionStat}>
+                  <span className={styles.commissionDot} data-status="due" />
+                  {formatUGX(commissionSummary.totalDue)}
+                </span>
+                {commissionSummary.countDisputed > 0 && (
+                  <span className={styles.commissionStat} data-status="disputed">
+                    <span className={styles.commissionDot} data-status="disputed" />
+                    {commissionSummary.countDisputed}
+                  </span>
+                )}
+              </div>
+            </button>
+          )}
+
           {/* Time-period highlights: Today / This Week / This Month */}
-          <TimePeriodCard metrics={metrics} level={level} parentId={parentId} />
+          <TimePeriodCard metrics={metrics} level={level} parentId={parentId} onMetricClick={openReport} />
 
           {/* Region/child list */}
           {children.length > 0 && nextLevel && (

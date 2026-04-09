@@ -179,12 +179,26 @@ const AGENT_SUB = [
   },
 ];
 
+const SUBSCRIBER_SUB = [
+  {
+    id: 'view-subscribers',
+    label: 'View Existing Subscribers',
+    desc: 'Browse and manage all subscribers',
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
+        <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.75" />
+        <path d="M5 21v-1a7 7 0 0114 0v1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+];
+
 export default function Sidebar() {
   const [hovered, setHovered] = useState(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const { section, reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, setDrillTargetBranchId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen, setCommissionsOpen } = useDashboard();
+  const { section, reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, subscriberMenuOpen, setSubscriberMenuOpen, viewSubscribersOpen, setViewSubscribersOpen, setDrillTargetBranchId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen, setCommissionsOpen, settingsOpen, setSettingsOpen } = useDashboard();
   const [active, setActive] = useState('overview');
 
   // Sync active state when reports panel opens/closes
@@ -198,6 +212,12 @@ export default function Sidebar() {
     if (commissionsOpen) setActive('commissions');
     else if (active === 'commissions') setActive('overview');
   }, [commissionsOpen]);
+
+  // Sync active state when settings panel opens/closes
+  useEffect(() => {
+    if (settingsOpen) setActive('settings');
+    else if (active === 'settings') setActive('overview');
+  }, [settingsOpen]);
 
   // Keep branch submenu open while a branch panel is visible
   useEffect(() => {
@@ -215,37 +235,50 @@ export default function Sidebar() {
     }
   }, [viewAgentsOpen]);
 
+  // Keep subscriber submenu open while subscriber panel is visible
+  useEffect(() => {
+    if (viewSubscribersOpen) {
+      setSubscriberMenuOpen(true);
+      setActive('subscribers');
+    }
+  }, [viewSubscribersOpen]);
+
   const closeMore = useCallback(() => setMoreOpen(false), []);
 
   // Track when a panel just closed to give the submenu a grace period
   const panelClosedAt = useRef(0);
   const prevBranchPanel = useRef(false);
   const prevAgentPanel = useRef(false);
+  const prevSubscriberPanel = useRef(false);
 
   useEffect(() => {
     const wasBranchOpen = prevBranchPanel.current;
     const wasAgentOpen = prevAgentPanel.current;
+    const wasSubscriberOpen = prevSubscriberPanel.current;
     const isBranchOpen = createBranchOpen || viewBranchesOpen;
     const isAgentOpen = viewAgentsOpen;
+    const isSubscriberOpen = viewSubscribersOpen;
     prevBranchPanel.current = isBranchOpen;
     prevAgentPanel.current = isAgentOpen;
-    if ((wasBranchOpen && !isBranchOpen) || (wasAgentOpen && !isAgentOpen)) {
+    prevSubscriberPanel.current = isSubscriberOpen;
+    if ((wasBranchOpen && !isBranchOpen) || (wasAgentOpen && !isAgentOpen) || (wasSubscriberOpen && !isSubscriberOpen)) {
       panelClosedAt.current = Date.now();
     }
-  }, [createBranchOpen, viewBranchesOpen, viewAgentsOpen]);
+  }, [createBranchOpen, viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen]);
 
   /* Close submenus on outside click — keep open when related panel is visible or just closed */
   useEffect(() => {
-    if (!branchMenuOpen && !agentMenuOpen) return;
+    if (!branchMenuOpen && !agentMenuOpen && !subscriberMenuOpen) return;
     const handler = () => {
       // Grace period: don't close submenu within 500ms of a panel closing
       if (Date.now() - panelClosedAt.current < 500) return;
       if (branchMenuOpen && !createBranchOpen && !viewBranchesOpen) setBranchMenuOpen(false);
       if (agentMenuOpen && !viewAgentsOpen) setAgentMenuOpen(false);
+      if (subscriberMenuOpen && !viewSubscribersOpen) setSubscriberMenuOpen(false);
     };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
-  }, [branchMenuOpen, agentMenuOpen, createBranchOpen, viewBranchesOpen, viewAgentsOpen]);
+  }, [branchMenuOpen, agentMenuOpen, subscriberMenuOpen, createBranchOpen, viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -258,6 +291,7 @@ export default function Sidebar() {
     setMoreOpen(false);
     if (id === 'branches') {
       setAgentMenuOpen(false);
+      setSubscriberMenuOpen(false);
       setViewReportsOpen(false);
       setCommissionsOpen(false);
       setBranchMenuOpen((prev) => !prev);
@@ -266,14 +300,32 @@ export default function Sidebar() {
     }
     if (id === 'agents') {
       setBranchMenuOpen(false);
+      setSubscriberMenuOpen(false);
       setViewReportsOpen(false);
       setCommissionsOpen(false);
       setAgentMenuOpen((prev) => !prev);
       setActive(id);
       return;
     }
+    if (id === 'subscribers') {
+      setBranchMenuOpen(false);
+      setAgentMenuOpen(false);
+      setViewReportsOpen(false);
+      setCommissionsOpen(false);
+      setSubscriberMenuOpen((prev) => !prev);
+      setActive(id);
+      return;
+    }
     setBranchMenuOpen(false);
     setAgentMenuOpen(false);
+    setSubscriberMenuOpen(false);
+    if (id === 'settings') {
+      setViewReportsOpen(false);
+      setCommissionsOpen(false);
+      setSettingsOpen(true);
+      setActive(id);
+      return;
+    }
     if (id === 'logout') {
       logout();
       navigate('/');
@@ -319,6 +371,12 @@ export default function Sidebar() {
     }
   }
 
+  function handleSubscriberSub(subId) {
+    if (subId === 'view-subscribers') {
+      setViewSubscribersOpen(true);
+    }
+  }
+
   return (
     <nav className={styles.sidebar}>
       <div className={styles.logo}>
@@ -335,16 +393,17 @@ export default function Sidebar() {
             <button
               className={styles.navBtn}
               data-active={active === item.id}
-              onClick={(e) => { if (item.id === 'branches' || item.id === 'agents') e.stopPropagation(); handleClick(item.id); }}
+              onClick={(e) => { if (item.id === 'branches' || item.id === 'agents' || item.id === 'subscribers') e.stopPropagation(); handleClick(item.id); }}
               onMouseEnter={() => setHovered(item.id)}
               onMouseLeave={() => setHovered(null)}
               title={item.label}
               aria-label={item.label}
               {...(item.id === 'branches' ? { 'aria-expanded': branchMenuOpen } : {})}
               {...(item.id === 'agents' ? { 'aria-expanded': agentMenuOpen } : {})}
+              {...(item.id === 'subscribers' ? { 'aria-expanded': subscriberMenuOpen } : {})}
             >
               <span className={styles.iconWrap}>{item.icon}</span>
-              {hovered === item.id && !branchMenuOpen && !agentMenuOpen && (
+              {hovered === item.id && !branchMenuOpen && !agentMenuOpen && !subscriberMenuOpen && (
                 <motion.span
                   className={styles.tooltip}
                   initial={{ opacity: 0, x: -4 }}
@@ -425,6 +484,49 @@ export default function Sidebar() {
                           className={styles.subMenuItem}
                           data-active={isActive}
                           onClick={() => handleAgentSub(sub.id)}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2, delay: 0.06 * (i + 1), ease: EASE_OUT_EXPO }}
+                        >
+                          <span className={styles.subMenuIcon}>{sub.icon}</span>
+                          <div className={styles.subMenuText}>
+                            <span className={styles.subMenuLabel}>{sub.label}</span>
+                            <span className={styles.subMenuDesc}>{sub.desc}</span>
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
+
+            {/* Subscriber submenu flyout */}
+            {item.id === 'subscribers' && (
+              <AnimatePresence>
+                {subscriberMenuOpen && (
+                  <motion.div
+                    className={styles.subMenu}
+                    initial={{ opacity: 0, x: -8, scale: 0.96 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: -8, scale: 0.96 }}
+                    transition={{ duration: 0.22, ease: EASE_OUT_EXPO }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className={styles.subMenuArrow} />
+                    <div className={styles.subMenuHeader}>
+                      <span className={styles.subMenuTitle}>Subscribers</span>
+                      <span className={styles.subMenuCount}>30,000</span>
+                    </div>
+                    <div className={styles.subMenuDivider} />
+                    {SUBSCRIBER_SUB.map((sub, i) => {
+                      const isActive = sub.id === 'view-subscribers' && viewSubscribersOpen;
+                      return (
+                        <motion.button
+                          key={sub.id}
+                          className={styles.subMenuItem}
+                          data-active={isActive}
+                          onClick={() => handleSubscriberSub(sub.id)}
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.2, delay: 0.06 * (i + 1), ease: EASE_OUT_EXPO }}

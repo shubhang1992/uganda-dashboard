@@ -1,0 +1,14 @@
+/* ── Rating stars ────────────────────────────────────────────────────────── */
+.ratingWrap {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.ratingStar {
+  color: var(--color-lavender);
+}
+
+.ratingStar[data-filled='true'] {
+  color: #E6A817;
+}

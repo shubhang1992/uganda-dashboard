@@ -226,6 +226,134 @@
   color: var(--color-gray);
 }
 
+/* ── Clickable count items ── */
+.countItem[data-clickable] {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.countItem[data-clickable]:hover {
+  background: rgba(41, 40, 103, 0.04);
+}
+
+.countItem[data-clickable]:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: -2px;
+}
+
+/* ── Commission summary block ── */
+.commissionBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.5rem 0.625rem;
+  background: rgba(41, 40, 103, 0.025);
+  border: 1px solid rgba(41, 40, 103, 0.06);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.commissionBlock:hover {
+  background: rgba(41, 40, 103, 0.04);
+  border-color: rgba(41, 40, 103, 0.1);
+}
+
+.commissionBlock:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.commissionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.commissionTitle {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-indigo);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.commissionRate {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-status-good);
+  font-variant-numeric: tabular-nums;
+}
+
+.commissionBar {
+  display: flex;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--color-lavender);
+  gap: 1px;
+}
+
+.commissionBarFill {
+  height: 100%;
+  min-width: 0;
+  transition: flex 0.4s var(--ease-out-expo);
+}
+
+.commissionBarFill[data-status='settled'] {
+  background: var(--color-status-good);
+}
+
+.commissionBarFill[data-status='due'] {
+  background: var(--color-status-warning);
+}
+
+.commissionBarFill[data-status='disputed'] {
+  background: var(--color-status-poor);
+}
+
+.commissionStats {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.commissionStat {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--color-slate);
+  font-variant-numeric: tabular-nums;
+}
+
+.commissionStat[data-status='disputed'] {
+  color: var(--color-status-poor);
+}
+
+.commissionDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.commissionDot[data-status='settled'] {
+  background: var(--color-status-good);
+}
+
+.commissionDot[data-status='due'] {
+  background: var(--color-status-warning);
+}
+
+.commissionDot[data-status='disputed'] {
+  background: var(--color-status-poor);
+}
+
 /* ── Period card + tabs ── */
 .periodCard {
   background: rgba(41, 40, 103, 0.025);
@@ -291,6 +419,31 @@
   background: rgba(41, 40, 103, 0.02);
 }
 
+.monthlyRow[data-clickable='true'] {
+  cursor: pointer;
+}
+
+.monthlyRow[data-clickable='true']:hover {
+  background: rgba(41, 40, 103, 0.04);
+}
+
+.monthlyRow[data-clickable='true']:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: -2px;
+}
+
+.monthlyChevron {
+  color: var(--color-gray);
+  flex-shrink: 0;
+  width: 10px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.monthlyRow[data-clickable='true']:hover .monthlyChevron {
+  opacity: 0.5;
+}
+
 .monthlyRow[data-variant='subscribers'] {
   border-left-color: var(--color-status-good);
 }
@@ -343,6 +496,7 @@
   gap: 0.0625rem;
   flex: 1;
   min-width: 0;
+  text-align: left;
 }
 
 .monthlyValue {
@@ -369,6 +523,7 @@
 .changeBadge {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.1875rem;
   font-family: var(--font-display);
   font-size: 9px;
@@ -376,7 +531,9 @@
   padding: 0.125rem 0.375rem;
   border-radius: var(--radius-full);
   flex-shrink: 0;
+  min-width: 38px;
   letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
 }
 
 .changeBadge[data-positive='true'] {

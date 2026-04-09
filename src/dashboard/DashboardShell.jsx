@@ -14,8 +14,10 @@ import TopBar from './overlay/TopBar';
 import CreateBranch from './branch/CreateBranch';
 import ViewBranches from './branch/ViewBranches';
 import ViewAgents from './agent/ViewAgents';
+import ViewSubscribers from './subscriber/ViewSubscribers';
 import ViewReports from './reports/ViewReports';
 import CommissionPanel from './commissions/CommissionPanel';
+import Settings from './settings/Settings';
 import styles from './DashboardShell.module.css';
 
 const MQ = '(max-width: 768px)';
@@ -79,8 +81,10 @@ function MobileDrawer({ open, onClose }) {
     reset,
     setBranchMenuOpen, setCreateBranchOpen, setViewBranchesOpen,
     setAgentMenuOpen, setViewAgentsOpen,
+    setViewSubscribersOpen,
     setViewReportsOpen,
     setCommissionsOpen,
+    setSettingsOpen,
   } = useDashboard();
 
   useEffect(() => {
@@ -103,9 +107,11 @@ function MobileDrawer({ open, onClose }) {
     setAgentMenuOpen(false);
     setViewBranchesOpen(false);
     setViewAgentsOpen(false);
+    setViewSubscribersOpen(false);
     setCreateBranchOpen(false);
     setViewReportsOpen(false);
     setCommissionsOpen(false);
+    setSettingsOpen(false);
 
     switch (id) {
       case 'overview':
@@ -117,11 +123,17 @@ function MobileDrawer({ open, onClose }) {
       case 'agents':
         setViewAgentsOpen(true);
         break;
+      case 'subscribers':
+        setViewSubscribersOpen(true);
+        break;
       case 'commissions':
         setCommissionsOpen(true);
         break;
       case 'reports':
         setViewReportsOpen(true);
+        break;
+      case 'settings':
+        setSettingsOpen(true);
         break;
       default:
         break;
@@ -181,8 +193,10 @@ function DashboardContent() {
       <CreateBranch />
       <ViewBranches />
       <ViewAgents />
+      <ViewSubscribers />
       <ViewReports />
       <CommissionPanel />
+      <Settings />
     </>
   );
 }

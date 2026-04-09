@@ -871,6 +871,23 @@
   gap: 0.25rem;
 }
 
+/* ── Commission link ────────────────────────────────────────────────────── */
+.commissionLink {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-indigo-soft);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0;
+  transition: color 0.15s ease;
+}
+
+.commissionLink:hover {
+  color: var(--color-indigo);
+}
+
 /* ── Trend badge ─────────────────────────────────────────────────────────── */
 .trendBadge {
   display: inline-flex;
@@ -1174,21 +1191,6 @@
 .agentItem:hover .chevronAgent {
   color: var(--color-indigo-soft);
   transform: translateX(2px);
-}
-
-/* ── Rating stars ────────────────────────────────────────────────────────── */
-.ratingWrap {
-  display: flex;
-  align-items: center;
-  gap: 0.125rem;
-}
-
-.ratingStar {
-  color: var(--color-lavender);
-}
-
-.ratingStar[data-filled='true'] {
-  color: #E6A817;
 }
 
 /* ── Agent detail profile card ───────────────────────────────────────────── */

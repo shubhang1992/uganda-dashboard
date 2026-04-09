@@ -65,7 +65,8 @@
 - `DashboardContext` derives drill-down state from the URL via `useLocation()`/`useNavigate()`
 - Drill levels: country → region → district → branch → agent → subscriber
 - Navigation actions (`drillDown`, `drillUp`, `goToLevel`, `reset`) translate to URL changes
-- Modal state (ViewBranches, CreateBranch, ViewAgents, CommissionPanel) remains in DashboardContext as UI state
+- Modal state (ViewBranches, CreateBranch, ViewAgents, CommissionPanel, Settings) remains in DashboardContext as UI state
+- **Report linking:** `reportContext` (string reportId or null) in DashboardContext. When set + `viewReportsOpen=true`, ViewReports auto-navigates to that report. Used by clickable overlay metrics.
 - **Drill-target state:** `drillTargetBranchId`/`drillTargetAgentId` track entities opened via map drill-down. `closeDrillPanel()` clears state + navigates back to district. Auto-opened by a `useEffect` watching `level`/`entityId`.
 
 ### Project file structure
@@ -78,32 +79,59 @@ src/
   services/
     api.js                    — Base API client (ready for backend)
     entities.js               — Entity CRUD (currently wraps mockData)
-    commissions.js            — Commission CRUD, settlement, rate config
+    commissions.js            — Commission CRUD, settlement, rate config, entity-level aggregation
     auth.js                   — Auth service (mock OTP)
     search.js                 — Search service (client-side mock)
     chat.js                   — AI chat responses (built from real data)
   hooks/
     useEntity.js              — React Query hooks for all entity data
-    useCommission.js          — React Query hooks for commission data
+    useCommission.js          — React Query hooks for commission data (includes useEntityCommissionSummary)
+  utils/
+    finance.js                — formatUGX, fmtShort, EASE_OUT_EXPO
+    dashboard.js              — Shared dashboard utilities (getInitials, getTrend, perfLevel)
   contexts/
     AuthContext.jsx            — Session persistence + login/logout
-    DashboardContext.jsx       — URL-based drill-down + modal UI state
+    DashboardContext.jsx       — URL-based drill-down + modal UI state + reportContext
     SignInContext.jsx           — Sign-in modal open/close
   dashboard/
     DashboardShell.jsx        — Root layout (sidebar + map + overlays)
+    shared/
+      Stars.jsx               — Reusable star rating component (shared by ViewBranches, ViewAgents)
     map/UgandaMap.jsx         — Full-bleed Leaflet map with drill-down
     sidebar/Sidebar.jsx       — Dark indigo icon rail with tooltips
-    overlay/OverlayPanel.jsx  — Top-left glassmorphism card (KPIs, entity list)
+    overlay/OverlayPanel.jsx  — Top-left glassmorphism card (KPIs, commissions, clickable metrics, entity list)
     overlay/Breadcrumb.jsx    — Drill-down path navigation
     overlay/TopBar.jsx        — Filter + Download buttons (top-right)
     cards/MetricsRow.jsx      — Bottom card row (AI chat + Demographics)
-    branch/ViewBranches.jsx   — Branch list + detail slide-in
+    branch/ViewBranches.jsx   — Branch list + detail slide-in (includes commission data)
     branch/CreateBranch.jsx   — Multi-step branch creation form
-    agent/ViewAgents.jsx      — Agent list + detail slide-in
+    agent/ViewAgents.jsx      — Agent list + detail slide-in (includes commission data + link to commission panel)
+    subscriber/ViewSubscribers.jsx — Subscriber list + detail slide-in
     commissions/CommissionPanel.jsx — Commission settlement slide-in (home, agents, detail, subscribers, disputed, requests)
+    reports/ViewReports.jsx   — Reports panel (accepts reportContext for auto-navigation)
+    reports/ReportsHub.jsx    — Report index with cards and lazy-loaded report views
+    reports/ReportTable.jsx   — Reusable sortable/paginated data table
+    settings/Settings.jsx     — Profile + password settings slide-in
   data/
     mockData.js               — Mock data (only imported by src/services/)
 ```
+
+### Shared utilities — MUST USE (do not re-define)
+- `src/utils/dashboard.js` — `getInitials(name)`, `getTrend(today, weekAvg)`, `perfLevel(pct)`. Import from here, do not copy into new files.
+- `src/utils/finance.js` — `formatUGX(amount)`, `fmtShort(amount)`, `EASE_OUT_EXPO`. Already used everywhere.
+- `src/dashboard/shared/Stars.jsx` — Star rating display component. Import from `'../shared/Stars'` or `'../../shared/Stars'`.
+
+### Commission data in drill-down views
+- `useEntityCommissionSummary(level, entityId)` returns `{ totalPaid, totalDue, totalDisputed, countPaid, countDue, countDisputed, total, countTotal, settlementRate }` for any hierarchy level.
+- **OverlayPanel** shows a commission summary block (bar chart + stats) at country/region/district levels. Clicking opens CommissionPanel.
+- **ViewBranches detail** shows commission section with settled/due/disputed rows between Activity and Demographics.
+- **ViewAgents detail** shows commission section between Branch Assignment and Monthly Contributions, with "View Details" link to CommissionPanel.
+- Commission aggregation uses a **service-level memo cache** (`_summaryCache` Map in `commissions.js`). Cache is invalidated by all mutation functions (settle, approve, reject).
+
+### Clickable overlay metrics → reports
+- Period card metric rows (New Subscribers, Contributions, Withdrawals, Top Branch) are clickable buttons that set `reportContext` and open the reports panel.
+- Count items (Subscribers, Agents, Branches) are clickable buttons that open the corresponding "All X" report.
+- `reportContext` is a string (reportId) stored in DashboardContext, consumed by ViewReports to auto-navigate on open.
 
 ### Data architecture
 - Mock data in `src/data/mockData.js` — flat lookup maps keyed by ID for O(1) access
@@ -162,6 +190,23 @@ src/
 - Bulk actions: multi-select with checkboxes on disputed/requests list views, floating action bar for approve/reject across multiple agents
 - Settlement modal: confirmation dialog with amount + transaction count before processing
 - Data: `src/hooks/useCommission.js` → `src/services/commissions.js` → `mockData.js` (same 3-layer pattern)
+
+**Settings panel (slide-in):**
+- Entry: gear icon in sidebar bottom items, or mobile drawer "Settings" item
+- Profile card with avatar initials, name, phone, role badge
+- Personal Information section: editable name, email, phone (with +256 prefix)
+- Change Password section: current password, new password (with strength meter), confirm password — all with show/hide toggles
+- Validation: name + phone required; password fields only validated if any are filled; min 8 chars; match check
+- Dirty check: save button disabled until something changes
+- Success toast: glassmorphism pill auto-dismisses after 3.5s
+- `<form>` element must have `display: flex; flex-direction: column; flex: 1; min-height: 0` to propagate flex from the panel
+
+**Reports panel (slide-in, 680px wide):**
+- 11 report templates: Distribution Summary, All Branches/Agents/Subscribers, Contributions & Collections, Withdrawals & Payouts, Branch/Agent Performance, Subscriber Growth/Demographics, KYC & Compliance
+- `ReportsHub` serves as index (card grid) and router
+- `ReportTable` is a reusable sortable/paginated data table with custom column renderers
+- Reports support per-report filters (search, region/KYC/status dropdowns, sort)
+- Export button exists but is a placeholder (no CSV logic yet)
 
 ### Dashboard design tokens (in index.css)
 ```css
@@ -224,7 +269,20 @@ The landing page establishes the design language for the entire platform. All ne
 - Border: `1.5px solid var(--color-lavender)`, `border-radius: var(--radius-md)`
 - Focus: `border-color: var(--color-indigo)`, `box-shadow: 0 0 0 3px rgba(41,40,103,0.08)`
 - Error: `border-color: #dc3545`
-- Height: 52px for standard inputs
+- Height: 48px for standard inputs (52px for landing page inputs)
+
+**Slide-in panel conventions:**
+- Backdrop: `position: fixed; inset: 0; background: rgba(27,26,74,0.35); z-index: 200`
+- Panel: `position: fixed; top: 16px; right: 16px; bottom: 16px; width: [460-680px]; z-index: 210; border-radius: var(--radius-xl)`
+- Background: `linear-gradient(180deg, #F8F9FC 0%, #F0F1F8 100%)` (not glassmorphism — solid gradient)
+- Shadow: `0 24px 80px rgba(41,40,103,0.18), 0 8px 24px rgba(41,40,103,0.08)`
+- Header: close button (44x44, top-left), title (font-display, xl, 800), subtitle (font-body, sm, gray)
+- Body: `flex: 1; overflow-y: auto; overflow-x: hidden`
+- Footer: `border-top: 1px solid rgba(41,40,103,0.06)` with backdrop blur
+- Framer Motion: `initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}` with `EASE_OUT_EXPO`
+- Mobile (≤768px): `width: 100%; top: 0; right: 0; bottom: 0; border-radius: 0; border: none` with safe-area insets
+- Must handle Escape key to close
+- Reset internal state after 400ms delay on close (setTimeout in useEffect)
 
 ## Project summary
 Universal Pensions is a digital long-term savings and pension platform being designed to make retirement saving more accessible, understandable, and usable for everyday people.
@@ -264,10 +322,10 @@ The Uganda platform is a multi-user ecosystem with 6 roles across 4 sign-in cate
 - ✅ Landing page (complete)
 - ✅ Sign-in flow (complete — all roles)
 - ✅ Frontend architecture (complete — services layer, React Query, auth persistence, URL routing, env config)
-- ✅ Distributor Admin dashboard (in progress — map, overlays, analytics, AI chat, commission settlement)
+- ✅ Distributor Admin dashboard (complete — map, overlays, analytics, AI chat, commission settlement, reports, settings)
 - ⬜ Subscriber dashboard (not started)
 - ⬜ Employer dashboard (not started)
-- ⬜ Branch Admin dashboard (not started)
+- ⬜ Branch Admin dashboard (next)
 - ⬜ Agent dashboard (not started)
 - ⬜ Admin dashboard (not started)
 - ⬜ Backend integration (architecture ready — swap service files when API exists)

@@ -4,7 +4,7 @@
 import {
   COMMISSIONS, COMMISSION_CONFIG,
   commissionsByAgent, commissionsByBranch,
-  AGENTS, BRANCHES, SUBSCRIBERS,
+  AGENTS, BRANCHES, DISTRICTS, SUBSCRIBERS,
 } from '../data/mockData';
 
 /** Get the current commission rate */
@@ -212,6 +212,7 @@ export async function approveCommission(commissionId) {
   if (!c) return null;
   c.status = 'due';
   c.disputeReason = null;
+  invalidateSummaryCache();
   return c;
 }
 
@@ -221,6 +222,7 @@ export async function rejectCommission(commissionId) {
   if (!c) return null;
   c.status = 'rejected';
   c.settlementRequested = false;
+  invalidateSummaryCache();
   return c;
 }
 
@@ -248,6 +250,7 @@ export async function settleCommissions(commissionIds) {
     }
   });
 
+  invalidateSummaryCache();
   return { settled: commissionIds.length, paidDate };
 }
 
@@ -256,6 +259,68 @@ export async function settleAgentCommissions(agentId) {
   const comms = commissionsByAgent[agentId] || [];
   const dueIds = comms.filter((c) => c.status === 'due').map((c) => c.id);
   return settleCommissions(dueIds);
+}
+
+/* ─── Entity-level commission aggregation ─────────────────────────────────── */
+
+const _summaryCache = new Map();
+
+/** Invalidate the summary cache (called after mutations) */
+export function invalidateSummaryCache() {
+  _summaryCache.clear();
+}
+
+function aggregateRecords(records) {
+  let totalPaid = 0, totalDue = 0, totalDisputed = 0;
+  let countPaid = 0, countDue = 0, countDisputed = 0;
+  for (const c of records) {
+    if (c.status === 'paid') { totalPaid += c.amount; countPaid++; }
+    else if (c.status === 'due') { totalDue += c.amount; countDue++; }
+    else if (c.status === 'disputed') { totalDisputed += c.amount; countDisputed++; }
+  }
+  const countTotal = countPaid + countDue + countDisputed;
+  return {
+    totalPaid, totalDue, totalDisputed,
+    countPaid, countDue, countDisputed,
+    total: totalPaid + totalDue + totalDisputed,
+    countTotal,
+    settlementRate: countTotal > 0 ? Math.round((countPaid / countTotal) * 100) : 0,
+  };
+}
+
+function computeEntitySummary(level, entityId) {
+  if (level === 'agent') {
+    return aggregateRecords(commissionsByAgent[entityId] || []);
+  }
+  if (level === 'branch') {
+    return aggregateRecords(commissionsByBranch[entityId] || []);
+  }
+  if (level === 'district') {
+    const records = Object.values(BRANCHES)
+      .filter((b) => b.parentId === entityId)
+      .flatMap((b) => commissionsByBranch[b.id] || []);
+    return aggregateRecords(records);
+  }
+  if (level === 'region') {
+    const districtIds = new Set(
+      Object.values(DISTRICTS).filter((d) => d.parentId === entityId).map((d) => d.id)
+    );
+    const records = Object.values(BRANCHES)
+      .filter((b) => districtIds.has(b.parentId))
+      .flatMap((b) => commissionsByBranch[b.id] || []);
+    return aggregateRecords(records);
+  }
+  // Country level — all commissions
+  return aggregateRecords(Object.values(COMMISSIONS));
+}
+
+/** Commission summary for any entity — memoized to avoid repeated iteration */
+export async function getEntityCommissionSummary(level, entityId) {
+  const key = `${level}:${entityId}`;
+  if (_summaryCache.has(key)) return _summaryCache.get(key);
+  const result = computeEntitySummary(level, entityId);
+  _summaryCache.set(key, result);
+  return result;
 }
 
 /** Settle all due commissions globally */

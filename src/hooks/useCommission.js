@@ -64,7 +64,15 @@ export function useSettlementRequestList() {
   });
 }
 
-const ALL_COMMISSION_KEYS = ['commissionSummary', 'agentCommissions', 'agentCommissionDetail', 'disputedAgents', 'settlementRequests'];
+export function useEntityCommissionSummary(level, entityId) {
+  return useQuery({
+    queryKey: ['entityCommissionSummary', level, entityId],
+    queryFn: () => commissions.getEntityCommissionSummary(level, entityId),
+    enabled: !!entityId || level === 'country',
+  });
+}
+
+const ALL_COMMISSION_KEYS = ['commissionSummary', 'agentCommissions', 'agentCommissionDetail', 'disputedAgents', 'settlementRequests', 'entityCommissionSummary'];
 
 export function useApproveCommission() {
   const queryClient = useQueryClient();

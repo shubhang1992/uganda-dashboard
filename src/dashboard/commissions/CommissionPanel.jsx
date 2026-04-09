@@ -11,11 +11,8 @@ import {
   useBulkApproveCommissions, useBulkRejectCommissions,
   useSettleAgentCommissions, useSettleAllCommissions,
 } from '../../hooks/useCommission';
+import { getInitials } from '../../utils/dashboard';
 import styles from './CommissionPanel.module.css';
-
-function getInitials(name) {
-  return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-}
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';

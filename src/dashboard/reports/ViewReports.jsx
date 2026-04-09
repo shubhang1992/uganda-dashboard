@@ -44,9 +44,17 @@ function ReportLoading() {
 }
 
 export default function ViewReports() {
-  const { viewReportsOpen, setViewReportsOpen } = useDashboard();
+  const { viewReportsOpen, setViewReportsOpen, reportContext, setReportContext } = useDashboard();
   const [activeReportId, setActiveReportId] = useState(null);
   const bodyRef = useRef(null);
+
+  // Auto-navigate to a report when opened via reportContext
+  useEffect(() => {
+    if (viewReportsOpen && reportContext) {
+      setActiveReportId(reportContext);
+      setReportContext(null);
+    }
+  }, [viewReportsOpen, reportContext]);
 
   // Reset state when panel closes
   useEffect(() => {

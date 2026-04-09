@@ -4,6 +4,9 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAllEntities } from '../../hooks/useEntity';
 import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useEntityCommissionSummary } from '../../hooks/useCommission';
+import { getInitials, getTrend, perfLevel } from '../../utils/dashboard';
+import Stars from '../shared/Stars';
 import styles from './ViewBranches.module.css';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -14,22 +17,6 @@ function getStatus(activeRate) {
   return 'poor';
 }
 
-function perfLevel(pct) {
-  if (pct >= 75) return 'high';
-  if (pct >= 55) return 'mid';
-  return 'low';
-}
-
-function getInitials(name) {
-  return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-}
-
-function getTrend(today, weekAvg) {
-  const avg = weekAvg / 7;
-  if (today > avg * 1.15) return 'up';
-  if (today < avg * 0.85) return 'down';
-  return 'flat';
-}
 
 const TrendArrow = ({ trend }) => (
   <span className={styles.trendBadge} data-trend={trend}>
@@ -121,22 +108,6 @@ const Icons = {
   ),
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Rating stars                                                              */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-function Stars({ rating }) {
-  const full = Math.round(rating);
-  return (
-    <div className={styles.ratingWrap}>
-      {[1,2,3,4,5].map((i) => (
-        <svg aria-hidden="true" key={i} viewBox="0 0 16 16" width="12" height="12" className={styles.ratingStar} data-filled={i <= full}>
-          <path d="M8 1.5l1.76 3.56 3.93.57-2.84 2.77.67 3.91L8 10.27 4.48 12.31l.67-3.91L2.31 5.63l3.93-.57z"
-            fill={i <= full ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
-        </svg>
-      ))}
-    </div>
-  );
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Mini bar chart for monthly contributions                                  */
@@ -285,6 +256,7 @@ function AgentDetail({ agent }) {
 function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch }) {
   const m = branch.metrics;
   const agents = useMemo(() => branchAgents(branch.id, agentsByBranch), [branch.id, agentsByBranch]);
+  const { data: commission } = useEntityCommissionSummary('branch', branch.id);
 
   return (
     <div className={styles.detailContent}>
@@ -352,6 +324,49 @@ function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch }) {
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>This month</span>
             <span className={styles.infoValue}>{m.newSubscribersThisMonth} subscribers</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Commissions */}
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>Commissions</div>
+        <div className={styles.infoCard}>
+          <div className={styles.infoRow}>
+            <span className={styles.infoLabel}>
+              <span className={styles.commDot} data-status="settled" />
+              Settled
+            </span>
+            <span className={styles.infoValue}>
+              <span className={styles.commAmount}>{commission ? formatUGX(commission.totalPaid) : '--'}</span>
+              <span className={styles.commCount}>{commission ? `${commission.countPaid} txn${commission.countPaid !== 1 ? 's' : ''}` : ''}</span>
+            </span>
+          </div>
+          <div className={styles.infoRow}>
+            <span className={styles.infoLabel}>
+              <span className={styles.commDot} data-status="due" />
+              Due
+            </span>
+            <span className={styles.infoValue}>
+              <span className={styles.commAmount}>{commission ? formatUGX(commission.totalDue) : '--'}</span>
+              <span className={styles.commCount}>{commission ? `${commission.countDue} txn${commission.countDue !== 1 ? 's' : ''}` : ''}</span>
+            </span>
+          </div>
+          <div className={styles.infoRow}>
+            <span className={styles.infoLabel}>
+              <span className={styles.commDot} data-status="disputed" />
+              Disputed
+            </span>
+            <span className={`${styles.infoValue}${commission && commission.totalDisputed > 0 ? ` ${styles.commDisputed}` : ''}`}>
+              <span className={styles.commAmount}>{commission ? formatUGX(commission.totalDisputed) : '--'}</span>
+              <span className={styles.commCount}>{commission ? `${commission.countDisputed} txn${commission.countDisputed !== 1 ? 's' : ''}` : ''}</span>
+            </span>
+          </div>
+          <div className={styles.infoRow}>
+            <span className={styles.infoLabel}>Settlement Rate</span>
+            <span className={styles.infoValue}>
+              <span className={styles.commRate}>{commission ? `${commission.settlementRate}%` : '--'}</span>
+            </span>
           </div>
         </div>
       </div>
