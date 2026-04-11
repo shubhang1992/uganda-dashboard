@@ -1,6 +1,6 @@
 // Auth service — mock implementation. Replace with real API calls when backend is ready.
 
-const DASHBOARD_ROLES = ['distributor'];
+const DASHBOARD_ROLES = ['distributor', 'branch'];
 
 export async function sendOtp(phone, role) {
   // Future: api.post('/auth/send-otp', { phone, role })

@@ -194,6 +194,12 @@
   gap: var(--space-3);
 }
 
+.grid1 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
 /* ─── Card Arrow (shared) ────────────────────────────────────────────── */
 
 .cardArrow {

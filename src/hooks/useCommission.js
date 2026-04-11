@@ -20,10 +20,10 @@ export function useSetCommissionRate() {
   });
 }
 
-export function useCommissionSummary() {
+export function useCommissionSummary(branchId = null) {
   return useQuery({
-    queryKey: ['commissionSummary'],
-    queryFn: commissions.getCommissionSummary,
+    queryKey: ['commissionSummary', branchId || 'all'],
+    queryFn: () => commissions.getCommissionSummary(branchId),
   });
 }
 

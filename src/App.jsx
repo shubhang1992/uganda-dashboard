@@ -13,6 +13,7 @@ import Footer from './components/Footer';
 import StickyMobileCTA from './components/StickyMobileCTA';
 import SignInModal from './components/SignInModal';
 import DashboardShell from './dashboard/DashboardShell';
+import BranchDashboardShell from './branch-dashboard/BranchDashboardShell';
 import { hasDashboard } from './services/auth';
 
 const ROLE_LABELS = {
@@ -120,7 +121,7 @@ function ProtectedDashboard() {
   if (!hasDashboard(role)) return <Navigate to="/coming-soon" replace />;
   return (
     <ErrorBoundary>
-      <DashboardShell />
+      {role === 'branch' ? <BranchDashboardShell /> : <DashboardShell />}
     </ErrorBoundary>
   );
 }

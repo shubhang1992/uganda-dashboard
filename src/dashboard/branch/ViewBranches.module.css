@@ -547,6 +547,75 @@
   letter-spacing: 0.06em;
 }
 
+/* ── Score stat in list view ── */
+.stat[data-variant='score'] {
+  background: rgba(41, 40, 103, 0.04);
+  border-radius: var(--radius-sm);
+}
+
+.statValueScore {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  color: var(--color-indigo);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Score row (detail view) ── */
+.scoreRow {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.scorePill {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  background: rgba(41, 40, 103, 0.04);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-full);
+}
+
+.scorePill[data-variant='rank'] {
+  background: rgba(251, 191, 36, 0.06);
+  border-color: rgba(251, 191, 36, 0.2);
+}
+
+.scorePill[data-variant='global'] {
+  background: rgba(47, 143, 157, 0.06);
+  border-color: rgba(47, 143, 157, 0.15);
+}
+
+.scorePillLabel {
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  color: var(--color-gray);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.scorePillValue {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.scorePillMax {
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  font-weight: 500;
+  color: var(--color-gray);
+}
+
 .statusDot {
   width: 8px;
   height: 8px;

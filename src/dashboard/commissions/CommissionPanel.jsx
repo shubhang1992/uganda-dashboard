@@ -86,7 +86,7 @@ const viewAnim = {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  CommissionPanel                                                           */
 /* ═══════════════════════════════════════════════════════════════════════════ */
-export default function CommissionPanel() {
+export default function CommissionPanel({ branchId, splitMode = false }) {
   const { commissionsOpen, setCommissionsOpen } = useDashboard();
 
   // View state: home → agents/disputed/requests → agent-detail/dispute-detail/request-detail → subscribers
@@ -106,7 +106,7 @@ export default function CommissionPanel() {
   // Data hooks
   const { data: rate } = useCommissionRate();
   const setRateMutation = useSetCommissionRate();
-  const { data: summary } = useCommissionSummary();
+  const { data: summary } = useCommissionSummary(branchId);
   const { data: agentList = [] } = useAgentCommissionList(statusFocus);
   const { data: agentDetail } = useAgentCommissionDetail(selectedAgentId);
   const { data: subscribers = [] } = useCommissionSubscribers(selectedAgentId, subFilter);
@@ -150,14 +150,19 @@ export default function CommissionPanel() {
     return () => document.removeEventListener('keydown', onKey);
   }, [commissionsOpen, settleModalOpen, setCommissionsOpen]);
 
+  // Branch-scoped lists (when branchId is provided, filter to only agents in that branch)
+  const scopedAgentList = useMemo(() => branchId ? agentList.filter(a => a.branchId === branchId) : agentList, [agentList, branchId]);
+  const scopedDisputedAgents = useMemo(() => branchId ? disputedAgents.filter(a => a.branchId === branchId) : disputedAgents, [disputedAgents, branchId]);
+  const scopedRequestAgents = useMemo(() => branchId ? requestAgents.filter(a => a.branchId === branchId) : requestAgents, [requestAgents, branchId]);
+
   // Filtered agent list
   const filteredAgents = useMemo(() => {
-    if (!search.trim()) return agentList;
+    if (!search.trim()) return scopedAgentList;
     const q = search.toLowerCase();
-    return agentList.filter((a) =>
+    return scopedAgentList.filter((a) =>
       a.agentName.toLowerCase().includes(q) || a.branchName.toLowerCase().includes(q)
     );
-  }, [agentList, search]);
+  }, [scopedAgentList, search]);
 
   // Navigation helpers
   function goHome() {
@@ -260,27 +265,27 @@ export default function CommissionPanel() {
     if (settleScope === 'agent' && selectedAgentId) {
       settleAgentMutation.mutate(selectedAgentId);
     } else {
-      settleAllMutation.mutate();
+      settleAllMutation.mutate(branchId || undefined);
     }
     setSettleModalOpen(false);
   }
 
   // Filtered disputed/request lists
   const filteredDisputed = useMemo(() => {
-    if (!search.trim()) return disputedAgents;
+    if (!search.trim()) return scopedDisputedAgents;
     const q = search.toLowerCase();
-    return disputedAgents.filter((a) =>
+    return scopedDisputedAgents.filter((a) =>
       a.agentName.toLowerCase().includes(q) || a.branchName.toLowerCase().includes(q)
     );
-  }, [disputedAgents, search]);
+  }, [scopedDisputedAgents, search]);
 
   const filteredRequests = useMemo(() => {
-    if (!search.trim()) return requestAgents;
+    if (!search.trim()) return scopedRequestAgents;
     const q = search.toLowerCase();
-    return requestAgents.filter((a) =>
+    return scopedRequestAgents.filter((a) =>
       a.agentName.toLowerCase().includes(q) || a.branchName.toLowerCase().includes(q)
     );
-  }, [requestAgents, search]);
+  }, [scopedRequestAgents, search]);
 
   // Collect all commission IDs from selected agents (for bulk actions on list views)
   const selectedCommissionIds = useMemo(() => {
@@ -348,23 +353,31 @@ export default function CommissionPanel() {
     <AnimatePresence>
       {commissionsOpen && (
         <>
-          {/* Backdrop */}
-          <motion.div
-            className={styles.backdrop}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            onClick={() => setCommissionsOpen(false)}
-          />
+          {/* Backdrop — hidden in split mode */}
+          {!splitMode && (
+            <motion.div
+              className={styles.backdrop}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              onClick={() => setCommissionsOpen(false)}
+            />
+          )}
 
           {/* Panel */}
           <motion.div
             className={styles.panel}
+            data-split-mode={splitMode || undefined}
             initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
+            animate={{
+              x: 0,
+              transition: { duration: 0.55, ease: EASE_OUT_EXPO },
+            }}
+            exit={{
+              x: '100%',
+              transition: { duration: 0.55, ease: EASE_OUT_EXPO },
+            }}
             role="dialog"
             aria-modal="true"
             aria-label="Commission Settlement"
@@ -432,7 +445,7 @@ export default function CommissionPanel() {
                       <button className={styles.overviewTotal} onClick={() => goAgents(null)}>
                         <div className={styles.overviewTotalLabel}>Total Commissions</div>
                         <div className={styles.overviewTotalAmount}>{formatUGX(summary?.totalCommissions || 0)}</div>
-                        <div className={styles.overviewTotalCount}>{(summary?.countTotal || 0).toLocaleString()} transactions across your network</div>
+                        <div className={styles.overviewTotalCount}>{(summary?.countTotal || 0).toLocaleString()} transactions across your {branchId ? 'branch' : 'network'}</div>
                       </button>
 
                       {/* Progress bar: paid vs due */}
@@ -518,7 +531,7 @@ export default function CommissionPanel() {
                         <div className={styles.attentionAccent} data-type="disputed" />
                         <div className={styles.attentionInfo}>
                           <div className={styles.attentionLabel}>Disputed Settlements</div>
-                          <div className={styles.attentionDesc}>{formatUGX(summary?.totalDisputed || 0)} across {disputedAgents.length} agents</div>
+                          <div className={styles.attentionDesc}>{formatUGX(summary?.totalDisputed || 0)} across {scopedDisputedAgents.length} agents</div>
                         </div>
                         <div className={styles.attentionCount} data-type="disputed">{summary?.countDisputed || 0}</div>
                         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16" style={{ color: 'var(--color-gray)', flexShrink: 0 }}>
@@ -529,7 +542,7 @@ export default function CommissionPanel() {
                         <div className={styles.attentionAccent} data-type="requests" />
                         <div className={styles.attentionInfo}>
                           <div className={styles.attentionLabel}>Settlement Requests</div>
-                          <div className={styles.attentionDesc}>{formatUGX(summary?.totalRequested || 0)} from {requestAgents.length} agents</div>
+                          <div className={styles.attentionDesc}>{formatUGX(summary?.totalRequested || 0)} from {scopedRequestAgents.length} agents</div>
                         </div>
                         <div className={styles.attentionCount} data-type="requests">{summary?.countRequested || 0}</div>
                         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16" style={{ color: 'var(--color-gray)', flexShrink: 0 }}>

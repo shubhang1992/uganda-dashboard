@@ -1,12 +1,16 @@
 import { useState, useMemo } from 'react';
-import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
+import { useAllEntities, useAllEntitiesMap, useChildren } from '../../../hooks/useEntity';
+import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import { formatUGX } from '../../../utils/finance';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 import FilterSelect from '../FilterSelect';
 
 export default function WithdrawalsPayouts({ onBack }) {
-  const { data: districts = [], isLoading } = useAllEntities('district');
+  const { branchId } = useBranchScope();
+  const isBranch = !!branchId;
+  const { data: districts = [], isLoading: loadingDistricts } = useAllEntities('district');
+  const { data: branchAgents = [], isLoading: loadingAgents } = useChildren('branch', branchId);
   const { data: regionsMap = {} } = useAllEntitiesMap('region');
   const [regionFilter, setRegionFilter] = useState('');
 
@@ -15,26 +19,28 @@ export default function WithdrawalsPayouts({ onBack }) {
     [regionsMap]
   );
 
-  const enriched = useMemo(() => districts.map((d) => {
-    const region = regionsMap[d.parentId];
-    const m = d.metrics || {};
+  const rows = isBranch ? branchAgents : districts;
+
+  const enriched = useMemo(() => rows.map((row) => {
+    const region = isBranch ? null : regionsMap[row.parentId];
+    const m = row.metrics || {};
     const ratio = m.totalContributions ? Math.round((m.totalWithdrawals / m.totalContributions) * 100) : 0;
     return {
-      ...d,
+      ...row,
       regionName: region?.name || '',
       regionId: region?.id || '',
       withdrawalRatio: ratio,
     };
-  }), [districts, regionsMap]);
+  }), [rows, regionsMap, isBranch]);
 
   const filtered = useMemo(() => {
-    if (!regionFilter) return enriched;
+    if (isBranch || !regionFilter) return enriched;
     return enriched.filter((d) => d.regionId === regionFilter);
-  }, [enriched, regionFilter]);
+  }, [enriched, regionFilter, isBranch]);
 
   const columns = [
-    { key: 'name', label: 'District', sortable: true, width: '160px' },
-    { key: 'regionName', label: 'Region', sortable: true },
+    { key: 'name', label: isBranch ? 'Agent' : 'District', sortable: true, width: '160px' },
+    !isBranch && { key: 'regionName', label: 'Region', sortable: true },
     {
       key: 'totalWithdrawals',
       label: 'Total Withdrawals',
@@ -85,18 +91,20 @@ export default function WithdrawalsPayouts({ onBack }) {
       sortValue: (row) => row.metrics?.totalContributions || 0,
       render: (row) => formatUGX(row.metrics?.totalContributions || 0),
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <ReportView
       onBack={onBack}
       title="Withdrawals & Payouts"
-      description="Withdrawal outflows by district with contribution ratios"
-      filters={
+      description={isBranch
+        ? 'Withdrawal outflows by agent with contribution ratios'
+        : 'Withdrawal outflows by district with contribution ratios'}
+      filters={isBranch ? null : (
         <FilterSelect label="Region" value={regionFilter} onChange={setRegionFilter} options={regionOptions} />
-      }
+      )}
     >
-      <ReportTable columns={columns} data={filtered} defaultSort="totalWithdrawals" loading={isLoading} />
+      <ReportTable columns={columns} data={filtered} defaultSort="totalWithdrawals" loading={isBranch ? loadingAgents : loadingDistricts} />
     </ReportView>
   );
 }

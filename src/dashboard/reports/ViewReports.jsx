@@ -43,7 +43,13 @@ function ReportLoading() {
   );
 }
 
-export default function ViewReports() {
+const BRANCH_EXCLUDED_REPORTS = new Set([
+  'distribution-summary',
+  'all-branches',
+  'branch-performance',
+]);
+
+export default function ViewReports({ branchId, splitMode = false }) {
   const { viewReportsOpen, setViewReportsOpen, reportContext, setReportContext } = useDashboard();
   const [activeReportId, setActiveReportId] = useState(null);
   const bodyRef = useRef(null);
@@ -85,14 +91,16 @@ export default function ViewReports() {
   }
 
   const headerTitle = activeReportId ? REPORT_TITLES[activeReportId] || 'Report' : 'Reports';
-  const headerSubtitle = activeReportId ? null : 'Network overview and analytics';
+  const headerSubtitle = activeReportId
+    ? null
+    : (branchId ? 'Branch overview and analytics' : 'Network overview and analytics');
 
   const ActiveReportComponent = activeReportId ? REPORT_VIEWS[activeReportId] : null;
 
   return (
     <>
       <AnimatePresence>
-        {viewReportsOpen && (
+        {viewReportsOpen && !splitMode && (
           <motion.div
             key="vr-backdrop"
             className={styles.backdrop}
@@ -110,10 +118,16 @@ export default function ViewReports() {
           <motion.div
             key="vr-panel"
             className={styles.panel}
+            data-split-mode={splitMode || undefined}
             initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
+            animate={{
+              x: 0,
+              transition: { duration: 0.55, ease: EASE_OUT_EXPO },
+            }}
+            exit={{
+              x: '100%',
+              transition: { duration: 0.55, ease: EASE_OUT_EXPO },
+            }}
           >
             {/* ── Header ──────────────────────────────────────────── */}
             <div className={styles.header}>
@@ -151,7 +165,7 @@ export default function ViewReports() {
             {/* ── Body ────────────────────────────────────────────── */}
             <div className={styles.body} ref={bodyRef}>
               {!activeReportId ? (
-                <ReportsHub panelMode onSelectReport={setActiveReportId} />
+                <ReportsHub panelMode onSelectReport={setActiveReportId} branchId={branchId} />
               ) : ActiveReportComponent ? (
                 <Suspense fallback={<ReportLoading />}>
                   <ActiveReportComponent onBack={handleBack} />

@@ -30,6 +30,118 @@
   overscroll-behavior: contain;
 }
 
+/* Split-view (branch dashboard): docked alongside the overview, no backdrop */
+.panel[data-split-mode='true'] {
+  top: 24px;
+  right: 24px;
+  bottom: 24px;
+  border: none;
+  border-radius: var(--radius-xl);
+  background: var(--color-white);
+  box-shadow:
+    0 1px 2px rgba(41, 40, 103, 0.04),
+    0 12px 32px rgba(41, 40, 103, 0.08),
+    0 32px 64px rgba(41, 40, 103, 0.06),
+    0 0 0 1px rgba(41, 40, 103, 0.04);
+}
+
+/* Flatten the row-as-card pattern: items become subtle list rows in split mode */
+.panel[data-split-mode='true'] .agentItem {
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  backdrop-filter: none;
+  padding: 0.75rem 0.875rem;
+  margin: 0;
+  position: relative;
+}
+
+.panel[data-split-mode='true'] .agentItem::after {
+  content: '';
+  position: absolute;
+  left: 0.875rem;
+  right: 0.875rem;
+  bottom: 0;
+  height: 1px;
+  background: rgba(41, 40, 103, 0.05);
+  pointer-events: none;
+}
+
+.panel[data-split-mode='true'] .agentItem:last-child::after {
+  display: none;
+}
+
+.panel[data-split-mode='true'] .agentItem:hover {
+  background: rgba(41, 40, 103, 0.035);
+  border: none;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Flatten KPI cards in the panel header (split mode) */
+.panel[data-split-mode='true'] .kpiCard {
+  background: rgba(41, 40, 103, 0.035);
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.panel[data-split-mode='true'] .kpiCard:hover {
+  background: rgba(41, 40, 103, 0.06);
+  transform: none;
+  box-shadow: none;
+}
+
+/* Flatten search + filter pills (split mode) */
+.panel[data-split-mode='true'] .searchInput {
+  background: rgba(41, 40, 103, 0.04);
+  border: 1.5px solid transparent;
+  backdrop-filter: none;
+}
+
+.panel[data-split-mode='true'] .searchInput:focus {
+  background: var(--color-white);
+  border-color: var(--color-indigo);
+}
+
+.panel[data-split-mode='true'] .filterBtn {
+  background: rgba(41, 40, 103, 0.04);
+  border: 1.5px solid transparent;
+  backdrop-filter: none;
+  color: var(--color-slate);
+}
+
+.panel[data-split-mode='true'] .filterBtn:hover {
+  background: rgba(41, 40, 103, 0.08);
+  border-color: transparent;
+}
+
+.panel[data-split-mode='true'] .filterBtn[data-active='true'] {
+  background: var(--color-indigo);
+  border-color: var(--color-indigo);
+  color: var(--color-white);
+}
+
+.panel[data-split-mode='true'] .statusChip {
+  background: rgba(41, 40, 103, 0.04);
+  border: 1.5px solid transparent;
+  color: var(--color-slate);
+}
+
+.panel[data-split-mode='true'] .statusChip:hover {
+  background: rgba(41, 40, 103, 0.08);
+  border-color: transparent;
+}
+
+.panel[data-split-mode='true'] .statusChip[data-active='true'] {
+  background: var(--color-indigo);
+  border-color: var(--color-indigo);
+  color: var(--color-white);
+  box-shadow: 0 2px 8px rgba(41, 40, 103, 0.2);
+}
+
 /* ── Header ──────────────────────────────────────────────────────────────── */
 .header {
   padding: var(--space-5) var(--space-7) 0;

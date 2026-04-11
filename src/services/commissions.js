@@ -18,9 +18,11 @@ export async function setCommissionRate(amount) {
   return amount;
 }
 
-/** Summary totals across all commissions */
-export async function getCommissionSummary() {
-  const all = Object.values(COMMISSIONS);
+/** Summary totals across commissions, optionally scoped to a branch */
+export async function getCommissionSummary(branchId = null) {
+  const all = branchId
+    ? (commissionsByBranch[branchId] || [])
+    : Object.values(COMMISSIONS);
   const totalCommissions = all.reduce((sum, c) => sum + c.amount, 0);
   const paid = all.filter((c) => c.status === 'paid');
   const due = all.filter((c) => c.status === 'due');
@@ -323,10 +325,11 @@ export async function getEntityCommissionSummary(level, entityId) {
   return result;
 }
 
-/** Settle all due commissions globally */
-export async function settleAllCommissions() {
-  const dueIds = Object.values(COMMISSIONS)
-    .filter((c) => c.status === 'due')
-    .map((c) => c.id);
+/** Settle all due commissions, optionally scoped to a single branch */
+export async function settleAllCommissions(branchId = null) {
+  const pool = branchId
+    ? (commissionsByBranch[branchId] || [])
+    : Object.values(COMMISSIONS);
+  const dueIds = pool.filter((c) => c.status === 'due').map((c) => c.id);
   return settleCommissions(dueIds);
 }

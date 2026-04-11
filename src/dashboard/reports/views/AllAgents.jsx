@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
+import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import { formatUGX } from '../../../utils/finance';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
@@ -29,6 +30,8 @@ function PerfBar({ value }) {
 }
 
 export default function AllAgents({ onBack }) {
+  const { branchId } = useBranchScope();
+  const isBranch = !!branchId;
   const { data: agents = [], isLoading: loadingAgents } = useAllEntities('agent');
   const { data: branchesMap = {}, isLoading: loadingBranches } = useAllEntitiesMap('branch');
   const { data: districtsMap = {} } = useAllEntitiesMap('district');
@@ -43,7 +46,12 @@ export default function AllAgents({ onBack }) {
     [regionsMap]
   );
 
-  const enriched = useMemo(() => agents.map((a) => {
+  const scopedAgents = useMemo(
+    () => (isBranch ? agents.filter((a) => a.parentId === branchId) : agents),
+    [agents, isBranch, branchId]
+  );
+
+  const enriched = useMemo(() => scopedAgents.map((a) => {
     const branch = branchesMap[a.parentId];
     const district = branch ? districtsMap[branch.parentId] : null;
     const region = district ? regionsMap[district.parentId] : null;
@@ -54,7 +62,7 @@ export default function AllAgents({ onBack }) {
       regionName: region?.name || '',
       regionId: region?.id || '',
     };
-  }), [agents, branchesMap, districtsMap, regionsMap]);
+  }), [scopedAgents, branchesMap, districtsMap, regionsMap]);
 
   const filtered = useMemo(() => {
     let data = enriched;
@@ -62,18 +70,18 @@ export default function AllAgents({ onBack }) {
       const q = search.toLowerCase();
       data = data.filter((a) => a.name.toLowerCase().includes(q) || a.branchName.toLowerCase().includes(q));
     }
-    if (regionFilter) data = data.filter((a) => a.regionId === regionFilter);
+    if (!isBranch && regionFilter) data = data.filter((a) => a.regionId === regionFilter);
     if (statusFilter) data = data.filter((a) => a.status === statusFilter);
     return data;
-  }, [enriched, search, regionFilter, statusFilter]);
+  }, [enriched, search, regionFilter, statusFilter, isBranch]);
 
   const loading = loadingAgents || loadingBranches;
 
   const columns = [
     { key: 'name', label: 'Agent', sortable: true, width: '160px' },
-    { key: 'branchName', label: 'Branch', sortable: true },
-    { key: 'districtName', label: 'District', sortable: true },
-    { key: 'regionName', label: 'Region', sortable: true },
+    !isBranch && { key: 'branchName', label: 'Branch', sortable: true },
+    !isBranch && { key: 'districtName', label: 'District', sortable: true },
+    !isBranch && { key: 'regionName', label: 'Region', sortable: true },
     {
       key: 'status',
       label: 'Status',
@@ -119,17 +127,21 @@ export default function AllAgents({ onBack }) {
       sortValue: (row) => row.metrics?.totalContributions || 0,
       render: (row) => formatUGX(row.metrics?.totalContributions || 0),
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <ReportView
       onBack={onBack}
       title="All Agents"
-      description={`${filtered.length} agents across the distribution network`}
+      description={isBranch
+        ? `${filtered.length} agents in ${branchesMap[branchId]?.name || 'this branch'}`
+        : `${filtered.length} agents across the distribution network`}
       filters={
         <>
           <SearchFilter value={search} onChange={setSearch} placeholder="Search agents…" />
-          <FilterSelect label="Region" value={regionFilter} onChange={setRegionFilter} options={regionOptions} />
+          {!isBranch && (
+            <FilterSelect label="Region" value={regionFilter} onChange={setRegionFilter} options={regionOptions} />
+          )}
           <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={[
             { value: 'active', label: 'Active' },
             { value: 'inactive', label: 'Inactive' },

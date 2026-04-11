@@ -543,6 +543,7 @@ Object.keys(BRANCHES).forEach((branchId) => {
     AGENTS[id] = {
       id,
       name: ugandanName(gender),
+      gender,
       parentId: branchId,
       center: [branchCenter[0] + (rand() - 0.5) * 0.02, branchCenter[1] + (rand() - 0.5) * 0.02],
       phone: ugandanPhone(),
@@ -661,6 +662,7 @@ function emptyMetrics() {
     aum: 0,
     coverageRate: 0,
     activeRate: 0,
+    activeSubscribers: 0,
     monthlyContributions: new Array(12).fill(0),
     genderRatio: { male: 0, female: 0, other: 0 },
     ageDistribution: { '18-25': 0, '26-35': 0, '36-45': 0, '46-55': 0, '56+': 0 },
@@ -680,6 +682,8 @@ function emptyMetrics() {
     prevNewSubscribersThisMonth: 0,
     monthlyWithdrawals: 0,
     prevMonthlyWithdrawals: 0,
+    kycPending: 0,
+    kycIncomplete: 0,
   };
 }
 
@@ -705,6 +709,8 @@ function addMetrics(target, source) {
   target.prevNewSubscribersThisMonth += source.prevNewSubscribersThisMonth;
   target.monthlyWithdrawals += source.monthlyWithdrawals;
   target.prevMonthlyWithdrawals += source.prevMonthlyWithdrawals;
+  target.kycPending += source.kycPending;
+  target.kycIncomplete += source.kycIncomplete;
   // Track actual active subscriber count for correct rate calculation
   target._activeCount = (target._activeCount || 0) + Math.round(source.totalSubscribers * source.activeRate / 100);
   // Track coverage as weighted sum for correct rollup
@@ -715,6 +721,7 @@ function addMetrics(target, source) {
 }
 
 function finalizeRates(m) {
+  m.activeSubscribers = m._activeCount || 0;
   if (m.totalSubscribers > 0) {
     m.activeRate = Math.round(((m._activeCount || 0) / m.totalSubscribers) * 100);
     // Coverage = weighted average from children, or agent-level seed value
@@ -749,6 +756,8 @@ Object.values(AGENTS).forEach((agent) => {
     m.totalContributions += s.totalContributions;
     m.totalWithdrawals += s.totalWithdrawals;
     if (s.isActive) activeCount++;
+    if (s.kycStatus === 'pending') m.kycPending++;
+    if (s.kycStatus === 'incomplete') m.kycIncomplete++;
     m.genderRatio[s.gender]++;
     m.ageDistribution[ageBucket(s.age)]++;
     s.contributionHistory.forEach((v, i) => { m.monthlyContributions[i] += v; });
@@ -794,6 +803,56 @@ Object.values(BRANCHES).forEach((branch) => {
   Object.values(AGENTS).filter((a) => a.parentId === branch.id).forEach((a) => addMetrics(m, a.metrics));
   finalizeRates(m);
   branch.metrics = m;
+});
+
+// ─── BRANCH HEALTH SCORE + RANK ──────────────────────────────────────────────
+// Same formula as BranchHealthScore.jsx — compute once, share across dashboards
+function computeBranchScore(branch) {
+  const m = branch.metrics;
+  const totalSubs = m.totalSubscribers || 1;
+  const retentionRate = (m.activeSubscribers / totalSubs) * 100;
+
+  const agents = Object.values(AGENTS).filter(a => a.parentId === branch.id);
+  const totalContrib = agents.reduce((s, a) => s + (a.metrics?.totalContributions || 0), 0);
+  const avgPerSub = totalContrib / totalSubs;
+  const avgContribScore = Math.min(100, (avgPerSub / 500_000) * 100);
+
+  const totalAgents = agents.length || 1;
+  const activeAgents = agents.filter(a => a.status === 'active').length;
+  const agentActivity = (activeAgents / totalAgents) * 100;
+
+  const mc = m.monthlyContributions || [];
+  let growthSum = 0, growthCount = 0;
+  for (let i = 1; i < mc.length; i++) {
+    if (mc[i - 1] > 0) { growthSum += ((mc[i] - mc[i - 1]) / mc[i - 1]) * 100; growthCount++; }
+  }
+  const avgGrowth = growthCount > 0 ? growthSum / growthCount : 0;
+  const growthScore = Math.min(100, Math.max(0, (avgGrowth / 5) * 50 + 50));
+
+  return Math.min(100, Math.max(0, Math.round(
+    retentionRate * 0.30 + avgContribScore * 0.25 + agentActivity * 0.25 + growthScore * 0.20
+  )));
+}
+
+// Compute score for every branch
+Object.values(BRANCHES).forEach((branch) => {
+  branch.score = computeBranchScore(branch);
+});
+
+// Rank globally (1 = best)
+const branchesByScore = Object.values(BRANCHES).sort((a, b) => b.score - a.score);
+branchesByScore.forEach((branch, i) => { branch.rank = i + 1; });
+const totalBranchCount = branchesByScore.length;
+
+// Rank within each district
+const branchesByDistrict = {};
+Object.values(BRANCHES).forEach((b) => {
+  if (!branchesByDistrict[b.parentId]) branchesByDistrict[b.parentId] = [];
+  branchesByDistrict[b.parentId].push(b);
+});
+Object.values(branchesByDistrict).forEach((arr) => {
+  arr.sort((a, b) => b.score - a.score);
+  arr.forEach((b, i) => { b.districtRank = i + 1; b.districtBranchCount = arr.length; });
 });
 
 // Roll up: district ← branches

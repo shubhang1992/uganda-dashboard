@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
+import { useAllEntities, useAllEntitiesMap, useChildren } from '../../../hooks/useEntity';
+import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 import FilterSelect from '../FilterSelect';
@@ -24,7 +25,10 @@ function KycBar({ complete, pending, incomplete }) {
 }
 
 export default function KycCompliance({ onBack }) {
+  const { branchId } = useBranchScope();
+  const isBranch = !!branchId;
   const { data: subscribers = [], isLoading: loadingSubs } = useAllEntities('subscriber');
+  const { data: branchAgents = [], isLoading: loadingAgents } = useChildren('branch', branchId);
   const { data: agentsMap = {} } = useAllEntitiesMap('agent');
   const { data: branchesMap = {} } = useAllEntitiesMap('branch');
   const { data: districtsMap = {} } = useAllEntitiesMap('district');
@@ -37,8 +41,9 @@ export default function KycCompliance({ onBack }) {
     [regionsMap]
   );
 
-  // Aggregate KYC stats by district
+  // Distributor view: aggregate KYC stats by district from raw subscribers
   const districtKyc = useMemo(() => {
+    if (isBranch) return {};
     const agg = {};
     subscribers.forEach((s) => {
       const agent = agentsMap[s.parentId];
@@ -50,9 +55,29 @@ export default function KycCompliance({ onBack }) {
       agg[districtId].total++;
     });
     return agg;
-  }, [subscribers, agentsMap, branchesMap]);
+  }, [subscribers, agentsMap, branchesMap, isBranch]);
 
+  // Branch view: per-agent KYC stats derived from agent.metrics (kycPending/kycIncomplete + totalSubscribers)
   const rows = useMemo(() => {
+    if (isBranch) {
+      return branchAgents.map((agent) => {
+        const m = agent.metrics || {};
+        const total = m.totalSubscribers || 0;
+        const pending = m.kycPending || 0;
+        const incomplete = m.kycIncomplete || 0;
+        const complete = Math.max(0, total - pending - incomplete);
+        return {
+          id: agent.id,
+          name: agent.name,
+          regionName: '',
+          regionId: '',
+          complete, pending, incomplete, total,
+          completePct: total ? Math.round((complete / total) * 100) : 0,
+          pendingPct: total ? Math.round((pending / total) * 100) : 0,
+          incompletePct: total ? Math.round((incomplete / total) * 100) : 0,
+        };
+      });
+    }
     return Object.entries(districtKyc).map(([districtId, kyc]) => {
       const district = districtsMap[districtId];
       const region = district ? regionsMap[district.parentId] : null;
@@ -67,16 +92,16 @@ export default function KycCompliance({ onBack }) {
         incompletePct: kyc.total ? Math.round((kyc.incomplete / kyc.total) * 100) : 0,
       };
     });
-  }, [districtKyc, districtsMap, regionsMap]);
+  }, [isBranch, branchAgents, districtKyc, districtsMap, regionsMap]);
 
   const filtered = useMemo(() => {
-    if (!regionFilter) return rows;
+    if (isBranch || !regionFilter) return rows;
     return rows.filter((r) => r.regionId === regionFilter);
-  }, [rows, regionFilter]);
+  }, [rows, regionFilter, isBranch]);
 
   const columns = [
-    { key: 'name', label: 'District', sortable: true, width: '160px' },
-    { key: 'regionName', label: 'Region', sortable: true },
+    { key: 'name', label: isBranch ? 'Agent' : 'District', sortable: true, width: '160px' },
+    !isBranch && { key: 'regionName', label: 'Region', sortable: true },
     { key: 'total', label: 'Total', align: 'right', sortable: true },
     {
       key: 'completePct',
@@ -134,18 +159,20 @@ export default function KycCompliance({ onBack }) {
         return <span style={{ color, fontWeight: row.incompletePct > 20 ? 600 : 400, fontSize: 'var(--text-xs)' }}>{row.incompletePct}%</span>;
       },
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <ReportView
       onBack={onBack}
       title="KYC & Compliance"
-      description="KYC completion rates and flagged accounts by district"
-      filters={
+      description={isBranch
+        ? 'KYC completion rates and flagged accounts by agent'
+        : 'KYC completion rates and flagged accounts by district'}
+      filters={isBranch ? null : (
         <FilterSelect label="Region" value={regionFilter} onChange={setRegionFilter} options={regionOptions} />
-      }
+      )}
     >
-      <ReportTable columns={columns} data={filtered} defaultSort="incompletePct" loading={loadingSubs} />
+      <ReportTable columns={columns} data={filtered} defaultSort="incompletePct" loading={isBranch ? loadingAgents : loadingSubs} />
     </ReportView>
   );
 }

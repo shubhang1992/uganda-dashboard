@@ -138,7 +138,7 @@ export default function SignInModal() {
 
   function handleVerify() {
     close();
-    login({ role, phone, name: 'Demo User' });
+    login({ role, phone, name: 'Demo User', ...(role === 'branch' ? { branchId: 'b-kam-015' } : {}) });
     navigate(hasDashboard(role) ? '/dashboard' : '/coming-soon');
   }
 

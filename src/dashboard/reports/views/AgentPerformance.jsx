@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
+import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import { formatUGX } from '../../../utils/finance';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
@@ -31,6 +32,8 @@ function Stars({ rating }) {
 }
 
 export default function AgentPerformance({ onBack }) {
+  const { branchId } = useBranchScope();
+  const isBranch = !!branchId;
   const { data: agents = [], isLoading: loadingAgents } = useAllEntities('agent');
   const { data: branchesMap = {} } = useAllEntitiesMap('branch');
   const { data: districtsMap = {} } = useAllEntitiesMap('district');
@@ -44,8 +47,13 @@ export default function AgentPerformance({ onBack }) {
     [regionsMap]
   );
 
+  const scopedAgents = useMemo(
+    () => (isBranch ? agents.filter((a) => a.parentId === branchId) : agents),
+    [agents, isBranch, branchId]
+  );
+
   const enriched = useMemo(() => {
-    const sorted = [...agents].sort((a, b) => (b.metrics?.totalContributions || 0) - (a.metrics?.totalContributions || 0));
+    const sorted = [...scopedAgents].sort((a, b) => (b.metrics?.totalContributions || 0) - (a.metrics?.totalContributions || 0));
     return sorted.map((a, idx) => {
       const branch = branchesMap[a.parentId];
       const district = branch ? districtsMap[branch.parentId] : null;
@@ -58,7 +66,7 @@ export default function AgentPerformance({ onBack }) {
         regionId: region?.id || '',
       };
     });
-  }, [agents, branchesMap, districtsMap, regionsMap]);
+  }, [scopedAgents, branchesMap, districtsMap, regionsMap]);
 
   const filtered = useMemo(() => {
     let data = enriched;
@@ -66,9 +74,9 @@ export default function AgentPerformance({ onBack }) {
       const q = search.toLowerCase();
       data = data.filter((a) => a.name.toLowerCase().includes(q) || a.branchName.toLowerCase().includes(q));
     }
-    if (regionFilter) data = data.filter((a) => a.regionId === regionFilter);
+    if (!isBranch && regionFilter) data = data.filter((a) => a.regionId === regionFilter);
     return data;
-  }, [enriched, search, regionFilter]);
+  }, [enriched, search, regionFilter, isBranch]);
 
   const columns = [
     {
@@ -77,11 +85,11 @@ export default function AgentPerformance({ onBack }) {
       align: 'center',
       sortable: true,
       width: '60px',
-      render: (row) => <RankBadge rank={row.rank} total={agents.length} />,
+      render: (row) => <RankBadge rank={row.rank} total={scopedAgents.length} />,
     },
     { key: 'name', label: 'Agent', sortable: true, width: '150px' },
-    { key: 'branchName', label: 'Branch', sortable: true },
-    { key: 'regionName', label: 'Region', sortable: true },
+    !isBranch && { key: 'branchName', label: 'Branch', sortable: true },
+    !isBranch && { key: 'regionName', label: 'Region', sortable: true },
     {
       key: 'rating',
       label: 'Rating',
@@ -123,17 +131,21 @@ export default function AgentPerformance({ onBack }) {
       sortValue: (row) => row.metrics?.activeRate || 0,
       render: (row) => `${row.metrics?.activeRate || 0}%`,
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <ReportView
       onBack={onBack}
       title="Agent Performance"
-      description="Agents ranked by productivity, ratings, and contribution collection"
+      description={isBranch
+        ? `Agents in ${branchesMap[branchId]?.name || 'this branch'}, ranked by productivity, ratings, and contributions`
+        : 'Agents ranked by productivity, ratings, and contribution collection'}
       filters={
         <>
           <SearchFilter value={search} onChange={setSearch} placeholder="Search agents…" />
-          <FilterSelect label="Region" value={regionFilter} onChange={setRegionFilter} options={regionOptions} />
+          {!isBranch && (
+            <FilterSelect label="Region" value={regionFilter} onChange={setRegionFilter} options={regionOptions} />
+          )}
         </>
       }
     >

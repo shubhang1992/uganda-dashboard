@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
+import { useAllEntities, useAllEntitiesMap, useChildren } from '../../../hooks/useEntity';
+import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import { formatUGX } from '../../../utils/finance';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
@@ -44,7 +45,10 @@ function MiniSparkline({ data }) {
 }
 
 export default function ContributionsCollections({ onBack }) {
+  const { branchId } = useBranchScope();
+  const isBranch = !!branchId;
   const { data: districts = [], isLoading: loadingDistricts } = useAllEntities('district');
+  const { data: branchAgents = [], isLoading: loadingAgents } = useChildren('branch', branchId);
   const { data: regionsMap = {} } = useAllEntitiesMap('region');
   const [regionFilter, setRegionFilter] = useState('');
 
@@ -53,27 +57,29 @@ export default function ContributionsCollections({ onBack }) {
     [regionsMap]
   );
 
-  const enriched = useMemo(() => districts.map((d) => {
-    const region = regionsMap[d.parentId];
-    const m = d.metrics || {};
+  const rows = isBranch ? branchAgents : districts;
+
+  const enriched = useMemo(() => rows.map((row) => {
+    const m = row.metrics || {};
+    const region = isBranch ? null : regionsMap[row.parentId];
     return {
-      ...d,
+      ...row,
       regionName: region?.name || '',
       regionId: region?.id || '',
       avgContribution: m.totalSubscribers ? Math.round(m.totalContributions / m.totalSubscribers) : 0,
       latestMonthly: m.monthlyContributions?.[11] || 0,
       prevMonthly: m.monthlyContributions?.[10] || 0,
     };
-  }), [districts, regionsMap]);
+  }), [rows, regionsMap, isBranch]);
 
   const filtered = useMemo(() => {
-    if (!regionFilter) return enriched;
+    if (isBranch || !regionFilter) return enriched;
     return enriched.filter((d) => d.regionId === regionFilter);
-  }, [enriched, regionFilter]);
+  }, [enriched, regionFilter, isBranch]);
 
   const columns = [
-    { key: 'name', label: 'District', sortable: true, width: '160px' },
-    { key: 'regionName', label: 'Region', sortable: true },
+    { key: 'name', label: isBranch ? 'Agent' : 'District', sortable: true, width: '160px' },
+    !isBranch && { key: 'regionName', label: 'Region', sortable: true },
     {
       key: 'totalContributions',
       label: 'Total Contributions',
@@ -127,18 +133,20 @@ export default function ContributionsCollections({ onBack }) {
       width: '80px',
       render: (row) => <MiniSparkline data={row.metrics?.monthlyContributions || []} />,
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <ReportView
       onBack={onBack}
       title="Contributions & Collections"
-      description="Contribution inflows by district with period breakdowns and trends"
-      filters={
+      description={isBranch
+        ? 'Contribution inflows by agent with period breakdowns and trends'
+        : 'Contribution inflows by district with period breakdowns and trends'}
+      filters={isBranch ? null : (
         <FilterSelect label="Region" value={regionFilter} onChange={setRegionFilter} options={regionOptions} />
-      }
+      )}
     >
-      <ReportTable columns={columns} data={filtered} defaultSort="totalContributions" loading={loadingDistricts} />
+      <ReportTable columns={columns} data={filtered} defaultSort="totalContributions" loading={isBranch ? loadingAgents : loadingDistricts} />
     </ReportView>
   );
 }

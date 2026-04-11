@@ -273,6 +273,30 @@ function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch }) {
         <KpiCard icon={Icons.activeRate} label="Active Rate" value={m.activeRate} suffix="%" />
       </div>
 
+      {/* Branch Score + Rank */}
+      {branch.score != null && (
+        <div className={styles.scoreRow}>
+          <div className={styles.scorePill}>
+            <span className={styles.scorePillLabel}>Score</span>
+            <span className={styles.scorePillValue}>{branch.score}</span>
+            <span className={styles.scorePillMax}>/100</span>
+          </div>
+          {branch.districtRank && (
+            <div className={styles.scorePill} data-variant="rank">
+              <span className={styles.scorePillLabel}>District Rank</span>
+              <span className={styles.scorePillValue}>#{branch.districtRank}</span>
+              <span className={styles.scorePillMax}>of {branch.districtBranchCount}</span>
+            </div>
+          )}
+          {branch.rank && (
+            <div className={styles.scorePill} data-variant="global">
+              <span className={styles.scorePillLabel}>Overall</span>
+              <span className={styles.scorePillValue}>#{branch.rank}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Branch admin */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
@@ -469,6 +493,7 @@ function EditBranch({ branch, section, onSave, onCancel }) {
 /*  ViewBranches — main panel orchestrator                                    */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 const SORT_OPTIONS = [
+  { key: 'score', label: 'Score', fn: (a, b) => (b.score || 0) - (a.score || 0) },
   { key: 'subscribers', label: 'Subscribers', fn: (a, b) => b.metrics.totalSubscribers - a.metrics.totalSubscribers },
   { key: 'activeRate', label: 'Active Rate', fn: (a, b) => b.metrics.activeRate - a.metrics.activeRate },
   { key: 'aum', label: 'AUM', fn: (a, b) => b.metrics.aum - a.metrics.aum },
@@ -932,6 +957,10 @@ export default function ViewBranches() {
                                   <div className={styles.stat}>
                                     <span className={styles.statValue}>{branch.metrics.activeRate}%</span>
                                     <span className={styles.statLabel}>Active</span>
+                                  </div>
+                                  <div className={styles.stat} data-variant="score">
+                                    <span className={styles.statValueScore}>{branch.score ?? '—'}</span>
+                                    <span className={styles.statLabel}>Score</span>
                                   </div>
                                 </div>
                                 <span className={styles.chevron}>

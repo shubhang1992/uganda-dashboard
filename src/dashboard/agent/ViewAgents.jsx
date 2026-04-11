@@ -296,7 +296,7 @@ function AgentDetail({ agent, branchesMap, districtsMap, regionsMap, onViewCommi
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  ViewAgents — main panel                                                   */
 /* ═══════════════════════════════════════════════════════════════════════════ */
-export default function ViewAgents() {
+export default function ViewAgents({ branchId, splitMode = false }) {
   const { viewAgentsOpen, setViewAgentsOpen, setCommissionsOpen, drillTargetAgentId, closeDrillPanel } = useDashboard();
 
   const { data: allAgentsRaw = [] } = useAllEntities('agent');
@@ -322,7 +322,7 @@ export default function ViewAgents() {
   const regionBtnRef = useRef(null);
   const sortBtnRef = useRef(null);
 
-  const allAgents = allAgentsRaw;
+  const allAgents = branchId ? allAgentsRaw.filter(a => a.parentId === branchId) : allAgentsRaw;
 
   // Auto-select agent when opened via map drill-down
   useEffect(() => {
@@ -443,7 +443,7 @@ export default function ViewAgents() {
   return (
     <>
       <AnimatePresence>
-        {viewAgentsOpen && (
+        {viewAgentsOpen && !splitMode && (
           <motion.div
             key="va-backdrop"
             className={styles.backdrop}
@@ -461,10 +461,16 @@ export default function ViewAgents() {
           <motion.div
             key="va-panel"
             className={styles.panel}
+            data-split-mode={splitMode || undefined}
             initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
+            animate={{
+              x: 0,
+              transition: { duration: 0.55, ease: EASE_OUT_EXPO },
+            }}
+            exit={{
+              x: '100%',
+              transition: { duration: 0.55, ease: EASE_OUT_EXPO },
+            }}
           >
             {/* Header */}
             <div className={styles.header} data-view={view}>

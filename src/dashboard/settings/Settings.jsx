@@ -62,7 +62,7 @@ function PasswordInput({ value, onChange, placeholder, error, ariaLabel }) {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Settings panel                                                           */
 /* ═══════════════════════════════════════════════════════════════════════════ */
-export default function Settings() {
+export default function Settings({ splitMode = false }) {
   const { settingsOpen, setSettingsOpen } = useDashboard();
   const { user } = useAuth();
 
@@ -182,23 +182,33 @@ export default function Settings() {
     <AnimatePresence>
       {settingsOpen && (
         <>
-          {/* Backdrop */}
-          <motion.div
-            className={styles.backdrop}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            onClick={() => setSettingsOpen(false)}
-          />
+          {/* Backdrop — hidden in split mode */}
+          {!splitMode && (
+            <motion.div
+              className={styles.backdrop}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              onClick={() => setSettingsOpen(false)}
+            />
+          )}
 
           {/* Panel */}
           <motion.div
             className={styles.panel}
+            data-split-mode={splitMode || undefined}
             initial={{ x: '100%', opacity: 0.6 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: '100%', opacity: 0.6 }}
-            transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
+            animate={{
+              x: 0,
+              opacity: 1,
+              transition: { duration: 0.55, ease: EASE_OUT_EXPO },
+            }}
+            exit={{
+              x: '100%',
+              opacity: 0.6,
+              transition: { duration: 0.55, ease: EASE_OUT_EXPO },
+            }}
             role="dialog"
             aria-modal="true"
             aria-label="Settings"

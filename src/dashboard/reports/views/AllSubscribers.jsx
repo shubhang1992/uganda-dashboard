@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
+import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import { formatUGX } from '../../../utils/finance';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
@@ -28,6 +29,8 @@ function KycBadge({ status }) {
 }
 
 export default function AllSubscribers({ onBack }) {
+  const { branchId } = useBranchScope();
+  const isBranch = !!branchId;
   const { data: subscribers = [], isLoading: loadingSubs } = useAllEntities('subscriber');
   const { data: agentsMap = {} } = useAllEntitiesMap('agent');
   const { data: branchesMap = {} } = useAllEntitiesMap('branch');
@@ -37,15 +40,21 @@ export default function AllSubscribers({ onBack }) {
   const [activeFilter, setActiveFilter] = useState('');
   const [genderFilter, setGenderFilter] = useState('');
 
-  const enriched = useMemo(() => subscribers.map((s) => {
-    const agent = agentsMap[s.parentId];
-    const branch = agent ? branchesMap[agent.parentId] : null;
-    return {
-      ...s,
-      agentName: agent?.name || '',
-      branchName: branch?.name || '',
-    };
-  }), [subscribers, agentsMap, branchesMap]);
+  const enriched = useMemo(() => {
+    const out = [];
+    for (const s of subscribers) {
+      const agent = agentsMap[s.parentId];
+      if (!agent) continue;
+      if (isBranch && agent.parentId !== branchId) continue;
+      const branch = branchesMap[agent.parentId];
+      out.push({
+        ...s,
+        agentName: agent.name || '',
+        branchName: branch?.name || '',
+      });
+    }
+    return out;
+  }, [subscribers, agentsMap, branchesMap, isBranch, branchId]);
 
   const filtered = useMemo(() => {
     let data = enriched;
@@ -89,7 +98,7 @@ export default function AllSubscribers({ onBack }) {
       ),
     },
     { key: 'agentName', label: 'Agent', sortable: true },
-    { key: 'branchName', label: 'Branch', sortable: true },
+    !isBranch && { key: 'branchName', label: 'Branch', sortable: true },
     {
       key: 'totalContributions',
       label: 'Total Contributions',
@@ -103,13 +112,15 @@ export default function AllSubscribers({ onBack }) {
       sortable: false,
       render: (row) => (row.productsHeld || []).length,
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <ReportView
       onBack={onBack}
       title="All Subscribers"
-      description={`${filtered.length.toLocaleString()} subscribers in the network`}
+      description={isBranch
+        ? `${filtered.length.toLocaleString()} subscribers in ${branchesMap[branchId]?.name || 'this branch'}`
+        : `${filtered.length.toLocaleString()} subscribers in the network`}
       filters={
         <>
           <SearchFilter value={search} onChange={setSearch} placeholder="Search subscribers…" />

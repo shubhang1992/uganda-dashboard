@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO, formatUGX, fmtShort } from '../../utils/finance';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { useCountry, useAllEntities } from '../../hooks/useEntity';
+import { useCountry, useEntity, useChildren, useAllEntities } from '../../hooks/useEntity';
 import styles from './ReportsHub.module.css';
 
 /* ─── Lazy-load individual report views ──────────────────────────────── */
@@ -32,12 +32,12 @@ function ReportLoading() {
 
 /* ─── Router ─────────────────────────────────────────────────────────── */
 
-export default function ReportsHub({ panelMode, onSelectReport }) {
+export default function ReportsHub({ panelMode, onSelectReport, branchId }) {
   const { reportId } = useDashboard();
 
   // In panel mode, the parent ViewReports handles report routing
   if (panelMode) {
-    return <ReportsIndex panelMode onSelectReport={onSelectReport} />;
+    return <ReportsIndex panelMode onSelectReport={onSelectReport} branchId={branchId} />;
   }
 
   if (reportId && REPORT_VIEWS[reportId]) {
@@ -134,11 +134,20 @@ const fadeIn = { hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, tra
 
 /* ─── Hub Index ──────────────────────────────────────────────────────── */
 
-function ReportsIndex({ panelMode, onSelectReport }) {
+const BRANCH_EXCLUDED_REPORTS = new Set([
+  'distribution-summary',
+  'all-branches',
+  'branch-performance',
+]);
+
+function ReportsIndex({ panelMode, onSelectReport, branchId }) {
   const navigate = useNavigate();
+  const isBranch = !!branchId;
   const { data: country } = useCountry();
   const { data: regions = [] } = useAllEntities('region');
-  const m = country?.metrics;
+  const { data: branch } = useEntity('branch', branchId);
+  const { data: branchAgents = [] } = useChildren('branch', branchId);
+  const m = isBranch ? branch?.metrics : country?.metrics;
 
   const go = (id) => {
     if (panelMode && onSelectReport) onSelectReport(id);
@@ -154,6 +163,11 @@ function ReportsIndex({ panelMode, onSelectReport }) {
     return [...regions].sort((a, b) => (b.metrics?.aum || 0) - (a.metrics?.aum || 0))[0];
   }, [regions]);
 
+  const topAgent = useMemo(() => {
+    if (!isBranch || !branchAgents.length) return null;
+    return [...branchAgents].sort((a, b) => (b.metrics?.totalContributions || 0) - (a.metrics?.totalContributions || 0))[0];
+  }, [isBranch, branchAgents]);
+
   if (!m) {
     return <div className={styles.reportLoading}><div className={styles.loadingSpinner} /></div>;
   }
@@ -166,7 +180,7 @@ function ReportsIndex({ panelMode, onSelectReport }) {
         {!panelMode && (
           <motion.div className={styles.pageHeader} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}>
             <h1 className={styles.pageTitle}>Reports</h1>
-            <p className={styles.pageSubtitle}>Network overview and analytics</p>
+            <p className={styles.pageSubtitle}>{isBranch ? 'Branch overview and analytics' : 'Network overview and analytics'}</p>
           </motion.div>
         )}
 
@@ -174,6 +188,7 @@ function ReportsIndex({ panelMode, onSelectReport }) {
         <motion.div className={styles.sections} variants={stagger} initial="hidden" animate="visible">
 
           {/* ── Overview ── */}
+          {!isBranch && (
           <motion.section className={styles.section} variants={fadeUp}>
             <div className={styles.sectionHead} style={{ '--section-accent': '#292867' }}>
               <h2 className={styles.sectionTitle}>Overview</h2>
@@ -196,6 +211,7 @@ function ReportsIndex({ panelMode, onSelectReport }) {
               <CardArrow />
             </button>
           </motion.section>
+          )}
 
           {/* ── Directory ── */}
           <motion.section className={styles.section} variants={fadeUp}>
@@ -205,13 +221,13 @@ function ReportsIndex({ panelMode, onSelectReport }) {
             </div>
             <div className={styles.grid3}>
               {[
-                { id: 'all-branches', label: 'Branches', count: m.totalBranches, icon: 'building', color: '#2F8F9D',
+                !isBranch && { id: 'all-branches', label: 'Branches', count: m.totalBranches, icon: 'building', color: '#2F8F9D',
                   detail: `${m.totalAgents} agents across 4 regions` },
                 { id: 'all-agents', label: 'Agents', count: m.totalAgents, icon: 'users', color: '#2F8F9D',
                   detail: `Avg ${Math.round(m.totalSubscribers / m.totalAgents)} subscribers per agent` },
                 { id: 'all-subscribers', label: 'Subscribers', count: m.totalSubscribers, icon: 'user', color: '#2F8F9D',
                   detail: `${m.genderRatio?.female || 0}% female · ${m.activeRate}% active` },
-              ].map((card) => (
+              ].filter(Boolean).map((card) => (
                 <motion.button key={card.id} className={styles.dirCard} onClick={() => go(card.id)} variants={fadeIn}
                   whileHover={{ y: -2 }} whileTap={{ scale: 0.985 }} transition={{ duration: 0.2 }}>
                   <div className={styles.dirTop}>
@@ -283,9 +299,10 @@ function ReportsIndex({ panelMode, onSelectReport }) {
           <motion.section className={styles.section} variants={fadeUp}>
             <div className={styles.sectionHead} style={{ '--section-accent': '#E6A817' }}>
               <h2 className={styles.sectionTitle}>Performance</h2>
-              <span className={styles.sectionCount}>2 reports</span>
+              <span className={styles.sectionCount}>{isBranch ? '1 report' : '2 reports'}</span>
             </div>
-            <div className={styles.grid2}>
+            <div className={isBranch ? styles.grid1 : styles.grid2}>
+              {!isBranch && (
               <motion.button className={styles.perfCard} onClick={() => go('branch-performance')} variants={fadeIn}
                 whileHover={{ y: -2 }} whileTap={{ scale: 0.985 }} transition={{ duration: 0.2 }}>
                 <div className={styles.perfTop}>
@@ -305,6 +322,7 @@ function ReportsIndex({ panelMode, onSelectReport }) {
                   </div>
                 )}
               </motion.button>
+              )}
 
               <motion.button className={styles.perfCard} onClick={() => go('agent-performance')} variants={fadeIn}
                 whileHover={{ y: -2 }} whileTap={{ scale: 0.985 }} transition={{ duration: 0.2 }}>
@@ -319,8 +337,12 @@ function ReportsIndex({ panelMode, onSelectReport }) {
                   <span className={styles.perfDesc}>Ranked by productivity, subscriber growth, and ratings</span>
                 </div>
                 <div className={styles.perfMeta}>
-                  <span className={styles.perfMetaLabel}>Avg subs/agent</span>
-                  <span className={styles.perfMetaValue}>{Math.round(m.totalSubscribers / m.totalAgents)}</span>
+                  <span className={styles.perfMetaLabel}>{isBranch && topAgent ? 'Top agent' : 'Avg subs/agent'}</span>
+                  <span className={styles.perfMetaValue}>
+                    {isBranch && topAgent
+                      ? topAgent.name
+                      : (m.totalAgents ? Math.round(m.totalSubscribers / m.totalAgents) : 0)}
+                  </span>
                 </div>
               </motion.button>
             </div>

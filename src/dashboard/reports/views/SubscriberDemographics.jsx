@@ -1,19 +1,25 @@
 import { useMemo } from 'react';
-import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
+import { useAllEntities, useAllEntitiesMap, useChildren } from '../../../hooks/useEntity';
+import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 
 export default function SubscriberDemographics({ onBack }) {
-  const { data: districts = [], isLoading } = useAllEntities('district');
+  const { branchId } = useBranchScope();
+  const isBranch = !!branchId;
+  const { data: districts = [], isLoading: loadingDistricts } = useAllEntities('district');
+  const { data: branchAgents = [], isLoading: loadingAgents } = useChildren('branch', branchId);
   const { data: regionsMap = {} } = useAllEntitiesMap('region');
 
-  const enriched = useMemo(() => districts.map((d) => {
-    const region = regionsMap[d.parentId];
-    const m = d.metrics || {};
+  const rows = isBranch ? branchAgents : districts;
+
+  const enriched = useMemo(() => rows.map((row) => {
+    const region = isBranch ? null : regionsMap[row.parentId];
+    const m = row.metrics || {};
     const totalAge = Object.values(m.ageDistribution || {}).reduce((s, v) => s + v, 0) || 1;
     const youthPct = Math.round(((m.ageDistribution?.['18-25'] || 0) + (m.ageDistribution?.['26-35'] || 0)) / totalAge * 100);
     return {
-      ...d,
+      ...row,
       regionName: region?.name || '',
       malePct: m.genderRatio?.male || 0,
       femalePct: m.genderRatio?.female || 0,
@@ -25,7 +31,7 @@ export default function SubscriberDemographics({ onBack }) {
       age4655: m.ageDistribution?.['46-55'] || 0,
       age56plus: m.ageDistribution?.['56+'] || 0,
     };
-  }), [districts, regionsMap]);
+  }), [rows, regionsMap, isBranch]);
 
   function GenderBar({ male, female }) {
     return (
@@ -43,8 +49,8 @@ export default function SubscriberDemographics({ onBack }) {
   }
 
   const columns = [
-    { key: 'name', label: 'District', sortable: true, width: '160px' },
-    { key: 'regionName', label: 'Region', sortable: true },
+    { key: 'name', label: isBranch ? 'Agent' : 'District', sortable: true, width: '160px' },
+    !isBranch && { key: 'regionName', label: 'Region', sortable: true },
     {
       key: 'totalSubscribers',
       label: 'Subscribers',
@@ -102,15 +108,17 @@ export default function SubscriberDemographics({ onBack }) {
       sortable: true,
       render: (row) => row.age56plus.toLocaleString(),
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <ReportView
       onBack={onBack}
       title="Subscriber Demographics"
-      description="Age distribution and gender breakdown by district"
+      description={isBranch
+        ? 'Age distribution and gender breakdown by agent'
+        : 'Age distribution and gender breakdown by district'}
     >
-      <ReportTable columns={columns} data={enriched} defaultSort="totalSubscribers" loading={isLoading} />
+      <ReportTable columns={columns} data={enriched} defaultSort="totalSubscribers" loading={isBranch ? loadingAgents : loadingDistricts} />
     </ReportView>
   );
 }
