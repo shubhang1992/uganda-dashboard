@@ -164,3 +164,18 @@
     outline-offset: 2px;
   }
 }
+
+@media (max-width: 600px) {
+  .main {
+    padding-bottom: 72px;
+  }
+
+  .mobileHeader {
+    padding: 0.5rem var(--space-3);
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+
+  .mobileHeaderLogo {
+    height: 24px;
+  }
+}

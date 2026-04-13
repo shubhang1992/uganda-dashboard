@@ -213,4 +213,18 @@
     justify-content: center;
     color: var(--color-indigo-soft);
   }
+
+  .moreMenu {
+    right: var(--space-2);
+  }
+}
+
+@media (max-width: 600px) {
+  .mobileBtn {
+    min-height: 48px;
+  }
+
+  .mobileLabel {
+    font-size: 0.5625rem;
+  }
 }
