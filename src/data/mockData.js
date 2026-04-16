@@ -544,6 +544,7 @@ Object.keys(BRANCHES).forEach((branchId) => {
       id,
       name: ugandanName(gender),
       gender,
+      employeeId: `EMP-${String(agentCounter).padStart(4, '0')}`,
       parentId: branchId,
       center: [branchCenter[0] + (rand() - 0.5) * 0.02, branchCenter[1] + (rand() - 0.5) * 0.02],
       phone: ugandanPhone(),
@@ -917,7 +918,7 @@ Object.values(AGENTS).forEach((agent) => {
     const dueDateStr = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
 
     // Determine status: paid (~65%), due (~30%), disputed (~5%)
-    const now = new Date(2026, 3, 8); // April 8, 2026 — current mock date
+    const now = new Date();
     const statusRoll = rand();
     let status, paidDate = null, agentConfirmed = false;
 

@@ -50,14 +50,23 @@
   gap: var(--space-3);
 }
 
-/* Compact alerts in split: keep 4 cols, smaller numbers, less padding */
+/* Compact alerts in split: 2×2 grid fits comfortably in the narrower hero */
 .hero[data-split='true'] .heroAlerts {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .hero[data-split='true'] .heroAlert {
   padding: 0.6875rem var(--space-3);
   gap: 0.625rem;
+}
+
+.hero[data-split='true'] .heroAlert:nth-child(2) {
+  border-right: none;
+}
+
+.hero[data-split='true'] .heroAlert:nth-child(1),
+.hero[data-split='true'] .heroAlert:nth-child(2) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .hero[data-split='true'] .heroAlertValue {
@@ -133,7 +142,7 @@
   font-family: var(--font-body);
   font-size: 0.625rem;
   font-weight: 600;
-  color: rgba(217,220,242,0.45);
+  color: rgba(217,220,242,0.65);
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
@@ -153,7 +162,7 @@
   font-family: var(--font-body);
   font-size: var(--text-xs);
   font-weight: 500;
-  color: rgba(217,220,242,0.55);
+  color: rgba(217,220,242,0.7);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -330,7 +339,7 @@
   font-family: var(--font-body);
   font-size: 0.5625rem;
   font-weight: 500;
-  color: rgba(217,220,242,0.45);
+  color: rgba(217,220,242,0.65);
   flex: 1;
 }
 
@@ -338,7 +347,7 @@
   font-family: var(--font-body);
   font-size: 0.5625rem;
   font-weight: 700;
-  color: rgba(217,220,242,0.65);
+  color: rgba(217,220,242,0.85);
   font-variant-numeric: tabular-nums;
 }
 
@@ -370,6 +379,30 @@
   display: flex;
   flex-direction: column;
   gap: 0.1875rem;
+}
+
+/* Clickable metric card overlay — composable with metricBlock / kpiItem */
+.metricCard {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.metricCard:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.14);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.metricCard:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
 }
 
 .metricLabel {
@@ -628,7 +661,7 @@
   font-family: var(--font-body);
   font-size: 0.5625rem;
   font-weight: 500;
-  color: rgba(217,220,242,0.3);
+  color: rgba(217,220,242,0.6);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
@@ -636,7 +669,7 @@
 .activityEmpty {
   font-family: var(--font-body);
   font-size: var(--text-xs);
-  color: rgba(217,220,242,0.3);
+  color: rgba(217,220,242,0.6);
   text-align: center;
   padding: var(--space-4) 0;
 }
@@ -661,10 +694,30 @@
   padding: 0.875rem var(--space-5);
   position: relative;
   border-right: 1px solid rgba(255,255,255,0.05);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
 }
 
 .heroAlert:last-child {
   border-right: none;
+}
+
+.heroAlert:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+.heroAlertChevron {
+  opacity: 0.25;
+  color: rgba(217,220,242,0.6);
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.heroAlert:hover .heroAlertChevron {
+  opacity: 1;
+  transform: translateX(2px);
 }
 
 .heroAlertAccent {
@@ -891,7 +944,7 @@
   font-family: var(--font-body);
   font-size: var(--text-xs);
   font-weight: 500;
-  color: rgba(217,220,242,0.7);
+  color: rgba(217,220,242,0.85);
   line-height: 1.35;
 }
 
@@ -918,7 +971,7 @@
   font-family: var(--font-body);
   font-size: 0.5625rem;
   font-weight: 500;
-  color: rgba(217,220,242,0.35);
+  color: rgba(217,220,242,0.65);
   background: rgba(255,255,255,0.025);
   border: 1px solid rgba(255,255,255,0.04);
   border-radius: var(--radius-full);
@@ -963,7 +1016,7 @@
 .chatEmptyText {
   font-family: var(--font-body);
   font-size: var(--text-xs);
-  color: rgba(217,220,242,0.2);
+  color: rgba(217,220,242,0.55);
 }
 
 .chatMsg { display: flex; gap: var(--space-2); align-items: flex-start; }
@@ -992,16 +1045,28 @@
   border-top: 1px solid rgba(255,255,255,0.03);
 }
 
+.chatFieldPulse {
+  flex: 1;
+  display: flex;
+  border-radius: var(--radius-md);
+  border: 1.5px solid transparent;
+  will-change: box-shadow, border-color;
+}
+
 .chatField {
-  flex: 1; border: 1px solid rgba(255,255,255,0.05);
+  flex: 1; width: 100%;
+  border: 1px solid rgba(255,255,255,0.05);
   background: rgba(255,255,255,0.025); border-radius: var(--radius-md);
   font-family: var(--font-body); font-size: var(--text-xs);
   color: rgba(217,220,242,0.85); padding: 0.4375rem 0.625rem; outline: none;
   transition: border-color 0.15s ease;
 }
 
-.chatField:focus-visible { border-color: rgba(255,255,255,0.12); }
-.chatField::placeholder { color: rgba(217,220,242,0.2); }
+.chatField:focus-visible {
+  border-color: rgba(255,255,255,0.25);
+  box-shadow: 0 0 0 2px rgba(94,99,168,0.4);
+}
+.chatField::placeholder { color: rgba(217,220,242,0.5); }
 
 .chatSend {
   display: flex; align-items: center; justify-content: center;
@@ -1051,50 +1116,53 @@
   .copilotInsights { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.04); }
 }
 
+/* ══════════════════════════════════════════════════════════
+   768px — keep 2-col gauge+metrics layout, tighten padding
+   ══════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .hero {
-    border-radius: var(--radius-lg);
-  }
+  .hero { border-radius: var(--radius-lg); }
 
   .heroHeader {
-    padding: var(--space-4) var(--space-4) var(--space-2);
-    flex-direction: column;
+    padding: var(--space-3) var(--space-4) var(--space-2);
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
     gap: var(--space-2);
   }
 
-  .heroBranchName {
-    font-size: 1.5rem;
-  }
+  .heroId { flex: 1; min-width: 0; }
 
-  .heroWelcome {
-    font-size: 0.6875rem;
-  }
+  .heroBranchName { font-size: 1.375rem; }
+  .heroWelcome { font-size: 0.6875rem; }
 
+  /* Keep the 2-column layout (auto 1fr) from the 1024px breakpoint.
+     Only tighten gap and padding for phones. */
   .topGrid {
-    grid-template-columns: 1fr;
-    padding: var(--space-3) var(--space-4);
-    gap: var(--space-4);
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4) var(--space-3);
   }
 
-  .scoreSection { align-items: center; }
-  .gaugeWrap { width: 140px; height: 140px; }
-  .scoreNumber { font-size: 2.25rem; }
-  .breakdownGrid { max-width: 180px; }
+  .gaugeWrap { width: 130px; height: 130px; }
+  .scoreNumber { font-size: 2rem; }
+
   .metricValue { font-size: var(--text-xl); }
-  .metricPair { gap: var(--space-3); }
+  .metricValueMd { font-size: var(--text-sm); }
+  .metricSub { font-size: 0.625rem; }
+  .metricPair { gap: var(--space-2); }
+  .metricsSection { gap: var(--space-2); }
 
-  .activitySection {
-    grid-column: 1;
-    max-height: 180px;
-    padding-top: var(--space-3);
-  }
-  .activityFeed { flex-direction: column; }
-
-  .heroAlerts { grid-template-columns: repeat(2, 1fr); }
-  .heroAlert {
-    padding: 0.75rem var(--space-3);
+  /* 2 columns for KPI row (was 3 — too cramped) */
+  .kpiGrid {
+    grid-template-columns: 1fr 1fr;
     gap: var(--space-2);
   }
+
+  /* Activity: already full-width below from 1024px, just cap height */
+  .activitySection { max-height: 100px; padding-top: var(--space-2); }
+
+  /* Alerts: 2×2 */
+  .heroAlerts { grid-template-columns: repeat(2, 1fr); }
+  .heroAlert { padding: 0.75rem var(--space-3); gap: var(--space-2); }
   .heroAlert:nth-child(2) { border-right: none; }
   .heroAlert:nth-child(1),
   .heroAlert:nth-child(2) { border-bottom: 1px solid rgba(255,255,255,0.05); }
@@ -1102,121 +1170,73 @@
   .heroAlertLabel { font-size: var(--text-xs); }
   .heroAlertSub { font-size: 0.625rem; }
 
+  /* Copilot */
   .copilotToggle { padding: 0.625rem var(--space-4); }
   .insightChips { display: none; }
-
-  .copilotGrid {
-    grid-template-columns: 1fr;
-    min-height: 0;
-  }
-
+  .copilotGrid { grid-template-columns: 1fr; min-height: 0; }
   .copilotInsights {
     padding: var(--space-3) var(--space-4);
     border-right: none;
     border-bottom: 1px solid rgba(255,255,255,0.04);
   }
-
-  .copilotChat {
-    max-height: 220px;
-  }
-
-  .chatMessages {
-    max-height: 140px;
-  }
-
-  .quickRow {
-    gap: 0.5rem;
-  }
-
-  .quickPill {
-    font-size: 0.6875rem;
-    padding: 0.375rem 0.75rem;
-    min-height: 32px;
-  }
-
-  .chatField {
-    font-size: var(--text-sm);
-    padding: 0.5rem 0.75rem;
-    min-height: 40px;
-  }
-
-  .chatSend {
-    width: 36px;
-    height: 36px;
-  }
+  .copilotChat { max-height: 200px; }
+  .chatMessages { max-height: 120px; }
+  .quickRow { gap: 0.5rem; }
+  .quickPill { font-size: 0.6875rem; padding: 0.375rem 0.75rem; min-height: 32px; }
+  .chatField { font-size: var(--text-sm); padding: 0.5rem 0.75rem; min-height: 40px; }
+  .chatSend { width: 36px; height: 36px; }
 }
 
+/* ══════════════════════════════════════════════════════════
+   600px — small phones: go single-column
+   ══════════════════════════════════════════════════════════ */
 @media (max-width: 600px) {
   .heroHeader {
     padding: var(--space-3) var(--space-3) var(--space-2);
+    flex-direction: column;
+    gap: var(--space-2);
   }
 
-  .heroBranchName {
-    font-size: 1.25rem;
-  }
+  .heroBranchName { font-size: 1.25rem; }
 
+  /* Single column on small phones */
   .topGrid {
+    grid-template-columns: 1fr;
     padding: var(--space-3);
     gap: var(--space-3);
   }
 
+  .scoreSection { align-items: center; }
   .gaugeWrap { width: 120px; height: 120px; }
-  .scoreNumber { font-size: 2rem; }
-  .breakdownGrid { max-width: 160px; gap: 0.375rem 0.5rem; }
+  .scoreNumber { font-size: 1.875rem; }
 
   .metricValue { font-size: var(--text-lg); }
   .metricValueMd { font-size: var(--text-base); }
+  .metricPair { gap: var(--space-2); }
 
-  .kpiGrid {
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-2);
+  .kpiGrid { grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+
+  /* Activity: reset from 1024px full-width, now in single-column flow */
+  .activitySection {
+    grid-column: 1;
+    max-height: 120px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    border-left: none;
+    padding-left: 0;
+    padding-top: var(--space-2);
   }
+  .activityFeed { flex-direction: column; }
 
-  .heroAlerts {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .heroAlert {
-    padding: 0.625rem var(--space-3);
-  }
-
+  .heroAlerts { grid-template-columns: 1fr 1fr; }
+  .heroAlert { padding: 0.625rem var(--space-3); }
   .heroAlertValue { font-size: var(--text-base); }
   .heroAlertLabel { font-size: 0.6875rem; }
 
-  .copilotToggle {
-    padding: 0.5rem var(--space-3);
-  }
-
-  .copilotTitle {
-    font-size: var(--text-xs);
-  }
-
-  .insightBtn {
-    padding: 0.5rem;
-    min-height: 44px;
-  }
-
-  .quickPill {
-    min-height: 36px;
-    padding: 0.4375rem 0.75rem;
-  }
-
-  .chatInputRow {
-    padding: var(--space-2) var(--space-3);
-  }
-
-  .chatField {
-    min-height: 44px;
-    font-size: var(--text-sm);
-  }
-
-  .chatSend {
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius-md);
-  }
-
-  .activitySection {
-    max-height: 150px;
-  }
+  .copilotToggle { padding: 0.5rem var(--space-3); }
+  .copilotTitle { font-size: var(--text-xs); }
+  .insightBtn { padding: 0.5rem; min-height: 44px; }
+  .quickPill { min-height: 36px; padding: 0.4375rem 0.75rem; }
+  .chatInputRow { padding: var(--space-2) var(--space-3); }
+  .chatField { min-height: 44px; font-size: var(--text-sm); }
+  .chatSend { width: 40px; height: 40px; border-radius: var(--radius-md); }
 }

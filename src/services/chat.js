@@ -39,6 +39,16 @@ function buildResponses() {
   return _responses;
 }
 
+/**
+ * @endpoint POST /api/chat
+ * @param {string} message - User's chat message
+ * @returns {Promise<string>} AI-generated response text
+ * @description Mock AI chat that returns pre-built responses based on keyword matching.
+ *   In production, replace with LLM integration (e.g., Claude API) connected to the
+ *   actual database for real-time data analysis. Keywords matched: agent/top, coverage/region,
+ *   subscriber/active, gender/split.
+ * @scope Distributor and Branch Admin (scoped to their data visibility).
+ */
 export async function getChatResponse(message) {
   // Future: api.post('/chat', { message })
   const responses = buildResponses();

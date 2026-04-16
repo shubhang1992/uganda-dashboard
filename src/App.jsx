@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { SignInProvider } from './contexts/SignInContext';
 import { useAuth } from './contexts/AuthContext';
@@ -12,9 +13,32 @@ import CTA from './components/CTA';
 import Footer from './components/Footer';
 import StickyMobileCTA from './components/StickyMobileCTA';
 import SignInModal from './components/SignInModal';
-import DashboardShell from './dashboard/DashboardShell';
-import BranchDashboardShell from './branch-dashboard/BranchDashboardShell';
 import { hasDashboard } from './services/auth';
+
+const DashboardShell = lazy(() => import('./dashboard/DashboardShell'));
+const BranchDashboardShell = lazy(() => import('./branch-dashboard/BranchDashboardShell'));
+
+function DashboardFallback() {
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'var(--color-cloud)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}>
+      <div style={{
+        width: 32,
+        height: 32,
+        border: '2.5px solid var(--color-lavender)',
+        borderTopColor: 'var(--color-indigo)',
+        borderRadius: '50%',
+        animation: 'spin 0.7s linear infinite',
+      }} />
+    </div>
+  );
+}
 
 const ROLE_LABELS = {
   subscriber: 'Subscriber',
@@ -121,7 +145,9 @@ function ProtectedDashboard() {
   if (!hasDashboard(role)) return <Navigate to="/coming-soon" replace />;
   return (
     <ErrorBoundary>
-      {role === 'branch' ? <BranchDashboardShell /> : <DashboardShell />}
+      <Suspense fallback={<DashboardFallback />}>
+        {role === 'branch' ? <BranchDashboardShell /> : <DashboardShell />}
+      </Suspense>
     </ErrorBoundary>
   );
 }

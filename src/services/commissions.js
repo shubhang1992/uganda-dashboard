@@ -7,18 +7,40 @@ import {
   AGENTS, BRANCHES, DISTRICTS, SUBSCRIBERS,
 } from '../data/mockData';
 
-/** Get the current commission rate */
+/**
+ * @endpoint GET /api/commissions/rate
+ * @returns {Promise<number>} Current commission rate per subscriber (UGX)
+ * @description Returns the system-wide commission rate. Currently a flat fee per
+ *   subscriber's first contribution.
+ * @cache ['commissionRate']
+ * @scope All authenticated roles (read-only for most).
+ */
 export async function getCommissionRate() {
   return COMMISSION_CONFIG.ratePerSubscriber;
 }
 
-/** Set the commission rate (mock — mutates in memory) */
+/**
+ * @endpoint PUT /api/commissions/rate
+ * @param {number} amount - New rate in UGX
+ * @returns {Promise<number>} The updated rate
+ * @description Updates the commission rate. UNCLEAR — confirm: should this apply
+ *   retroactively to existing "due" commissions, or only to new ones?
+ * @cache Invalidates: ['commissionRate']
+ * @scope Distributor only.
+ */
 export async function setCommissionRate(amount) {
   COMMISSION_CONFIG.ratePerSubscriber = amount;
   return amount;
 }
 
-/** Summary totals across commissions, optionally scoped to a branch */
+/**
+ * @endpoint GET /api/commissions/summary?branchId=:branchId
+ * @param {string|null} branchId - Optional branch scope. Null = all commissions.
+ * @returns {Promise<{totalCommissions: number, totalPaid: number, totalDue: number, totalDisputed: number, totalRequested: number, countTotal: number, countPaid: number, countDue: number, countDisputed: number, countRequested: number}>}
+ * @description Aggregated commission totals. Used by CommissionPanel home view.
+ * @cache ['commissionSummary', branchId || 'all']
+ * @scope Distributor: all or filtered. Branch: own branch only.
+ */
 export async function getCommissionSummary(branchId = null) {
   const all = branchId
     ? (commissionsByBranch[branchId] || [])
@@ -44,7 +66,15 @@ export async function getCommissionSummary(branchId = null) {
   };
 }
 
-/** Get agent-level commission aggregates, optionally filtered by status focus */
+/**
+ * @endpoint GET /api/commissions/agents?status=:statusFocus
+ * @param {string|undefined} statusFocus - Optional status filter (paid|due|disputed)
+ * @returns {Promise<Array<{agentId: string, agentName: string, branchId: string, branchName: string, totalCommissions: number, totalPaid: number, totalDue: number, subscribersOnboarded: number, activeSubscribers: number, filteredAmount: number, filteredCount: number}>>}
+ * @description Lists agents with their commission aggregates. Used by CommissionPanel
+ *   agents view. Supports filtering by commission status.
+ * @cache ['agentCommissions', statusFocus || 'all']
+ * @scope Distributor: all agents. Branch: own branch's agents.
+ */
 export async function getAgentCommissionList(statusFocus) {
   const agentIds = Object.keys(commissionsByAgent);
   return agentIds.map((agentId) => {
@@ -60,6 +90,7 @@ export async function getAgentCommissionList(statusFocus) {
     return {
       agentId,
       agentName: agent?.name || 'Unknown',
+      employeeId: agent?.employeeId || '',
       branchId: agent?.parentId || '',
       branchName: branch?.name || 'Unknown',
       totalCommissions: totalAmount,
@@ -73,7 +104,15 @@ export async function getAgentCommissionList(statusFocus) {
   }).filter((a) => a.subscribersOnboarded > 0);
 }
 
-/** Get detailed commissions for a single agent */
+/**
+ * @endpoint GET /api/commissions/agents/:agentId
+ * @param {string} agentId - Agent ID
+ * @returns {Promise<{agentId: string, agentName: string, agentPhone: string, branchId: string, branchName: string, rating: number, totalCommissions: number, totalPaid: number, totalDue: number, subscribersOnboarded: number, activeSubscribers: number, dormantSubscribers: number, paidTransactions: Array, dueTransactions: Array, commissions: Array}>}
+ * @description Detailed commission data for a single agent including transaction lists.
+ *   `dueTransactions` includes `daysToDate` (days until/since due date).
+ * @cache ['agentCommissionDetail', agentId]
+ * @scope Distributor: any agent. Branch: own branch's agents. Agent: own data only.
+ */
 export async function getAgentCommissionDetail(agentId) {
   const agent = AGENTS[agentId];
   const branch = BRANCHES[agent?.parentId];
@@ -86,6 +125,7 @@ export async function getAgentCommissionDetail(agentId) {
   return {
     agentId,
     agentName: agent?.name || 'Unknown',
+    employeeId: agent?.employeeId || '',
     agentPhone: agent?.phone || '',
     branchId: agent?.parentId || '',
     branchName: branch?.name || 'Unknown',
@@ -126,7 +166,15 @@ export async function getAgentCommissionDetail(agentId) {
   };
 }
 
-/** Get subscribers for an agent's commissions, optionally filtered */
+/**
+ * @endpoint GET /api/commissions/agents/:agentId/subscribers?filter=:filter
+ * @param {string} agentId - Agent ID
+ * @param {string} [filter] - 'active' | 'dormant' | undefined (all)
+ * @returns {Promise<Array<{subscriberId: string, subscriberName: string, registeredDate: string, lastContribution: number, lastContributionDate: string, totalContributions: number, isActive: boolean}>>}
+ * @description Lists subscribers linked to an agent's commissions, with contribution data.
+ * @cache ['commissionSubscribers', agentId, filter || 'all']
+ * @scope Same as getAgentCommissionDetail.
+ */
 export async function getCommissionSubscribers(agentId, filter) {
   const comms = commissionsByAgent[agentId] || [];
 
@@ -151,7 +199,14 @@ export async function getCommissionSubscribers(agentId, filter) {
   });
 }
 
-/** Get agents with disputed commissions */
+/**
+ * @endpoint GET /api/commissions/disputed
+ * @returns {Promise<Array<{agentId: string, agentName: string, branchId: string, branchName: string, disputedCount: number, disputedAmount: number, disputes: Array<{id: string, subscriberId: string, subscriberName: string, amount: number, dueDate: string, reason: string}>}>>}
+ * @description Lists agents who have disputed commissions, with dispute details.
+ *   Used by CommissionPanel's "Needs Attention" section.
+ * @cache ['disputedAgents']
+ * @scope Distributor: all. Branch: own branch's agents.
+ */
 export async function getDisputedAgentList() {
   const agentIds = Object.keys(commissionsByAgent);
   return agentIds.map((agentId) => {
@@ -164,6 +219,7 @@ export async function getDisputedAgentList() {
     return {
       agentId,
       agentName: agent?.name || 'Unknown',
+      employeeId: agent?.employeeId || '',
       branchId: agent?.parentId || '',
       branchName: branch?.name || 'Unknown',
       disputedCount: disputed.length,
@@ -180,7 +236,13 @@ export async function getDisputedAgentList() {
   }).filter(Boolean);
 }
 
-/** Get agents with settlement requests (due commissions flagged by agent) */
+/**
+ * @endpoint GET /api/commissions/settlement-requests
+ * @returns {Promise<Array<{agentId: string, agentName: string, branchId: string, branchName: string, requestedCount: number, requestedAmount: number, requests: Array<{id: string, subscriberId: string, subscriberName: string, amount: number, dueDate: string}>}>>}
+ * @description Lists agents who have flagged commissions for settlement.
+ * @cache ['settlementRequests']
+ * @scope Distributor: all. Branch: own branch's agents.
+ */
 export async function getSettlementRequestList() {
   const agentIds = Object.keys(commissionsByAgent);
   return agentIds.map((agentId) => {
@@ -193,6 +255,7 @@ export async function getSettlementRequestList() {
     return {
       agentId,
       agentName: agent?.name || 'Unknown',
+      employeeId: agent?.employeeId || '',
       branchId: agent?.parentId || '',
       branchName: branch?.name || 'Unknown',
       requestedCount: requested.length,
@@ -208,7 +271,14 @@ export async function getSettlementRequestList() {
   }).filter(Boolean);
 }
 
-/** Approve a disputed commission — moves it back to 'due' so it can be settled */
+/**
+ * @endpoint POST /api/commissions/:commissionId/approve
+ * @param {string} commissionId - Commission to approve
+ * @returns {Promise<Object>} Updated commission (status → 'due', disputeReason → null)
+ * @description Resolves a disputed commission by moving it back to 'due' status.
+ * @cache Invalidates: all commission query keys
+ * @scope Distributor and Branch Admin.
+ */
 export async function approveCommission(commissionId) {
   const c = COMMISSIONS[commissionId];
   if (!c) return null;
@@ -218,7 +288,14 @@ export async function approveCommission(commissionId) {
   return c;
 }
 
-/** Reject a commission — marks it as 'rejected' (voided, will not be paid) */
+/**
+ * @endpoint POST /api/commissions/:commissionId/reject
+ * @param {string} commissionId - Commission to reject
+ * @returns {Promise<Object>} Updated commission (status → 'rejected', settlementRequested → false)
+ * @description Voids a commission permanently. The agent will not be paid.
+ * @cache Invalidates: all commission query keys
+ * @scope Distributor and Branch Admin.
+ */
 export async function rejectCommission(commissionId) {
   const c = COMMISSIONS[commissionId];
   if (!c) return null;
@@ -228,17 +305,39 @@ export async function rejectCommission(commissionId) {
   return c;
 }
 
-/** Bulk approve — approve multiple commissions at once */
+/**
+ * @endpoint POST /api/commissions/bulk-approve
+ * @param {string[]} commissionIds - Array of commission IDs to approve
+ * @returns {Promise<Array<Object>>} Array of updated commissions
+ * @description Approves multiple disputed commissions at once.
+ * @cache Invalidates: all commission query keys
+ * @scope Distributor and Branch Admin.
+ */
 export async function bulkApproveCommissions(commissionIds) {
   return Promise.all(commissionIds.map(approveCommission));
 }
 
-/** Bulk reject — reject multiple commissions at once */
+/**
+ * @endpoint POST /api/commissions/bulk-reject
+ * @param {string[]} commissionIds - Array of commission IDs to reject
+ * @returns {Promise<Array<Object>>} Array of updated commissions
+ * @description Rejects multiple commissions at once.
+ * @cache Invalidates: all commission query keys
+ * @scope Distributor and Branch Admin.
+ */
 export async function bulkRejectCommissions(commissionIds) {
   return Promise.all(commissionIds.map(rejectCommission));
 }
 
-/** Settle commissions — mark due commissions as paid */
+/**
+ * @endpoint POST /api/commissions/settle
+ * @param {string[]} commissionIds - Array of due commission IDs to settle
+ * @returns {Promise<{settled: number, paidDate: string}>} Count of settled commissions and payment date
+ * @description Marks due commissions as paid. Sets paidDate and agentConfirmed=false
+ *   (pending agent confirmation).
+ * @cache Invalidates: ['commissionSummary'], ['agentCommissions'], ['agentCommissionDetail']
+ * @scope Distributor and Branch Admin.
+ */
 export async function settleCommissions(commissionIds) {
   const now = new Date(2026, 3, 8);
   const paidDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -256,7 +355,14 @@ export async function settleCommissions(commissionIds) {
   return { settled: commissionIds.length, paidDate };
 }
 
-/** Settle all due commissions for an agent */
+/**
+ * @endpoint POST /api/commissions/agents/:agentId/settle
+ * @param {string} agentId - Agent whose due commissions to settle
+ * @returns {Promise<{settled: number, paidDate: string}>}
+ * @description Settles all due commissions for a single agent.
+ * @cache Invalidates: ['commissionSummary'], ['agentCommissions'], ['agentCommissionDetail']
+ * @scope Distributor and Branch Admin.
+ */
 export async function settleAgentCommissions(agentId) {
   const comms = commissionsByAgent[agentId] || [];
   const dueIds = comms.filter((c) => c.status === 'due').map((c) => c.id);
@@ -267,7 +373,10 @@ export async function settleAgentCommissions(agentId) {
 
 const _summaryCache = new Map();
 
-/** Invalidate the summary cache (called after mutations) */
+/**
+ * @description Clears the entity-level commission summary memo cache.
+ *   Called internally after any mutation. Not an API endpoint.
+ */
 export function invalidateSummaryCache() {
   _summaryCache.clear();
 }
@@ -316,7 +425,16 @@ function computeEntitySummary(level, entityId) {
   return aggregateRecords(Object.values(COMMISSIONS));
 }
 
-/** Commission summary for any entity — memoized to avoid repeated iteration */
+/**
+ * @endpoint GET /api/commissions/entity-summary/:level/:entityId
+ * @param {string} level - Hierarchy level (country|region|district|branch|agent)
+ * @param {string} entityId - Entity ID (or 'ug' for country)
+ * @returns {Promise<{totalPaid: number, totalDue: number, totalDisputed: number, countPaid: number, countDue: number, countDisputed: number, total: number, countTotal: number, settlementRate: number}>}
+ * @description Commission summary aggregated for any entity in the hierarchy. Memoized.
+ *   Used by OverlayPanel and BranchOverview for commission overview cards.
+ * @cache ['entityCommissionSummary', level, entityId]
+ * @scope Distributor: any entity. Branch: own branch only.
+ */
 export async function getEntityCommissionSummary(level, entityId) {
   const key = `${level}:${entityId}`;
   if (_summaryCache.has(key)) return _summaryCache.get(key);
@@ -325,7 +443,14 @@ export async function getEntityCommissionSummary(level, entityId) {
   return result;
 }
 
-/** Settle all due commissions, optionally scoped to a single branch */
+/**
+ * @endpoint POST /api/commissions/settle-all?branchId=:branchId
+ * @param {string|null} branchId - Optional branch scope. Null = all due commissions.
+ * @returns {Promise<{settled: number, paidDate: string}>}
+ * @description Settles every due commission, optionally scoped to a branch.
+ * @cache Invalidates: ['commissionSummary'], ['agentCommissions'], ['agentCommissionDetail']
+ * @scope Distributor: all or scoped. Branch: own branch only.
+ */
 export async function settleAllCommissions(branchId = null) {
   const pool = branchId
     ? (commissionsByBranch[branchId] || [])

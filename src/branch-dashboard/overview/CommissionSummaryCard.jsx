@@ -11,7 +11,8 @@ const COLORS = {
 };
 
 export default function CommissionSummaryCard({ summary }) {
-  const { setCommissionsOpen } = useDashboard();
+  const { setCommissionsOpen, closeAllPanels } = useDashboard();
+  const handleOpen = () => { closeAllPanels(); setCommissionsOpen(true); };
   const { totalPaid = 0, totalDue = 0, totalDisputed = 0, total = 0, settlementRate = 0 } = summary || {};
 
   const donutData = [
@@ -32,7 +33,7 @@ export default function CommissionSummaryCard({ summary }) {
     >
       <div className={styles.header}>
         <h3 className={styles.title}>Commissions</h3>
-        <button className={styles.viewBtn} onClick={() => setCommissionsOpen(true)}>
+        <button className={styles.viewBtn} onClick={handleOpen}>
           View All
           <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
             <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>

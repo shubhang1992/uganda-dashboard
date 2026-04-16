@@ -9,6 +9,8 @@ import styles from './MetricsRow.module.css';
 const SUGGESTIONS = ['Top agents?', 'Coverage by region?', 'Active subscribers?', 'Gender split?'];
 
 // ── Chat Card ──
+// Body is always rendered; collapse/expand uses CSS grid-template-rows (no AnimatePresence)
+// so there is never a frame where React is mounting invisible content against a white bg.
 function ChatCard({ open, onToggle }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: 'Ask me anything about your network data.' },
@@ -36,47 +38,49 @@ function ChatCard({ open, onToggle }) {
   }
 
   return (
-    <motion.div className={styles.chatCard} data-collapsed={!open} variants={item}>
+    <motion.div className={styles.chatCard} data-open={open} variants={item}>
       <button className={styles.chatHeader} onClick={onToggle} type="button" aria-expanded={open}>
         <div className={styles.chatHeaderLeft}>
-          <div className={styles.chatDot} />
-          <span className={styles.chatTitle}>Talk to your data</span>
+          <div className={styles.chatIcon}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+              <path d="M12 3c0 5-4 9-9 9 5 0 9 4 9 9 0-5 4-9 9-9-5 0-9-4-9-9z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
+              <path d="M19 3c0 1.5-1.5 3-3 3 1.5 0 3 1.5 3 3 0-1.5 1.5-3 3-3-1.5 0-3-1.5-3-3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <div className={styles.chatHeaderText}>
+            <span className={styles.chatTitle}>Talk to your data</span>
+            <span className={styles.chatSubtitle}>Ask about agents, coverage, subscribers\u2026</span>
+          </div>
         </div>
         <svg aria-hidden="true" className={styles.cardToggle} data-open={open} width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path d="M4 5.5l3 3 3-3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            className={styles.cardBody}
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: EASE }}
-          >
-            <div className={styles.chatMessages} ref={listRef} aria-live="polite" aria-relevant="additions">
-              {messages.map((m, i) => (
-                <div key={i} className={styles.chatMsg} data-role={m.role}>
-                  <div className={styles.chatBubble} data-role={m.role}>{m.text}</div>
+      <div className={styles.chatBody}>
+        <div className={styles.chatBodyInner}>
+          <div className={styles.chatMessages} ref={listRef} aria-live="polite" aria-relevant="additions">
+            {messages.map((m, i) => (
+              <div key={i} className={styles.chatMsg} data-role={m.role}>
+                <div className={styles.chatBubble} data-role={m.role}>{m.text}</div>
+              </div>
+            ))}
+            {isTyping && (
+              <div className={styles.chatMsg} data-role="assistant">
+                <div className={styles.chatBubble} data-role="assistant" aria-label="Typing">
+                  <span className={styles.typingDots}><span /><span /><span /></span>
                 </div>
-              ))}
-              {isTyping && (
-                <div className={styles.chatMsg} data-role="assistant">
-                  <div className={styles.chatBubble} data-role="assistant" aria-label="Typing">
-                    <span className={styles.typingDots}><span /><span /><span /></span>
-                  </div>
-                </div>
-              )}
-            </div>
-            {messages.length <= 1 && (
-              <div className={styles.chatSuggestions}>
-                {SUGGESTIONS.map((s) => (
-                  <button key={s} className={styles.chatSuggest} onClick={() => handleSend(s)}>{s}</button>
-                ))}
               </div>
             )}
-            <div className={styles.chatInput}>
+          </div>
+          {messages.length <= 1 && (
+            <div className={styles.chatSuggestions}>
+              {SUGGESTIONS.map((s) => (
+                <button key={s} className={styles.chatSuggest} onClick={() => handleSend(s)}>{s}</button>
+              ))}
+            </div>
+          )}
+          <div className={styles.chatInput}>
+            <div className={styles.chatInputInner}>
               <input
                 className={styles.chatField}
                 value={input}
@@ -91,9 +95,9 @@ function ChatCard({ open, onToggle }) {
                 <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 8l12-6-6 12V8H2z" fill="currentColor"/></svg>
               </button>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -143,15 +147,20 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } 
 const item = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } } };
 
 export default function MetricsRow() {
-  const { level, selectedIds } = useDashboard();
+  const {
+    level, selectedIds,
+    branchMenuOpen, agentMenuOpen, subscriberMenuOpen,
+    viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen,
+    commissionsOpen, settingsOpen, viewReportsOpen,
+    createBranchOpen,
+  } = useDashboard();
   const { data: entity } = useCurrentEntity(level, selectedIds);
   const metrics = entity?.metrics;
   const [expanded, setExpanded] = useState(null);
 
-  // Cards auto-collapse at overview levels, expand when drilling deeper
-  // Each card toggles independently; key-based re-mount resets on navigation
-  const [chatOpen, setChatOpen] = useState(level !== 'country' && level !== 'region');
-  const [demoOpen, setDemoOpen] = useState(level !== 'country' && level !== 'region');
+  // Cards start collapsed — user opens explicitly via header toggle
+  const [chatOpen, setChatOpen] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false);
 
   function toggleExpand(card) {
     setExpanded((prev) => prev === card ? null : card);
@@ -160,7 +169,19 @@ export default function MetricsRow() {
   if (!metrics) return null;
   const totalSubs = metrics.totalSubscribers || 0;
 
+  const hidden =
+    branchMenuOpen || agentMenuOpen || subscriberMenuOpen ||
+    viewBranchesOpen || viewAgentsOpen || viewSubscribersOpen ||
+    commissionsOpen || settingsOpen || viewReportsOpen ||
+    createBranchOpen;
+
   return (
+    <motion.div
+      className={styles.rowWrap}
+      animate={{ y: hidden ? 'calc(100% + 2rem)' : 0, opacity: hidden ? 0 : 1 }}
+      transition={{ duration: 0.45, ease: EASE }}
+      style={{ pointerEvents: hidden ? 'none' : undefined }}
+    >
     <motion.div
       className={styles.row}
       variants={container}
@@ -263,6 +284,7 @@ export default function MetricsRow() {
         </AnimatePresence>
       </motion.div>
 
+    </motion.div>
     </motion.div>
   );
 }

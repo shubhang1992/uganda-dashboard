@@ -79,6 +79,7 @@ export default function AllAgents({ onBack }) {
 
   const columns = [
     { key: 'name', label: 'Agent', sortable: true, width: '160px' },
+    { key: 'employeeId', label: 'Employee ID', sortable: true, width: '120px' },
     !isBranch && { key: 'branchName', label: 'Branch', sortable: true },
     !isBranch && { key: 'districtName', label: 'District', sortable: true },
     !isBranch && { key: 'regionName', label: 'Region', sortable: true },

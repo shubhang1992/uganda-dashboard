@@ -21,6 +21,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  max-height: calc(100vh - var(--space-6) - 2.5rem - var(--space-6));
+  min-height: 0;
 }
 
 .greeting {
@@ -568,7 +570,9 @@
   transition: background 0.15s ease;
 }
 
-.sectionHeader:hover { background: rgba(41, 40, 103, 0.03); }
+.sectionHeader:not([data-static='true']):hover { background: rgba(41, 40, 103, 0.03); }
+
+.sectionHeader[data-static='true'] { cursor: default; }
 
 .sectionHeader:focus-visible {
   outline: 2px solid #292867;
@@ -608,6 +612,26 @@
 .chevron[data-expanded='true'] { transform: rotate(180deg); }
 
 .sectionBody { overflow: hidden; }
+
+.section[data-fill='true'] {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.section[data-fill='true'] .sectionBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.section[data-fill='true'] .entityList {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
 
 /* ── Entity list ── */
 /* ── Global search — collapsed toggle ── */

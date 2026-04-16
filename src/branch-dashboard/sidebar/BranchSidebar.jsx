@@ -119,10 +119,13 @@ const MORE_ITEMS = [
 export default function BranchSidebar() {
   const [hovered, setHovered] = useState(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [agentPopover, setAgentPopover] = useState(false);
+  const agentPopoverRef = useRef(null);
   const { logout } = useAuth();
   const navigate = useNavigate();
   const {
     viewAgentsOpen, setViewAgentsOpen,
+    createAgentOpen, setCreateAgentOpen,
     viewReportsOpen, setViewReportsOpen,
     commissionsOpen, setCommissionsOpen,
     settingsOpen, setSettingsOpen,
@@ -131,9 +134,9 @@ export default function BranchSidebar() {
   const [active, setActive] = useState('overview');
 
   useEffect(() => {
-    if (viewAgentsOpen) setActive('agents');
+    if (viewAgentsOpen || createAgentOpen) setActive('agents');
     else if (active === 'agents') setActive('overview');
-  }, [viewAgentsOpen]);
+  }, [viewAgentsOpen, createAgentOpen]);
 
   useEffect(() => {
     if (viewReportsOpen) setActive('reports');
@@ -159,8 +162,21 @@ export default function BranchSidebar() {
     return () => document.removeEventListener('click', handler);
   }, [moreOpen, closeMore]);
 
+  // Close agent popover on outside click
+  useEffect(() => {
+    if (!agentPopover) return;
+    function handler(e) {
+      if (agentPopoverRef.current && !agentPopoverRef.current.contains(e.target)) {
+        setAgentPopover(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [agentPopover]);
+
   function closeAllPanels() {
     setViewAgentsOpen(false);
+    setCreateAgentOpen(false);
     setViewReportsOpen(false);
     setCommissionsOpen(false);
     setSettingsOpen(false);
@@ -168,6 +184,7 @@ export default function BranchSidebar() {
 
   function handleClick(id) {
     setMoreOpen(false);
+    setAgentPopover(false);
 
     if (id === 'overview') {
       closeAllPanels();
@@ -175,6 +192,16 @@ export default function BranchSidebar() {
       return;
     }
     if (id === 'agents') {
+      setAgentPopover((prev) => !prev);
+      return;
+    }
+    if (id === 'create-agent') {
+      closeAllPanels();
+      setCreateAgentOpen(true);
+      setActive('agents');
+      return;
+    }
+    if (id === 'view-agents') {
       closeAllPanels();
       setDrillTargetAgentId(null);
       setViewAgentsOpen(true);
@@ -214,27 +241,63 @@ export default function BranchSidebar() {
 
       <div className={styles.navItems}>
         {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            className={styles.navBtn}
-            data-active={active === item.id}
-            onClick={() => handleClick(item.id)}
-            onMouseEnter={() => setHovered(item.id)}
-            onMouseLeave={() => setHovered(null)}
-            aria-label={item.label}
-          >
-            <span className={styles.iconWrap}>{item.icon}</span>
-            {hovered === item.id && (
-              <motion.span
-                className={styles.tooltip}
-                initial={{ opacity: 0, x: -4 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.15 }}
-              >
-                {item.label}
-              </motion.span>
+          <div key={item.id} style={{ position: 'relative' }} ref={item.id === 'agents' ? agentPopoverRef : undefined}>
+            <button
+              className={styles.navBtn}
+              data-active={active === item.id}
+              onClick={() => handleClick(item.id)}
+              onMouseEnter={() => setHovered(item.id)}
+              onMouseLeave={() => setHovered(null)}
+              aria-label={item.label}
+            >
+              <span className={styles.iconWrap}>{item.icon}</span>
+              {hovered === item.id && !agentPopover && (
+                <motion.span
+                  className={styles.tooltip}
+                  initial={{ opacity: 0, x: -4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  {item.label}
+                </motion.span>
+              )}
+            </button>
+            {item.id === 'agents' && (
+              <AnimatePresence>
+                {agentPopover && (
+                  <motion.div
+                    className={styles.agentPopover}
+                    initial={{ opacity: 0, x: -6, scale: 0.96 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: -6, scale: 0.96 }}
+                    transition={{ duration: 0.18, ease: EASE_OUT_EXPO }}
+                  >
+                    <button className={styles.popoverItem} onClick={() => handleClick('create-agent')}>
+                      <span className={styles.popoverIcon}>
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+                          <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.75"/>
+                          <path d="M5 21v-1a7 7 0 0114 0v1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                          <path d="M19 4v4M17 6h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                        </svg>
+                      </span>
+                      Create New Agent
+                    </button>
+                    <button className={styles.popoverItem} onClick={() => handleClick('view-agents')}>
+                      <span className={styles.popoverIcon}>
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+                          <circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.75"/>
+                          <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                          <circle cx="18" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.75"/>
+                          <path d="M21 21v-1.5a3 3 0 00-3-3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                        </svg>
+                      </span>
+                      View Existing Agents
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             )}
-          </button>
+          </div>
         ))}
       </div>
 
@@ -267,16 +330,52 @@ export default function BranchSidebar() {
       {/* Mobile tab bar */}
       <div className={styles.mobileBar}>
         {MOBILE_NAV.map((item) => (
-          <button
-            key={item.id}
-            className={styles.mobileBtn}
-            data-active={active === item.id}
-            onClick={() => handleClick(item.id)}
-            aria-label={item.label}
-          >
-            <span className={styles.iconWrap}>{item.icon}</span>
-            <span className={styles.mobileLabel}>{item.label}</span>
-          </button>
+          <div key={item.id} style={{ position: 'relative', flex: 1, display: 'flex' }} ref={item.id === 'agents' ? agentPopoverRef : undefined}>
+            <button
+              className={styles.mobileBtn}
+              data-active={active === item.id}
+              onClick={() => handleClick(item.id)}
+              aria-label={item.label}
+            >
+              <span className={styles.iconWrap}>{item.icon}</span>
+              <span className={styles.mobileLabel}>{item.label}</span>
+            </button>
+            {item.id === 'agents' && (
+              <AnimatePresence>
+                {agentPopover && (
+                  <motion.div
+                    className={styles.agentPopoverMobile}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.2, ease: EASE_OUT_EXPO }}
+                  >
+                    <button className={styles.popoverItem} onClick={() => handleClick('create-agent')}>
+                      <span className={styles.popoverIcon}>
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+                          <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.75"/>
+                          <path d="M5 21v-1a7 7 0 0114 0v1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                          <path d="M19 4v4M17 6h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                        </svg>
+                      </span>
+                      Create New Agent
+                    </button>
+                    <button className={styles.popoverItem} onClick={() => handleClick('view-agents')}>
+                      <span className={styles.popoverIcon}>
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+                          <circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.75"/>
+                          <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                          <circle cx="18" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.75"/>
+                          <path d="M21 21v-1.5a3 3 0 00-3-3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                        </svg>
+                      </span>
+                      View Existing Agents
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
+          </div>
         ))}
         <div className={styles.moreWrap}>
           <button

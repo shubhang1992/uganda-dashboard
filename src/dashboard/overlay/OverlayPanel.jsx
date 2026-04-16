@@ -27,8 +27,26 @@ function ChevronIcon({ expanded }) {
   );
 }
 
-function CollapsibleSection({ title, count, defaultOpen, children }) {
+function CollapsibleSection({ title, count, defaultOpen, children, fill }) {
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(defaultOpen ?? true);
+
+  if (!isMobile) {
+    return (
+      <div className={styles.section} data-fill={fill ? 'true' : undefined}>
+        <div className={styles.sectionHeader} data-static="true">
+          <span className={styles.sectionTitle}>{title}</span>
+          {count != null && (
+            <div className={styles.sectionRight}>
+              <span className={styles.sectionCount}>{count}</span>
+            </div>
+          )}
+        </div>
+        <div className={styles.sectionBody}>{children}</div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.section}>
       <button className={styles.sectionHeader} onClick={() => setOpen(!open)} aria-expanded={open}>
@@ -465,7 +483,7 @@ export default function OverlayPanel() {
 
           {/* Region/child list */}
           {children.length > 0 && nextLevel && (
-            <CollapsibleSection title={LEVEL_LABELS[nextLevel] || 'Items'} count={children.length} defaultOpen={false} key={`children-${level}-${parentId}`}>
+            <CollapsibleSection title={LEVEL_LABELS[nextLevel] || 'Items'} count={children.length} defaultOpen={false} fill key={`children-${level}-${parentId}`}>
               <div className={styles.entityList}>
                 {children.map((child) => {
                   const isChildActive = child.active !== false;

@@ -71,7 +71,7 @@ export default function PhoneEntry({ role, onSubmit, onBack }) {
             className={styles.input}
             value={phone}
             onChange={handleChange}
-            placeholder="7XX XXX XXX\u2026"
+            placeholder="7XX XXX XXX…"
             autoFocus
             aria-label="Phone number"
             name="phone"

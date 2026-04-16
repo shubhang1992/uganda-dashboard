@@ -13,10 +13,21 @@
 .tableScroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.tableScroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tableScroll::-webkit-scrollbar-thumb {
+  background: rgba(41, 40, 103, 0.2);
+  border-radius: var(--radius-full);
 }
 
 .table {
   width: 100%;
+  min-width: 560px;
   border-collapse: collapse;
   font-family: var(--font-body);
   font-size: var(--text-sm);
@@ -127,6 +138,7 @@
   color: var(--color-slate);
   font-variant-numeric: tabular-nums;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 .td[data-align='right'] {

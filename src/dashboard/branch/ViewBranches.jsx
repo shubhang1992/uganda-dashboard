@@ -196,6 +196,12 @@ function AgentDetail({ agent }) {
             <span style={{ textTransform: 'capitalize' }}>{agent.status}</span>
             <span>&middot;</span>
             <span>{agent.phone}</span>
+            {agent.employeeId && (
+              <>
+                <span>&middot;</span>
+                <span>{agent.employeeId}</span>
+              </>
+            )}
           </div>
           <div className={styles.profileRating}>
             <Stars rating={agent.rating} />

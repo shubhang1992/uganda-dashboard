@@ -38,7 +38,7 @@ function fmtVal(v, key) {
 }
 
 export default function OperationsSection({ agents = [], commissionSummary, metrics = {} }) {
-  const { setCommissionsOpen, setViewAgentsOpen, setDrillTargetAgentId } = useDashboard();
+  const { setCommissionsOpen, setViewAgentsOpen, setDrillTargetAgentId, closeAllPanels } = useDashboard();
   const [sortKey, setSortKey] = useState('contributions');
   const [tab, setTab] = useState('commissions');
 
@@ -72,8 +72,20 @@ export default function OperationsSection({ agents = [], commissionSummary, metr
   const disputedPct = (totalDisputed / commTotal) * 100;
 
   function openAgent(agentId) {
+    closeAllPanels();
     setDrillTargetAgentId?.(agentId);
     setViewAgentsOpen(true);
+  }
+
+  function openAllAgents() {
+    closeAllPanels();
+    setDrillTargetAgentId?.(null);
+    setViewAgentsOpen(true);
+  }
+
+  function openCommissions() {
+    closeAllPanels();
+    setCommissionsOpen(true);
   }
 
   return (
@@ -94,7 +106,7 @@ export default function OperationsSection({ agents = [], commissionSummary, metr
               onChange={(e) => setSortKey(e.target.value)} aria-label="Sort by">
               {SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
             </select>
-            <button className={styles.viewAllBtn} onClick={() => { setDrillTargetAgentId?.(null); setViewAgentsOpen(true); }}>
+            <button className={styles.viewAllBtn} onClick={openAllAgents}>
               View All
               <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10">
                 <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
@@ -170,7 +182,7 @@ export default function OperationsSection({ agents = [], commissionSummary, metr
             </button>
           </div>
           {tab === 'commissions' && (
-            <button className={styles.viewAllBtn} onClick={() => setCommissionsOpen(true)}>
+            <button className={styles.viewAllBtn} onClick={openCommissions}>
               View All
               <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10">
                 <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>

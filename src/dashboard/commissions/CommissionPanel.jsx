@@ -89,6 +89,9 @@ const viewAnim = {
 export default function CommissionPanel({ branchId, splitMode = false }) {
   const { commissionsOpen, setCommissionsOpen } = useDashboard();
 
+  // Branch Admins can view commissions but cannot settle, approve, or reject
+  const readOnly = !!branchId;
+
   // View state: home → agents/disputed/requests → agent-detail/dispute-detail/request-detail → subscribers
   const [view, setView] = useState('home');
   const [statusFocus, setStatusFocus] = useState(null); // null | 'paid' | 'due'
@@ -465,7 +468,7 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                       {/* Rate — inline, compact */}
                       <div className={styles.rateInline}>
                         <span className={styles.rateInlineLabel}>Rate:</span>
-                        {editingRate ? (
+                        {!readOnly && editingRate ? (
                           <span className={styles.rateEditRow}>
                             <input
                               className={styles.rateInput}
@@ -481,9 +484,11 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                         ) : (
                           <>
                             <span className={styles.rateInlineValue}>{formatUGX(rate || 0)} per subscriber</span>
-                            <button className={styles.rateEditBtn} onClick={startEditRate} aria-label="Edit commission rate">
-                              {Icons.edit}
-                            </button>
+                            {!readOnly && (
+                              <button className={styles.rateEditBtn} onClick={startEditRate} aria-label="Edit commission rate">
+                                {Icons.edit}
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -515,14 +520,16 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                     </div>
 
                     {/* ── Settle All CTA ── */}
-                    <button
-                      className={styles.settleAllBtn}
-                      onClick={() => openSettleModal('all')}
-                      disabled={!summary?.countDue}
-                    >
-                      {Icons.wallet}
-                      Settle All Due Commissions
-                    </button>
+                    {!readOnly && (
+                      <button
+                        className={styles.settleAllBtn}
+                        onClick={() => openSettleModal('all')}
+                        disabled={!summary?.countDue}
+                      >
+                        {Icons.wallet}
+                        Settle All Due Commissions
+                      </button>
+                    )}
 
                     {/* ── Needs Attention ── */}
                     <div className={styles.attentionSection}>
@@ -587,7 +594,7 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                           <div className={styles.agentAvatar}>{getInitials(agent.agentName)}</div>
                           <div className={styles.agentInfo}>
                             <div className={styles.agentName}>{agent.agentName}</div>
-                            <div className={styles.agentBranch}>{agent.branchName}</div>
+                            <div className={styles.agentBranch}>{agent.branchName}{agent.employeeId ? ` \u00b7 ${agent.employeeId}` : ''}</div>
                           </div>
                           <div>
                             <div className={styles.agentAmount}>
@@ -617,7 +624,7 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                       <div className={styles.detailAvatar}>{getInitials(agentDetail.agentName)}</div>
                       <div className={styles.detailInfo}>
                         <div className={styles.detailName}>{agentDetail.agentName}</div>
-                        <div className={styles.detailBranch}>{agentDetail.branchName}</div>
+                        <div className={styles.detailBranch}>{agentDetail.branchName}{agentDetail.employeeId ? ` \u00b7 ${agentDetail.employeeId}` : ''}</div>
                       </div>
                     </div>
 
@@ -652,11 +659,13 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                           <div className={styles.txBadge} data-confirmed={tx.agentConfirmed}>
                             {tx.agentConfirmed ? 'Confirmed' : 'Pending'}
                           </div>
-                          <div className={styles.txActions}>
-                            <button className={styles.rejectBtn} onClick={() => rejectMutation.mutate(tx.id)} aria-label={`Reject ${tx.subscriberName}`}>
-                              {Icons.reject}
-                            </button>
-                          </div>
+                          {!readOnly && (
+                            <div className={styles.txActions}>
+                              <button className={styles.rejectBtn} onClick={() => rejectMutation.mutate(tx.id)} aria-label={`Reject ${tx.subscriberName}`}>
+                                {Icons.reject}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                       {agentDetail.paidTransactions.length > 5 && (
@@ -682,11 +691,13 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                           <div className={styles.txDays} data-overdue={tx.daysToDate < 0}>
                             {tx.daysToDate >= 0 ? `${tx.daysToDate}d` : `${Math.abs(tx.daysToDate)}d overdue`}
                           </div>
-                          <div className={styles.txActions}>
-                            <button className={styles.rejectBtn} onClick={() => rejectMutation.mutate(tx.id)} aria-label={`Reject ${tx.subscriberName}`}>
-                              {Icons.reject}
-                            </button>
-                          </div>
+                          {!readOnly && (
+                            <div className={styles.txActions}>
+                              <button className={styles.rejectBtn} onClick={() => rejectMutation.mutate(tx.id)} aria-label={`Reject ${tx.subscriberName}`}>
+                                {Icons.reject}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                       {agentDetail.dueTransactions.length > 5 && (
@@ -697,7 +708,7 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                     </div>
 
                     {/* Settle Due CTA */}
-                    {agentDetail.dueTransactions.length > 0 && (
+                    {!readOnly && agentDetail.dueTransactions.length > 0 && (
                       <button
                         className={styles.settleDueBtn}
                         onClick={() => openSettleModal('agent')}
@@ -776,8 +787,8 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                       </div>
                     </div>
 
-                    {/* Select all bar */}
-                    {filteredDisputed.length > 0 && (
+                    {/* Select all bar — distributor only */}
+                    {!readOnly && filteredDisputed.length > 0 && (
                       <div className={styles.selectBar}>
                         <button
                           className={styles.selectAllBtn}
@@ -801,15 +812,17 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                       <div className={styles.empty}>No disputed settlements</div>
                     ) : (
                       filteredDisputed.map((agent) => (
-                        <div key={agent.agentId} className={styles.selectableRow} data-selected={selectedIds.has(agent.agentId)}>
-                          <button
-                            className={styles.checkbox}
-                            data-checked={selectedIds.has(agent.agentId)}
-                            onClick={() => toggleSelect(agent.agentId)}
-                            aria-label={`Select ${agent.agentName}`}
-                          >
-                            {selectedIds.has(agent.agentId) && Icons.approve}
-                          </button>
+                        <div key={agent.agentId} className={styles.selectableRow} data-selected={!readOnly && selectedIds.has(agent.agentId)}>
+                          {!readOnly && (
+                            <button
+                              className={styles.checkbox}
+                              data-checked={selectedIds.has(agent.agentId)}
+                              onClick={() => toggleSelect(agent.agentId)}
+                              aria-label={`Select ${agent.agentName}`}
+                            >
+                              {selectedIds.has(agent.agentId) && Icons.approve}
+                            </button>
+                          )}
                           <button
                             className={styles.selectableContent}
                             onClick={() => goDisputeDetail(agent)}
@@ -817,7 +830,7 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                             <div className={styles.agentAvatar}>{getInitials(agent.agentName)}</div>
                             <div className={styles.agentInfo}>
                               <div className={styles.agentName}>{agent.agentName}</div>
-                              <div className={styles.agentBranch}>{agent.branchName}</div>
+                              <div className={styles.agentBranch}>{agent.branchName}{agent.employeeId ? ` \u00b7 ${agent.employeeId}` : ''}</div>
                             </div>
                             <div>
                               <div className={styles.agentAmount} style={{ color: 'var(--color-status-poor)' }}>
@@ -832,30 +845,32 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                       ))
                     )}
 
-                    {/* Floating bulk action bar */}
-                    <AnimatePresence>
-                      {selectedIds.size > 0 && (
-                        <motion.div
-                          className={styles.floatingBar}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 20 }}
-                          transition={{ duration: 0.2, ease: EASE_OUT_EXPO }}
-                        >
-                          <div className={styles.floatingInfo}>
-                            <span className={styles.floatingCount}>{selectedIds.size}</span> agents — {formatUGX(selectedTotal)}
-                          </div>
-                          <div className={styles.floatingActions}>
-                            <button className={styles.floatingApprove} onClick={() => { bulkApproveMutation.mutate(selectedCommissionIds); clearSelection(); }}>
-                              {Icons.approve} Approve
-                            </button>
-                            <button className={styles.floatingReject} onClick={() => { bulkRejectMutation.mutate(selectedCommissionIds); clearSelection(); }}>
-                              {Icons.reject} Reject
-                            </button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    {/* Floating bulk action bar — distributor only */}
+                    {!readOnly && (
+                      <AnimatePresence>
+                        {selectedIds.size > 0 && (
+                          <motion.div
+                            className={styles.floatingBar}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 20 }}
+                            transition={{ duration: 0.2, ease: EASE_OUT_EXPO }}
+                          >
+                            <div className={styles.floatingInfo}>
+                              <span className={styles.floatingCount}>{selectedIds.size}</span> agents — {formatUGX(selectedTotal)}
+                            </div>
+                            <div className={styles.floatingActions}>
+                              <button className={styles.floatingApprove} onClick={() => { bulkApproveMutation.mutate(selectedCommissionIds); clearSelection(); }}>
+                                {Icons.approve} Approve
+                              </button>
+                              <button className={styles.floatingReject} onClick={() => { bulkRejectMutation.mutate(selectedCommissionIds); clearSelection(); }}>
+                                {Icons.reject} Reject
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    )}
                   </motion.div>
                 )}
 
@@ -866,7 +881,7 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                       <div className={styles.detailAvatar}>{getInitials(selectedDisputeAgent.agentName)}</div>
                       <div className={styles.detailInfo}>
                         <div className={styles.detailName}>{selectedDisputeAgent.agentName}</div>
-                        <div className={styles.detailBranch}>{selectedDisputeAgent.branchName}</div>
+                        <div className={styles.detailBranch}>{selectedDisputeAgent.branchName}{selectedDisputeAgent.employeeId ? ` \u00b7 ${selectedDisputeAgent.employeeId}` : ''}</div>
                       </div>
                     </div>
 
@@ -881,23 +896,25 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                       </div>
                     </div>
 
-                    {/* Bulk actions */}
-                    <div className={styles.bulkActions}>
-                      <button
-                        className={styles.bulkApproveBtn}
-                        onClick={() => bulkApproveMutation.mutate(selectedDisputeAgent.disputes.map((d) => d.id))}
-                      >
-                        {Icons.approve}
-                        Approve All
-                      </button>
-                      <button
-                        className={styles.bulkRejectBtn}
-                        onClick={() => bulkRejectMutation.mutate(selectedDisputeAgent.disputes.map((d) => d.id))}
-                      >
-                        {Icons.reject}
-                        Reject All
-                      </button>
-                    </div>
+                    {/* Bulk actions — distributor only */}
+                    {!readOnly && (
+                      <div className={styles.bulkActions}>
+                        <button
+                          className={styles.bulkApproveBtn}
+                          onClick={() => bulkApproveMutation.mutate(selectedDisputeAgent.disputes.map((d) => d.id))}
+                        >
+                          {Icons.approve}
+                          Approve All
+                        </button>
+                        <button
+                          className={styles.bulkRejectBtn}
+                          onClick={() => bulkRejectMutation.mutate(selectedDisputeAgent.disputes.map((d) => d.id))}
+                        >
+                          {Icons.reject}
+                          Reject All
+                        </button>
+                      </div>
+                    )}
 
                     <div className={styles.section}>
                       <div className={styles.sectionHeader}>
@@ -911,14 +928,16 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                             <div style={{ fontSize: '10px', color: 'var(--color-status-poor)', marginTop: '2px' }}>{d.reason}</div>
                           </div>
                           <div className={styles.txAmount} style={{ color: 'var(--color-status-poor)' }}>{formatUGX(d.amount)}</div>
-                          <div className={styles.txActions}>
-                            <button className={styles.approveBtn} onClick={() => approveMutation.mutate(d.id)} aria-label={`Approve ${d.subscriberName}`}>
-                              {Icons.approve}
-                            </button>
-                            <button className={styles.rejectBtn} onClick={() => rejectMutation.mutate(d.id)} aria-label={`Reject ${d.subscriberName}`}>
-                              {Icons.reject}
-                            </button>
-                          </div>
+                          {!readOnly && (
+                            <div className={styles.txActions}>
+                              <button className={styles.approveBtn} onClick={() => approveMutation.mutate(d.id)} aria-label={`Approve ${d.subscriberName}`}>
+                                {Icons.approve}
+                              </button>
+                              <button className={styles.rejectBtn} onClick={() => rejectMutation.mutate(d.id)} aria-label={`Reject ${d.subscriberName}`}>
+                                {Icons.reject}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -952,8 +971,8 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                       </div>
                     </div>
 
-                    {/* Select all bar */}
-                    {filteredRequests.length > 0 && (
+                    {/* Select all bar — distributor only */}
+                    {!readOnly && filteredRequests.length > 0 && (
                       <div className={styles.selectBar}>
                         <button
                           className={styles.selectAllBtn}
@@ -977,15 +996,17 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                       <div className={styles.empty}>No settlement requests</div>
                     ) : (
                       filteredRequests.map((agent) => (
-                        <div key={agent.agentId} className={styles.selectableRow} data-selected={selectedIds.has(agent.agentId)}>
-                          <button
-                            className={styles.checkbox}
-                            data-checked={selectedIds.has(agent.agentId)}
-                            onClick={() => toggleSelect(agent.agentId)}
-                            aria-label={`Select ${agent.agentName}`}
-                          >
-                            {selectedIds.has(agent.agentId) && Icons.approve}
-                          </button>
+                        <div key={agent.agentId} className={styles.selectableRow} data-selected={!readOnly && selectedIds.has(agent.agentId)}>
+                          {!readOnly && (
+                            <button
+                              className={styles.checkbox}
+                              data-checked={selectedIds.has(agent.agentId)}
+                              onClick={() => toggleSelect(agent.agentId)}
+                              aria-label={`Select ${agent.agentName}`}
+                            >
+                              {selectedIds.has(agent.agentId) && Icons.approve}
+                            </button>
+                          )}
                           <button
                             className={styles.selectableContent}
                             onClick={() => goRequestDetail(agent)}
@@ -993,7 +1014,7 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                             <div className={styles.agentAvatar}>{getInitials(agent.agentName)}</div>
                             <div className={styles.agentInfo}>
                               <div className={styles.agentName}>{agent.agentName}</div>
-                              <div className={styles.agentBranch}>{agent.branchName}</div>
+                              <div className={styles.agentBranch}>{agent.branchName}{agent.employeeId ? ` \u00b7 ${agent.employeeId}` : ''}</div>
                             </div>
                             <div>
                               <div className={styles.agentAmount} style={{ color: 'var(--color-indigo-soft)' }}>
@@ -1008,30 +1029,32 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                       ))
                     )}
 
-                    {/* Floating bulk action bar */}
-                    <AnimatePresence>
-                      {selectedIds.size > 0 && (
-                        <motion.div
-                          className={styles.floatingBar}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 20 }}
-                          transition={{ duration: 0.2, ease: EASE_OUT_EXPO }}
-                        >
-                          <div className={styles.floatingInfo}>
-                            <span className={styles.floatingCount}>{selectedIds.size}</span> agents — {formatUGX(selectedTotal)}
-                          </div>
-                          <div className={styles.floatingActions}>
-                            <button className={styles.floatingApprove} onClick={() => { bulkApproveMutation.mutate(selectedCommissionIds); clearSelection(); }}>
-                              {Icons.approve} Settle
-                            </button>
-                            <button className={styles.floatingReject} onClick={() => { bulkRejectMutation.mutate(selectedCommissionIds); clearSelection(); }}>
-                              {Icons.reject} Reject
-                            </button>
+                    {/* Floating bulk action bar — distributor only */}
+                    {!readOnly && (
+                      <AnimatePresence>
+                        {selectedIds.size > 0 && (
+                          <motion.div
+                            className={styles.floatingBar}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 20 }}
+                            transition={{ duration: 0.2, ease: EASE_OUT_EXPO }}
+                          >
+                            <div className={styles.floatingInfo}>
+                              <span className={styles.floatingCount}>{selectedIds.size}</span> agents — {formatUGX(selectedTotal)}
+                            </div>
+                            <div className={styles.floatingActions}>
+                              <button className={styles.floatingApprove} onClick={() => { bulkApproveMutation.mutate(selectedCommissionIds); clearSelection(); }}>
+                                {Icons.approve} Settle
+                              </button>
+                              <button className={styles.floatingReject} onClick={() => { bulkRejectMutation.mutate(selectedCommissionIds); clearSelection(); }}>
+                                {Icons.reject} Reject
+                              </button>
                           </div>
                         </motion.div>
-                      )}
-                    </AnimatePresence>
+                        )}
+                      </AnimatePresence>
+                    )}
                   </motion.div>
                 )}
 
@@ -1042,7 +1065,7 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                       <div className={styles.detailAvatar}>{getInitials(selectedRequestAgent.agentName)}</div>
                       <div className={styles.detailInfo}>
                         <div className={styles.detailName}>{selectedRequestAgent.agentName}</div>
-                        <div className={styles.detailBranch}>{selectedRequestAgent.branchName}</div>
+                        <div className={styles.detailBranch}>{selectedRequestAgent.branchName}{selectedRequestAgent.employeeId ? ` \u00b7 ${selectedRequestAgent.employeeId}` : ''}</div>
                       </div>
                     </div>
 
@@ -1057,26 +1080,28 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
                       </div>
                     </div>
 
-                    {/* Bulk actions */}
-                    <div className={styles.bulkActions}>
-                      <button
-                        className={styles.bulkApproveBtn}
-                        onClick={() => {
-                          const ids = selectedRequestAgent.requests.map((r) => r.id);
-                          settleAgentMutation.mutate(selectedRequestAgent.agentId);
-                        }}
-                      >
-                        {Icons.approve}
-                        Approve & Settle All
-                      </button>
-                      <button
-                        className={styles.bulkRejectBtn}
-                        onClick={() => bulkRejectMutation.mutate(selectedRequestAgent.requests.map((r) => r.id))}
-                      >
-                        {Icons.reject}
-                        Reject All
-                      </button>
-                    </div>
+                    {/* Bulk actions — distributor only */}
+                    {!readOnly && (
+                      <div className={styles.bulkActions}>
+                        <button
+                          className={styles.bulkApproveBtn}
+                          onClick={() => {
+                            const ids = selectedRequestAgent.requests.map((r) => r.id);
+                            settleAgentMutation.mutate(selectedRequestAgent.agentId);
+                          }}
+                        >
+                          {Icons.approve}
+                          Approve & Settle All
+                        </button>
+                        <button
+                          className={styles.bulkRejectBtn}
+                          onClick={() => bulkRejectMutation.mutate(selectedRequestAgent.requests.map((r) => r.id))}
+                        >
+                          {Icons.reject}
+                          Reject All
+                        </button>
+                      </div>
+                    )}
 
                     <div className={styles.section}>
                       <div className={styles.sectionHeader}>
@@ -1110,7 +1135,7 @@ export default function CommissionPanel({ branchId, splitMode = false }) {
 
             {/* Settlement Modal */}
             <AnimatePresence>
-              {settleModalOpen && (
+              {!readOnly && settleModalOpen && (
                 <motion.div
                   className={styles.modalOverlay}
                   initial={{ opacity: 0 }}

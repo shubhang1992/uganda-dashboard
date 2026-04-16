@@ -75,9 +75,10 @@ const StarIcon = () => (
 export default function TimePeriodCard({ metrics, topAgent }) {
   const [activeIdx, setActiveIdx] = useState(2);
   const period = PERIODS[activeIdx].key;
-  const { setViewReportsOpen, setReportContext } = useDashboard();
+  const { setViewReportsOpen, setReportContext, closeAllPanels } = useDashboard();
 
   function openReport(reportId) {
+    closeAllPanels();
     setReportContext(reportId);
     setViewReportsOpen(true);
   }

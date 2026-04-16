@@ -159,6 +159,10 @@ a:focus-visible {
   white-space: nowrap;
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .container {
   width: 100%;
   max-width: 1200px;

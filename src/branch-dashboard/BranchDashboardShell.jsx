@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import logo from '../assets/logo.png';
 import BranchSidebar from './sidebar/BranchSidebar';
 import BranchOverview from './overview/BranchOverview';
+import CreateAgent from './agent/CreateAgent';
 import ViewAgents from '../dashboard/agent/ViewAgents';
 import ViewReports from '../dashboard/reports/ViewReports';
 import CommissionPanel from '../dashboard/commissions/CommissionPanel';
@@ -16,7 +17,8 @@ import styles from './BranchDashboardShell.module.css';
 
 const DRAWER_ITEMS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'agents', label: 'View Agents' },
+  { id: 'create-agent', label: 'Create New Agent' },
+  { id: 'view-agents', label: 'View Existing Agents' },
   { id: 'commissions', label: 'Commissions' },
   { id: 'reports', label: 'Reports' },
   { id: 'settings', label: 'Settings' },
@@ -45,6 +47,7 @@ function MobileDrawer({ open, onClose }) {
   const navigate = useNavigate();
   const {
     setViewAgentsOpen,
+    setCreateAgentOpen,
     setViewReportsOpen,
     setCommissionsOpen,
     setSettingsOpen,
@@ -66,6 +69,7 @@ function MobileDrawer({ open, onClose }) {
 
   function closeAllPanels() {
     setViewAgentsOpen(false);
+    setCreateAgentOpen(false);
     setViewReportsOpen(false);
     setCommissionsOpen(false);
     setSettingsOpen(false);
@@ -76,7 +80,10 @@ function MobileDrawer({ open, onClose }) {
     closeAllPanels();
 
     switch (id) {
-      case 'agents':
+      case 'create-agent':
+        setCreateAgentOpen(true);
+        break;
+      case 'view-agents':
         setDrillTargetAgentId(null);
         setViewAgentsOpen(true);
         break;
@@ -142,6 +149,7 @@ function DashboardContent() {
       <main className={styles.main} id="main">
         <BranchOverview branchId={branchId} />
       </main>
+      <CreateAgent branchId={branchId} splitMode />
       <ViewAgents branchId={branchId} splitMode />
       <ViewReports branchId={branchId} splitMode />
       <CommissionPanel branchId={branchId} splitMode />

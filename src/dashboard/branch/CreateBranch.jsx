@@ -439,7 +439,7 @@ export default function CreateBranch() {
                             className={styles.input}
                             value={branchName}
                             onChange={(e) => setBranchName(e.target.value)}
-                            placeholder="e.g. Gulu Main Branch\u2026"
+                            placeholder="e.g. Gulu Main Branch…"
                             data-error={!!errors.branchName}
                             name="branchName"
                             autoComplete="off"
@@ -502,7 +502,7 @@ export default function CreateBranch() {
                             className={styles.input}
                             value={landmark}
                             onChange={(e) => setLandmark(e.target.value)}
-                            placeholder="e.g. Next to Total petrol station\u2026"
+                            placeholder="e.g. Next to Total petrol station…"
                             name="landmark"
                             autoComplete="off"
                           />
@@ -514,7 +514,7 @@ export default function CreateBranch() {
                             className={styles.input}
                             value={poBox}
                             onChange={(e) => setPoBox(e.target.value)}
-                            placeholder="e.g. P.O. Box 12345, Gulu\u2026"
+                            placeholder="e.g. P.O. Box 12345, Gulu…"
                             name="poBox"
                             autoComplete="off"
                           />
@@ -542,7 +542,7 @@ export default function CreateBranch() {
                             className={styles.input}
                             value={adminName}
                             onChange={(e) => setAdminName(e.target.value)}
-                            placeholder="e.g. James Okello\u2026"
+                            placeholder="e.g. James Okello…"
                             data-error={!!errors.adminName}
                             name="adminName"
                             autoComplete="name"
@@ -578,7 +578,7 @@ export default function CreateBranch() {
                             className={styles.input}
                             value={adminEmail}
                             onChange={(e) => setAdminEmail(e.target.value)}
-                            placeholder="e.g. james@example.com\u2026"
+                            placeholder="e.g. james@example.com…"
                             name="email"
                             autoComplete="email"
                           />

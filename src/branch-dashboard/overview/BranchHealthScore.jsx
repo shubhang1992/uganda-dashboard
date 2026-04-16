@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
 import { getChatResponse } from '../../services/chat';
+import { useDashboard } from '../../contexts/DashboardContext';
 import styles from './BranchHealthScore.module.css';
 
 /* ── Derived metrics ── */
@@ -167,19 +168,51 @@ function computeAlerts(metrics, commissionSummary) {
     ? Math.round(((mc[10] - mc[11]) / (mc[10] || 1)) * totalSubs * 0.3)
     : 0;
   return [
-    { value: dormant, label: 'Dormant', sub: 'Not contributing', severity: dormant > 0 ? 'warning' : 'ok' },
-    { value: kycIssues, label: 'KYC Issues', sub: 'Pending or incomplete', severity: kycIssues > 0 ? 'alert' : 'ok' },
-    { value: `${Math.round(settlementRate)}%`, label: 'Settled', sub: 'Commission rate', severity: 'neutral' },
-    { value: declining, label: 'Declining', sub: 'Contribution dropping', severity: declining > 0 ? 'warning' : 'ok' },
+    { value: dormant, label: 'Dormant', sub: 'Not contributing', severity: dormant > 0 ? 'warning' : 'ok', action: 'report', reportId: 'all-subscribers' },
+    { value: kycIssues, label: 'KYC Issues', sub: 'Pending or incomplete', severity: kycIssues > 0 ? 'alert' : 'ok', action: 'report', reportId: 'kyc-compliance' },
+    { value: `${Math.round(settlementRate)}%`, label: 'Settled', sub: 'Commission rate', severity: 'neutral', action: 'commissions' },
+    { value: declining, label: 'Declining', sub: 'Contribution dropping', severity: declining > 0 ? 'warning' : 'ok', action: 'report', reportId: 'contributions-collections' },
   ];
 }
 
 export default function BranchHealthScore({ metrics, agents, branch, user, commissionSummary, split = false }) {
+  const {
+    setViewAgentsOpen,
+    setViewReportsOpen,
+    setReportContext,
+    setDrillTargetAgentId,
+    setCommissionsOpen,
+    closeAllPanels,
+  } = useDashboard();
+
+  function openReport(reportId) {
+    closeAllPanels();
+    setReportContext(reportId);
+    setViewReportsOpen(true);
+  }
+
+  function openCommissions() {
+    closeAllPanels();
+    setCommissionsOpen(true);
+  }
+
+  function openAgents() {
+    closeAllPanels();
+    setDrillTargetAgentId(null);
+    setViewAgentsOpen(true);
+  }
+
+  function handleAlert(alert) {
+    if (alert.action === 'commissions') openCommissions();
+    else if (alert.action === 'report') openReport(alert.reportId);
+  }
+
   const alerts = useMemo(() => computeAlerts(metrics, commissionSummary), [metrics, commissionSummary]);
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [chatInputTouched, setChatInputTouched] = useState(false);
   const chatRef = useRef(null);
 
   const derived = useMemo(() => deriveMetrics(metrics, agents), [metrics, agents]);
@@ -259,36 +292,31 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
               <span className={styles.rankOf}>of {branch.districtBranchCount} in district</span>
             </div>
           )}
-          <div className={styles.breakdownGrid}>
-            {score.breakdown.map((b) => <BreakdownBar key={b.label} {...b} />)}
-          </div>
         </div>
 
-        {/* Col 2: Metrics */}
+        {/* Col 2: Metrics (clickable cards for drill-down) */}
         <div className={styles.metricsSection}>
           <div className={styles.metricBlock}>
             <span className={styles.metricLabel}>Assets Under Management</span>
             <span className={styles.metricValue}>{formatUGX(metrics.aum || 0)}</span>
           </div>
-          <div className={styles.metricDivider} />
           <div className={styles.metricPair}>
-            <div className={styles.metricBlock}>
+            <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openReport('all-subscribers')}>
               <span className={styles.metricLabel}>Subscribers</span>
               <div className={styles.metricRow}>
                 <span className={styles.metricValueMd}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
                 <span className={styles.metricSub}>{metrics.activeSubscribers || 0} active</span>
               </div>
-            </div>
-            <div className={styles.metricBlock}>
+            </button>
+            <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={openAgents}>
               <span className={styles.metricLabel}>Agents</span>
               <div className={styles.metricRow}>
                 <span className={styles.metricValueMd}>{agents.length}</span>
                 <span className={styles.metricSub}>{derived.activeAgents} active</span>
               </div>
-            </div>
+            </button>
           </div>
-          <div className={styles.metricDivider} />
-          <div className={styles.metricBlock}>
+          <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openReport('contributions-collections')}>
             <span className={styles.metricLabel}>This Month</span>
             <div className={styles.metricRow}>
               <span className={styles.metricValueMd}>{formatUGX(currMonth)}</span>
@@ -297,24 +325,23 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
                 {Math.abs(contribChange)}%
               </span>
             </div>
-          </div>
-          <div className={styles.metricDivider} />
+          </button>
           <div className={styles.kpiGrid}>
-            <div className={styles.kpiItem}>
+            <button type="button" className={`${styles.kpiItem} ${styles.metricCard}`} onClick={() => openReport('subscriber-growth')}>
               <span className={styles.kpiLabel}>Retention</span>
               <div className={styles.kpiRow}>
                 <span className={styles.kpiValue}>{Math.round(derived.retentionRate)}%</span>
                 <div className={styles.kpiBar}><motion.div className={styles.kpiFill} data-variant="teal" initial={{ width: 0 }} animate={{ width: `${derived.retentionRate}%` }} transition={{ duration: 0.8, delay: 0.4, ease: EASE_OUT_EXPO }} /></div>
               </div>
-            </div>
-            <div className={styles.kpiItem}>
+            </button>
+            <button type="button" className={`${styles.kpiItem} ${styles.metricCard}`} onClick={() => openReport('contributions-collections')}>
               <span className={styles.kpiLabel}>Avg / Subscriber</span>
               <span className={styles.kpiValue}>{formatUGX(derived.avgPerSub)}</span>
-            </div>
-            <div className={styles.kpiItem}>
+            </button>
+            <button type="button" className={`${styles.kpiItem} ${styles.metricCard}`} onClick={() => openReport('contributions-collections')}>
               <span className={styles.kpiLabel}>Monthly Growth</span>
               <span className={styles.kpiValue} data-positive={derived.avgMonthlyGrowth >= 0}>{derived.avgMonthlyGrowth >= 0 ? '+' : ''}{derived.avgMonthlyGrowth.toFixed(1)}%</span>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -343,10 +370,12 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
       {/* ── Branch alerts row ── */}
       <div className={styles.heroAlerts}>
         {alerts.map((alert, i) => (
-          <motion.div
+          <motion.button
             key={alert.label}
+            type="button"
             className={styles.heroAlert}
             data-severity={alert.severity}
+            onClick={() => handleAlert(alert)}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.4 + i * 0.05, ease: EASE_OUT_EXPO }}
@@ -357,7 +386,10 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
               <span className={styles.heroAlertLabel}>{alert.label}</span>
               <span className={styles.heroAlertSub}>{alert.sub}</span>
             </div>
-          </motion.div>
+            <svg className={styles.heroAlertChevron} aria-hidden="true" viewBox="0 0 12 12" width="10" height="10">
+              <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </svg>
+          </motion.button>
         ))}
       </div>
 
@@ -445,9 +477,36 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
                     )}
                   </div>
                   <div className={styles.chatInputRow}>
-                    <input className={styles.chatField} value={chatInput} onChange={(e) => setChatInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } }}
-                      placeholder="Ask about your branch\u2026" aria-label="Chat message" name="copilot" autoComplete="off" />
+                    <motion.div
+                      className={styles.chatFieldPulse}
+                      animate={chatInputTouched ? {
+                        boxShadow: '0 0 0 0 rgba(94,99,168,0)',
+                        borderColor: 'rgba(94,99,168,0)',
+                      } : {
+                        boxShadow: [
+                          '0 0 0 0 rgba(94,99,168,0)',
+                          '0 0 0 6px rgba(94,99,168,0.55)',
+                          '0 0 0 0 rgba(94,99,168,0)',
+                        ],
+                        borderColor: [
+                          'rgba(94,99,168,0)',
+                          'rgba(148,155,220,0.9)',
+                          'rgba(94,99,168,0)',
+                        ],
+                      }}
+                      transition={chatInputTouched ? { duration: 0.3 } : {
+                        duration: 1.8,
+                        repeat: Infinity,
+                        repeatDelay: 1.0,
+                        delay: 0.5,
+                        ease: 'easeOut',
+                      }}
+                    >
+                      <input className={styles.chatField} value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                        onFocus={() => setChatInputTouched(true)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } }}
+                        placeholder="Ask about your branch…" aria-label="Chat message" name="copilot" autoComplete="off" />
+                    </motion.div>
                     <button className={styles.chatSend} onClick={() => handleSend()} disabled={!chatInput.trim()} aria-label="Send">
                       <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M2 8l12-6-6 12V8H2z" fill="currentColor"/></svg>
                     </button>

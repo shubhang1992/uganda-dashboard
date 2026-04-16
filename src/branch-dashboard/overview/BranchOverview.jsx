@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useEntity, useChildren } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { EASE_OUT_EXPO } from '../../utils/finance';
 import BranchHealthScore from './BranchHealthScore';
 import OperationsSection from './OperationsSection';
 import styles from './BranchOverview.module.css';
@@ -14,6 +12,7 @@ import styles from './BranchOverview.module.css';
 // 24px gap on either side of the panel: padding = width + 48.
 const PANEL_PADDING = {
   agents: 560 + 48,
+  createAgent: 460 + 48,
   commissions: 600 + 48,
   reports: 680 + 48,
   settings: 460 + 48,
@@ -36,6 +35,7 @@ export default function BranchOverview({ branchId }) {
   const { user } = useAuth();
   const {
     viewAgentsOpen,
+    createAgentOpen,
     commissionsOpen,
     viewReportsOpen,
     settingsOpen,
@@ -48,6 +48,8 @@ export default function BranchOverview({ branchId }) {
   // Which panel (if any) is currently driving split view
   const activePanel = viewAgentsOpen
     ? 'agents'
+    : createAgentOpen
+    ? 'createAgent'
     : commissionsOpen
     ? 'commissions'
     : viewReportsOpen
@@ -71,12 +73,10 @@ export default function BranchOverview({ branchId }) {
   }
 
   return (
-    <motion.div
+    <div
       className={styles.overview}
       data-split={splitState || undefined}
-      initial={false}
-      animate={{ paddingRight: targetPaddingRight }}
-      transition={{ duration: 0.55, ease: EASE_OUT_EXPO }}
+      style={{ paddingRight: targetPaddingRight }}
     >
       <BranchHealthScore
         metrics={metrics}
@@ -90,6 +90,6 @@ export default function BranchOverview({ branchId }) {
       <div className={styles.opsWrap}>
         <OperationsSection agents={agents} commissionSummary={commissionSummary} metrics={metrics} />
       </div>
-    </motion.div>
+    </div>
   );
 }

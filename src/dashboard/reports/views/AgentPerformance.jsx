@@ -88,6 +88,7 @@ export default function AgentPerformance({ onBack }) {
       render: (row) => <RankBadge rank={row.rank} total={scopedAgents.length} />,
     },
     { key: 'name', label: 'Agent', sortable: true, width: '150px' },
+    { key: 'employeeId', label: 'Emp. ID', sortable: true, width: '100px' },
     !isBranch && { key: 'branchName', label: 'Branch', sortable: true },
     !isBranch && { key: 'regionName', label: 'Region', sortable: true },
     {

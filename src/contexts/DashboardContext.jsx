@@ -51,6 +51,7 @@ export function DashboardProvider({ children }) {
   const [createBranchOpen, setCreateBranchOpen] = useState(false);
   const [viewBranchesOpen, setViewBranchesOpen] = useState(false);
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
+  const [createAgentOpen, setCreateAgentOpen] = useState(false);
   const [viewAgentsOpen, setViewAgentsOpen] = useState(false);
   const [subscriberMenuOpen, setSubscriberMenuOpen] = useState(false);
   const [viewSubscribersOpen, setViewSubscribersOpen] = useState(false);
@@ -153,6 +154,19 @@ export function DashboardProvider({ children }) {
     navigate('/dashboard');
   }, [navigate]);
 
+  /* Close every slide-in panel — used by single-panel layouts (e.g. branch
+     dashboard) to guarantee panels never stack on top of each other. */
+  const closeAllPanels = useCallback(() => {
+    setCreateBranchOpen(false);
+    setViewBranchesOpen(false);
+    setCreateAgentOpen(false);
+    setViewAgentsOpen(false);
+    setViewSubscribersOpen(false);
+    setViewReportsOpen(false);
+    setCommissionsOpen(false);
+    setSettingsOpen(false);
+  }, []);
+
   const value = useMemo(() => ({
     level, selectedIds, section, reportId,
     drillDown, drillUp, goToLevel, reset,
@@ -160,6 +174,7 @@ export function DashboardProvider({ children }) {
     createBranchOpen, setCreateBranchOpen,
     viewBranchesOpen, setViewBranchesOpen,
     agentMenuOpen, setAgentMenuOpen,
+    createAgentOpen, setCreateAgentOpen,
     viewAgentsOpen, setViewAgentsOpen,
     subscriberMenuOpen, setSubscriberMenuOpen,
     viewSubscribersOpen, setViewSubscribersOpen,
@@ -170,13 +185,14 @@ export function DashboardProvider({ children }) {
     drillTargetBranchId, setDrillTargetBranchId,
     drillTargetAgentId, setDrillTargetAgentId,
     closeDrillPanel,
+    closeAllPanels,
   }), [
     level, selectedIds, section, reportId,
     drillDown, drillUp, goToLevel, reset,
     branchMenuOpen, createBranchOpen, viewBranchesOpen,
-    agentMenuOpen, viewAgentsOpen, subscriberMenuOpen, viewSubscribersOpen, viewReportsOpen, commissionsOpen,
+    agentMenuOpen, createAgentOpen, viewAgentsOpen, subscriberMenuOpen, viewSubscribersOpen, viewReportsOpen, commissionsOpen,
     settingsOpen, reportContext,
-    drillTargetBranchId, drillTargetAgentId, closeDrillPanel,
+    drillTargetBranchId, drillTargetAgentId, closeDrillPanel, closeAllPanels,
   ]);
 
   return (

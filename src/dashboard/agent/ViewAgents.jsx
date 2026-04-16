@@ -172,6 +172,12 @@ function AgentDetail({ agent, branchesMap, districtsMap, regionsMap, onViewCommi
             <span style={{ textTransform: 'capitalize' }}>{agent.status}</span>
             <span>&middot;</span>
             <span>{agent.phone}</span>
+            {agent.employeeId && (
+              <>
+                <span>&middot;</span>
+                <span>{agent.employeeId}</span>
+              </>
+            )}
           </div>
           <div className={styles.profileRating}>
             <Stars rating={agent.rating} />
@@ -191,6 +197,12 @@ function AgentDetail({ agent, branchesMap, districtsMap, regionsMap, onViewCommi
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Branch Assignment</div>
         <div className={styles.infoCard}>
+          {agent.employeeId && (
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Employee ID</span>
+              <span className={styles.infoValue}>{agent.employeeId}</span>
+            </div>
+          )}
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Branch</span>
             <span className={styles.infoValue}>{branchName(agent, branchesMap)}</span>
@@ -647,6 +659,12 @@ export default function ViewAgents({ branchId, splitMode = false }) {
                                   <div className={styles.agentMeta}>
                                     <span className={styles.agentStatus} data-status={agent.status} />
                                     <span>{branchName(agent, BRANCHES_MAP)}</span>
+                                    {agent.employeeId && (
+                                      <>
+                                        <span>&middot;</span>
+                                        <span>{agent.employeeId}</span>
+                                      </>
+                                    )}
                                     <span>&middot;</span>
                                     <Stars rating={agent.rating} />
                                   </div>
