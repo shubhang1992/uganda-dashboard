@@ -1,9 +1,11 @@
-import { useState, useEffect, useSyncExternalStore } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../utils/finance';
 import { DashboardProvider, useDashboard } from '../contexts/DashboardContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useCurrentEntity } from '../hooks/useEntity';
+import { useIsMobile } from '../hooks/useIsMobile';
 import logo from '../assets/logo.png';
 import Sidebar from './sidebar/Sidebar';
 import UgandaMap from './map/UgandaMap';
@@ -19,15 +21,6 @@ import ViewReports from './reports/ViewReports';
 import CommissionPanel from './commissions/CommissionPanel';
 import Settings from './settings/Settings';
 import styles from './DashboardShell.module.css';
-
-const MQ = '(max-width: 768px)';
-function subscribeMQ(cb) {
-  const mql = window.matchMedia(MQ);
-  mql.addEventListener('change', cb);
-  return () => mql.removeEventListener('change', cb);
-}
-function getIsMobile() { return window.matchMedia(MQ).matches; }
-function useIsMobile() { return useSyncExternalStore(subscribeMQ, getIsMobile); }
 
 const DRAWER_ITEMS = [
   { id: 'overview', label: 'Overview' },
@@ -179,11 +172,44 @@ function MobileDrawer({ open, onClose }) {
   );
 }
 
+const LEVEL_NAMES = { country: 'National Overview', region: 'Region', district: 'District', branch: 'Branch', agent: 'Agent' };
+
+function NavAnnouncer() {
+  const { level, selectedIds } = useDashboard();
+  const { data: entity } = useCurrentEntity(level, selectedIds);
+  const announcement = useMemo(() => {
+    if (level === 'country') return 'Now viewing National Overview';
+    if (entity?.name) return `Now viewing ${entity.name} ${LEVEL_NAMES[level] || ''}`;
+    return '';
+  }, [level, entity?.name]);
+
+  return (
+    <div
+      aria-live="assertive"
+      role="status"
+      style={{
+        position: 'absolute',
+        width: '1px',
+        height: '1px',
+        padding: 0,
+        margin: '-1px',
+        overflow: 'hidden',
+        clip: 'rect(0, 0, 0, 0)',
+        whiteSpace: 'nowrap',
+        border: 0,
+      }}
+    >
+      {announcement}
+    </div>
+  );
+}
+
 function DashboardContent() {
   const isMobile = useIsMobile();
   return (
     <>
       <div className={styles.main}>
+        <NavAnnouncer />
         {!isMobile && <UgandaMap />}
         <Breadcrumb />
         <OverlayPanel />

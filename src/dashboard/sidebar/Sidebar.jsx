@@ -198,7 +198,7 @@ export default function Sidebar() {
   const [moreOpen, setMoreOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const { section, reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, subscriberMenuOpen, setSubscriberMenuOpen, viewSubscribersOpen, setViewSubscribersOpen, setDrillTargetBranchId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen, setCommissionsOpen, settingsOpen, setSettingsOpen } = useDashboard();
+  const { section, reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, subscriberMenuOpen, setSubscriberMenuOpen, viewSubscribersOpen, setViewSubscribersOpen, drillTargetBranchId, setDrillTargetBranchId, drillTargetAgentId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen, setCommissionsOpen, settingsOpen, setSettingsOpen } = useDashboard();
   const [active, setActive] = useState('overview');
 
   // Sync active state when reports panel opens/closes
@@ -219,21 +219,25 @@ export default function Sidebar() {
     else if (active === 'settings') setActive('overview');
   }, [settingsOpen]);
 
-  // Keep branch submenu open while a branch panel is visible
+  // Keep branch submenu open while a branch panel is visible — but NOT when
+  // the panel was auto-opened via drill-down (from map / district list).
+  // Drill-down focuses a single branch; the submenu would just clutter the map.
   useEffect(() => {
+    if (drillTargetBranchId) return;
     if (createBranchOpen || viewBranchesOpen) {
       setBranchMenuOpen(true);
       setActive('branches');
     }
-  }, [createBranchOpen, viewBranchesOpen]);
+  }, [createBranchOpen, viewBranchesOpen, drillTargetBranchId]);
 
-  // Keep agent submenu open while agent panel is visible
+  // Keep agent submenu open while agent panel is visible — same drill-down guard
   useEffect(() => {
+    if (drillTargetAgentId) return;
     if (viewAgentsOpen) {
       setAgentMenuOpen(true);
       setActive('agents');
     }
-  }, [viewAgentsOpen]);
+  }, [viewAgentsOpen, drillTargetAgentId]);
 
   // Keep subscriber submenu open while subscriber panel is visible
   useEffect(() => {

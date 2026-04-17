@@ -1,0 +1,67 @@
+.chartWrap {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78) 0%, rgba(246, 247, 251, 0.72) 100%);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-top-color: rgba(255, 255, 255, 0.85);
+  border-left-color: rgba(255, 255, 255, 0.75);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  box-shadow:
+    0 2px 8px rgba(41, 40, 103, 0.04),
+    0 1px 0 rgba(255, 255, 255, 0.6) inset;
+}
+
+.chartBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 110px;
+  padding: 0 2px;
+  position: relative;
+}
+
+.chartBars::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(41, 40, 103, 0.06);
+  pointer-events: none;
+}
+
+.chartBar {
+  flex: 1;
+  border-radius: 5px 5px 2px 2px;
+  background: linear-gradient(180deg, var(--color-indigo) 0%, var(--color-indigo-soft) 100%);
+  opacity: 0.4;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  min-width: 0;
+  position: relative;
+}
+
+.chartBar[data-peak='true'] {
+  opacity: 0.8;
+}
+
+.chartBar:hover {
+  opacity: 0.9;
+  transform: scaleY(1.04);
+  transform-origin: bottom;
+}
+
+.chartLabels {
+  display: flex;
+  gap: 6px;
+  margin-top: var(--space-2);
+  padding: 0 2px;
+}
+
+.chartLabel {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  color: var(--color-gray);
+  text-align: center;
+}

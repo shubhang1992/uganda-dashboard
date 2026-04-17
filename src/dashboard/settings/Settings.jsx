@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useToast } from '../../contexts/ToastContext';
 import styles from './Settings.module.css';
 
 /* ─── Password strength helper ────────────────────────────────────────────── */
@@ -65,6 +66,7 @@ function PasswordInput({ value, onChange, placeholder, error, ariaLabel }) {
 export default function Settings({ splitMode = false }) {
   const { settingsOpen, setSettingsOpen } = useDashboard();
   const { user } = useAuth();
+  const { addToast } = useToast();
 
   /* ── Profile form state ─────────────────────────────────────────────────── */
   const [name, setName] = useState('');
@@ -77,7 +79,6 @@ export default function Settings({ splitMode = false }) {
   const [confirmPw, setConfirmPw] = useState('');
 
   const [errors, setErrors] = useState({});
-  const [toast, setToast] = useState(null);
 
   /* Populate form from user session when panel opens */
   useEffect(() => {
@@ -101,13 +102,6 @@ export default function Settings({ splitMode = false }) {
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
   }, [settingsOpen, setSettingsOpen]);
-
-  /* Auto-dismiss toast */
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3500);
-    return () => clearTimeout(t);
-  }, [toast]);
 
   /* ── Validation ─────────────────────────────────────────────────────────── */
   const validate = useCallback(() => {
@@ -141,7 +135,7 @@ export default function Settings({ splitMode = false }) {
     if (!validate()) return;
 
     /* In production this would call an API — for now show success toast */
-    setToast('Settings saved successfully');
+    addToast('success', 'Settings saved');
     setCurrentPw('');
     setNewPw('');
     setConfirmPw('');
@@ -433,27 +427,6 @@ export default function Settings({ splitMode = false }) {
             </form>
           </motion.div>
 
-          {/* Success toast */}
-          <AnimatePresence>
-            {toast && (
-              <motion.div
-                className={styles.toast}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 8 }}
-                transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
-                role="status"
-                aria-live="polite"
-              >
-                <span className={styles.toastIcon}>
-                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="14" height="14">
-                    <polyline points="20,6 9,17 4,12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </span>
-                {toast}
-              </motion.div>
-            )}
-          </AnimatePresence>
         </>
       )}
     </AnimatePresence>

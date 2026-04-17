@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
 import { useEntity, useChildren } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import BranchHealthScore from './BranchHealthScore';
 import OperationsSection from './OperationsSection';
 import styles from './BranchOverview.module.css';
@@ -17,19 +17,6 @@ const PANEL_PADDING = {
   reports: 680 + 48,
   settings: 460 + 48,
 };
-
-function useIsMobile(breakpoint = 768) {
-  const [isMobile, setIsMobile] = useState(
-    () => typeof window !== 'undefined' && window.innerWidth <= breakpoint
-  );
-  useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${breakpoint}px)`);
-    const handler = (e) => setIsMobile(e.matches);
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
-  }, [breakpoint]);
-  return isMobile;
-}
 
 export default function BranchOverview({ branchId }) {
   const { user } = useAuth();

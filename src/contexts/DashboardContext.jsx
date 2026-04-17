@@ -1,209 +1,34 @@
-import { createContext, useContext, useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { SEGMENT_TO_LEVEL, LEVEL_TO_SEGMENT, PARENT_LEVEL } from '../constants/levels';
-import { getEntitySync } from '../services/entities';
+import { useMemo } from 'react';
+import { DashboardNavProvider, useDashboardNav } from './DashboardNavContext';
+import { DashboardPanelProvider, useDashboardPanel } from './DashboardPanelContext';
 
-const DashboardContext = createContext(null);
+/**
+ * @typedef {import('./DashboardNavContext').DashboardNavContextValue & import('./DashboardPanelContext').DashboardPanelContextValue} DashboardContextValue
+ */
 
-// Derive level + entityId from the URL pathname
-function parsePath(pathname) {
-  const path = pathname.replace(/^\/dashboard\/?/, '');
-  if (!path) return { level: 'country', entityId: null, section: 'map' };
-  // Reports section
-  if (path === 'reports' || path.startsWith('reports/')) {
-    const reportId = path.split('/')[1] || null;
-    return { level: 'country', entityId: null, section: 'reports', reportId };
-  }
-  const [segment, entityId] = path.split('/');
-  const level = SEGMENT_TO_LEVEL[segment];
-  if (level && entityId) return { level, entityId, section: 'map' };
-  return { level: 'country', entityId: null, section: 'map' };
-}
-
-// Walk the parent chain to build selectedIds from a single entity
-function buildSelectedIds(level, entityId) {
-  if (level === 'country' || !entityId) return {};
-  const ids = {};
-  let currentLevel = level;
-  let currentId = entityId;
-  while (currentLevel && currentLevel !== 'country' && currentId) {
-    ids[currentLevel] = currentId;
-    const entity = getEntitySync(currentLevel, currentId);
-    if (!entity?.parentId || entity.parentId === 'ug') break;
-    const parentLevel = PARENT_LEVEL[currentLevel];
-    if (!parentLevel || parentLevel === 'country') break;
-    currentLevel = parentLevel;
-    currentId = entity.parentId;
-  }
-  return ids;
-}
-
+/**
+ * Convenience wrapper that composes both Nav and Panel providers.
+ * Nav wraps Panel so the panel context can register into the nav context's
+ * onPanelAction ref.
+ */
 export function DashboardProvider({ children }) {
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  // Derive drill-down state from URL
-  const { level, entityId, section, reportId } = useMemo(() => parsePath(location.pathname), [location.pathname]);
-  const selectedIds = useMemo(() => buildSelectedIds(level, entityId), [level, entityId]);
-
-  // UI-only state (not URL-based)
-  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
-  const [createBranchOpen, setCreateBranchOpen] = useState(false);
-  const [viewBranchesOpen, setViewBranchesOpen] = useState(false);
-  const [agentMenuOpen, setAgentMenuOpen] = useState(false);
-  const [createAgentOpen, setCreateAgentOpen] = useState(false);
-  const [viewAgentsOpen, setViewAgentsOpen] = useState(false);
-  const [subscriberMenuOpen, setSubscriberMenuOpen] = useState(false);
-  const [viewSubscribersOpen, setViewSubscribersOpen] = useState(false);
-  const [viewReportsOpen, setViewReportsOpen] = useState(false);
-  const [commissionsOpen, setCommissionsOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [reportContext, setReportContext] = useState(null); // reportId string | null
-
-  // Map drill-down → slide-in panel handoff
-  const [drillTargetBranchId, setDrillTargetBranchId] = useState(null);
-  const [drillTargetAgentId, setDrillTargetAgentId] = useState(null);
-  const drillBranchRef = useRef(null);
-  const drillAgentRef = useRef(null);
-
-  // Auto-open reports panel when URL is /dashboard/reports, then redirect to /dashboard
-  useEffect(() => {
-    if (section === 'reports') {
-      setViewReportsOpen(true);
-      navigate('/dashboard', { replace: true });
-    }
-  }, [section, navigate]);
-
-  // Auto-open slide-in panels when URL reaches branch/agent level
-  useEffect(() => {
-    if (level === 'branch' && entityId) {
-      drillBranchRef.current = entityId;
-      setDrillTargetBranchId(entityId);
-      setViewBranchesOpen(true);
-    } else if (level === 'agent' && entityId) {
-      drillAgentRef.current = entityId;
-      setDrillTargetAgentId(entityId);
-      setViewAgentsOpen(true);
-    } else {
-      if (drillBranchRef.current) {
-        drillBranchRef.current = null;
-        setDrillTargetBranchId(null);
-        setViewBranchesOpen(false);
-      }
-      if (drillAgentRef.current) {
-        drillAgentRef.current = null;
-        setDrillTargetAgentId(null);
-        setViewAgentsOpen(false);
-      }
-    }
-  }, [level, entityId]);
-
-  // Close drill-triggered panel and navigate back to district level
-  const closeDrillPanel = useCallback(() => {
-    const districtId = selectedIds.district;
-    drillBranchRef.current = null;
-    drillAgentRef.current = null;
-    setDrillTargetBranchId(null);
-    setDrillTargetAgentId(null);
-    setViewBranchesOpen(false);
-    setViewAgentsOpen(false);
-    if (districtId) {
-      navigate(`/dashboard/${LEVEL_TO_SEGMENT.district}/${districtId}`);
-    } else {
-      navigate('/dashboard');
-    }
-  }, [selectedIds, navigate]);
-
-  // Navigation actions — translate to URL changes
-  const drillDown = useCallback((targetLevel, id) => {
-    const segment = LEVEL_TO_SEGMENT[targetLevel];
-    if (segment) navigate(`/dashboard/${segment}/${id}`);
-  }, [navigate]);
-
-  const drillUp = useCallback((fromLevel) => {
-    const level = fromLevel || 'country';
-    if (level === 'country') return;
-    const parentLevel = PARENT_LEVEL[level];
-    if (!parentLevel || parentLevel === 'country') {
-      navigate('/dashboard');
-    } else {
-      const parentId = buildSelectedIds(level, parsePath(location.pathname).entityId)[parentLevel];
-      if (parentId) {
-        navigate(`/dashboard/${LEVEL_TO_SEGMENT[parentLevel]}/${parentId}`);
-      } else {
-        navigate('/dashboard');
-      }
-    }
-  }, [navigate, location.pathname]);
-
-  const goToLevel = useCallback((targetLevel) => {
-    if (targetLevel === 'country') {
-      navigate('/dashboard');
-    } else {
-      const currentIds = buildSelectedIds(
-        parsePath(location.pathname).level,
-        parsePath(location.pathname).entityId,
-      );
-      const id = currentIds[targetLevel];
-      if (id) navigate(`/dashboard/${LEVEL_TO_SEGMENT[targetLevel]}/${id}`);
-      else navigate('/dashboard');
-    }
-  }, [navigate, location.pathname]);
-
-  const reset = useCallback(() => {
-    navigate('/dashboard');
-  }, [navigate]);
-
-  /* Close every slide-in panel — used by single-panel layouts (e.g. branch
-     dashboard) to guarantee panels never stack on top of each other. */
-  const closeAllPanels = useCallback(() => {
-    setCreateBranchOpen(false);
-    setViewBranchesOpen(false);
-    setCreateAgentOpen(false);
-    setViewAgentsOpen(false);
-    setViewSubscribersOpen(false);
-    setViewReportsOpen(false);
-    setCommissionsOpen(false);
-    setSettingsOpen(false);
-  }, []);
-
-  const value = useMemo(() => ({
-    level, selectedIds, section, reportId,
-    drillDown, drillUp, goToLevel, reset,
-    branchMenuOpen, setBranchMenuOpen,
-    createBranchOpen, setCreateBranchOpen,
-    viewBranchesOpen, setViewBranchesOpen,
-    agentMenuOpen, setAgentMenuOpen,
-    createAgentOpen, setCreateAgentOpen,
-    viewAgentsOpen, setViewAgentsOpen,
-    subscriberMenuOpen, setSubscriberMenuOpen,
-    viewSubscribersOpen, setViewSubscribersOpen,
-    viewReportsOpen, setViewReportsOpen,
-    commissionsOpen, setCommissionsOpen,
-    settingsOpen, setSettingsOpen,
-    reportContext, setReportContext,
-    drillTargetBranchId, setDrillTargetBranchId,
-    drillTargetAgentId, setDrillTargetAgentId,
-    closeDrillPanel,
-    closeAllPanels,
-  }), [
-    level, selectedIds, section, reportId,
-    drillDown, drillUp, goToLevel, reset,
-    branchMenuOpen, createBranchOpen, viewBranchesOpen,
-    agentMenuOpen, createAgentOpen, viewAgentsOpen, subscriberMenuOpen, viewSubscribersOpen, viewReportsOpen, commissionsOpen,
-    settingsOpen, reportContext,
-    drillTargetBranchId, drillTargetAgentId, closeDrillPanel, closeAllPanels,
-  ]);
-
   return (
-    <DashboardContext value={value}>
-      {children}
-    </DashboardContext>
+    <DashboardNavProvider>
+      <DashboardPanelProvider>
+        {children}
+      </DashboardPanelProvider>
+    </DashboardNavProvider>
   );
 }
 
+/**
+ * Backward-compatible hook — merges nav + panel contexts so existing
+ * consumers don't need to change their imports.
+ * @returns {DashboardContextValue}
+ */
 export function useDashboard() {
-  const ctx = useContext(DashboardContext);
-  if (!ctx) throw new Error('useDashboard must be used within DashboardProvider');
-  return ctx;
+  const nav = useDashboardNav();
+  const panel = useDashboardPanel();
+
+  return useMemo(() => ({ ...nav, ...panel }), [nav, panel]);
 }

@@ -1,16 +1,12 @@
-import { useState, useCallback, useSyncExternalStore } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useChildren, useTopBranch, useSearch } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { CHILD_LEVEL } from '../../constants/levels';
 import { formatUGX, EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import styles from './OverlayPanel.module.css';
-
-const MQ = '(max-width: 768px)';
-function subscribeMQ(cb) { const m = window.matchMedia(MQ); m.addEventListener('change', cb); return () => m.removeEventListener('change', cb); }
-function getIsMobile() { return window.matchMedia(MQ).matches; }
-function useIsMobile() { return useSyncExternalStore(subscribeMQ, getIsMobile); }
 const LEVEL_LABELS = { region: 'Regions', district: 'Districts', branch: 'Branches', agent: 'Agents' };
 const LEVEL_TAG = { region: 'Region', district: 'District', branch: 'Branch', agent: 'Agent' };
 
@@ -27,20 +23,47 @@ function ChevronIcon({ expanded }) {
   );
 }
 
-function CollapsibleSection({ title, count, defaultOpen, children, fill }) {
+function ExpandIcon({ expanded }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width="12" height="12" viewBox="0 0 12 12" fill="none"
+      className={styles.expandIcon}
+      data-expanded={expanded}
+    >
+      <path
+        d={expanded ? 'M3 5l3 3 3-3' : 'M3 7l3-3 3 3'}
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CollapsibleSection({ title, count, defaultOpen, children, fill, expanded, onExpandToggle }) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(defaultOpen ?? true);
 
   if (!isMobile) {
     return (
-      <div className={styles.section} data-fill={fill ? 'true' : undefined}>
+      <div className={styles.section} data-fill={fill ? 'true' : undefined} data-expanded={expanded ? 'true' : undefined}>
         <div className={styles.sectionHeader} data-static="true">
           <span className={styles.sectionTitle}>{title}</span>
-          {count != null && (
-            <div className={styles.sectionRight}>
-              <span className={styles.sectionCount}>{count}</span>
-            </div>
-          )}
+          <div className={styles.sectionRight}>
+            {count != null && <span className={styles.sectionCount}>{count}</span>}
+            {onExpandToggle && (
+              <button
+                className={styles.expandBtn}
+                onClick={onExpandToggle}
+                aria-label={expanded ? 'Collapse list' : 'Expand list'}
+                aria-pressed={!!expanded}
+              >
+                <ExpandIcon expanded={expanded} />
+              </button>
+            )}
+          </div>
         </div>
         <div className={styles.sectionBody}>{children}</div>
       </div>
@@ -318,12 +341,17 @@ function TimePeriodCard({ metrics, level, parentId, onMetricClick }) {
 export default function OverlayPanel() {
   const isMobile = useIsMobile();
   const { level, selectedIds, drillDown, drillUp, reset, branchMenuOpen, agentMenuOpen, subscriberMenuOpen, setViewReportsOpen, setReportContext, setCommissionsOpen } = useDashboard();
+  const [listExpanded, setListExpanded] = useState(false);
 
-  const parentId = level === 'country' ? 'ug' : selectedIds[level];
-  const nextLevel = CHILD_LEVEL[level] || null;
-  const { data: currentEntity } = useCurrentEntity(level, selectedIds);
-  const { data: children = [] } = useChildren(level, parentId);
-  const { data: commissionSummary } = useEntityCommissionSummary(level, parentId);
+  // When drilled into a specific branch/agent, keep showing the parent district
+  // context on the left so the user doesn't lose their place while the slide-in
+  // detail panel occupies the right.
+  const displayLevel = (level === 'branch' || level === 'agent') ? 'district' : level;
+  const parentId = displayLevel === 'country' ? 'ug' : selectedIds[displayLevel];
+  const nextLevel = CHILD_LEVEL[displayLevel] || null;
+  const { data: currentEntity } = useCurrentEntity(displayLevel, selectedIds);
+  const { data: children = [] } = useChildren(displayLevel, parentId);
+  const { data: commissionSummary } = useEntityCommissionSummary(displayLevel, parentId);
 
   const openReport = useCallback((reportId) => {
     setReportContext(reportId);
@@ -334,8 +362,8 @@ export default function OverlayPanel() {
     drillDown(targetLevel, targetId);
   }, [drillDown]);
 
-  // At branch/agent level, the slide-in panels take over
-  if (level === 'branch' || level === 'agent') return null;
+  // Collapse the expanded list view when the user navigates to a different entity
+  useEffect(() => { setListExpanded(false); }, [displayLevel, parentId]);
 
   if (!currentEntity) return null;
 
@@ -356,12 +384,12 @@ export default function OverlayPanel() {
     >
       {/* Panel header: title/back + search */}
       <div className={styles.panelHeader}>
-        {level === 'country' ? (
+        {displayLevel === 'country' ? (
           <h2 className={styles.greeting}>Summary</h2>
         ) : (
           <button
             className={styles.backBtn}
-            onClick={() => level === 'region' ? reset() : drillUp(level)}
+            onClick={() => displayLevel === 'region' ? reset() : drillUp(displayLevel)}
           >
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="16" height="16">
               <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -371,13 +399,6 @@ export default function OverlayPanel() {
         )}
         <GlobalSearch onNavigate={handleSearchNavigate} />
       </div>
-
-          {level !== 'country' && (
-            <div className={styles.entityHeader}>
-              <span className={styles.levelTag}>{LEVEL_TAG[level] || level}</span>
-              <h2 className={styles.entityName}>{currentEntity?.name || ''}</h2>
-            </div>
-          )}
 
           {isInactive && (
             <div className={styles.emptyState}>
@@ -391,22 +412,28 @@ export default function OverlayPanel() {
           )}
 
           {!isInactive && <>
-          {/* AUM — hero number */}
-          <div className={styles.aumBlock}>
-            <span className={styles.aumValue}>{formatUGX(aum)}</span>
-            <span className={styles.aumLabel}>Assets Under Management</span>
-          </div>
-
-          {/* Quick stats row */}
-          <div className={styles.quickStats}>
-            <div className={styles.stat}>
-              <span className={styles.statNum}>{formatUGX(metrics.totalContributions)}</span>
-              <span className={styles.statLabel}>Contributions</span>
+          {/* AUM hero — indigo-gradient card with contributions/withdrawals footer */}
+          <div className={styles.hero}>
+            {displayLevel !== 'country' && (
+              <div className={styles.heroLabel} aria-live="polite">
+                <span className={styles.heroTag}>{LEVEL_TAG[displayLevel] || displayLevel}</span>
+                <span className={styles.heroName}>{currentEntity?.name || ''}</span>
+              </div>
+            )}
+            <div className={styles.heroTop}>
+              <span className={styles.aumValue}>{formatUGX(aum)}</span>
+              <span className={styles.aumLabel}>Assets Under Management</span>
             </div>
-            <div className={styles.statDivider} />
-            <div className={styles.stat}>
-              <span className={styles.statNum}>{formatUGX(metrics.totalWithdrawals)}</span>
-              <span className={styles.statLabel}>Withdrawals</span>
+            <div className={styles.heroStats}>
+              <div className={styles.stat}>
+                <span className={styles.statNum}>{formatUGX(metrics.totalContributions)}</span>
+                <span className={styles.statLabel}>Contributions</span>
+              </div>
+              <div className={styles.statDivider} />
+              <div className={styles.stat}>
+                <span className={styles.statNum}>{formatUGX(metrics.totalWithdrawals)}</span>
+                <span className={styles.statLabel}>Withdrawals</span>
+              </div>
             </div>
           </div>
 
@@ -478,12 +505,35 @@ export default function OverlayPanel() {
             </button>
           )}
 
-          {/* Time-period highlights: Today / This Week / This Month */}
-          <TimePeriodCard metrics={metrics} level={level} parentId={parentId} onMetricClick={openReport} />
+          {/* Time-period highlights: Today / This Week / This Month.
+              Animates out when the child list is expanded so the list can
+              absorb the freed vertical space. */}
+          <AnimatePresence initial={false}>
+            {!listExpanded && (
+              <motion.div
+                key="period-card"
+                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginTop: 0 }}
+                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                transition={{ duration: 0.35, ease: EASE }}
+                style={{ overflow: 'hidden', flexShrink: 0 }}
+              >
+                <TimePeriodCard metrics={metrics} level={displayLevel} parentId={parentId} onMetricClick={openReport} />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Region/child list */}
           {children.length > 0 && nextLevel && (
-            <CollapsibleSection title={LEVEL_LABELS[nextLevel] || 'Items'} count={children.length} defaultOpen={false} fill key={`children-${level}-${parentId}`}>
+            <CollapsibleSection
+              title={LEVEL_LABELS[nextLevel] || 'Items'}
+              count={children.length}
+              defaultOpen={false}
+              fill
+              expanded={listExpanded}
+              onExpandToggle={() => setListExpanded((v) => !v)}
+              key={`children-${displayLevel}-${parentId}`}
+            >
               <div className={styles.entityList}>
                 {children.map((child) => {
                   const isChildActive = child.active !== false;

@@ -9,7 +9,7 @@ export default function Breadcrumb() {
   if (level === 'country' || !crumbs) return null;
 
   return (
-    <nav className={styles.breadcrumb} aria-label="Navigation">
+    <nav className={styles.breadcrumb} aria-label="Navigation" aria-live="polite">
       {crumbs.map((crumb, i) => (
         <span key={crumb.level} className={styles.item}>
           {i > 0 && (

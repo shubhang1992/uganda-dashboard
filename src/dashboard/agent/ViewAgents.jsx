@@ -7,9 +7,12 @@ import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { getInitials, getTrend, perfLevel } from '../../utils/dashboard';
 import Stars from '../shared/Stars';
+import { Icons } from '../shared/Icons';
+import TrendArrow from '../shared/TrendArrow';
+import MiniChart from '../shared/MiniChart';
+import KpiCard from '../shared/KpiCard';
+import Demographics from '../shared/Demographics';
 import styles from './ViewAgents.module.css';
-
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 
 function branchName(agent, branchesMap) {
@@ -35,123 +38,6 @@ const SORT_OPTIONS = [
   { key: 'activeRate', label: 'Active Rate', fn: (a, b) => b.metrics.activeRate - a.metrics.activeRate },
   { key: 'rating', label: 'Rating', fn: (a, b) => b.rating - a.rating },
 ];
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Icons                                                                     */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-const Icons = {
-  subscribers: (
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
-      <circle cx="10" cy="6" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M3.5 18v-.5a6.5 6.5 0 0113 0v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  ),
-  activeRate: (
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
-      <path d="M10 2a8 8 0 110 16 8 8 0 010-16z" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M7 10l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  ),
-  contributions: (
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
-      <path d="M2 18V6l4-4h8l4 4v12" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M2 10h16" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M10 10v8" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  ),
-  aum: (
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
-      <rect x="2" y="7" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M6 7V5a4 4 0 018 0v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="10" cy="12.5" r="1.5" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  ),
-  phone: (
-    <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
-      <path d="M6.2 7.4a6.5 6.5 0 002.4 2.4l1.2-1.2a.8.8 0 01.9-.2c.8.3 1.7.4 2.5.4a.8.8 0 01.8.8v2.6a.8.8 0 01-.8.8A12.2 12.2 0 011 1.8a.8.8 0 01.8-.8h2.6a.8.8 0 01.8.8c0 .8.2 1.7.4 2.5a.8.8 0 01-.2.9z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-    </svg>
-  ),
-};
-
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  MiniChart                                                                 */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-function MiniChart({ data }) {
-  const max = Math.max(...data, 1);
-  const peakIdx = data.indexOf(max);
-  return (
-    <div className={styles.chartWrap}>
-      <div className={styles.chartBars}>
-        {data.map((v, i) => (
-          <div key={i} className={styles.chartBar} data-peak={i === peakIdx} style={{ height: `${Math.max((v / max) * 100, 4)}%` }} title={`${MONTHS[i]}: ${formatUGX(v)}`} />
-        ))}
-      </div>
-      <div className={styles.chartLabels}>
-        {MONTHS.map((m) => <span key={m} className={styles.chartLabel}>{m}</span>)}
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  KpiCard                                                                   */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-function KpiCard({ icon, label, value, suffix }) {
-  return (
-    <div className={styles.kpiCard}>
-      <div className={styles.kpiIcon}>{icon}</div>
-      <div className={styles.kpiLabel}>{label}</div>
-      <div className={styles.kpiValue}>{value}{suffix && <span className={styles.kpiSuffix}>{suffix}</span>}</div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Demographics                                                              */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-function Demographics({ metrics }) {
-  const m = metrics;
-  const ageTotal = Object.values(m.ageDistribution).reduce((s, x) => s + x, 0);
-  return (
-    <div className={styles.demoRow}>
-      <div className={styles.demoCard}>
-        <div className={styles.demoTitle}>Gender</div>
-        {['male', 'female', 'other'].map((g) => (
-          <div key={g} className={styles.demoItem}>
-            <span className={styles.demoItemLabel} style={{ textTransform: 'capitalize' }}>{g}</span>
-            <div className={styles.demoBar}><div className={styles.demoBarFill} style={{ width: `${m.genderRatio[g]}%` }} /></div>
-            <span className={styles.demoItemValue}>{m.genderRatio[g]}%</span>
-          </div>
-        ))}
-      </div>
-      <div className={styles.demoCard}>
-        <div className={styles.demoTitle}>Age</div>
-        {Object.entries(m.ageDistribution).map(([k, v]) => {
-          const pct = ageTotal ? Math.round((v / ageTotal) * 100) : 0;
-          return (
-            <div key={k} className={styles.demoItem}>
-              <span className={styles.demoItemLabel}>{k}</span>
-              <div className={styles.demoBar}><div className={styles.demoBarFill} style={{ width: `${pct}%` }} /></div>
-              <span className={styles.demoItemValue}>{pct}%</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  TrendArrow                                                                */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-const TrendArrow = ({ trend }) => (
-  <span className={styles.trendBadge} data-trend={trend}>
-    {trend === 'up' && <svg aria-hidden="true" viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M6 9V3M6 3L3 6M6 3l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-    {trend === 'down' && <svg aria-hidden="true" viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M6 3v6M6 9L3 6M6 9l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-    {trend === 'flat' && <svg aria-hidden="true" viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>}
-  </span>
-);
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Agent Detail                                                              */

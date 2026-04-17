@@ -4,9 +4,12 @@
 
 import { API_BASE_URL } from '../config/env';
 
+const AUTH_KEY = 'upensions_auth';
+const TOKEN_KEY = 'upensions_token';
+
 export async function apiFetch(path, options = {}) {
   const url = `${API_BASE_URL}${path}`;
-  const token = localStorage.getItem('upensions_token');
+  const token = localStorage.getItem(TOKEN_KEY);
 
   const res = await fetch(url, {
     ...options,
@@ -18,8 +21,8 @@ export async function apiFetch(path, options = {}) {
   });
 
   if (res.status === 401) {
-    localStorage.removeItem('upensions_auth');
-    localStorage.removeItem('upensions_token');
+    localStorage.removeItem(AUTH_KEY);
+    localStorage.removeItem(TOKEN_KEY);
     window.location.href = '/';
     throw new Error('Session expired');
   }

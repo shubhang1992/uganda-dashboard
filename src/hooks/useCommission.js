@@ -3,6 +3,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as commissions from '../services/commissions';
 
+/**
+ * Fetch the current commission rate configuration.
+ * @returns {import('@tanstack/react-query').UseQueryResult<{rate: number, currency: string}>}
+ */
 export function useCommissionRate() {
   return useQuery({
     queryKey: ['commissionRate'],
@@ -10,6 +14,10 @@ export function useCommissionRate() {
   });
 }
 
+/**
+ * Mutation to update the commission rate.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
 export function useSetCommissionRate() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -20,6 +28,11 @@ export function useSetCommissionRate() {
   });
 }
 
+/**
+ * Fetch commission summary, optionally filtered by branch.
+ * @param {string|null} [branchId=null] - Branch ID filter or null for all
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object>}
+ */
 export function useCommissionSummary(branchId = null) {
   return useQuery({
     queryKey: ['commissionSummary', branchId || 'all'],
@@ -27,6 +40,11 @@ export function useCommissionSummary(branchId = null) {
   });
 }
 
+/**
+ * Fetch list of agents with commission data, optionally filtered by status.
+ * @param {string} [statusFocus] - Filter by commission status ('paid'|'due'|'disputed')
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object[]>}
+ */
 export function useAgentCommissionList(statusFocus) {
   return useQuery({
     queryKey: ['agentCommissions', statusFocus || 'all'],
@@ -34,6 +52,11 @@ export function useAgentCommissionList(statusFocus) {
   });
 }
 
+/**
+ * Fetch detailed commission data for a specific agent.
+ * @param {string} agentId - Agent entity ID
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object>}
+ */
 export function useAgentCommissionDetail(agentId) {
   return useQuery({
     queryKey: ['agentCommissionDetail', agentId],
@@ -42,6 +65,12 @@ export function useAgentCommissionDetail(agentId) {
   });
 }
 
+/**
+ * Fetch subscribers with commission records for a specific agent.
+ * @param {string} agentId - Agent entity ID
+ * @param {string} [filter] - Status filter
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object[]>}
+ */
 export function useCommissionSubscribers(agentId, filter) {
   return useQuery({
     queryKey: ['commissionSubscribers', agentId, filter || 'all'],
@@ -50,6 +79,10 @@ export function useCommissionSubscribers(agentId, filter) {
   });
 }
 
+/**
+ * Fetch list of agents with disputed commissions.
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object[]>}
+ */
 export function useDisputedAgentList() {
   return useQuery({
     queryKey: ['disputedAgents'],
@@ -57,6 +90,10 @@ export function useDisputedAgentList() {
   });
 }
 
+/**
+ * Fetch list of pending settlement requests.
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object[]>}
+ */
 export function useSettlementRequestList() {
   return useQuery({
     queryKey: ['settlementRequests'],
@@ -64,6 +101,12 @@ export function useSettlementRequestList() {
   });
 }
 
+/**
+ * Fetch aggregated commission summary for any hierarchy level entity.
+ * @param {string} level - Hierarchy level
+ * @param {string} entityId - Entity ID (or 'ug' for country)
+ * @returns {import('@tanstack/react-query').UseQueryResult<{totalPaid: number, totalDue: number, totalDisputed: number, countPaid: number, countDue: number, countDisputed: number, total: number, countTotal: number, settlementRate: number}>}
+ */
 export function useEntityCommissionSummary(level, entityId) {
   return useQuery({
     queryKey: ['entityCommissionSummary', level, entityId],
@@ -74,6 +117,10 @@ export function useEntityCommissionSummary(level, entityId) {
 
 const ALL_COMMISSION_KEYS = ['commissionSummary', 'agentCommissions', 'agentCommissionDetail', 'disputedAgents', 'settlementRequests', 'entityCommissionSummary'];
 
+/**
+ * Mutation to approve a single commission. Invalidates all commission caches.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
 export function useApproveCommission() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -84,6 +131,10 @@ export function useApproveCommission() {
   });
 }
 
+/**
+ * Mutation to reject a single commission.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
 export function useRejectCommission() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -94,6 +145,10 @@ export function useRejectCommission() {
   });
 }
 
+/**
+ * Mutation to bulk-approve multiple commissions.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
 export function useBulkApproveCommissions() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -104,6 +159,10 @@ export function useBulkApproveCommissions() {
   });
 }
 
+/**
+ * Mutation to bulk-reject multiple commissions.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
 export function useBulkRejectCommissions() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -114,6 +173,10 @@ export function useBulkRejectCommissions() {
   });
 }
 
+/**
+ * Mutation to settle commissions (mark as paid).
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
 export function useSettleCommissions() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -126,6 +189,10 @@ export function useSettleCommissions() {
   });
 }
 
+/**
+ * Mutation to settle all commissions for a specific agent.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
 export function useSettleAgentCommissions() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -138,6 +205,10 @@ export function useSettleAgentCommissions() {
   });
 }
 
+/**
+ * Mutation to settle all outstanding commissions platform-wide.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
 export function useSettleAllCommissions() {
   const queryClient = useQueryClient();
   return useMutation({

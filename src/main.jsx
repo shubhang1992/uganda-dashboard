@@ -4,6 +4,8 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MotionConfig } from 'framer-motion';
 import { AuthProvider } from './contexts/AuthContext.jsx';
+import { ToastProvider } from './contexts/ToastContext.jsx';
+import ToastContainer from './components/Toast.jsx';
 import './index.css';
 import App from './App.jsx';
 
@@ -13,7 +15,7 @@ const queryClient = new QueryClient({
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
       refetchOnWindowFocus: false,
-      retry: false,
+      retry: 1,
     },
   },
 });
@@ -23,9 +25,12 @@ createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <MotionConfig reducedMotion="user">
-            <App />
-          </MotionConfig>
+          <ToastProvider>
+            <MotionConfig reducedMotion="user">
+              <App />
+              <ToastContainer />
+            </MotionConfig>
+          </ToastProvider>
         </AuthProvider>
       </QueryClientProvider>
     </BrowserRouter>

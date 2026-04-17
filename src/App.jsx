@@ -14,6 +14,9 @@ import Footer from './components/Footer';
 import StickyMobileCTA from './components/StickyMobileCTA';
 import SignInModal from './components/SignInModal';
 import { hasDashboard } from './services/auth';
+import FAQ from './pages/FAQ';
+import Contact from './pages/Contact';
+import About from './pages/About';
 
 const DashboardShell = lazy(() => import('./dashboard/DashboardShell'));
 const BranchDashboardShell = lazy(() => import('./branch-dashboard/BranchDashboardShell'));
@@ -157,6 +160,9 @@ export default function App() {
     <SignInProvider>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/faq" element={<FAQ />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/about" element={<About />} />
         <Route path="/coming-soon" element={<ComingSoon />} />
         <Route path="/dashboard/*" element={<ProtectedDashboard />} />
       </Routes>

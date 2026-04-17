@@ -1,5 +1,13 @@
+import { Link } from 'react-router-dom';
 import logo from '../assets/logo-white.png';
 import styles from './Footer.module.css';
+
+/** Map of link labels to routes for pages that use react-router */
+const ROUTE_MAP = {
+  'About us': '/about',
+  'Contact us': '/contact',
+  'Help center': '/faq',
+};
 
 const LINKS = {
   Platform: ['How it works', 'For individuals', 'For employers', 'For agents'],
@@ -30,9 +38,15 @@ export default function Footer() {
                 <ul className={styles.linkList}>
                   {items.map((item) => (
                     <li key={item}>
-                      <a href={`#${item.toLowerCase().replace(/\s+/g, '-')}`} className={styles.link}>
-                        {item}
-                      </a>
+                      {ROUTE_MAP[item] ? (
+                        <Link to={ROUTE_MAP[item]} className={styles.link}>
+                          {item}
+                        </Link>
+                      ) : (
+                        <a href={`#${item.toLowerCase().replace(/\s+/g, '-')}`} className={styles.link}>
+                          {item}
+                        </a>
+                      )}
                     </li>
                   ))}
                 </ul>
