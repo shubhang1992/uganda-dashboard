@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO, formatUGX, fmtShort } from '../../utils/finance';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useCountry, useEntity, useChildren, useAllEntities } from '../../hooks/useEntity';
 import styles from './ReportsHub.module.css';
 
@@ -32,12 +33,12 @@ function ReportLoading() {
 
 /* ─── Router ─────────────────────────────────────────────────────────── */
 
-export default function ReportsHub({ panelMode, onSelectReport, branchId }) {
+export default function ReportsHub({ panelMode, onSelectReport }) {
   const { reportId } = useDashboard();
 
   // In panel mode, the parent ViewReports handles report routing
   if (panelMode) {
-    return <ReportsIndex panelMode onSelectReport={onSelectReport} branchId={branchId} />;
+    return <ReportsIndex panelMode onSelectReport={onSelectReport} />;
   }
 
   if (reportId && REPORT_VIEWS[reportId]) {
@@ -140,8 +141,9 @@ const BRANCH_EXCLUDED_REPORTS = new Set([
   'branch-performance',
 ]);
 
-function ReportsIndex({ panelMode, onSelectReport, branchId }) {
+function ReportsIndex({ panelMode, onSelectReport }) {
   const navigate = useNavigate();
+  const { branchId } = useBranchScope();
   const isBranch = !!branchId;
   const { data: country } = useCountry();
   const { data: regions = [] } = useAllEntities('region');

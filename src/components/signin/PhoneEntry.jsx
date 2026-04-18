@@ -11,7 +11,7 @@ const ROLE_LABELS = {
   admin: 'Admin',
 };
 
-export default function PhoneEntry({ role, onSubmit, onBack }) {
+export default function PhoneEntry({ role, onSubmit, onBack, hideBadge = false, hideVisual = false }) {
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,23 +38,27 @@ export default function PhoneEntry({ role, onSubmit, onBack }) {
 
   return (
     <div className={styles.wrapper}>
-      <button className={styles.back} onClick={onBack} type="button">
-        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        Back
-      </button>
+      {onBack && (
+        <button className={styles.back} onClick={onBack} type="button">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Back
+        </button>
+      )}
 
       {/* Visual icon */}
-      <div className={styles.visual}>
-        <svg aria-hidden="true" viewBox="0 0 48 48" fill="none" width="48" height="48">
-          <rect x="12" y="4" width="24" height="40" rx="4" stroke="currentColor" strokeWidth="2"/>
-          <circle cx="24" cy="38" r="2" fill="currentColor"/>
-          <path d="M20 8h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        </svg>
-      </div>
+      {!hideVisual && (
+        <div className={styles.visual}>
+          <svg aria-hidden="true" viewBox="0 0 48 48" fill="none" width="48" height="48">
+            <rect x="12" y="4" width="24" height="40" rx="4" stroke="currentColor" strokeWidth="2"/>
+            <circle cx="24" cy="38" r="2" fill="currentColor"/>
+            <path d="M20 8h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        </div>
+      )}
 
-      <span className={styles.badge}>{ROLE_LABELS[role]}</span>
+      {!hideBadge && <span className={styles.badge}>{ROLE_LABELS[role]}</span>}
 
       <h2 className={styles.heading}>Enter your phone number</h2>
       <p className={styles.subtext}>We'll send you a one-time verification code.</p>

@@ -5,6 +5,7 @@ import { useAllEntities } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { getInitials, getTrend, perfLevel } from '../../utils/dashboard';
 import Stars from '../shared/Stars';
 import { Icons } from '../shared/Icons';
@@ -194,8 +195,9 @@ function AgentDetail({ agent, branchesMap, districtsMap, regionsMap, onViewCommi
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  ViewAgents — main panel                                                   */
 /* ═══════════════════════════════════════════════════════════════════════════ */
-export default function ViewAgents({ branchId, splitMode = false }) {
+export default function ViewAgents({ splitMode = false }) {
   const { viewAgentsOpen, setViewAgentsOpen, setCommissionsOpen, drillTargetAgentId, closeDrillPanel } = useDashboard();
+  const { branchId } = useBranchScope();
 
   const { data: allAgentsRaw = [] } = useAllEntities('agent');
   const { data: allBranchesRaw = [] } = useAllEntities('branch');

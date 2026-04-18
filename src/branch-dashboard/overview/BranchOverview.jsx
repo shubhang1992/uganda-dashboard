@@ -2,6 +2,7 @@ import { useEntity, useChildren } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import BranchHealthScore from './BranchHealthScore';
 import OperationsSection from './OperationsSection';
@@ -18,8 +19,9 @@ const PANEL_PADDING = {
   settings: 460 + 48,
 };
 
-export default function BranchOverview({ branchId }) {
+export default function BranchOverview() {
   const { user } = useAuth();
+  const { branchId } = useBranchScope();
   const {
     viewAgentsOpen,
     createAgentOpen,

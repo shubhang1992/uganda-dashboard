@@ -20,6 +20,7 @@ import About from './pages/About';
 
 const DashboardShell = lazy(() => import('./dashboard/DashboardShell'));
 const BranchDashboardShell = lazy(() => import('./branch-dashboard/BranchDashboardShell'));
+const SignupPage = lazy(() => import('./signup/SignupPage'));
 
 function DashboardFallback() {
   return (
@@ -164,6 +165,16 @@ export default function App() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/about" element={<About />} />
         <Route path="/coming-soon" element={<ComingSoon />} />
+        <Route
+          path="/signup"
+          element={
+            <ErrorBoundary>
+              <Suspense fallback={<DashboardFallback />}>
+                <SignupPage />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
         <Route path="/dashboard/*" element={<ProtectedDashboard />} />
       </Routes>
       <SignInModal />

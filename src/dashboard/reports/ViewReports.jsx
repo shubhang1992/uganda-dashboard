@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useBranchScope } from '../../contexts/BranchScopeContext';
 import ReportsHub from './ReportsHub';
 import styles from './ViewReports.module.css';
 
@@ -49,8 +50,9 @@ const BRANCH_EXCLUDED_REPORTS = new Set([
   'branch-performance',
 ]);
 
-export default function ViewReports({ branchId, splitMode = false }) {
+export default function ViewReports({ splitMode = false }) {
   const { viewReportsOpen, setViewReportsOpen, reportContext, setReportContext } = useDashboard();
+  const { branchId } = useBranchScope();
   const [activeReportId, setActiveReportId] = useState(null);
   const bodyRef = useRef(null);
 
@@ -165,7 +167,7 @@ export default function ViewReports({ branchId, splitMode = false }) {
             {/* ── Body ────────────────────────────────────────────── */}
             <div className={styles.body} ref={bodyRef}>
               {!activeReportId ? (
-                <ReportsHub panelMode onSelectReport={setActiveReportId} branchId={branchId} />
+                <ReportsHub panelMode onSelectReport={setActiveReportId} />
               ) : ActiveReportComponent ? (
                 <Suspense fallback={<ReportLoading />}>
                   <ActiveReportComponent onBack={handleBack} />

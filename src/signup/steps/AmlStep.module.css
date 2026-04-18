@@ -1,0 +1,30 @@
+.loader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 180px;
+  height: 180px;
+  margin: var(--space-6) auto var(--space-4);
+}
+
+.pulse {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(94, 99, 168, 0.4) 0%, rgba(94, 99, 168, 0) 70%);
+}
+
+.core {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-soft) 100%);
+  color: var(--color-white);
+  box-shadow: 0 12px 32px rgba(41, 40, 103, 0.28);
+}

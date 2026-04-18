@@ -142,3 +142,20 @@ export function useCreateBranch() {
     },
   });
 }
+
+/**
+ * Mutation to create a new agent under a branch. Invalidates the parent
+ * branch's children list and the flat agent collection on success.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useCreateAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: entities.createAgent,
+    onSuccess: (_agent, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['entities', 'agent'] });
+      queryClient.invalidateQueries({ queryKey: ['children', 'branch', variables.branchId] });
+      queryClient.invalidateQueries({ queryKey: ['entity', 'branch', variables.branchId] });
+    },
+  });
+}

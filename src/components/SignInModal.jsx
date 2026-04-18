@@ -255,11 +255,49 @@ export default function SignInModal() {
                     exit="exit"
                     transition={{ duration: 0.2, ease: EASE }}
                   >
-                    <PhoneEntry
-                      role={role}
-                      onSubmit={handlePhoneSubmit}
-                      onBack={handlePhoneBack}
-                    />
+                    {role === 'subscriber' ? (
+                      <>
+                        <div className={styles.authTabs} role="tablist" aria-label="Authentication mode">
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected="true"
+                            className={styles.authTab}
+                            data-active="true"
+                          >
+                            Sign in
+                          </button>
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected="false"
+                            className={styles.authTab}
+                            onClick={() => { close(); navigate('/signup'); }}
+                          >
+                            Create account
+                          </button>
+                        </div>
+                        <PhoneEntry
+                          role={role}
+                          onSubmit={handlePhoneSubmit}
+                          hideBadge
+                          hideVisual
+                        />
+                        <button
+                          type="button"
+                          className={styles.altRole}
+                          onClick={handlePhoneBack}
+                        >
+                          Not a subscriber? Choose a different role
+                        </button>
+                      </>
+                    ) : (
+                      <PhoneEntry
+                        role={role}
+                        onSubmit={handlePhoneSubmit}
+                        onBack={handlePhoneBack}
+                      />
+                    )}
                   </motion.div>
                 )}
 

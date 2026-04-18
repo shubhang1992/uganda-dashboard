@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useBranchScope } from '../../contexts/BranchScopeContext';
+import { useCreateAgent } from '../../hooks/useEntity';
 import styles from './CreateAgent.module.css';
 
 const STEPS = [
@@ -14,8 +16,10 @@ const GENDER_OPTIONS = [
   { id: 'female', label: 'Female' },
 ];
 
-export default function CreateAgent({ branchId, splitMode = false }) {
+export default function CreateAgent({ splitMode = false }) {
   const { createAgentOpen, setCreateAgentOpen } = useDashboard();
+  const { branchId } = useBranchScope();
+  const createAgent = useCreateAgent();
 
   const [step, setStep] = useState(0);
   const [success, setSuccess] = useState(false);
@@ -31,6 +35,7 @@ export default function CreateAgent({ branchId, splitMode = false }) {
 
   /* Validation */
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
 
   /* Scroll body to top on step change */
   useEffect(() => {
@@ -58,9 +63,11 @@ export default function CreateAgent({ branchId, splitMode = false }) {
       setIdNumber('');
       setEmployeeId('');
       setErrors({});
+      setSubmitError('');
+      createAgent.reset();
     }, 400);
     return () => clearTimeout(t);
-  }, [createAgentOpen]);
+  }, [createAgentOpen, createAgent]);
 
   /* Validation */
   function validateDetails() {
@@ -84,8 +91,26 @@ export default function CreateAgent({ branchId, splitMode = false }) {
     setStep((s) => Math.max(s - 1, 0));
   }
 
-  function handleConfirm() {
-    setSuccess(true);
+  async function handleConfirm() {
+    if (!branchId) {
+      setSubmitError('No branch is assigned to your account.');
+      return;
+    }
+    setSubmitError('');
+    try {
+      await createAgent.mutateAsync({
+        branchId,
+        name: fullName.trim(),
+        phone,
+        email: email.trim() || undefined,
+        gender,
+        idNumber: idNumber.trim() || undefined,
+        employeeId: employeeId.trim() || undefined,
+      });
+      setSuccess(true);
+    } catch (err) {
+      setSubmitError(err?.message || 'Could not create agent. Please try again.');
+    }
   }
 
   function handlePhoneChange(e) {
@@ -387,18 +412,39 @@ export default function CreateAgent({ branchId, splitMode = false }) {
                 {/* Footer */}
                 <div className={styles.footer}>
                   {step > 0 && (
-                    <button className={styles.backBtn} onClick={handleBack} type="button">
+                    <button
+                      className={styles.backBtn}
+                      onClick={handleBack}
+                      type="button"
+                      disabled={createAgent.isPending}
+                    >
                       Back
                     </button>
                   )}
                   <div className={styles.footerSpacer} />
+                  {submitError && (
+                    <span className={styles.submitError} role="alert">{submitError}</span>
+                  )}
                   {step < STEPS.length - 1 ? (
                     <button className={styles.nextBtn} onClick={handleNext} type="button">
                       Continue
                     </button>
                   ) : (
-                    <button className={styles.confirmBtn} onClick={handleConfirm} type="button">
-                      Create Agent
+                    <button
+                      className={styles.confirmBtn}
+                      onClick={handleConfirm}
+                      type="button"
+                      disabled={createAgent.isPending}
+                      data-loading={createAgent.isPending || undefined}
+                    >
+                      {createAgent.isPending ? (
+                        <>
+                          <span className={styles.btnSpinner} aria-hidden="true" />
+                          Creating…
+                        </>
+                      ) : (
+                        'Create Agent'
+                      )}
                     </button>
                   )}
                 </div>

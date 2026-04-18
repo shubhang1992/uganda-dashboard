@@ -100,21 +100,21 @@
 
 .close {
   position: absolute;
-  top: 0.875rem;
-  right: 0.875rem;
-  width: 32px;
-  height: 32px;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-full);
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.75);
   transition: background 0.2s ease, color 0.2s ease;
 }
 
 .close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--color-white);
 }
 
 /* ── Body ── */
@@ -123,6 +123,52 @@
   overflow: hidden;
   flex: 1;
   position: relative;
+}
+
+/* ── Auth mode tabs (Sign in / Create account) ─────────────── */
+.authTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  margin-bottom: 1.25rem;
+  background: rgba(41, 40, 103, 0.06);
+  border-radius: var(--radius-full);
+}
+
+.authTab {
+  padding: 0.55rem 0.75rem;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-gray);
+  border-radius: var(--radius-full);
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.authTab[data-active='true'] {
+  color: var(--color-indigo);
+  background: var(--color-white);
+  box-shadow: 0 2px 6px rgba(41, 40, 103, 0.08);
+}
+
+.authTab:not([data-active='true']):hover {
+  color: var(--color-indigo);
+}
+
+.altRole {
+  display: block;
+  margin: 1.25rem auto 0;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-gray);
+  padding: 0.25rem 0.5rem;
+  transition: color 0.15s ease;
+}
+
+.altRole:hover {
+  color: var(--color-indigo);
 }
 
 /* ── Mobile: full-screen ── */

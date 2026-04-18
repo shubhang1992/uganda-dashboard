@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
 import {
   useCommissionRate, useSetCommissionRate,
@@ -86,8 +87,9 @@ const viewAnim = {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  CommissionPanel                                                           */
 /* ═══════════════════════════════════════════════════════════════════════════ */
-export default function CommissionPanel({ branchId, splitMode = false }) {
+export default function CommissionPanel({ splitMode = false }) {
   const { commissionsOpen, setCommissionsOpen } = useDashboard();
+  const { branchId } = useBranchScope();
 
   // Branch Admins can view commissions but cannot settle, approve, or reject
   const readOnly = !!branchId;

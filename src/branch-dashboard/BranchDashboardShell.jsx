@@ -141,18 +141,15 @@ function MobileDrawer({ open, onClose }) {
 }
 
 function DashboardContent() {
-  const { user } = useAuth();
-  const branchId = user?.branchId;
-
   return (
     <>
       <main className={styles.main} id="main">
-        <BranchOverview branchId={branchId} />
+        <BranchOverview />
       </main>
-      <CreateAgent branchId={branchId} splitMode />
-      <ViewAgents branchId={branchId} splitMode />
-      <ViewReports branchId={branchId} splitMode />
-      <CommissionPanel branchId={branchId} splitMode />
+      <CreateAgent splitMode />
+      <ViewAgents splitMode />
+      <ViewReports splitMode />
+      <CommissionPanel splitMode />
       <Settings splitMode />
     </>
   );

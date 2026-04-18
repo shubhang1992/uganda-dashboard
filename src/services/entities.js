@@ -133,6 +133,33 @@ export async function createBranch(data) {
 }
 
 /**
+ * @endpoint POST /api/agents
+ * @param {Object} data - Agent creation payload
+ * @param {string} data.branchId - Parent branch ID (required)
+ * @param {string} data.name - Agent's full name
+ * @param {string} data.phone - Agent phone (9 digits, +256 prefix)
+ * @param {string} [data.email] - Agent email (optional)
+ * @param {'male'|'female'|'other'} data.gender - Agent gender
+ * @param {string} [data.idNumber] - National ID number (optional)
+ * @param {string} [data.employeeId] - Internal employee ID (optional)
+ * @returns {Promise<{id: string, parentId: string, status: 'active', metrics: null, ...data}>}
+ * @description Creates a new agent under a branch. Should also provision a user
+ *   account with role 'agent' and send SMS credentials.
+ * @cache Invalidates: ['children', 'branch', branchId], ['entities', 'agent']
+ * @scope Branch Admin (own branch) or Distributor Admin.
+ */
+export async function createAgent(data) {
+  // Future: api.post('/agents', data)
+  return {
+    id: `a-new-${Date.now()}`,
+    parentId: data.branchId,
+    ...data,
+    status: 'active',
+    metrics: null,
+  };
+}
+
+/**
  * @endpoint GET /api/entities/:level (same as getAllAtLevel, different client-side shape)
  * @param {string} level - Hierarchy level
  * @returns {Promise<Object<string, Object>>} Map of { entityId: entity } for O(1) lookups

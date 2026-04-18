@@ -1,0 +1,118 @@
+.otpRow {
+  display: grid;
+  /* minmax(0, 1fr) prevents tracks from growing to the input's min-content —
+     otherwise <input> intrinsic width (size=20 at text-3xl ≈ 300px) blows
+     the grid out past its max-width constraint. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.625rem;
+  margin: var(--space-5) 0 var(--space-2);
+  max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.otpInput {
+  width: 100%;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  aspect-ratio: 1;
+  padding: 0;
+  background: var(--color-white);
+  border: 1.5px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  color: var(--color-indigo);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.otpInput:focus {
+  outline: none;
+  border-color: var(--color-indigo);
+  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+}
+
+.otpInput[data-filled="true"] {
+  background: rgba(41, 40, 103, 0.04);
+}
+
+.otpInput[data-error="true"] {
+  border-color: var(--color-status-poor);
+  color: var(--color-status-poor);
+  animation: otp-shake 0.3s ease-in-out;
+}
+
+.otpInput:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@keyframes otp-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .otpInput[data-error="true"] { animation: none; }
+}
+
+.error {
+  min-height: 1.1em;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-status-poor);
+  text-align: center;
+  margin: 0.5rem 0 0;
+}
+
+.resendRow {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.resendWait {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
+}
+
+.resendWait strong {
+  color: var(--color-indigo);
+}
+
+.resendBtn {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-indigo);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-full);
+  transition: background 0.15s ease;
+}
+
+.resendBtn:hover {
+  background: rgba(41, 40, 103, 0.06);
+}
+
+.btnSpinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--color-white);
+  border-radius: 50%;
+  animation: otp-spin 0.7s linear infinite;
+}
+
+@keyframes otp-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btnSpinner { animation-duration: 2s; }
+}

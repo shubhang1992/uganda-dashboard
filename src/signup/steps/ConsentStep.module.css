@@ -1,0 +1,142 @@
+.panel {
+  padding: 0.875rem 1rem 1rem;
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  margin-bottom: var(--space-3);
+}
+
+.panelLabel {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+  margin-bottom: 0.6rem;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.listItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  line-height: 1.5;
+}
+
+.bullet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  border-radius: 50%;
+  background: var(--color-green);
+  color: var(--color-white);
+}
+
+.footnote {
+  margin: 0.75rem 0 0;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  line-height: 1.5;
+}
+
+.footnote strong {
+  color: var(--color-indigo);
+}
+
+/* ── Consent box ─────────────────────────────────────────────────────── */
+.consentBox {
+  padding: 1rem 1.1rem;
+  border: 1.5px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  margin-top: var(--space-2);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.consentBox[data-checked] {
+  border-color: rgba(46, 139, 87, 0.45);
+  background: rgba(46, 139, 87, 0.04);
+}
+
+.consentRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.checkbox {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  accent-color: var(--color-indigo);
+  cursor: pointer;
+}
+
+.consentText {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-slate);
+}
+
+.consentText strong {
+  color: var(--color-indigo);
+  font-weight: 600;
+}
+
+.timestamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  padding: 0.35rem 0.7rem;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-green);
+  background: rgba(46, 139, 87, 0.1);
+  border-radius: var(--radius-full);
+  font-variant-numeric: tabular-nums;
+}
+
+.timestamp strong {
+  color: var(--color-slate);
+  font-weight: 600;
+}
+
+/* ── Submit spinner ──────────────────────────────────────────────────── */
+.btnSpinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--color-white);
+  border-radius: 50%;
+  animation: consent-spin 0.7s linear infinite;
+}
+
+@keyframes consent-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btnSpinner { animation-duration: 2s; }
+}
