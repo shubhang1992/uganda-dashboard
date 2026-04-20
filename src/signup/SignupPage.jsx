@@ -92,10 +92,13 @@ function SignupFlow() {
         <motion.div
           key={stepId}
           custom={direction}
-          initial={{ opacity: 0, x: 24 * direction }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -24 * direction }}
-          transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{
+            opacity: { duration: 0.35, ease: EASE_OUT_EXPO },
+            y: { duration: 0.55, ease: EASE_OUT_EXPO },
+          }}
         >
           {StepNode}
         </motion.div>

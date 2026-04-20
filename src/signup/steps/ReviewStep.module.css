@@ -162,3 +162,35 @@
   color: var(--color-indigo);
   outline: none;
 }
+
+.optionalChip {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.08rem 0.45rem;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+  background: rgba(94, 99, 168, 0.1);
+  border-radius: var(--radius-full);
+  vertical-align: 1px;
+}
+
+.comboEmpty {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(41, 40, 103, 0.14);
+  padding: 0.75rem 0.9rem;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  line-height: 1.5;
+}

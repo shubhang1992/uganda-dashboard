@@ -31,6 +31,52 @@ function totalShare(list) {
   return list.reduce((sum, b) => sum + (Number(b.share) || 0), 0);
 }
 
+/**
+ * Set beneficiary[index].share to `target` and redistribute the delta across
+ * the other rows proportionally so the total always equals 100. If other rows
+ * are collectively zero, the delta is spread evenly across them. Final pass
+ * corrects any ±1 rounding drift.
+ */
+function rebalance(list, index, target) {
+  const targetClamped = Math.max(0, Math.min(100, Math.round(target)));
+  if (list.length === 1) {
+    return list.map((b, i) => (i === index ? { ...b, share: 100 } : b));
+  }
+  const others = list.filter((_, i) => i !== index);
+  const othersTotalBefore = others.reduce((s, b) => s + (Number(b.share) || 0), 0);
+  const othersTotalAfter = 100 - targetClamped;
+
+  let scaled;
+  if (othersTotalBefore === 0) {
+    // No existing distribution — spread the remaining equally across the others.
+    const per = Math.floor(othersTotalAfter / others.length);
+    scaled = others.map(() => per);
+  } else {
+    const factor = othersTotalAfter / othersTotalBefore;
+    scaled = others.map((b) => Math.round((Number(b.share) || 0) * factor));
+  }
+
+  // Fix rounding drift so the sum is exactly 100.
+  let drift = othersTotalAfter - scaled.reduce((s, v) => s + v, 0);
+  let cursor = 0;
+  while (drift !== 0 && scaled.length > 0) {
+    const idx = cursor % scaled.length;
+    const next = scaled[idx] + (drift > 0 ? 1 : -1);
+    if (next >= 0 && next <= 100) {
+      scaled[idx] = next;
+      drift += drift > 0 ? -1 : 1;
+    }
+    cursor += 1;
+    if (cursor > scaled.length * 4) break; // safety
+  }
+
+  let j = 0;
+  return list.map((b, i) => {
+    if (i === index) return { ...b, share: targetClamped };
+    return { ...b, share: scaled[j++] };
+  });
+}
+
 function validList(list) {
   if (!list.length) return false;
   const allComplete = list.every(
@@ -89,15 +135,15 @@ export default function BeneficiariesStep({ onNext }) {
   const canContinue = pensionOk && insuranceOk && choiceSet;
 
   // Surface the first blocking reason in one line so the Continue button has a helpful label.
+  // Share totals are guaranteed to be 100 by the auto-balance logic, so the only
+  // remaining blocker is incomplete fields (name/phone/relationship/share>0).
   let blockerHint = null;
   if (!pensionOk) {
-    if (totalShare(pensionList) !== 100) blockerHint = `Pension allocation must total 100% (currently ${totalShare(pensionList)}%)`;
-    else blockerHint = 'Fill in all pension beneficiary fields';
+    blockerHint = 'Fill in all pension beneficiary details';
   } else if (!choiceSet) {
     blockerHint = 'Choose insurance beneficiaries to continue';
   } else if (!signup.insuranceSameAsPension && !insuranceOk) {
-    if (totalShare(insuranceList) !== 100) blockerHint = `Insurance allocation must total 100% (currently ${totalShare(insuranceList)}%)`;
-    else blockerHint = 'Fill in all insurance beneficiary fields';
+    blockerHint = 'Fill in all insurance beneficiary details';
   }
 
   function handleContinue() {
@@ -114,7 +160,7 @@ export default function BeneficiariesStep({ onNext }) {
       <span className={styles.eyebrow}>Step 7 · Beneficiaries</span>
       <h2 className={styles.heading}>Who inherits your savings?</h2>
       <p className={styles.subtext}>
-        Nominate at least one beneficiary for your pension. The total share across everyone must add up to 100%.
+        Nominate at least one beneficiary for your pension. Move any slider — the others auto-adjust so the total always adds up to 100%.
       </p>
 
       <BeneficiarySection
@@ -204,18 +250,57 @@ export default function BeneficiariesStep({ onNext }) {
 
 function BeneficiarySection({ title, list, onChange }) {
   const total = totalShare(list);
-  const remaining = 100 - total;
 
   function updateOne(id, patchObj) {
     onChange(list.map((b) => (b.id === id ? { ...b, ...patchObj } : b)));
   }
 
+  /**
+   * Shares auto-balance: moving one row's slider pulls the delta from the
+   * others proportionally so the total always reads 100. This is the primary
+   * share-editing path.
+   */
+  function updateShare(index, target) {
+    onChange(rebalance(list, index, target));
+  }
+
   function removeOne(id) {
-    onChange(list.filter((b) => b.id !== id));
+    const next = list.filter((b) => b.id !== id);
+    // Re-normalize to 100 after removal if the remaining rows have any shares.
+    const remainingTotal = totalShare(next);
+    if (next.length === 0 || remainingTotal === 100) {
+      onChange(next);
+      return;
+    }
+    if (remainingTotal === 0) {
+      // Give all 100 to the first remaining row.
+      onChange(next.map((b, i) => ({ ...b, share: i === 0 ? 100 : 0 })));
+      return;
+    }
+    const factor = 100 / remainingTotal;
+    const rescaled = next.map((b) => ({ ...b, share: Math.round(b.share * factor) }));
+    // Fix rounding drift to exactly 100
+    let drift = 100 - rescaled.reduce((s, b) => s + b.share, 0);
+    let cursor = 0;
+    while (drift !== 0 && rescaled.length > 0) {
+      const idx = cursor % rescaled.length;
+      const nv = rescaled[idx].share + (drift > 0 ? 1 : -1);
+      if (nv >= 0 && nv <= 100) {
+        rescaled[idx] = { ...rescaled[idx], share: nv };
+        drift += drift > 0 ? -1 : 1;
+      }
+      cursor += 1;
+      if (cursor > rescaled.length * 4) break;
+    }
+    onChange(rescaled);
   }
 
   function addOne() {
-    onChange([...list, emptyBeneficiary(Math.max(0, remaining))]);
+    // New row takes an equal slice by rebalancing from the current last row.
+    const newRow = emptyBeneficiary(0);
+    const appended = [...list, newRow];
+    const equalSlice = Math.floor(100 / appended.length);
+    onChange(rebalance(appended, appended.length - 1, equalSlice));
   }
 
   function distributeEvenly() {
@@ -241,29 +326,27 @@ function BeneficiarySection({ title, list, onChange }) {
             index={i}
             beneficiary={b}
             canRemove={list.length > 1}
-            maxShare={b.share + remaining}
             onChange={(patchObj) => updateOne(b.id, patchObj)}
+            onShareChange={(value) => updateShare(i, value)}
             onRemove={() => removeOne(b.id)}
           />
         ))}
       </div>
 
-      {/* Allocation summary */}
-      <div className={own.allocation} data-state={total === 100 ? 'ok' : total > 100 ? 'over' : 'under'}>
+      {/* Allocation summary — with auto-balance, total is always 100 so this is
+          purely a progress/confirmation affordance. */}
+      <div className={own.allocation} data-state={total === 100 ? 'ok' : 'under'}>
         <div className={own.allocationBar}>
           <motion.span
             className={own.allocationFill}
             animate={{ width: `${Math.min(total, 100)}%` }}
             transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
           />
-          {total > 100 && (
-            <span className={own.allocationOver} />
-          )}
         </div>
         <div className={own.allocationText}>
           <span className={own.allocationValue}>{total}%</span>
           <span className={own.allocationRemaining}>
-            {total === 100 ? 'Allocated' : total > 100 ? `${total - 100}% over` : `${remaining}% remaining`}
+            {total === 100 ? 'Allocated' : `${100 - total}% to allocate`}
           </span>
         </div>
       </div>
@@ -285,7 +368,7 @@ function BeneficiarySection({ title, list, onChange }) {
   );
 }
 
-function BeneficiaryRow({ index, beneficiary, canRemove, maxShare, onChange, onRemove }) {
+function BeneficiaryRow({ index, beneficiary, canRemove, onChange, onShareChange, onRemove }) {
   return (
     <div className={own.row}>
       <div className={own.rowHeader}>
@@ -349,7 +432,10 @@ function BeneficiaryRow({ index, beneficiary, canRemove, maxShare, onChange, onR
       </div>
 
       <div className={styles.field}>
-        <label className={styles.label} htmlFor={`${beneficiary.id}-share`}>Share</label>
+        <label className={styles.label} htmlFor={`${beneficiary.id}-share`}>
+          Share
+          <span className={styles.labelHint}>the rest auto-balances</span>
+        </label>
         <div className={own.shareRow}>
           <input
             id={`${beneficiary.id}-share`}
@@ -361,10 +447,13 @@ function BeneficiaryRow({ index, beneficiary, canRemove, maxShare, onChange, onR
             value={beneficiary.share}
             onChange={(e) => {
               const raw = e.target.value.replace(/\D/g, '').slice(0, 3);
-              const num = Math.min(100, Math.max(0, Number(raw) || 0));
-              onChange({ share: num });
+              onShareChange(Number(raw) || 0);
             }}
+            aria-describedby={`${beneficiary.id}-share-hint`}
           />
+          <span id={`${beneficiary.id}-share-hint`} className="sr-only">
+            Moving this slider automatically adjusts the other beneficiaries so the total stays at 100%.
+          </span>
           <span className={own.sharePct}>%</span>
           <div className={own.shareSlider}>
             <input
@@ -372,8 +461,8 @@ function BeneficiaryRow({ index, beneficiary, canRemove, maxShare, onChange, onR
               min={0}
               max={100}
               step={1}
-              value={Math.min(beneficiary.share, maxShare)}
-              onChange={(e) => onChange({ share: Math.min(100, Math.max(0, Number(e.target.value))) })}
+              value={beneficiary.share}
+              onChange={(e) => onShareChange(Number(e.target.value))}
               aria-label={`Share for beneficiary ${index + 1}`}
             />
           </div>

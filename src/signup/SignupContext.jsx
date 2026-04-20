@@ -29,6 +29,7 @@ import { createContext, useCallback, useContext, useMemo, useReducer } from 'rea
  * @property {string} barcodeRaw
  * @property {number|null} idConfidence
  * @property {string} phone                 — manual entry, 9 digits
+ * @property {string} email                 — optional, used for statements & notifications
  * @property {string} occupation            — manual entry
  *
  * Step 3 — NIRA (silent)
@@ -81,6 +82,7 @@ const INITIAL_STATE = {
   idConfidence: null,
 
   phone: '',
+  email: '',
   occupation: '',
 
   niraResult: null,

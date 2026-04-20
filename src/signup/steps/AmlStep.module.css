@@ -28,3 +28,16 @@
   color: var(--color-white);
   box-shadow: 0 12px 32px rgba(41, 40, 103, 0.28);
 }
+
+.resultIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  margin: var(--space-2) auto var(--space-4);
+  background: rgba(46, 139, 87, 0.1);
+  color: var(--color-green);
+  box-shadow: 0 10px 28px rgba(46, 139, 87, 0.15);
+}

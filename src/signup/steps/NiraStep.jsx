@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useSignup } from '../SignupContext';
 import { verifyNira } from '../../services/kyc';
+import EducationalLoader from '../EducationalLoader';
 import styles from './Step.module.css';
 import own from './NiraStep.module.css';
 
@@ -28,8 +29,11 @@ export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
           niraTrackingId: res.trackingId,
         });
         if (res.result === 'match' || res.result === 'partial') {
-          // Partial match silently flags for back-office review but continues.
-          setTimeout(() => { if (!cancelled) onNext(); }, 500);
+          // Show a confirmation beat so the user sees the verdict before
+          // the flow advances — prevents the "did something just happen?"
+          // confusion of a silent auto-advance.
+          setState('verified');
+          setTimeout(() => { if (!cancelled) onNext(); }, 1100);
         } else {
           setState('done');
         }
@@ -46,33 +50,49 @@ export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
 
   const result = signup.niraResult;
 
-  /* ── Running: silent loader, no technical detail ────────────────────── */
+  /* ── Verified: brief confirmation before auto-advance ───────────────── */
+  if (state === 'verified') {
+    return (
+      <div className={styles.card}>
+        <motion.div
+          className={own.resultIcon}
+          data-kind="success"
+          initial={{ scale: 0.5, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
+        >
+          <svg viewBox="0 0 56 56" width="56" height="56" fill="none" aria-hidden="true">
+            <circle cx="28" cy="28" r="26" stroke="currentColor" strokeWidth="2.5"/>
+            <motion.path
+              d="M17 28l7 7 15-16"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.45, delay: 0.15, ease: EASE_OUT_EXPO }}
+            />
+          </svg>
+        </motion.div>
+        <h2 className={styles.heading} style={{ textAlign: 'center' }}>Identity verified</h2>
+        <p className={styles.subtext} style={{ textAlign: 'center' }} role="status">
+          Your details match NIRA records. Taking you to the next step…
+        </p>
+      </div>
+    );
+  }
+
+  /* ── Running: use the wait to educate about pension benefits ────────── */
   if (state === 'running' || !result) {
     return (
       <div className={styles.card}>
         <span className={styles.eyebrow}>Step 3 · Verification</span>
-        <h2 className={styles.heading}>Verifying your details</h2>
-        <p className={styles.subtext}>
-          This takes a few seconds. Please keep this page open.
-        </p>
-
-        <div className={own.loader}>
-          <motion.div
-            className={own.pulse}
-            animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0.55, 0.3] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <motion.div
-            className={own.core}
-            animate={{ scale: [1, 1.06, 1] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <svg aria-hidden="true" viewBox="0 0 32 32" width="32" height="32" fill="none">
-              <path d="M16 3l12 5v7c0 7.4-5.1 14.3-12 16-6.9-1.7-12-8.6-12-16V8l12-5z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
-              <path d="M11 16l4 4 7-8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </motion.div>
-        </div>
+        <h2 className={styles.heading}>Verifying your identity with NIRA</h2>
+        <EducationalLoader
+          title="Checking NIRA records"
+          subtitle="While we verify your details, here's something worth knowing."
+        />
       </div>
     );
   }

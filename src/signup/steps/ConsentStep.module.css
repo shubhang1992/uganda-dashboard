@@ -123,6 +123,20 @@
   font-weight: 600;
 }
 
+/* Policy links in the consent text */
+.policyLink {
+  color: var(--color-indigo);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  transition: color 0.15s ease;
+}
+
+.policyLink:hover {
+  color: var(--color-indigo-deep);
+}
+
 /* ── Submit spinner ──────────────────────────────────────────────────── */
 .btnSpinner {
   width: 14px;

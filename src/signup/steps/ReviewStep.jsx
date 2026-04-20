@@ -130,6 +130,14 @@ export default function ReviewStep({ onNext }) {
     if (!signup.gender) e.gender = 'Select your gender';
     if (signup.phone.length < 9) e.phone = 'Enter a valid 9-digit phone number';
     if (!signup.occupation) e.occupation = 'Select your occupation';
+    // Email is optional — only validate if the user typed something.
+    if (signup.email.trim()) {
+      const email = signup.email.trim();
+      // Pragmatic email check — rejects obvious garbage without fighting edge cases.
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        e.email = 'Enter a valid email or leave this blank';
+      }
+    }
 
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -202,13 +210,13 @@ export default function ReviewStep({ onNext }) {
       <div className={own.thumbs}>
         {signup.idFrontPreviewUrl && (
           <div className={own.thumb}>
-            <img src={signup.idFrontPreviewUrl} alt="ID front" />
+            <img src={signup.idFrontPreviewUrl} alt="ID front" width="120" height="76" />
             <span className={own.thumbLabel}>Front</span>
           </div>
         )}
         {signup.idBackPreviewUrl && (
           <div className={own.thumb}>
-            <img src={signup.idBackPreviewUrl} alt="ID back" />
+            <img src={signup.idBackPreviewUrl} alt="ID back" width="120" height="76" />
             <span className={own.thumbLabel}>Back</span>
           </div>
         )}
@@ -270,6 +278,7 @@ export default function ReviewStep({ onNext }) {
           <div className={own.comboWrap}>
             <input
               id="district"
+              role="combobox"
               className={styles.input}
               value={districtOpen ? districtQuery : (selectedDistrict?.name || '')}
               onChange={(e) => { setDistrictQuery(e.target.value); setDistrictOpen(true); markEdited('districtId'); }}
@@ -279,10 +288,11 @@ export default function ReviewStep({ onNext }) {
               autoComplete="off"
               aria-expanded={districtOpen}
               aria-autocomplete="list"
+              aria-controls="district-listbox"
               data-error={!!errors.districtId}
             />
             {districtOpen && filteredDistricts.length > 0 && (
-              <ul className={own.comboList} role="listbox">
+              <ul id="district-listbox" className={own.comboList} role="listbox">
                 {filteredDistricts.map((d) => (
                   <li key={d.id} role="option" aria-selected={signup.districtId === d.id}>
                     <button
@@ -301,6 +311,11 @@ export default function ReviewStep({ onNext }) {
                   </li>
                 ))}
               </ul>
+            )}
+            {districtOpen && filteredDistricts.length === 0 && districtQuery.trim() && (
+              <div className={own.comboEmpty} role="status">
+                No districts match “{districtQuery.trim()}”. Check the spelling and try again.
+              </div>
             )}
           </div>
         </ReviewField>
@@ -365,6 +380,30 @@ export default function ReviewStep({ onNext }) {
           </select>
         </ReviewField>
 
+        <ReviewField
+          id="email"
+          label="Email"
+          labelHint="optional"
+          hint="we'll send statements here if you add one"
+          error={errors.email}
+        >
+          <input
+            id="email"
+            type="email"
+            inputMode="email"
+            className={styles.input}
+            value={signup.email}
+            onChange={(e) => {
+              signup.patch({ email: e.target.value });
+              if (errors.email) setErrors((p) => ({ ...p, email: '' }));
+            }}
+            placeholder="you@example.com"
+            autoComplete="email"
+            spellCheck={false}
+            data-error={!!errors.email}
+          />
+        </ReviewField>
+
         <div className={styles.actions}>
           <button type="submit" className={styles.submit}>Continue</button>
         </div>
@@ -376,14 +415,15 @@ export default function ReviewStep({ onNext }) {
 /**
  * Field wrapper that shows label + optional "Auto-filled" chip that disappears on edit.
  */
-function ReviewField({ id, label, hint, autoFilled, error, children }) {
+function ReviewField({ id, label, hint, labelHint, optional, autoFilled, error, children }) {
   return (
     <div className={styles.field}>
       <div className={own.labelRow}>
         <label className={styles.label} htmlFor={id} id={`${id}-label`}>
           {label}
+          {labelHint && <span className={own.optionalChip}>{labelHint}</span>}
           {hint && <span className={styles.labelHint}>{hint}</span>}
-          <span className={styles.required}> *</span>
+          {!optional && !labelHint && <span className={styles.required}> *</span>}
         </label>
         <AnimatePresence>
           {autoFilled && (
@@ -404,7 +444,7 @@ function ReviewField({ id, label, hint, autoFilled, error, children }) {
         </AnimatePresence>
       </div>
       {children}
-      {error && <span className={styles.error}>{error}</span>}
+      {error && <span className={styles.error} role="alert">{error}</span>}
     </div>
   );
 }

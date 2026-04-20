@@ -1,11 +1,51 @@
-/* Shared step card styling — each step uses .card as its outer shell */
+/* Shared step card styling — each step uses .card as its outer shell.
+   Layered surface: soft gradient base, fine top highlight line, indigo-tinted
+   shadow. Animation is handled at the component level via Framer Motion
+   variants (see SignupPage + step headers) rather than blanket child stagger. */
 
 .card {
-  background: var(--color-white);
-  border: 1px solid var(--color-lavender);
+  position: relative;
+  /* Layered surface: soft ambient glow top-left + warm white base. */
+  background:
+    radial-gradient(120% 90% at 8% 0%, rgba(94, 99, 168, 0.07) 0%, transparent 55%),
+    linear-gradient(180deg, #FDFDFE 0%, var(--color-white) 52%);
+  border: 1px solid rgba(217, 220, 242, 0.9);
   border-radius: var(--radius-xl);
-  box-shadow: 0 4px 24px rgba(41, 40, 103, 0.06);
-  padding: var(--space-8) var(--space-8);
+  /* Stack: inner top highlight, indigo aurora hairline via 2nd inset shadow,
+     then the elevation. */
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 0 0 1px rgba(41, 40, 103, 0.02) inset,
+    0 1px 2px rgba(41, 40, 103, 0.04),
+    0 10px 32px rgba(41, 40, 103, 0.06),
+    0 28px 60px -24px rgba(41, 40, 103, 0.14);
+  padding: var(--space-6) var(--space-7);
+  isolation: isolate;
+}
+
+/* Internal reveal — children ease in with a tight stagger so the card
+   "composes" rather than snapping. Tuned shorter than the page transition
+   so they overlap into a single continuous motion instead of two beats. */
+.card > * {
+  animation: step-child-reveal 0.42s var(--ease-out-expo) both;
+}
+
+.card > *:nth-child(1) { animation-delay: 0.08s; }
+.card > *:nth-child(2) { animation-delay: 0.14s; }
+.card > *:nth-child(3) { animation-delay: 0.20s; }
+.card > *:nth-child(4) { animation-delay: 0.24s; }
+.card > *:nth-child(5) { animation-delay: 0.28s; }
+.card > *:nth-child(6) { animation-delay: 0.31s; }
+.card > *:nth-child(7) { animation-delay: 0.33s; }
+.card > *:nth-child(n + 8) { animation-delay: 0.35s; }
+
+@keyframes step-child-reveal {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card > * { animation: none; }
 }
 
 /* PhoneStep reuses existing PhoneEntry/OtpVerify which bring their own styles;
@@ -116,10 +156,19 @@
 
 .select {
   appearance: none;
+  /* Explicit background-color + color so native <option> elements render
+     with our palette on Windows dark mode / high contrast. */
+  background-color: var(--color-white);
+  color: var(--color-slate);
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M3 4.5l3 3 3-3' stroke='%235E63A8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>");
   background-repeat: no-repeat;
   background-position: right 0.9rem center;
   padding-right: 2.25rem;
+}
+
+.select option {
+  background-color: var(--color-white);
+  color: var(--color-slate);
 }
 
 .input::placeholder,
@@ -244,6 +293,7 @@
 }
 
 .submit {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -256,20 +306,32 @@
   color: var(--color-white);
   background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
   border-radius: var(--radius-full);
-  box-shadow: 0 4px 16px rgba(41, 40, 103, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.12) inset,
+    0 6px 16px rgba(41, 40, 103, 0.22),
+    0 16px 32px -12px rgba(41, 40, 103, 0.32);
+  transition: transform 0.2s var(--ease-out-expo), box-shadow 0.2s var(--ease-out-expo);
 }
 
 .submit:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(41, 40, 103, 0.28);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.2) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.12) inset,
+    0 10px 24px rgba(41, 40, 103, 0.3),
+    0 22px 40px -14px rgba(41, 40, 103, 0.4);
+}
+
+.submit:active {
+  transform: translateY(0);
 }
 
 .submit:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   transform: none;
-  box-shadow: 0 2px 8px rgba(41, 40, 103, 0.15);
+  box-shadow: 0 2px 8px rgba(41, 40, 103, 0.14);
 }
 
 .secondaryBtn {
@@ -289,7 +351,11 @@
 /* ── Mobile ──────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .card {
-    padding: var(--space-6) var(--space-5);
+    padding: var(--space-5) var(--space-5);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.9) inset,
+      0 1px 2px rgba(41, 40, 103, 0.04),
+      0 8px 24px rgba(41, 40, 103, 0.06);
   }
 
   .heading {

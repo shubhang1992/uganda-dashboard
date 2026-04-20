@@ -1,15 +1,35 @@
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useSignup } from '../SignupContext';
+import logoWhite from '../../assets/logo-white.png';
 import styles from './Step.module.css';
 import own from './ActivatedStep.module.css';
 
+/**
+ * Build a credit-card-style member ID from the phone number.
+ * Format: UPU 2026 · 1234 5678  (year + last 8 digits, grouped 4-4).
+ */
+function formatMemberId(phone) {
+  const year = new Date().getFullYear();
+  const tail = (phone || '').slice(-8).padStart(8, '0');
+  const grouped = `${tail.slice(0, 4)} ${tail.slice(4)}`;
+  return `UPU ${year} · ${grouped}`;
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+const GENDER_LABEL = { male: 'Male', female: 'Female', other: 'Other' };
+
 export default function ActivatedStep({ onFinish }) {
-  const { fullName, phone } = useSignup();
+  const { fullName, phone, dob, gender } = useSignup();
   const firstName = fullName.trim().split(/\s+/)[0] || 'there';
-  const maskedPhone = phone
-    ? `+256 ${phone.slice(0, 1)}XX XXX ${phone.slice(6)}`
-    : '';
+  const memberId = formatMemberId(phone);
+  const enrolmentDate = new Date();
 
   return (
     <div className={styles.card}>
@@ -56,39 +76,60 @@ export default function ActivatedStep({ onFinish }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.65, ease: EASE_OUT_EXPO }}
       >
-        Your account is active at <strong>Tier 1</strong>. You can upgrade to Tier 2 anytime by uploading additional documents.
+        Here’s your Universal Pensions member card. Keep it handy — you’ll need the Member&nbsp;ID when contacting support or topping up through agents.
       </motion.p>
 
-      <motion.div
-        className={own.summary}
-        initial={{ opacity: 0, y: 14 }}
+      {/* ── Member card ────────────────────────────────────────────────── */}
+      <motion.section
+        className={own.memberCard}
+        aria-label="Your Universal Pensions member card"
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.85, ease: EASE_OUT_EXPO }}
+        transition={{ duration: 0.65, delay: 0.85, ease: EASE_OUT_EXPO }}
       >
-        <div className={own.summaryRow}>
-          <span className={own.summaryLabel}>Name</span>
-          <span className={own.summaryValue}>{fullName || '—'}</span>
+        {/* Ambient mesh — one soft indigo glow + one teal glow for depth */}
+        <span className={own.cardMesh} aria-hidden="true" />
+        <span className={own.cardGrain} aria-hidden="true" />
+
+        <header className={own.cardHeader}>
+          <img src={logoWhite} alt="Universal Pensions" width={132} height={28} className={own.cardLogo} />
+          <span className={own.cardTierBadge}>Tier 1 · Active</span>
+        </header>
+
+        <div className={own.cardBody}>
+          <span className={own.cardFieldLabel}>Member</span>
+          <h3 className={own.cardName}>{fullName || 'New Member'}</h3>
+
+          <span className={own.cardFieldLabel} style={{ marginTop: '0.9rem' }}>Member ID</span>
+          <p className={own.cardMemberId} translate="no">{memberId}</p>
         </div>
-        <div className={own.summaryRow}>
-          <span className={own.summaryLabel}>Mobile money</span>
-          <span className={own.summaryValue}>{maskedPhone || '—'}</span>
-        </div>
-        <div className={own.summaryRow}>
-          <span className={own.summaryLabel}>Status</span>
-          <span className={own.tierBadge}>Tier 1 · Active</span>
-        </div>
-      </motion.div>
+
+        <footer className={own.cardFooter}>
+          <div className={own.cardFooterCol}>
+            <span className={own.cardFootLabel}>Enrolled</span>
+            <span className={own.cardFootValue}>{formatDate(enrolmentDate)}</span>
+          </div>
+          <div className={own.cardFooterCol}>
+            <span className={own.cardFootLabel}>Date of birth</span>
+            <span className={own.cardFootValue}>{formatDate(dob)}</span>
+          </div>
+          <div className={own.cardFooterCol}>
+            <span className={own.cardFootLabel}>Gender</span>
+            <span className={own.cardFootValue}>{GENDER_LABEL[gender] || '—'}</span>
+          </div>
+        </footer>
+      </motion.section>
 
       <motion.div
         className={own.nextBox}
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 1.0, ease: EASE_OUT_EXPO }}
+        transition={{ duration: 0.5, delay: 1.05, ease: EASE_OUT_EXPO }}
       >
         <span className={own.nextEyebrow}>Next up</span>
         <strong className={own.nextTitle}>Make your first contribution</strong>
         <p className={own.nextBody}>
-          Top up from your mobile money wallet to start earning. You can contribute any amount — small and regular works best.
+          Top up from your mobile money wallet to start earning. Any amount works — small and regular is best.
         </p>
       </motion.div>
 
@@ -96,7 +137,7 @@ export default function ActivatedStep({ onFinish }) {
         className={styles.actions}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.5, delay: 1.15 }}
+        transition={{ duration: 0.5, delay: 1.2 }}
       >
         <button type="button" className={styles.submit} onClick={onFinish}>
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">

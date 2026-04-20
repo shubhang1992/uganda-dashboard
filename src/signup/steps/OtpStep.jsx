@@ -82,10 +82,12 @@ export default function OtpStep({ onNext }) {
       inputsRef.current[index + 1]?.focus();
     }
     if (digit && index === OTP_LENGTH - 1) {
-      // Auto-submit when the last digit is entered
+      // Auto-submit when the last digit is entered. Delay is long enough
+      // that fast typists see the digit land and can correct a mis-tap
+      // before verification fires.
       const codeSoFar = digits.slice(0, OTP_LENGTH - 1).join('') + digit;
       if (codeSoFar.length === OTP_LENGTH) {
-        setTimeout(() => handleSubmit(codeSoFar), 150);
+        setTimeout(() => handleSubmit(codeSoFar), 450);
       }
     }
   }
@@ -110,7 +112,7 @@ export default function OtpStep({ onNext }) {
     const focusIdx = Math.min(pasted.length, OTP_LENGTH - 1);
     inputsRef.current[focusIdx]?.focus();
     if (pasted.length === OTP_LENGTH) {
-      setTimeout(() => handleSubmit(pasted), 150);
+      setTimeout(() => handleSubmit(pasted), 450);
     }
   }
 

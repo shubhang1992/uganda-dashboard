@@ -55,8 +55,32 @@ export default function IdUploadStep({ onNext }) {
       <span className={styles.eyebrow}>Step 1 · National ID</span>
       <h2 className={styles.heading}>Scan both sides of your Ndaga Muntu</h2>
       <p className={styles.subtext}>
-        We read your details from the card so you don’t have to type them. Keep the whole card in the frame, well-lit, with no glare.
+        We read your details from the card so you don’t have to type them.
       </p>
+
+      <ul className={own.tips}>
+        <TipChip>
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5"/>
+            <circle cx="8" cy="8" r="2.5" fill="currentColor"/>
+          </svg>
+          Good light
+        </TipChip>
+        <TipChip>
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true">
+            <rect x="2.5" y="4.5" width="11" height="7" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M5 8h6M5 10h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          Whole card in frame
+        </TipChip>
+        <TipChip>
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true">
+            <path d="M3 8h10M8 3v10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5"/>
+          </svg>
+          No glare
+        </TipChip>
+      </ul>
 
       <div className={own.sides}>
         {SIDES.map((side) => (
@@ -78,6 +102,10 @@ export default function IdUploadStep({ onNext }) {
       </div>
     </div>
   );
+}
+
+function TipChip({ children }) {
+  return <li className={own.tipChip}>{children}</li>;
 }
 
 /* ── Per-side uploader ───────────────────────────────────────────────── */
@@ -102,7 +130,7 @@ function SideUploader({ side }) {
       return;
     }
     if (selected.size > MAX_FILE_SIZE) {
-      setError('Image is larger than 10 MB. Try a smaller photo.');
+      setError('Image is larger than 10\u00A0MB. Try a smaller photo.');
       return;
     }
 
@@ -158,35 +186,40 @@ function SideUploader({ side }) {
         <input
           ref={inputRef}
           id={inputId}
+          name={inputId}
           type="file"
           accept="image/*"
           className={own.fileOverlay}
           onChange={handleChange}
           aria-label={`Upload ${side.label.toLowerCase()} of your ID`}
+          // Suppress the native "No file chosen" browser tooltip — it hovers
+          // awkwardly over the tile and conflicts with the custom visuals.
+          title=""
         />
         <span className={own.frame} data-state={state} aria-hidden="true">
           {url ? (
-            <img src={url} alt="" className={own.preview} />
+            <img src={url} alt="" width="400" height="254" className={own.preview} />
           ) : (
             <span className={own.empty}>
               <CardIllustration side={side.id} />
-              <span className={own.emptyHint}>Tap to upload</span>
+              <span className={own.emptyAction}>
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true">
+                  <path d="M8 2v9m-4-4l4 4 4-4M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <span className={own.emptyHint}>Tap to upload</span>
+              </span>
             </span>
           )}
 
-          <span className={own.guide} aria-hidden="true" />
-          <span className={own.guideCorners} aria-hidden="true">
-            <span /><span /><span /><span />
-          </span>
-
           {analyzing && (
-            <motion.span
-              className={own.scanLine}
-              aria-hidden="true"
-              initial={{ top: '0%' }}
-              animate={{ top: ['0%', '100%', '0%'] }}
-              transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-            />
+            <span className={own.scanTrack} aria-hidden="true">
+              <motion.span
+                className={own.scanSweep}
+                initial={{ y: '-50%' }}
+                animate={{ y: ['-50%', '50%', '-50%'] }}
+                transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            </span>
           )}
         </span>
       </label>

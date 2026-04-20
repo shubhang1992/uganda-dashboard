@@ -108,7 +108,26 @@ export default function ConsentStep({ onActivate }) {
             onChange={(e) => handleToggle(e.target.checked)}
           />
           <span className={own.consentText}>
-            I consent to Universal Pensions processing my personal data for the purposes above, and sharing it with the recipients listed, under Uganda’s <strong>Data Protection and Privacy Act, 2019</strong>.
+            I consent to Universal Pensions processing my personal data for the purposes above, and sharing it with the recipients listed, under Uganda’s <strong>Data Protection and Privacy Act, 2019</strong>. I have read the{' '}
+            <a
+              href="https://universalpensions.com/legal/terms"
+              target="_blank"
+              rel="noreferrer noopener"
+              className={own.policyLink}
+              onClick={(e) => e.stopPropagation()}
+            >
+              Terms of Service
+            </a>
+            {' '}and{' '}
+            <a
+              href="https://universalpensions.com/legal/privacy"
+              target="_blank"
+              rel="noreferrer noopener"
+              className={own.policyLink}
+              onClick={(e) => e.stopPropagation()}
+            >
+              Privacy Policy
+            </a>.
           </span>
         </label>
 

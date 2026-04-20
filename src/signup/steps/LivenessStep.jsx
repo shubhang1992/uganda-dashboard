@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useSignup } from '../SignupContext';
@@ -18,8 +18,17 @@ const PHASES = {
 export default function LivenessStep({ onNext, onAgentFallback }) {
   const signup = useSignup();
   const [phase, setPhase] = useState(PHASES.idle);
+  const autoAdvanceTimer = useRef(null);
 
   const livenessRetryUsed = signup.livenessRetryUsed;
+
+  // Auto-advance once the face match succeeds — give the user ~1.1s to see
+  // the checkmark + "All good" status before moving to the next step.
+  useEffect(() => {
+    if (phase !== PHASES.ok) return undefined;
+    autoAdvanceTimer.current = setTimeout(() => onNext(), 1100);
+    return () => clearTimeout(autoAdvanceTimer.current);
+  }, [phase, onNext]);
 
   async function startCapture() {
     setPhase(PHASES.capturing);
@@ -72,6 +81,9 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
           <p className={styles.subtext} style={{ textAlign: 'center' }}>
             We couldn’t confirm that was a live person. Face the camera directly in good lighting — no hats or glasses.
           </p>
+          <p className={own.retryNotice} role="status">
+            You have <strong>1 retry</strong> remaining. If it fails again, an agent will help you in person.
+          </p>
           <div className={styles.actions}>
             <button type="button" className={styles.submit} onClick={retry}>
               Retake selfie
@@ -94,7 +106,7 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
       <span className={styles.eyebrow}>Step 5 · Selfie</span>
       <h2 className={styles.heading}>Take a quick selfie</h2>
       <p className={styles.subtext}>
-        A live-person check matches your face to your NIRA photo. Takes under 30 seconds.
+        A live-person check matches your face to your NIRA photo. Takes under 30&nbsp;seconds.
       </p>
 
       <div className={own.frame} data-phase={phase}>
@@ -108,12 +120,18 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
           <AnimatePresence>
             {phase === PHASES.analyzing && (
               <motion.div
-                className={own.scanLine}
-                initial={{ top: '10%', opacity: 0 }}
-                animate={{ top: ['10%', '90%', '10%'], opacity: 1 }}
+                className={own.scanTrack}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-              />
+              >
+                <motion.span
+                  className={own.scanSweep}
+                  initial={{ y: '-40%' }}
+                  animate={{ y: ['-40%', '40%', '-40%'] }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+                />
+              </motion.div>
             )}
           </AnimatePresence>
 
@@ -155,7 +173,7 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
         {phase === PHASES.idle && 'Face the camera when you’re ready'}
         {phase === PHASES.capturing && 'Hold steady…'}
         {phase === PHASES.analyzing && 'Checking live-person match…'}
-        {phase === PHASES.ok && 'All good — face matched'}
+        {phase === PHASES.ok && 'All good — face matched. Taking you to the next step…'}
       </div>
 
       <div className={styles.actions}>
@@ -177,7 +195,10 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
         )}
 
         {phase === PHASES.ok && (
-          <button type="button" className={styles.submit} onClick={onNext}>Continue</button>
+          <button type="button" className={styles.submit} disabled data-loading>
+            <span className={own.btnSpinner} aria-hidden="true" />
+            Continuing…
+          </button>
         )}
       </div>
     </div>
