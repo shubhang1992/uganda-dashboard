@@ -20,6 +20,7 @@ import About from './pages/About';
 
 const DashboardShell = lazy(() => import('./dashboard/DashboardShell'));
 const BranchDashboardShell = lazy(() => import('./branch-dashboard/BranchDashboardShell'));
+const SubscriberDashboardShell = lazy(() => import('./subscriber-dashboard/SubscriberDashboardShell'));
 const SignupPage = lazy(() => import('./signup/SignupPage'));
 
 function DashboardFallback() {
@@ -147,10 +148,13 @@ function ProtectedDashboard() {
   const { isAuthenticated, role } = useAuth();
   if (!isAuthenticated) return <Navigate to="/" replace />;
   if (!hasDashboard(role)) return <Navigate to="/coming-soon" replace />;
+  let Shell = DashboardShell;
+  if (role === 'branch') Shell = BranchDashboardShell;
+  else if (role === 'subscriber') Shell = SubscriberDashboardShell;
   return (
     <ErrorBoundary>
       <Suspense fallback={<DashboardFallback />}>
-        {role === 'branch' ? <BranchDashboardShell /> : <DashboardShell />}
+        <Shell />
       </Suspense>
     </ErrorBoundary>
   );
@@ -166,7 +170,7 @@ export default function App() {
         <Route path="/about" element={<About />} />
         <Route path="/coming-soon" element={<ComingSoon />} />
         <Route
-          path="/signup"
+          path="/signup/*"
           element={
             <ErrorBoundary>
               <Suspense fallback={<DashboardFallback />}>

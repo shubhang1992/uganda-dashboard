@@ -33,10 +33,10 @@ function calcScore(derived) {
   return {
     total: Math.min(100, Math.max(0, total)),
     breakdown: [
-      { label: 'Retention', value: Math.round(retentionRate), color: '#4ADE80' },
-      { label: 'Avg Contrib', value: Math.round(avgContribScore), color: '#818CF8' },
-      { label: 'Agents', value: Math.round(agentActivity), color: '#2DD4BF' },
-      { label: 'Growth', value: Math.round(growthScore), color: '#FBBF24' },
+      { label: 'Retention', value: Math.round(retentionRate), color: 'var(--color-positive)' },
+      { label: 'Avg Contrib', value: Math.round(avgContribScore), color: 'var(--color-positive-soft)' },
+      { label: 'Agents', value: Math.round(agentActivity), color: 'var(--color-accent-mint)' },
+      { label: 'Growth', value: Math.round(growthScore), color: 'var(--color-amber)' },
     ],
   };
 }
@@ -96,8 +96,8 @@ function ScoreGauge({ score }) {
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={styles.gauge}>
       <defs>
         <linearGradient id="scoreGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#F87171" /><stop offset="35%" stopColor="#FBBF24" />
-          <stop offset="65%" stopColor="#2DD4BF" /><stop offset="100%" stopColor="#4ADE80" />
+          <stop offset="0%" stopColor="var(--color-alert)" /><stop offset="35%" stopColor="var(--color-amber)" />
+          <stop offset="65%" stopColor="var(--color-accent-mint)" /><stop offset="100%" stopColor="var(--color-positive)" />
         </linearGradient>
         <filter id="glow"><feGaussianBlur stdDeviation="6" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
       </defs>

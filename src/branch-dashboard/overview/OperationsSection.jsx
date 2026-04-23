@@ -11,9 +11,9 @@ const SORT_OPTIONS = [
   { key: 'activeRate', label: 'Active Rate' },
 ];
 
-const MEDAL_COLORS = ['#FBBF24', '#94A3B8', '#CD7F32'];
+const MEDAL_COLORS = ['var(--color-medal-gold)', 'var(--color-medal-silver)', 'var(--color-medal-bronze)'];
 const AGE_KEYS = ['18-25', '26-35', '36-45', '46-55', '56+'];
-const AGE_COLORS = ['#2F8F9D', '#5E63A8', '#8A90A6', '#292867', '#1B1A4A'];
+const AGE_COLORS = ['var(--color-teal)', 'var(--color-indigo-soft)', 'var(--color-gray)', 'var(--color-indigo)', 'var(--color-indigo-deep)'];
 
 function sortAgents(agents, key) {
   return [...agents].sort((a, b) => {

@@ -73,6 +73,18 @@
   --color-status-warning: #E6A817;
   --color-status-poor:    #DC3545;
 
+  /* Health & trend accents (branch-dashboard) */
+  --color-positive:       #4ADE80;
+  --color-positive-soft:  #818CF8;
+  --color-accent-mint:    #2DD4BF;
+  --color-amber:          #FBBF24;
+  --color-alert:          #F87171;
+
+  /* Leaderboard medal tokens */
+  --color-medal-gold:     #FBBF24;
+  --color-medal-silver:   #94A3B8;
+  --color-medal-bronze:   #CD7F32;
+
   /* Transitions */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out:   cubic-bezier(0.4, 0, 0.2, 1);

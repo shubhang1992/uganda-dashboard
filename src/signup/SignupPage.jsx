@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../utils/finance';
 import { useAuth } from '../contexts/AuthContext';
 import { SignupProvider, useSignup } from './SignupContext';
 import SignupShell, { STEPS, AGENT_STEP, PENDING_REVIEW_STEP, getStepIndex } from './SignupShell';
+import ContributionRoute from './contribution/ContributionRoute';
 
 import IdUploadStep from './steps/IdUploadStep';
 import ReviewStep from './steps/ReviewStep';
@@ -24,11 +25,18 @@ const NO_BACK_STEPS = new Set(['id-upload', 'done', AGENT_STEP, PENDING_REVIEW_S
 
 function SignupFlow() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, logout } = useAuth();
   const signup = useSignup();
   const [stepId, setStepId] = useState('id-upload');
   const [pausedAt, setPausedAt] = useState(null);
   const [direction, setDirection] = useState(1);
+
+  // When the user navigates to /signup/contribution, render the contribution
+  // page in place of the signup shell. Keeping this check inside SignupFlow
+  // (rather than splitting into separate Routes) means the signup flow's
+  // internal step state survives the detour.
+  const onContribution = location.pathname.replace(/\/$/, '').endsWith('/contribution');
 
   function goTo(nextId) {
     const currIdx = getStepIndex(stepId);
@@ -67,6 +75,7 @@ function SignupFlow() {
       role: 'subscriber',
       phone: signup.phone,
       name: signup.fullName || 'New Subscriber',
+      contributionSchedule: signup.contributionSchedule ?? null,
     });
     signup.reset();
     navigate('/coming-soon');
@@ -80,6 +89,10 @@ function SignupFlow() {
 
   const canBack = !NO_BACK_STEPS.has(stepId);
   const StepNode = renderStep();
+
+  if (onContribution) {
+    return <ContributionRoute />;
+  }
 
   return (
     <SignupShell

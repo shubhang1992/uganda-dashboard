@@ -4,7 +4,8 @@
  * @returns {string} Uppercase initials (e.g. "JD")
  */
 export function getInitials(name) {
-  return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  if (!name) return '?';
+  return name.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
 /**

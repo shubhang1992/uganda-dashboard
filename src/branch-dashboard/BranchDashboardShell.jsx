@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../utils/finance';
 import { DashboardProvider, useDashboard } from '../contexts/DashboardContext';
 import { BranchScopeProvider } from '../contexts/BranchScopeContext';
@@ -157,7 +157,8 @@ function DashboardContent() {
 
 export default function BranchDashboardShell() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  if (role !== 'branch') return <Navigate to="/dashboard" replace />;
   const branchId = user?.branchId;
   return (
     <DashboardProvider>

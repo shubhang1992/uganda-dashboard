@@ -29,6 +29,17 @@ export function formatUGX(n) {
 }
 
 /**
+ * Format a UGX number with full precision (e.g. "UGX 50,000").
+ * Use when exact amounts matter — e.g., contribution schedules, receipts.
+ * @param {number} n - Amount in UGX
+ * @returns {string} Formatted string
+ */
+export function formatUGXExact(n) {
+  if (!Number.isFinite(n) || n <= 0) return 'UGX 0';
+  return `UGX ${Math.round(n).toLocaleString('en-UG')}`;
+}
+
+/**
  * Short form without "UGX" prefix (e.g. "1.2M").
  * @param {number} n - Amount in UGX
  * @returns {string} Formatted string

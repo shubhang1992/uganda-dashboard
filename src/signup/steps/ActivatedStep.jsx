@@ -1,5 +1,6 @@
-import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { EASE_OUT_EXPO, formatUGXExact } from '../../utils/finance';
 import { useSignup } from '../SignupContext';
 import logoWhite from '../../assets/logo-white.png';
 import styles from './Step.module.css';
@@ -24,12 +25,26 @@ function formatDate(iso) {
 }
 
 const GENDER_LABEL = { male: 'Male', female: 'Female', other: 'Other' };
+const FREQ_CADENCE = {
+  weekly: 'every week',
+  monthly: 'every month',
+  quarterly: 'every 3 months',
+  'half-yearly': 'every 6 months',
+  annually: 'every year',
+};
 
 export default function ActivatedStep({ onFinish }) {
-  const { fullName, phone, dob, gender } = useSignup();
+  const navigate = useNavigate();
+  const { fullName, phone, dob, gender, contributionSchedule } = useSignup();
+
   const firstName = fullName.trim().split(/\s+/)[0] || 'there';
   const memberId = formatMemberId(phone);
   const enrolmentDate = new Date();
+  const hasSchedule = Boolean(contributionSchedule);
+
+  function handleOpenSetup() {
+    navigate('/signup/contribution');
+  }
 
   return (
     <div className={styles.card}>
@@ -120,18 +135,59 @@ export default function ActivatedStep({ onFinish }) {
         </footer>
       </motion.section>
 
-      <motion.div
-        className={own.nextBox}
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 1.05, ease: EASE_OUT_EXPO }}
-      >
-        <span className={own.nextEyebrow}>Next up</span>
-        <strong className={own.nextTitle}>Make your first contribution</strong>
-        <p className={own.nextBody}>
-          Top up from your mobile money wallet to start earning. Any amount works — small and regular is best.
-        </p>
-      </motion.div>
+      {/* ── Next-up / summary swap ─────────────────────────────────────── */}
+      <AnimatePresence mode="wait" initial={false}>
+        {hasSchedule ? (
+          <motion.div
+            key="summary"
+            className={own.scheduleCard}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
+          >
+            <div className={own.scheduleHead}>
+              <span className={own.nextEyebrow}>Your contribution plan</span>
+              <button
+                type="button"
+                className={own.scheduleEdit}
+                onClick={handleOpenSetup}
+              >
+                Edit
+              </button>
+            </div>
+            <strong className={own.scheduleAmount}>
+              {formatUGXExact(contributionSchedule.amount)}
+              <span className={own.scheduleCadence}> {FREQ_CADENCE[contributionSchedule.frequency]}</span>
+            </strong>
+            <div className={own.scheduleSplit} aria-label={`${contributionSchedule.retirementPct} percent retirement, ${contributionSchedule.emergencyPct} percent emergency`}>
+              <span className={own.scheduleChip} data-tone="retirement">
+                <span className={own.scheduleDot} data-tone="retirement" aria-hidden="true" />
+                {contributionSchedule.retirementPct}% Retirement
+              </span>
+              <span className={own.scheduleChip} data-tone="emergency">
+                <span className={own.scheduleDot} data-tone="emergency" aria-hidden="true" />
+                {contributionSchedule.emergencyPct}% Emergency
+              </span>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="next-up"
+            className={own.nextBox}
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.5, delay: 1.05, ease: EASE_OUT_EXPO }}
+          >
+            <span className={own.nextEyebrow}>Next up</span>
+            <strong className={own.nextTitle}>Make your first contribution</strong>
+            <p className={own.nextBody}>
+              Set how often, how much, and how to split between retirement and emergency savings. Takes about a minute.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <motion.div
         className={styles.actions}
@@ -139,17 +195,28 @@ export default function ActivatedStep({ onFinish }) {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 1.2 }}
       >
-        <button type="button" className={styles.submit} onClick={onFinish}>
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
-            <rect x="2" y="6" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.75"/>
-            <path d="M2 10h20" stroke="currentColor" strokeWidth="1.75"/>
-            <circle cx="17" cy="15" r="1.5" fill="currentColor"/>
-          </svg>
-          Make first contribution
-        </button>
-        <button type="button" className={styles.secondaryBtn} onClick={onFinish}>
-          I’ll do this later
-        </button>
+        {hasSchedule ? (
+          <button type="button" className={styles.submit} onClick={onFinish}>
+            Continue
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+              <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        ) : (
+          <>
+            <button type="button" className={styles.submit} onClick={handleOpenSetup}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+                <rect x="2" y="6" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.75"/>
+                <path d="M2 10h20" stroke="currentColor" strokeWidth="1.75"/>
+                <circle cx="17" cy="15" r="1.5" fill="currentColor"/>
+              </svg>
+              Make your first contribution
+            </button>
+            <button type="button" className={styles.secondaryBtn} onClick={onFinish}>
+              I’ll do this later
+            </button>
+          </>
+        )}
       </motion.div>
     </div>
   );

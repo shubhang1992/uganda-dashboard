@@ -607,6 +607,175 @@ function generateSubscribers() {
       const regMonth = regYear === 2026 ? randInt(1, 3) : randInt(1, 12);
       const regDay = randInt(1, 28);
 
+      // ── Rich subscriber detail: units, balances, schedule, insurance,
+      //   nominees, transactions, claims, withdrawals (deterministic via rand())
+      const currentUnitValue = Math.round((1000 + (rand() - 0.5) * 100) * 100) / 100; // ≈1000 ± 5%
+      const netBalance = Math.max(0, totalC - totalW);
+      const unitsHeld = Math.round((netBalance / currentUnitValue) * 100) / 100;
+      const retirementPct = pick([70, 75, 80, 80, 80, 85, 90]);
+      const emergencyPct = 100 - retirementPct;
+      const retirementBalance = Math.round(netBalance * retirementPct / 100);
+      const emergencyBalance = netBalance - retirementBalance;
+      const frequency = pick(['monthly', 'monthly', 'monthly', 'weekly', 'quarterly', 'half-yearly', 'annually']);
+      const freqPerYear = { weekly: 52, monthly: 12, quarterly: 4, 'half-yearly': 2, annually: 1 }[frequency];
+      const scheduleAmount = Math.round(monthlyAmt * (12 / freqPerYear) / 1000) * 1000;
+      const includeInsurance = rand() < 0.55;
+      const nextDueOffsetDays = randInt(1, 30);
+      const nextDue = new Date();
+      nextDue.setDate(nextDue.getDate() + nextDueOffsetDays);
+
+      const regParts = `${regYear}-${String(regMonth).padStart(2, '0')}-${String(regDay).padStart(2, '0')}`.split('-').map(Number);
+      const regDate = new Date(regParts[0], regParts[1] - 1, regParts[2]);
+      const renewalDate = new Date(regDate.getTime() + 365 * 86400000);
+
+      // Nominees (pension + insurance; same pool usually)
+      const NOMINEE_REL = ['spouse', 'child', 'parent', 'sibling', 'other'];
+      const nomineeCount = randInt(1, 4);
+      const basePension = [];
+      let remainingShare = 100;
+      for (let n = 0; n < nomineeCount; n++) {
+        const last = n === nomineeCount - 1;
+        const share = last ? remainingShare : Math.max(5, Math.round(remainingShare / (nomineeCount - n)));
+        remainingShare -= share;
+        basePension.push({
+          id: `nom-${id}-p-${n + 1}`,
+          name: ugandanName(rand() < 0.5 ? 'male' : 'female'),
+          phone: ugandanPhone(),
+          relationship: pick(NOMINEE_REL),
+          nin: `CM${randInt(10000000, 99999999)}`,
+          share,
+        });
+      }
+      // Insurance nominees: 70% share pool, may differ
+      let insNominees;
+      if (rand() < 0.7) {
+        // Same-as-pension
+        insNominees = basePension.map((n, i) => ({ ...n, id: `nom-${id}-i-${i + 1}` }));
+      } else {
+        const insCount = randInt(1, 3);
+        insNominees = [];
+        let rem = 100;
+        for (let n = 0; n < insCount; n++) {
+          const last = n === insCount - 1;
+          const share = last ? rem : Math.max(10, Math.round(rem / (insCount - n)));
+          rem -= share;
+          insNominees.push({
+            id: `nom-${id}-i-${n + 1}`,
+            name: ugandanName(rand() < 0.5 ? 'male' : 'female'),
+            phone: ugandanPhone(),
+            relationship: pick(NOMINEE_REL),
+            nin: `CM${randInt(10000000, 99999999)}`,
+            share,
+          });
+        }
+      }
+
+      // Claims: 0–2
+      const CLAIM_STATUSES = ['submitted', 'under_review', 'approved', 'paid', 'paid', 'rejected'];
+      const CLAIM_TYPES = ['medical', 'accident', 'hospitalization', 'critical_illness'];
+      const claimCount = rand() < 0.25 ? randInt(1, 2) : 0;
+      const claims = [];
+      for (let c = 0; c < claimCount; c++) {
+        const cDays = randInt(30, 500);
+        const cDate = new Date(Date.now() - cDays * 86400000);
+        claims.push({
+          id: `clm-${id}-${c + 1}`,
+          type: pick(CLAIM_TYPES),
+          status: pick(CLAIM_STATUSES),
+          amount: randInt(200, 900) * 1000,
+          incidentDate: `${cDate.getFullYear()}-${String(cDate.getMonth() + 1).padStart(2, '0')}-${String(cDate.getDate()).padStart(2, '0')}`,
+          submittedDate: `${cDate.getFullYear()}-${String(cDate.getMonth() + 1).padStart(2, '0')}-${String(cDate.getDate()).padStart(2, '0')}`,
+          description: pick([
+            'Routine outpatient treatment at Mulago Hospital',
+            'Emergency surgery — broken leg',
+            'Malaria hospitalization, 3 nights',
+            'Maternity delivery support',
+            'Dental procedure',
+          ]),
+        });
+      }
+
+      // Withdrawals: 0–5 records
+      const withdrawCount = rand() < 0.4 ? randInt(1, 4) : 0;
+      const withdrawals = [];
+      let wRemaining = totalW;
+      for (let w = 0; w < withdrawCount && wRemaining > 0; w++) {
+        const amt = w === withdrawCount - 1 ? wRemaining : Math.round(wRemaining / (withdrawCount - w) * (0.7 + rand() * 0.6));
+        wRemaining -= amt;
+        const days = randInt(10, 400);
+        const wd = new Date(Date.now() - days * 86400000);
+        withdrawals.push({
+          id: `wd-${id}-${w + 1}`,
+          amount: amt,
+          bucket: rand() < 0.75 ? 'emergency' : 'retirement',
+          reason: pick(['Medical', 'Education', 'Housing', 'Business', 'Other']),
+          status: pick(['paid', 'paid', 'paid', 'processing']),
+          method: pick(['MTN Mobile Money', 'Airtel Money', 'Bank transfer']),
+          date: `${wd.getFullYear()}-${String(wd.getMonth() + 1).padStart(2, '0')}-${String(wd.getDate()).padStart(2, '0')}`,
+        });
+      }
+
+      // Transactions: contributions (~monthly), withdrawals, premiums
+      const transactions = [];
+      const now = Date.now();
+      // Contributions — last 12 months if active
+      const contribMonths = isActive ? 12 : randInt(3, 8);
+      for (let mIdx = contribMonths - 1; mIdx >= 0; mIdx--) {
+        const contribDate = new Date(now - mIdx * 30 * 86400000 - randInt(0, 5) * 86400000);
+        const monthAmount = contribHistory[11 - Math.min(mIdx, 11)] || monthlyAmt;
+        if (monthAmount <= 0) continue;
+        transactions.push({
+          id: `tx-${id}-c-${mIdx}`,
+          type: 'contribution',
+          amount: monthAmount,
+          date: `${contribDate.getFullYear()}-${String(contribDate.getMonth() + 1).padStart(2, '0')}-${String(contribDate.getDate()).padStart(2, '0')}`,
+          status: 'settled',
+          method: pick(['MTN Mobile Money', 'Airtel Money', 'Bank transfer']),
+          reference: `CT-${randInt(10000, 99999)}`,
+        });
+      }
+      // Insurance premium if opted-in
+      if (includeInsurance) {
+        for (let p = 0; p < contribMonths; p++) {
+          const pDate = new Date(now - p * 30 * 86400000 - randInt(0, 3) * 86400000);
+          transactions.push({
+            id: `tx-${id}-p-${p}`,
+            type: 'premium',
+            amount: 2000,
+            date: `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}-${String(pDate.getDate()).padStart(2, '0')}`,
+            status: 'settled',
+            method: 'Auto-debit',
+            reference: `PR-${randInt(10000, 99999)}`,
+          });
+        }
+      }
+      // Add withdrawals to transactions
+      withdrawals.forEach((w) => {
+        transactions.push({
+          id: `tx-${id}-w-${w.id}`,
+          type: 'withdrawal',
+          amount: -w.amount,
+          date: w.date,
+          status: w.status,
+          method: w.method,
+          reference: `WD-${randInt(10000, 99999)}`,
+          bucket: w.bucket,
+        });
+      });
+      // Paid claims → transaction inflow
+      claims.filter((c) => c.status === 'paid').forEach((c) => {
+        transactions.push({
+          id: `tx-${id}-clm-${c.id}`,
+          type: 'claim',
+          amount: c.amount,
+          date: c.submittedDate,
+          status: 'paid',
+          method: 'Bank transfer',
+          reference: `CL-${randInt(10000, 99999)}`,
+        });
+      });
+      transactions.sort((a, b) => b.date.localeCompare(a.date));
+
       subs[id] = {
         id,
         name,
@@ -622,6 +791,39 @@ function generateSubscribers() {
         totalWithdrawals: totalW,
         registeredDate: `${regYear}-${String(regMonth).padStart(2, '0')}-${String(regDay).padStart(2, '0')}`,
         productsHeld: heldProducts,
+
+        // Account snapshot (for Subscriber dashboard)
+        unitsHeld,
+        currentUnitValue,
+        unitValueAsOf: new Date().toISOString(),
+        netBalance,
+        retirementBalance,
+        emergencyBalance,
+
+        contributionSchedule: {
+          frequency,
+          amount: scheduleAmount,
+          retirementPct,
+          emergencyPct,
+          includeInsurance,
+          nextDueDate: `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, '0')}-${String(nextDue.getDate()).padStart(2, '0')}`,
+        },
+
+        insurance: {
+          cover: includeInsurance ? 1_000_000 : 0,
+          premiumMonthly: includeInsurance ? 2000 : 0,
+          policyStart: `${regParts[0]}-${String(regParts[1]).padStart(2, '0')}-${String(regParts[2]).padStart(2, '0')}`,
+          renewalDate: `${renewalDate.getFullYear()}-${String(renewalDate.getMonth() + 1).padStart(2, '0')}-${String(renewalDate.getDate()).padStart(2, '0')}`,
+          status: includeInsurance ? 'active' : 'inactive',
+        },
+
+        claims,
+        nominees: {
+          pension: basePension,
+          insurance: insNominees,
+        },
+        transactions,
+        withdrawals,
       };
     }
   });

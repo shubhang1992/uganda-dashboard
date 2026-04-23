@@ -59,3 +59,52 @@ export async function getChatResponse(message) {
   if (l.includes('gender') || l.includes('split')) return responses.gender;
   return responses.default;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  Subscriber-facing copilot                                                 */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+const subscriberChatResponses = {
+  default:
+    "I can help with your savings, contributions, withdrawals, insurance, and nominees. Try asking how to withdraw or change your split.",
+  withdraw:
+    "You can withdraw from your Emergency bucket any time. Retirement funds unlock at age 60. Tap the Withdraw button on your dashboard to begin.",
+  contribute:
+    "To add money, tap ‘Make a Contribution’ — you can use the default split (80/20) or customise just this top-up.",
+  schedule:
+    "Your schedule controls how often and how much you save. Head to Settings → Contribution schedule to change frequency, amount, or the retirement/emergency split.",
+  nominee:
+    "Nominees receive your savings or insurance benefit. You can change them any time under ‘Update nominees’. Shares must total 100%.",
+  claim:
+    "To file an insurance claim, open Insurance → Claims → ‘File a new claim’. Have the incident date and any supporting documents ready.",
+  retirement:
+    "Your retirement bucket compounds monthly. Increase your schedule or retirement % to grow your projected income.",
+  emergency:
+    "Your Emergency bucket is designed for hardship situations — medical, education, housing, or business. It’s withdrawable any time.",
+  insurance:
+    "Your baseline cover is UGX 1,000,000 for UGX 2,000 / month. Upgrade options are available under Insurance → Coverage.",
+  split:
+    "A balanced split is 80% retirement / 20% emergency. Adjust any time — the donut on your dashboard updates immediately.",
+  balance:
+    "Your total balance reflects contributions minus withdrawals, translated to units at the latest unit value.",
+  help:
+    "Our help desk is open 8am–8pm. You can call, message us on WhatsApp, or email support@upensions.ug.",
+};
+
+/** Mock subscriber-side AI response. Replace with LLM + personal data lookup. */
+export async function getSubscriberChatResponse(message) {
+  // Future: api.post('/subscriber/chat', { message })
+  const l = (message || '').toLowerCase();
+  if (l.includes('withdraw') || l.includes('take out')) return subscriberChatResponses.withdraw;
+  if (l.includes('contribute') || l.includes('top up') || l.includes('top-up')) return subscriberChatResponses.contribute;
+  if (l.includes('schedule') || l.includes('frequency') || l.includes('change my')) return subscriberChatResponses.schedule;
+  if (l.includes('nominee') || l.includes('beneficiary')) return subscriberChatResponses.nominee;
+  if (l.includes('claim')) return subscriberChatResponses.claim;
+  if (l.includes('retire') || l.includes('pension')) return subscriberChatResponses.retirement;
+  if (l.includes('emergency')) return subscriberChatResponses.emergency;
+  if (l.includes('insurance') || l.includes('cover')) return subscriberChatResponses.insurance;
+  if (l.includes('split') || l.includes('allocation')) return subscriberChatResponses.split;
+  if (l.includes('balance')) return subscriberChatResponses.balance;
+  if (l.includes('help') || l.includes('support')) return subscriberChatResponses.help;
+  return subscriberChatResponses.default;
+}

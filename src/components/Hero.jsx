@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../utils/finance';
+import { useIsMobile } from '../hooks/useIsMobile';
 import SavingsCalculator from './SavingsCalculator';
 import styles from './Hero.module.css';
 
@@ -12,11 +13,6 @@ const BLOBS = [
   { size: 200, x: '20%',  y: '55%',  dur: 20, delay: 2,   color: '#2E8B57', opacity: 0.05, blur: 60  },
   { size: 160, x: '80%',  y: '50%',  dur: 18, delay: 4,   color: '#D9DCF2', opacity: 0.15, blur: 50  },
 ];
-
-function useIsMobile() {
-  if (typeof window === 'undefined') return false;
-  return window.innerWidth <= 768;
-}
 
 export default function Hero() {
   const ref = useRef(null);

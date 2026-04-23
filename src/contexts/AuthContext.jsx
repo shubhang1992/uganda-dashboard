@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useCallback } from 'react';
  * @property {string} role - User role ('subscriber'|'employer'|'distributor'|'branch'|'agent'|'admin')
  * @property {string} phone - Phone number
  * @property {string} name - Display name
+ * @property {{frequency:'weekly'|'monthly'|'quarterly'|'half-yearly'|'annually', amount:number, retirementPct:number, emergencyPct:number}|null} [contributionSchedule] - Subscriber's one-time contribution plan; editable later from account settings.
  */
 
 /**

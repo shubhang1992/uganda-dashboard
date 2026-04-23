@@ -49,7 +49,7 @@ function ChatCard({ open, onToggle }) {
           </div>
           <div className={styles.chatHeaderText}>
             <span className={styles.chatTitle}>Talk to your data</span>
-            <span className={styles.chatSubtitle}>Ask about agents, coverage, subscribers\u2026</span>
+            <span className={styles.chatSubtitle}>Ask about agents, coverage, subscribers…</span>
           </div>
         </div>
         <svg aria-hidden="true" className={styles.cardToggle} data-open={open} width="14" height="14" viewBox="0 0 14 14" fill="none">

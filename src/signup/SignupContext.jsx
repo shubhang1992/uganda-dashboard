@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useReducer } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
 
 /**
  * @typedef {Object} Beneficiary
@@ -59,6 +59,9 @@ import { createContext, useCallback, useContext, useMemo, useReducer } from 'rea
  * @property {boolean}     consent
  * @property {string|null} consentTimestamp — UTC ISO string
  *
+ * Step 9 — Contribution settings (post-activation, optional one-time setup)
+ * @property {{frequency:'weekly'|'monthly'|'quarterly'|'half-yearly'|'annually', amount:number, retirementPct:number, emergencyPct:number}|null} contributionSchedule
+ *
  * Terminals
  * @property {string|null} failureReason
  * @property {string|null} failureStage
@@ -106,6 +109,8 @@ const INITIAL_STATE = {
   consent: false,
   consentTimestamp: null,
 
+  contributionSchedule: null,
+
   failureReason: null,
   failureStage: null,
 };
@@ -121,13 +126,50 @@ function reducer(state, action) {
   }
 }
 
+// File/Blob + object URL fields can't be serialised to localStorage. They're
+// dropped on persist and re-nulled on rehydrate — the user re-uploads ID/selfie
+// after a refresh, but KYC data, OCR results, beneficiaries, consent, etc. survive.
+const STORAGE_KEY = 'uganda-pensions-signup';
+const EPHEMERAL_KEYS = ['idFrontFile', 'idBackFile', 'selfieFile', 'idFrontPreviewUrl', 'idBackPreviewUrl'];
+
+function loadPersisted() {
+  if (typeof window === 'undefined') return INITIAL_STATE;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return INITIAL_STATE;
+    const parsed = JSON.parse(raw);
+    const ephemeral = Object.fromEntries(EPHEMERAL_KEYS.map((k) => [k, null]));
+    return { ...INITIAL_STATE, ...parsed, ...ephemeral };
+  } catch {
+    return INITIAL_STATE;
+  }
+}
+
+function persist(state) {
+  if (typeof window === 'undefined') return;
+  try {
+    const toStore = { ...state };
+    EPHEMERAL_KEYS.forEach((k) => { delete toStore[k]; });
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
+  } catch {
+    // Quota / private-browsing — non-fatal.
+  }
+}
+
 const SignupContext = createContext(null);
 
 export function SignupProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
+  const [state, dispatch] = useReducer(reducer, INITIAL_STATE, loadPersisted);
+
+  useEffect(() => { persist(state); }, [state]);
 
   const patch = useCallback((payload) => dispatch({ type: 'patch', payload }), []);
-  const reset = useCallback(() => dispatch({ type: 'reset' }), []);
+  const reset = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    }
+    dispatch({ type: 'reset' });
+  }, []);
 
   const value = useMemo(() => ({ ...state, patch, reset }), [state, patch, reset]);
   return <SignupContext value={value}>{children}</SignupContext>;

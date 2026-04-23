@@ -47,6 +47,18 @@ export function DashboardPanelProvider({ children }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [reportContext, setReportContext] = useState(null);
 
+  // Subscriber dashboard panels
+  const [contributeOpen, setContributeOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [insuranceOpen, setInsuranceOpen] = useState(false);
+  const [insuranceTab, setInsuranceTab] = useState('coverage'); // 'coverage' | 'claims' | 'beneficiaries'
+  const [nomineesOpen, setNomineesOpen] = useState(false);
+  const [nomineesTab, setNomineesTab] = useState('pension'); // 'pension' | 'insurance'
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [subscriberReportsOpen, setSubscriberReportsOpen] = useState(false);
+  const [contributionSettingsOpen, setContributionSettingsOpen] = useState(false);
+  const [yourGoalOpen, setYourGoalOpen] = useState(false);
+
   // Register panel setters into the nav context's onPanelAction ref so
   // nav-driven effects (auto-open on drill-down) can call them.
   const { onPanelAction } = useDashboardNav();
@@ -73,6 +85,14 @@ export function DashboardPanelProvider({ children }) {
     setViewReportsOpen(false);
     setCommissionsOpen(false);
     setSettingsOpen(false);
+    setContributeOpen(false);
+    setWithdrawOpen(false);
+    setInsuranceOpen(false);
+    setNomineesOpen(false);
+    setHelpOpen(false);
+    setSubscriberReportsOpen(false);
+    setContributionSettingsOpen(false);
+    setYourGoalOpen(false);
   }, []);
 
   const value = useMemo(() => ({
@@ -88,12 +108,27 @@ export function DashboardPanelProvider({ children }) {
     commissionsOpen, setCommissionsOpen,
     settingsOpen, setSettingsOpen,
     reportContext, setReportContext,
+    // Subscriber
+    contributeOpen, setContributeOpen,
+    withdrawOpen, setWithdrawOpen,
+    insuranceOpen, setInsuranceOpen,
+    insuranceTab, setInsuranceTab,
+    nomineesOpen, setNomineesOpen,
+    nomineesTab, setNomineesTab,
+    helpOpen, setHelpOpen,
+    subscriberReportsOpen, setSubscriberReportsOpen,
+    contributionSettingsOpen, setContributionSettingsOpen,
+    yourGoalOpen, setYourGoalOpen,
     closeAllPanels,
   }), [
     branchMenuOpen, createBranchOpen, viewBranchesOpen,
     agentMenuOpen, createAgentOpen, viewAgentsOpen,
     subscriberMenuOpen, viewSubscribersOpen, viewReportsOpen,
     commissionsOpen, settingsOpen, reportContext,
+    contributeOpen, withdrawOpen, insuranceOpen, insuranceTab,
+    nomineesOpen, nomineesTab, helpOpen, subscriberReportsOpen,
+    contributionSettingsOpen,
+    yourGoalOpen,
     closeAllPanels,
   ]);
 

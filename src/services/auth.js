@@ -1,6 +1,6 @@
 // Auth service — mock implementation. Replace with real API calls when backend is ready.
 
-const DASHBOARD_ROLES = ['distributor', 'branch'];
+const DASHBOARD_ROLES = ['distributor', 'branch', 'subscriber'];
 
 /**
  * @endpoint POST /api/auth/send-otp

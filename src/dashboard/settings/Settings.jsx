@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { getInitials } from '../../utils/dashboard';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import styles from './Settings.module.css';
 
 /* ─── Password strength helper ────────────────────────────────────────────── */
@@ -64,9 +66,24 @@ function PasswordInput({ value, onChange, placeholder, error, ariaLabel }) {
 /*  Settings panel                                                           */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export default function Settings({ splitMode = false }) {
-  const { settingsOpen, setSettingsOpen } = useDashboard();
+  const {
+    settingsOpen,
+    setSettingsOpen,
+    setNomineesOpen,
+    setNomineesTab,
+  } = useDashboard();
   const { user } = useAuth();
   const { addToast } = useToast();
+  const isSubscriber = user?.role === 'subscriber';
+  const { data: subscriber } = useCurrentSubscriber();
+  const pensionCount = subscriber?.nominees?.pension?.length ?? 0;
+  const insuranceCount = subscriber?.nominees?.insurance?.length ?? 0;
+
+  function openNominees(tab) {
+    setSettingsOpen(false);
+    if (setNomineesTab) setNomineesTab(tab);
+    if (setNomineesOpen) setNomineesOpen(true);
+  }
 
   /* ── Profile form state ─────────────────────────────────────────────────── */
   const [name, setName] = useState('');
@@ -155,12 +172,6 @@ export default function Settings({ splitMode = false }) {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
   }
 
-  function getInitials(n) {
-    if (!n) return '?';
-    const parts = n.trim().split(/\s+/);
-    if (parts.length === 1) return parts[0][0].toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
 
   const strength = getStrength(newPw);
 
@@ -404,6 +415,68 @@ export default function Settings({ splitMode = false }) {
                     {errors.confirmPw && <p className={styles.error} role="alert">{errors.confirmPw}</p>}
                   </div>
                 </motion.div>
+
+                {/* ── Nominees & beneficiaries (subscriber only) ────────── */}
+                {isSubscriber && (
+                  <>
+                    <div className={styles.sectionDivider} />
+                    <motion.div
+                      className={styles.section}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.35, delay: 0.18, ease: EASE_OUT_EXPO }}
+                    >
+                      <div className={styles.sectionHeader}>
+                        <span className={styles.sectionIcon}>
+                          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="16" height="16">
+                            <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.75"/>
+                            <path d="M3 20v-1a5 5 0 0110 0v1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                            <circle cx="17" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.75"/>
+                            <path d="M21 20v-1a3.5 3.5 0 00-3.5-3.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                          </svg>
+                        </span>
+                        <h3 className={styles.sectionTitle}>Nominees & Beneficiaries</h3>
+                      </div>
+
+                      <p className={styles.nomineesHelp}>
+                        Nominees receive your savings or insurance benefit. Shares must total 100%.
+                      </p>
+
+                      <div className={styles.nomineesGrid}>
+                        <button
+                          type="button"
+                          className={styles.nomineeTile}
+                          onClick={() => openNominees('pension')}
+                        >
+                          <span className={styles.nomineeTileHead}>
+                            <span className={styles.nomineeTileLabel}>Pension nominees</span>
+                            <svg aria-hidden="true" viewBox="0 0 12 12" width="12" height="12" className={styles.nomineeTileArrow}>
+                              <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                            </svg>
+                          </span>
+                          <span className={styles.nomineeTileCount}>
+                            {pensionCount} on file
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.nomineeTile}
+                          onClick={() => openNominees('insurance')}
+                        >
+                          <span className={styles.nomineeTileHead}>
+                            <span className={styles.nomineeTileLabel}>Insurance nominees</span>
+                            <svg aria-hidden="true" viewBox="0 0 12 12" width="12" height="12" className={styles.nomineeTileArrow}>
+                              <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                            </svg>
+                          </span>
+                          <span className={styles.nomineeTileCount}>
+                            {insuranceCount} on file
+                          </span>
+                        </button>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
               </div>
 
               {/* Footer */}
