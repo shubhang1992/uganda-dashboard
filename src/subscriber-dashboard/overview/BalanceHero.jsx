@@ -7,28 +7,6 @@ import styles from './BalanceHero.module.css';
 
 const HIDE_STORAGE_KEY = 'up-sub-balance-hidden';
 
-function pad(n) { return String(n).padStart(2, '0'); }
-function formatAccountNumber(id) {
-  if (!id) return 'UG•••••••';
-  const digits = id.replace(/\D/g, '').padStart(8, '0');
-  return `UG-${digits.slice(0, 4)}-${digits.slice(4)}`;
-}
-function formatToday() {
-  return new Date().toLocaleDateString('en-UG', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
-function formatUnitDate(iso) {
-  const d = iso ? new Date(iso) : new Date();
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-function formatUnitTime(iso) {
-  const d = iso ? new Date(iso) : new Date();
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 function formatSchedule(schedule) {
   if (!schedule?.nextDueDate) return 'Not scheduled';
   const d = new Date(schedule.nextDueDate);
@@ -56,65 +34,34 @@ function useCountUp(target, duration = 1200, trigger = true) {
   return shouldAnimate ? value : 0;
 }
 
-/* ── SVG donut: two slices (retirement / emergency) with animated sweep */
-function Donut({ retirementPct, emergencyPct, hide }) {
-  const size = 184, stroke = 18;
-  const r = (size - stroke) / 2;
-  const cx = size / 2, cy = size / 2;
-  const circumference = 2 * Math.PI * r;
+/* Inline transaction-type icons for the activity strip. */
+const TX_META = {
+  contribution: {
+    label: 'Contribution',
+    tone: 'positive',
+    d: 'M10 3v14M3 10h14',
+  },
+  withdrawal: {
+    label: 'Withdrawal',
+    tone: 'teal',
+    d: 'M10 14V3M6 7l4-4 4 4',
+  },
+  premium: {
+    label: 'Insurance premium',
+    tone: 'amber',
+    d: 'M10 2l6 2.5v4.5c0 4-2.5 7-6 8.5-3.5-1.5-6-4.5-6-8.5V4.5L10 2z',
+  },
+  claim: {
+    label: 'Claim payout',
+    tone: 'indigo',
+    d: 'M3 4h14v12H3zM6 9h8M6 12h5',
+  },
+};
 
-  // Slice lengths (as fractions of the circle)
-  const retirementLen = (retirementPct / 100) * circumference;
-  const emergencyLen = (emergencyPct / 100) * circumference;
-
-  return (
-    <div className={styles.donutWrap} aria-label={`${retirementPct}% retirement, ${emergencyPct}% emergency`}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={styles.donut}>
-        <defs>
-          <linearGradient id="donut-ret" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#A5B4FC" />
-            <stop offset="100%" stopColor="var(--color-positive-soft)" />
-          </linearGradient>
-          <linearGradient id="donut-emg" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#5EEAD4" />
-            <stop offset="100%" stopColor="var(--color-accent-mint)" />
-          </linearGradient>
-          <filter id="donut-glow"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        </defs>
-        {/* track */}
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
-        {/* retirement arc — starts at top, rotates clockwise */}
-        <motion.circle
-          cx={cx} cy={cy} r={r} fill="none"
-          stroke="url(#donut-ret)"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={`${retirementLen} ${circumference - retirementLen}`}
-          transform={`rotate(-90 ${cx} ${cy})`}
-          filter="url(#donut-glow)"
-          initial={{ strokeDasharray: `0 ${circumference}` }}
-          animate={{ strokeDasharray: `${retirementLen} ${circumference - retirementLen}` }}
-          transition={{ duration: 1.4, delay: 0.3, ease: EASE_OUT_EXPO }}
-        />
-        {/* emergency arc — starts where retirement ends */}
-        <motion.circle
-          cx={cx} cy={cy} r={r} fill="none"
-          stroke="url(#donut-emg)"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={`${emergencyLen} ${circumference - emergencyLen}`}
-          transform={`rotate(${-90 + (retirementPct / 100) * 360} ${cx} ${cy})`}
-          initial={{ strokeDasharray: `0 ${circumference}` }}
-          animate={{ strokeDasharray: `${emergencyLen} ${circumference - emergencyLen}` }}
-          transition={{ duration: 1.2, delay: 0.8, ease: EASE_OUT_EXPO }}
-        />
-      </svg>
-      <div className={styles.donutCenter}>
-        <span className={styles.donutRatio}>{hide ? '••' : retirementPct}<span className={styles.donutSep}>/</span>{hide ? '••' : emergencyPct}</span>
-        <span className={styles.donutLabel}>Split</span>
-      </div>
-    </div>
-  );
+function formatTxDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short' });
 }
 
 export default function BalanceHero({ subscriber, user, split }) {
@@ -131,6 +78,11 @@ export default function BalanceHero({ subscriber, user, split }) {
   const {
     setContributeOpen,
     setContributionSettingsOpen,
+    setWithdrawOpen,
+    setInsuranceOpen,
+    setInsuranceTab,
+    setSubscriberReportsOpen,
+    setReportContext,
     closeAllPanels,
   } = useDashboard();
 
@@ -138,7 +90,12 @@ export default function BalanceHero({ subscriber, user, split }) {
   const retirementBalance = subscriber?.retirementBalance || 0;
   const emergencyBalance = subscriber?.emergencyBalance || 0;
   const totalInvested = subscriber?.totalContributions || 0;
-  const gain = totalBalance - totalInvested;
+  const totalWithdrawals = subscriber?.totalWithdrawals || 0;
+  const unitsHeld = subscriber?.unitsHeld || 0;
+  const currentUnitValue = subscriber?.currentUnitValue || 0;
+  // Investment growth = current value of all units bought ‑ money put in.
+  // Today's balance only reflects what's left after withdrawals, so add them back.
+  const gain = totalBalance + totalWithdrawals - totalInvested;
   const gainPct = totalInvested > 0 ? (gain / totalInvested) * 100 : 0;
   const gainPositive = gain >= 0;
   const schedule = subscriber?.contributionSchedule;
@@ -146,9 +103,13 @@ export default function BalanceHero({ subscriber, user, split }) {
   const emergencyPct = schedule?.emergencyPct ?? (100 - retirementPct);
   const nextAmount = schedule?.amount || 0;
 
+  const formatUnits = (n) =>
+    Number(n).toLocaleString('en-UG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const recentTransactions = (subscriber?.transactions || []).slice(0, 2);
+
   const countedBalance = useCountUp(hide ? 0 : totalBalance, 1300, inView);
 
-  const accountNum = formatAccountNumber(subscriber?.id);
   const firstName = (user?.name || subscriber?.name || 'there').split(' ')[0];
 
   function handleTopUp() {
@@ -158,6 +119,20 @@ export default function BalanceHero({ subscriber, user, split }) {
   function handleAdjustSplit() {
     closeAllPanels();
     setContributionSettingsOpen(true);
+  }
+  function handleWithdraw() {
+    closeAllPanels();
+    setWithdrawOpen(true);
+  }
+  function handleFileClaim() {
+    closeAllPanels();
+    setInsuranceTab('claims');
+    setInsuranceOpen(true);
+  }
+  function handleViewAllTx() {
+    closeAllPanels();
+    setReportContext('all-transactions');
+    setSubscriberReportsOpen(true);
   }
 
   /* ── Savings Copilot ── */
@@ -242,11 +217,6 @@ export default function BalanceHero({ subscriber, user, split }) {
           <h1 className={styles.heroGreeting}>
             Good {hourGreeting()}, <span className={styles.heroGreetingName}>{firstName}</span>
           </h1>
-          <span className={styles.heroSub}>
-            {formatToday()}
-            <span className={styles.heroDot} aria-hidden="true">·</span>
-            Member ID {accountNum}
-          </span>
         </div>
         <span className={styles.heroBadge}>
           <span className={styles.heroBadgeDot} aria-hidden="true" />
@@ -254,9 +224,8 @@ export default function BalanceHero({ subscriber, user, split }) {
         </span>
       </div>
 
-      {/* ── Top grid: Balance ◦ Donut ── */}
+      {/* ── Balance + stats ── */}
       <div className={styles.topGrid}>
-        {/* Left: balance */}
         <div className={styles.balanceCol}>
           <div className={styles.balanceHeaderRow}>
             <span className={styles.balanceLabel}>Total account balance</span>
@@ -290,85 +259,196 @@ export default function BalanceHero({ subscriber, user, split }) {
             )}
           </div>
 
-          <div className={styles.inlineStats}>
-            <div className={styles.inlineStat}>
-              <span className={styles.inlineStatLabel}>Invested</span>
-              <span className={styles.inlineStatValue}>{hide ? '••••' : formatUGX(totalInvested)}</span>
-            </div>
-            <div className={styles.inlineStatDivider} aria-hidden="true" />
-            <div className={styles.inlineStat}>
-              <span className={styles.inlineStatLabel}>Current</span>
-              <span className={styles.inlineStatValue}>{hide ? '••••' : formatUGX(totalBalance)}</span>
-            </div>
-            <div className={styles.inlineStatDivider} aria-hidden="true" />
-            <div className={styles.inlineStat}>
-              <span className={styles.inlineStatLabel}>Growth</span>
-              {hide ? (
-                <span className={styles.inlineStatValue}>••••</span>
-              ) : (
-                <span className={styles.growthValue} data-positive={gainPositive}>
-                  <span className={styles.growthAmt}>
-                    {gainPositive ? '+' : '−'}{formatUGX(Math.abs(gain))}
-                  </span>
-                  <span className={styles.growthPct}>
-                    {gainPositive ? '+' : '−'}{Math.abs(gainPct).toFixed(1)}%
-                  </span>
-                </span>
-              )}
-            </div>
-          </div>
+          <ul className={styles.metricsRow}>
+            <li className={styles.metricCell}>
+              <span className={styles.metricKey}>Contribution</span>
+              <span className={styles.metricValue}>
+                {hide ? '••••' : formatUGXExact(totalInvested)}
+              </span>
+            </li>
+            <li className={styles.metricCell}>
+              <span className={styles.metricKey}>Units</span>
+              <span className={styles.metricValue}>
+                {hide ? '••••' : formatUnits(unitsHeld)}
+              </span>
+            </li>
+            <li className={styles.metricCell}>
+              <span className={styles.metricKey}>Unit value</span>
+              <span className={styles.metricValue}>
+                {hide ? '••••' : formatUGXExact(currentUnitValue)}
+              </span>
+            </li>
+            <li className={styles.metricCell}>
+              <span className={styles.metricKey}>Growth</span>
+              <span className={styles.metricValue} data-tone={gainPositive ? 'positive' : 'warning'}>
+                {hide ? (
+                  '••••'
+                ) : (
+                  <>
+                    {gainPositive ? '▲' : '▼'} {formatUGXExact(Math.abs(gain))}
+                    {totalInvested > 0 && (
+                      <span className={styles.metricDelta}>
+                        {' '}({Math.abs(gainPct).toFixed(1)}%)
+                      </span>
+                    )}
+                  </>
+                )}
+              </span>
+            </li>
+          </ul>
 
-          <div className={styles.asOf}>
-            <span className={styles.asOfDot} />
-            Values updated {formatUnitDate(subscriber?.unitValueAsOf)} · {formatUnitTime(subscriber?.unitValueAsOf)}
-          </div>
-
-          <div className={styles.ctaRow}>
-            <button type="button" className={styles.ctaPrimary} onClick={handleTopUp}>
-              <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
-                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-              </svg>
-              Top up savings
-            </button>
-            <button type="button" className={styles.ctaSecondary} onClick={handleAdjustSplit}>
-              Adjust split
-            </button>
-          </div>
         </div>
 
-        {/* Right: donut + split breakdown */}
-        <div className={styles.donutCol}>
-          <Donut retirementPct={retirementPct} emergencyPct={emergencyPct} hide={hide} />
-          <div className={styles.legend}>
-            <motion.div
-              className={styles.legendRow}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4, delay: 0.9, ease: EASE_OUT_EXPO }}
-            >
-              <span className={styles.legendDot} data-tone="retirement" aria-hidden="true" />
-              <div className={styles.legendText}>
-                <span className={styles.legendLabel}>Retirement</span>
-                <span className={styles.legendPct}>{retirementPct}%</span>
-              </div>
-              <span className={styles.legendAmt}>{hide ? '••••' : formatUGX(retirementBalance)}</span>
-            </motion.div>
-            <motion.div
-              className={styles.legendRow}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4, delay: 1.0, ease: EASE_OUT_EXPO }}
-            >
-              <span className={styles.legendDot} data-tone="emergency" aria-hidden="true" />
-              <div className={styles.legendText}>
-                <span className={styles.legendLabel}>Emergency</span>
-                <span className={styles.legendPct}>{emergencyPct}%</span>
-              </div>
-              <span className={styles.legendAmt}>{hide ? '••••' : formatUGX(emergencyBalance)}</span>
-            </motion.div>
-          </div>
-        </div>
       </div>
+
+      {/* ── Split bar: inline horizontal, full-width ── */}
+      <motion.div
+        className={styles.splitInline}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.4, ease: EASE_OUT_EXPO }}
+        aria-label={`Retirement ${retirementPct}%, emergency ${emergencyPct}%`}
+      >
+        <span className={styles.splitInlineSide}>
+          <span className={styles.splitDot} data-tone="retirement" aria-hidden="true" />
+          <span className={styles.splitInlineLabel}>Retirement</span>
+          <span className={styles.splitInlinePct}>{retirementPct}%</span>
+          <span className={styles.splitInlineAmt}>{hide ? '••••' : formatUGX(retirementBalance)}</span>
+        </span>
+        <span className={styles.splitInlineBar} aria-hidden="true">
+          <motion.span
+            className={styles.splitFillRet}
+            initial={{ width: 0 }}
+            animate={{ width: `${retirementPct}%` }}
+            transition={{ duration: 0.9, delay: 0.45, ease: EASE_OUT_EXPO }}
+          />
+          <motion.span
+            className={styles.splitFillEmg}
+            initial={{ width: 0 }}
+            animate={{ width: `${emergencyPct}%` }}
+            transition={{ duration: 0.9, delay: 0.6, ease: EASE_OUT_EXPO }}
+          />
+        </span>
+        <span className={styles.splitInlineSide} data-align="right">
+          <span className={styles.splitDot} data-tone="emergency" aria-hidden="true" />
+          <span className={styles.splitInlineLabel}>Emergency</span>
+          <span className={styles.splitInlinePct}>{emergencyPct}%</span>
+          <span className={styles.splitInlineAmt}>{hide ? '••••' : formatUGX(emergencyBalance)}</span>
+        </span>
+      </motion.div>
+
+      {/* ── Action strip: primary pill + 3 quick tiles ── */}
+      <motion.div
+        className={styles.actionStrip}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.45, ease: EASE_OUT_EXPO }}
+      >
+        <button type="button" className={styles.actionPrimary} onClick={handleTopUp}>
+          <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+            <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+          </svg>
+          Top up savings
+        </button>
+
+        <div className={styles.quickTiles} role="group" aria-label="Quick actions">
+          <button
+            type="button"
+            className={styles.quickTile}
+            data-variant="next"
+            onClick={handleAdjustSplit}
+            aria-label={schedule?.nextDueDate ? 'Edit contribution schedule' : 'Set up a contribution schedule'}
+          >
+            <span className={styles.quickIcon} aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" strokeWidth="1.75"/>
+                <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+              </svg>
+            </span>
+            <span className={styles.quickStack}>
+              <span className={styles.quickEyebrow}>Next</span>
+              {schedule?.nextDueDate ? (
+                <span className={styles.quickValue}>
+                  {hide ? '••••' : `${formatUGX(nextAmount)} · ${formatSchedule(schedule)}`}
+                </span>
+              ) : (
+                <span className={styles.quickValue} data-muted="true">Not scheduled</span>
+              )}
+            </span>
+          </button>
+
+          <button type="button" className={styles.quickTile} onClick={handleWithdraw}>
+            <span className={styles.quickIcon} aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <path d="M12 3v12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                <path d="M7 8l5-5 5 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+              </svg>
+            </span>
+            <span className={styles.quickLabel}>Withdraw</span>
+          </button>
+
+          <button type="button" className={styles.quickTile} onClick={handleFileClaim}>
+            <span className={styles.quickIcon} aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
+                <path d="M12 9v4M12 16v.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+              </svg>
+            </span>
+            <span className={styles.quickLabel}>File a claim</span>
+          </button>
+        </div>
+      </motion.div>
+
+      {/* ── Activity strip: most-recent transactions, inline ── */}
+      <motion.div
+        className={styles.activityStrip}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.55, ease: EASE_OUT_EXPO }}
+      >
+        <div className={styles.activityHead}>
+          <span className={styles.activityEyebrow}>Recent activity</span>
+          <button type="button" className={styles.activityViewAll} onClick={handleViewAllTx}>
+            View all
+            <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10" fill="none">
+              <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        </div>
+
+        {recentTransactions.length === 0 ? (
+          <div className={styles.activityEmpty}>No transactions yet.</div>
+        ) : (
+          <ul className={styles.txList}>
+            {recentTransactions.map((tx) => {
+              const meta = TX_META[tx.type] || TX_META.contribution;
+              const isNegative = tx.amount < 0;
+              const absAmt = Math.abs(tx.amount);
+              return (
+                <li key={tx.id} className={styles.txRow}>
+                  <span className={styles.txIcon} data-tone={meta.tone} aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="none" width="14" height="14">
+                      <path d={meta.d} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                  <div className={styles.txMain}>
+                    <span className={styles.txLabel}>{meta.label}</span>
+                    <span className={styles.txMeta}>
+                      {formatTxDate(tx.date)}
+                      <span className={styles.txDot} aria-hidden="true">·</span>
+                      {tx.method}
+                    </span>
+                  </div>
+                  <span className={styles.txAmount} data-negative={isNegative || undefined}>
+                    {hide ? '••••' : `${isNegative ? '−' : '+'}${formatUGXExact(absAmt)}`}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </motion.div>
 
       {/* ── Savings Copilot strip ── */}
       <div className={styles.copilotStrip}>

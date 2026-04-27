@@ -251,17 +251,26 @@ export default function ContributionSettingsPanel({ splitMode = false }) {
                     <span className={styles.splitPct} data-tone="teal">{emergencyPct}%</span>
                   </div>
                 </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={retirementPct}
-                  onChange={(e) => setRetirementPct(Number.parseInt(e.target.value, 10))}
-                  className={styles.slider}
-                  style={{ '--pct': `${retirementPct}%` }}
-                  aria-label="Retirement percentage"
-                />
+                <div className={styles.sliderTrack}>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={retirementPct}
+                    onChange={(e) => setRetirementPct(Number.parseInt(e.target.value, 10))}
+                    className={styles.slider}
+                    style={{ '--pct': `${retirementPct}%` }}
+                    aria-label="Retirement percentage"
+                  />
+                  <span
+                    className={styles.sliderThumbBadge}
+                    style={{ left: `${retirementPct}%` }}
+                    aria-hidden="true"
+                  >
+                    {retirementPct}%
+                  </span>
+                </div>
                 <div className={styles.splitBar}>
                   <span className={styles.splitFillR} style={{ flexBasis: `${retirementPct}%` }} />
                   <span className={styles.splitFillE} style={{ flexBasis: `${emergencyPct}%` }} />

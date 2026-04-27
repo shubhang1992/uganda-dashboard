@@ -5,9 +5,7 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useAuth } from '../../contexts/AuthContext';
 import BalanceHero from './BalanceHero';
-import ContributeCard from './ContributeCard';
 import YourGoalCard from './YourGoalCard';
-import RecentTransactionsCard from './RecentTransactionsCard';
 import styles from './SubscriberOverview.module.css';
 
 /* Panel widths in split mode → used to compute the overview's right padding
@@ -81,12 +79,8 @@ export default function SubscriberOverview() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
     >
-      <div className={styles.heroRow} data-split={splitState || undefined}>
-        <BalanceHero subscriber={sub} user={user} split={splitState} />
-        {!splitState && <ContributeCard />}
-      </div>
+      <BalanceHero subscriber={sub} user={user} split={splitState} />
       {!splitState && <YourGoalCard />}
-      <RecentTransactionsCard subscriber={sub} />
     </motion.div>
   );
 }

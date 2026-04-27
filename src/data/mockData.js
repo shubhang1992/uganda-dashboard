@@ -610,7 +610,11 @@ function generateSubscribers() {
       // ── Rich subscriber detail: units, balances, schedule, insurance,
       //   nominees, transactions, claims, withdrawals (deterministic via rand())
       const currentUnitValue = Math.round((1000 + (rand() - 0.5) * 100) * 100) / 100; // ≈1000 ± 5%
-      const netBalance = Math.max(0, totalC - totalW);
+      // Model investment growth: contributions bought units at a lower average price than today,
+      // so the current value of held units exceeds contributions (typical 6–18% accumulated gain).
+      const avgPurchaseValue = currentUnitValue * (0.84 + rand() * 0.10);
+      const grossBalance = Math.round((totalC / avgPurchaseValue) * currentUnitValue);
+      const netBalance = Math.max(0, grossBalance - totalW);
       const unitsHeld = Math.round((netBalance / currentUnitValue) * 100) / 100;
       const retirementPct = pick([70, 75, 80, 80, 80, 85, 90]);
       const emergencyPct = 100 - retirementPct;

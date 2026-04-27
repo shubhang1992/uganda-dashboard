@@ -9,22 +9,6 @@
   transition: padding-right 0.55s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.heroRow {
-  display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: var(--space-5);
-  align-items: stretch;
-}
-
-.heroRow > * {
-  min-height: 0;
-}
-
-/* Split mode: single column, ContributeCard is also hidden via JSX */
-.heroRow[data-split='true'] {
-  grid-template-columns: 1fr;
-}
-
 .loading {
   display: flex;
   align-items: center;
@@ -48,12 +32,6 @@
 @media (max-width: 1180px) {
   .overview {
     padding: var(--space-5);
-  }
-}
-
-@media (max-width: 1024px) {
-  .heroRow {
-    grid-template-columns: 1fr;
   }
 }
 
