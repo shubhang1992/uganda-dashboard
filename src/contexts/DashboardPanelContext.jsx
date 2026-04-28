@@ -58,6 +58,7 @@ export function DashboardPanelProvider({ children }) {
   const [subscriberReportsOpen, setSubscriberReportsOpen] = useState(false);
   const [contributionSettingsOpen, setContributionSettingsOpen] = useState(false);
   const [yourGoalOpen, setYourGoalOpen] = useState(false);
+  const [agentContactOpen, setAgentContactOpen] = useState(false);
 
   // Register panel setters into the nav context's onPanelAction ref so
   // nav-driven effects (auto-open on drill-down) can call them.
@@ -93,6 +94,7 @@ export function DashboardPanelProvider({ children }) {
     setSubscriberReportsOpen(false);
     setContributionSettingsOpen(false);
     setYourGoalOpen(false);
+    setAgentContactOpen(false);
   }, []);
 
   const value = useMemo(() => ({
@@ -119,6 +121,7 @@ export function DashboardPanelProvider({ children }) {
     subscriberReportsOpen, setSubscriberReportsOpen,
     contributionSettingsOpen, setContributionSettingsOpen,
     yourGoalOpen, setYourGoalOpen,
+    agentContactOpen, setAgentContactOpen,
     closeAllPanels,
   }), [
     branchMenuOpen, createBranchOpen, viewBranchesOpen,
@@ -129,6 +132,7 @@ export function DashboardPanelProvider({ children }) {
     nomineesOpen, nomineesTab, helpOpen, subscriberReportsOpen,
     contributionSettingsOpen,
     yourGoalOpen,
+    agentContactOpen,
     closeAllPanels,
   ]);
 

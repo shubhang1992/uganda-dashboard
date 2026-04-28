@@ -40,6 +40,15 @@ export function useSubscriberNominees(id) {
   });
 }
 
+/** Returns the agent tagged to a subscriber, enriched with branch name. */
+export function useSubscriberAgent(id) {
+  return useQuery({
+    queryKey: ['subscriberAgent', id],
+    queryFn: () => subscriberService.getSubscriberAgent(id),
+    enabled: !!id,
+  });
+}
+
 function useInvalidateSubscriber(id) {
   const qc = useQueryClient();
   return () => {

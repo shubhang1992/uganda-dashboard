@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
@@ -21,6 +22,7 @@ const PANEL_PADDING = {
   settings: 460 + 48,
   contributionSettings: 680 + 48,
   yourGoal: 600 + 48,
+  agentContact: 520 + 48,
 };
 
 export default function SubscriberOverview() {
@@ -37,6 +39,7 @@ export default function SubscriberOverview() {
     settingsOpen,
     contributionSettingsOpen,
     yourGoalOpen,
+    agentContactOpen,
   } = useDashboard();
 
   const activePanel = contributeOpen
@@ -57,10 +60,21 @@ export default function SubscriberOverview() {
     ? 'contributionSettings'
     : yourGoalOpen
     ? 'yourGoal'
+    : agentContactOpen
+    ? 'agentContact'
     : null;
 
   const splitState = activePanel !== null;
   const targetPaddingRight = splitState && !isMobile ? PANEL_PADDING[activePanel] : undefined;
+
+  // Lag the split prop given to BalanceHero so its internal reflow (grid
+  // template changes that can't transition in CSS) happens partway through
+  // the panel's slide animation instead of snapping at the very start.
+  const [innerSplit, setInnerSplit] = useState(splitState);
+  useEffect(() => {
+    const t = setTimeout(() => setInnerSplit(splitState), 220);
+    return () => clearTimeout(t);
+  }, [splitState]);
 
   if (isLoading || !sub) {
     return (
@@ -73,14 +87,14 @@ export default function SubscriberOverview() {
   return (
     <motion.div
       className={styles.overview}
-      data-split={splitState || undefined}
+      data-split={innerSplit || undefined}
       style={targetPaddingRight ? { paddingRight: targetPaddingRight } : undefined}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
     >
-      <BalanceHero subscriber={sub} user={user} split={splitState} />
-      {!splitState && <YourGoalCard />}
+      <BalanceHero subscriber={sub} user={user} split={innerSplit} />
+      {!innerSplit && <YourGoalCard />}
     </motion.div>
   );
 }

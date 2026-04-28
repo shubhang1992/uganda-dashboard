@@ -14,6 +14,7 @@ import NomineesPanel from './panels/NomineesPanel';
 import HelpDeskPanel from './panels/HelpDeskPanel';
 import ContributionSettingsPanel from './panels/ContributionSettingsPanel';
 import GoalPlannerPanel from './panels/GoalPlannerPanel';
+import AgentContactPanel from './panels/AgentContactPanel';
 import SubscriberReports from './reports/SubscriberReports';
 import Settings from '../dashboard/settings/Settings';
 import styles from './SubscriberDashboardShell.module.css';
@@ -158,6 +159,7 @@ function DashboardContent() {
       <HelpDeskPanel splitMode />
       <ContributionSettingsPanel splitMode />
       <GoalPlannerPanel splitMode />
+      <AgentContactPanel splitMode />
       <Settings splitMode />
     </>
   );

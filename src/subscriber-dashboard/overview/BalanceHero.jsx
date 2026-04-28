@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { motion, useInView, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGXExact, formatUGX } from '../../utils/finance';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useSubscriberAgent } from '../../hooks/useSubscriber';
 import { getSubscriberChatResponse } from '../../services/chat';
 import styles from './BalanceHero.module.css';
 
@@ -83,8 +84,12 @@ export default function BalanceHero({ subscriber, user, split }) {
     setInsuranceTab,
     setSubscriberReportsOpen,
     setReportContext,
+    setAgentContactOpen,
     closeAllPanels,
   } = useDashboard();
+
+  const { data: agent } = useSubscriberAgent(subscriber?.id);
+  const agentFirstName = agent?.name ? agent.name.split(' ')[0] : null;
 
   const totalBalance = subscriber?.netBalance || 0;
   const retirementBalance = subscriber?.retirementBalance || 0;
@@ -134,9 +139,23 @@ export default function BalanceHero({ subscriber, user, split }) {
     setReportContext('all-transactions');
     setSubscriberReportsOpen(true);
   }
+  function handleOpenAgent() {
+    closeAllPanels();
+    setAgentContactOpen(true);
+  }
 
   /* ── Savings Copilot ── */
   const [copilotOpen, setCopilotOpen] = useState(false);
+  useEffect(() => {
+    // Clean up any persisted value from a previous build that auto-opened the copilot.
+    try { window.localStorage.removeItem('up-sub-copilot-open'); } catch { /* ignore */ }
+  }, []);
+  // Auto-open the copilot when the card transitions into split mode (a side
+  // panel was opened) so the empty space the activity strip vacates is filled
+  // gracefully. The user can still manually close it during split.
+  useEffect(() => {
+    if (split) setCopilotOpen(true);
+  }, [split]);
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -218,10 +237,39 @@ export default function BalanceHero({ subscriber, user, split }) {
             Good {hourGreeting()}, <span className={styles.heroGreetingName}>{firstName}</span>
           </h1>
         </div>
-        <span className={styles.heroBadge}>
-          <span className={styles.heroBadgeDot} aria-hidden="true" />
-          Active
-        </span>
+        {agentFirstName && (
+          <button
+            type="button"
+            className={styles.agentChip}
+            onClick={handleOpenAgent}
+            aria-label={`Contact your agent ${agent.name}`}
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 16 16"
+              width="12"
+              height="12"
+              fill="none"
+              className={styles.agentChipIcon}
+            >
+              <circle cx="8" cy="5.5" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M3 13a5 5 0 0110 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <span className={styles.agentChipLabel}>Your agent</span>
+            <span className={styles.agentChipDivider} aria-hidden="true" />
+            <span className={styles.agentChipName}>{agentFirstName}</span>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 12 12"
+              width="10"
+              height="10"
+              fill="none"
+              className={styles.agentChipArrow}
+            >
+              <path d="M4 2.5l3.5 3.5L4 9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* ── Balance + stats ── */}
@@ -498,7 +546,7 @@ export default function BalanceHero({ subscriber, user, split }) {
             >
               <div className={styles.copilotGrid}>
                 <div className={styles.copilotInsights}>
-                  {insights.map((ins, i) => (
+                  {insights.slice(0, 2).map((ins, i) => (
                     <button
                       key={i}
                       type="button"
@@ -512,13 +560,6 @@ export default function BalanceHero({ subscriber, user, split }) {
                       </svg>
                     </button>
                   ))}
-                  <div className={styles.quickRow}>
-                    {['How do I withdraw?', 'Change my split', 'Insurance cover?'].map((q) => (
-                      <button key={q} type="button" className={styles.quickPill} onClick={() => handleSend(q)}>
-                        {q}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 <div className={styles.copilotChat}>

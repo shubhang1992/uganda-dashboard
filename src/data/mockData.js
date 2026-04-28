@@ -531,6 +531,16 @@ BRANCH_DEFS.forEach((b) => {
 // ─── AGENTS ──────────────────────────────────────────────────────────────────
 export const AGENTS = {};
 const AGENT_STATUSES = ['active', 'active', 'active', 'active', 'inactive']; // 80% active
+const AGENT_LANGUAGE_POOL = ['English', 'Luganda', 'Swahili', 'Runyankole', 'Acholi', 'Lugbara', 'Lusoga', 'Ateso'];
+const AGENT_SPECIALTIES = [
+  'Retirement planning',
+  'Insurance & claims',
+  'Goal-based saving',
+  'Family beneficiaries',
+  'Mobile money onboarding',
+  'Self-employed savers',
+  'Small-business owners',
+];
 let agentCounter = 0;
 
 Object.keys(BRANCHES).forEach((branchId) => {
@@ -540,17 +550,47 @@ Object.keys(BRANCHES).forEach((branchId) => {
     const gender = rand() < 0.55 ? 'male' : 'female';
     const id = `a-${String(agentCounter).padStart(3, '0')}`;
     const branchCenter = BRANCHES[branchId].center;
+    const name = ugandanName(gender);
+
+    // Languages: English is universal; add 1–2 local languages on top.
+    const localPool = AGENT_LANGUAGE_POOL.filter((l) => l !== 'English');
+    const localCount = rand() < 0.6 ? 1 : 2;
+    const localLangs = new Set();
+    while (localLangs.size < localCount) localLangs.add(pick(localPool));
+    const languages = ['English', ...localLangs];
+
+    // Specialties: 1–2.
+    const specialtyCount = rand() < 0.65 ? 1 : 2;
+    const specialties = new Set();
+    while (specialties.size < specialtyCount) specialties.add(pick(AGENT_SPECIALTIES));
+
+    // Tenure: 0.5–8 years, expressed in months for richer copy.
+    const tenureMonths = randInt(6, 96);
+    const joinedYear = 2026 - Math.floor(tenureMonths / 12);
+    const joinedMonth = randInt(1, 12);
+    const joinedDate = `${joinedYear}-${String(joinedMonth).padStart(2, '0')}-15`;
+
+    const subscribersManaged = randInt(40, 220);
+    const responseHours = Math.round((rand() * 6 + 1) * 10) / 10; // 1.0–7.0h typical reply
+
     AGENTS[id] = {
       id,
-      name: ugandanName(gender),
+      name,
       gender,
       employeeId: `EMP-${String(agentCounter).padStart(4, '0')}`,
       parentId: branchId,
       center: [branchCenter[0] + (rand() - 0.5) * 0.02, branchCenter[1] + (rand() - 0.5) * 0.02],
       phone: ugandanPhone(),
+      email: `${name.toLowerCase().replace(/\s/g, '.')}@universalpensions.ug`,
       rating: Math.round((3 + rand() * 2) * 10) / 10, // 3.0 - 5.0
       performance: randInt(45, 100),
       status: pick(AGENT_STATUSES),
+      languages,
+      specialties: Array.from(specialties),
+      tenureMonths,
+      joinedDate,
+      subscribersManaged,
+      avgResponseHours: responseHours,
       metrics: null, // populated below
     };
   }

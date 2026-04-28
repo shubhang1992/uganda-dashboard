@@ -2,7 +2,7 @@
 // Only file (beside entities.js) that touches mockData for subscriber details.
 // When backend is ready, swap these implementations for api.get()/api.post() calls.
 
-import { SUBSCRIBERS } from '../data/mockData';
+import { SUBSCRIBERS, AGENTS, BRANCHES } from '../data/mockData';
 
 /** In-memory mutation store (per session). Keyed by subscriber ID. Holds
     additive records created from the dashboard so the UI updates optimistically
@@ -188,6 +188,22 @@ export async function submitClaim(id, payload) {
   };
   m.extraClaims.unshift(claim);
   return claim;
+}
+
+/**
+ * Returns the agent assigned to a subscriber, enriched with the branch name.
+ * Returns null if the subscriber or agent record cannot be resolved.
+ */
+export async function getSubscriberAgent(subscriberId) {
+  const sub = SUBSCRIBERS[subscriberId];
+  if (!sub) return null;
+  const agent = AGENTS[sub.parentId];
+  if (!agent) return null;
+  const branch = BRANCHES[agent.parentId];
+  return {
+    ...agent,
+    branchName: branch?.name ?? '—',
+  };
 }
 
 export async function updateInsuranceCover(id, { cover, premiumMonthly }) {

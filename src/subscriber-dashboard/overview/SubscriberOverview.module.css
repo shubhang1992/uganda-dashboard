@@ -9,6 +9,19 @@
   transition: padding-right 0.55s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* In split mode only BalanceHero is rendered. Lock the overview to viewport
+   height so the hero can flex: 1 and absorb the empty vertical space — that
+   way the Savings Copilot can expand without spilling past the viewport.
+   Also drop the 1200px max-width / centering: with the panel pushing content
+   to the left, we want the hero to fill the entire freed width (matches the
+   branch admin overview). */
+.overview[data-split='true'] {
+  height: 100%;
+  min-height: 0;
+  max-width: none;
+  margin: 0;
+}
+
 .loading {
   display: flex;
   align-items: center;

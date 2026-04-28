@@ -91,6 +91,45 @@ const subscriberChatResponses = {
     "Our help desk is open 8am–8pm. You can call, message us on WhatsApp, or email support@upensions.ug.",
 };
 
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  Agent-side mock responses (for subscriber → agent direct messaging)        */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Mock agent reply. The real product will route messages into a person-to-person
+ * inbox; this just keeps the prototype demo lively. Falls back to a personable
+ * acknowledgement when no keyword matches.
+ */
+export async function getAgentReply(message, agent) {
+  const firstName = (agent?.name || 'your agent').split(' ')[0];
+  const l = (message || '').toLowerCase();
+  if (l.includes('contribute') || l.includes('top up') || l.includes('top-up')) {
+    return `Sure — easiest is to use the Top up button on your dashboard. If you'd prefer Mobile Money via me, send the amount and I'll send a payment prompt to your phone.`;
+  }
+  if (l.includes('withdraw')) {
+    return `Got it. Emergency bucket withdrawals are usually 1–2 working days. I can walk you through the form, or process it on your behalf if you share the amount and reason.`;
+  }
+  if (l.includes('nominee') || l.includes('beneficiary')) {
+    return `Happy to help update your nominees. We'll need each person's full name, NIN, and the share %. Shares must total 100%.`;
+  }
+  if (l.includes('schedule') || l.includes('frequency') || l.includes('split')) {
+    return `Your contribution schedule can be changed any time. Want me to suggest a split based on your goals? Tell me how soon you'd want to retire or what you're saving for.`;
+  }
+  if (l.includes('insurance') || l.includes('claim')) {
+    return `For insurance and claims I'll need a few details: type of claim, incident date, and any documents. I'll guide you through the rest.`;
+  }
+  if (l.includes('meet') || l.includes('visit') || l.includes('branch') || l.includes('appointment')) {
+    return `Of course — I can meet you at the branch or come to your area. What day this week works for you?`;
+  }
+  if (l.includes('thanks') || l.includes('thank you')) {
+    return `Always happy to help. Reach out any time on this thread or call my number on the profile.`;
+  }
+  if (l.includes('hi') || l.includes('hello') || l.includes('hey')) {
+    return `Hi! ${firstName} here. How can I help you today?`;
+  }
+  return `Thanks for the message — I'll get back to you shortly. If it's urgent, you can also call me on the number above.`;
+}
+
 /** Mock subscriber-side AI response. Replace with LLM + personal data lookup. */
 export async function getSubscriberChatResponse(message) {
   // Future: api.post('/subscriber/chat', { message })
