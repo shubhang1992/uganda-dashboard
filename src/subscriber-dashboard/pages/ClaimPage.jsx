@@ -5,6 +5,7 @@ import { EASE_OUT_EXPO, formatUGXExact, formatUGX, parseAmount } from '../../uti
 import { useCurrentSubscriber, useSubmitClaim } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import PageHeader from '../shell/PageHeader';
+import { goBackOrFallback } from '../shell/navigation';
 import styles from './ClaimPage.module.css';
 
 const CLAIM_TYPES = [
@@ -56,7 +57,7 @@ export default function ClaimPage() {
   function handleBack() {
     if (view === 'review') return setView('form');
     if (view === 'form' || view === 'success') return setView('list');
-    navigate('/dashboard/withdraw');
+    goBackOrFallback(navigate, '/dashboard/withdraw');
   }
 
   function handleFilePick(e) {

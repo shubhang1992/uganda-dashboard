@@ -6,6 +6,7 @@ import { useCurrentSubscriber, useRequestWithdrawal } from '../../hooks/useSubsc
 import { useToast } from '../../contexts/ToastContext';
 import { MIN_WITHDRAW, RETIREMENT_AGE } from '../../constants/savings';
 import PageHeader from '../shell/PageHeader';
+import { goBackOrFallback } from '../shell/navigation';
 import styles from './WithdrawPage.module.css';
 
 const REASONS = [
@@ -60,7 +61,7 @@ export default function WithdrawPage() {
 
   function handleBack() {
     if (view === 'confirm') return setView('form');
-    navigate('/dashboard/withdraw');
+    goBackOrFallback(navigate, '/dashboard/withdraw');
   }
 
   function handleContinue() {

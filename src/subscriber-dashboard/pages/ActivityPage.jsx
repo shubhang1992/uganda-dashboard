@@ -63,6 +63,7 @@ export default function ActivityPage() {
       <PageHeader
         title="Activity"
         subtitle={`${filtered.length} transaction${filtered.length === 1 ? '' : 's'}`}
+        fallback="/dashboard"
       />
 
       <div className={styles.body}>

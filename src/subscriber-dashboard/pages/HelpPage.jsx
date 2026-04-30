@@ -10,6 +10,7 @@ import {
   SUPPORT_EMAIL,
 } from '../../config/env';
 import PageHeader from '../shell/PageHeader';
+import { goBackOrFallback } from '../shell/navigation';
 import styles from './HelpPage.module.css';
 
 const FAQS = [
@@ -119,7 +120,7 @@ export default function HelpPage() {
 
   function handleBack() {
     if (view === 'chat') return setView('home');
-    navigate('/dashboard');
+    goBackOrFallback(navigate, '/dashboard');
   }
 
   return (

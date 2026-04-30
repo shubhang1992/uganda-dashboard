@@ -56,7 +56,7 @@ export default function ProfilePage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Profile" subtitle="Edit your personal details" />
+      <PageHeader title="Profile" subtitle="Edit your personal details" fallback="/dashboard/settings" />
 
       <div className={styles.body}>
         <motion.div

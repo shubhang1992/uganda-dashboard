@@ -104,7 +104,7 @@ export default function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Settings" backTo="/dashboard" />
+      <PageHeader title="Settings" fallback="/dashboard" />
 
       <div className={styles.body}>
         <motion.div

@@ -1,12 +1,13 @@
 import { useNavigate } from 'react-router-dom';
+import { goBackOrFallback } from './navigation';
 import styles from './PageHeader.module.css';
 
-export default function PageHeader({ title, subtitle, backTo, onBack }) {
+export default function PageHeader({ title, subtitle, backTo, onBack, fallback = '/dashboard' }) {
   const navigate = useNavigate();
   function handleBack() {
     if (onBack) return onBack();
     if (backTo !== undefined) return navigate(backTo);
-    navigate('/dashboard');
+    goBackOrFallback(navigate, fallback);
   }
   return (
     <header className={styles.header}>

@@ -59,6 +59,7 @@ export default function ProjectionPage() {
             ? `You're at retirement age — current balance ${formatUGX(balance)}`
             : `Retirement at ${RETIREMENT_AGE} · ${yearsToRetirement} yrs to go`
         }
+        fallback="/dashboard"
       />
 
       <div className={styles.body}>

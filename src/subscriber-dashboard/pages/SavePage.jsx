@@ -6,6 +6,7 @@ import { useCurrentSubscriber, useMakeContribution } from '../../hooks/useSubscr
 import { useToast } from '../../contexts/ToastContext';
 import { MIN_CONTRIBUTION, QUICK_CONTRIBUTION_AMOUNTS } from '../../constants/savings';
 import PageHeader from '../shell/PageHeader';
+import { goBackOrFallback } from '../shell/navigation';
 import styles from './SavePage.module.css';
 
 const PRESET_AMOUNTS = QUICK_CONTRIBUTION_AMOUNTS;
@@ -48,7 +49,8 @@ export default function SavePage() {
 
   function handleBack() {
     if (view === 'confirm') return setView('form');
-    navigate('/dashboard');
+    // Outermost step — honour browser back, fall back to home for deep-links
+    goBackOrFallback(navigate, '/dashboard');
   }
 
   function handleContinue() {

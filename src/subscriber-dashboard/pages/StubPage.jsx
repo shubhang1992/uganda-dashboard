@@ -2,11 +2,11 @@ import { useNavigate } from 'react-router-dom';
 import PageHeader from '../shell/PageHeader';
 import styles from './StubPage.module.css';
 
-export default function StubPage({ title }) {
+export default function StubPage({ title, fallback = '/dashboard/settings' }) {
   const navigate = useNavigate();
   return (
     <div className={styles.page}>
-      <PageHeader title={title} />
+      <PageHeader title={title} fallback={fallback} />
       <div className={styles.body}>
         <div className={styles.icon} aria-hidden="true">
           <svg viewBox="0 0 24 24" width="32" height="32" fill="none">

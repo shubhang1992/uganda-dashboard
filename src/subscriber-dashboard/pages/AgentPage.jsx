@@ -106,7 +106,11 @@ export default function AgentPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title={agent?.name || 'Your agent'} subtitle={agent?.branchName ? `${agent.branchName} branch` : null} />
+      <PageHeader
+        title={agent?.name || 'Your agent'}
+        subtitle={agent?.branchName ? `${agent.branchName} branch` : null}
+        fallback="/dashboard"
+      />
 
       <div className={styles.body}>
         {!agent ? (

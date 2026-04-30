@@ -112,6 +112,7 @@ export default function SchedulePage() {
       <PageHeader
         title={isNew ? 'Set a schedule' : 'Tune your schedule'}
         subtitle="Frequency, amount, and the retirement/emergency split"
+        fallback="/dashboard/save"
       />
 
       <div className={styles.body}>

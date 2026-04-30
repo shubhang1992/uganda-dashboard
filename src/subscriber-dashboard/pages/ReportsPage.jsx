@@ -91,7 +91,7 @@ export default function ReportsPage() {
     if (!ActiveReportComponent) {
       return (
         <div className={styles.page}>
-          <PageHeader title="Report not found" backTo="/dashboard/reports" />
+          <PageHeader title="Report not found" fallback="/dashboard/reports" />
           <div className={styles.body}>
             <p className={styles.empty}>That report doesn&apos;t exist.</p>
           </div>
@@ -100,7 +100,7 @@ export default function ReportsPage() {
     }
     return (
       <div className={styles.page}>
-        <PageHeader title={REPORT_TITLES[reportId]} backTo="/dashboard/reports" />
+        <PageHeader title={REPORT_TITLES[reportId]} fallback="/dashboard/reports" />
         <div className={styles.body}>
           <Suspense fallback={<ReportLoading />}>
             <ActiveReportComponent />
@@ -115,6 +115,7 @@ export default function ReportsPage() {
       <PageHeader
         title="Reports"
         subtitle="Every transaction. Every claim. Every number."
+        fallback="/dashboard"
       />
 
       <div className={styles.body}>

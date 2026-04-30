@@ -61,7 +61,7 @@ export default function InsurancePage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Insurance cover" subtitle="Premium and policy level" />
+      <PageHeader title="Insurance cover" subtitle="Premium and policy level" fallback="/dashboard/settings" />
 
       <div className={styles.body}>
         <motion.div

@@ -240,6 +240,7 @@ export default function NomineesPage() {
       <PageHeader
         title="Nominees"
         subtitle="Who inherits your savings if anything happens"
+        fallback="/dashboard/settings"
       />
 
       <div className={styles.body}>

@@ -54,7 +54,7 @@ export default function WithdrawalsHubPage() {
       <PageHeader
         title="Withdrawals"
         subtitle="Take money out, or file an insurance claim."
-        backTo="/dashboard"
+        fallback="/dashboard"
       />
 
       <div className={styles.body}>
