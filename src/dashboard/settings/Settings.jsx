@@ -97,18 +97,23 @@ export default function Settings({ splitMode = false }) {
 
   const [errors, setErrors] = useState({});
 
-  /* Populate form from user session when panel opens */
-  useEffect(() => {
-    if (settingsOpen && user) {
-      setName(user.name || '');
-      setEmail(user.email || '');
-      setPhone(user.phone || '');
-      setCurrentPw('');
-      setNewPw('');
-      setConfirmPw('');
-      setErrors({});
-    }
-  }, [settingsOpen, user]);
+  /* Populate form from user session when panel opens. Adjusting state during
+     render (instead of in an effect) avoids a cascading render — the form
+     mounts already filled. */
+  const [lastOpenedFor, setLastOpenedFor] = useState(null);
+  if (settingsOpen && user && lastOpenedFor !== user) {
+    setLastOpenedFor(user);
+    setName(user.name || '');
+    setEmail(user.email || '');
+    setPhone(user.phone || '');
+    setCurrentPw('');
+    setNewPw('');
+    setConfirmPw('');
+    setErrors({});
+  } else if (!settingsOpen && lastOpenedFor !== null) {
+    // Allow re-init the next time the panel opens.
+    setLastOpenedFor(null);
+  }
 
   /* Escape key to close */
   useEffect(() => {

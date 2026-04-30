@@ -37,7 +37,7 @@ export default function AllTransactions() {
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  const transactions = sub?.transactions || [];
+  const transactions = useMemo(() => sub?.transactions || [], [sub?.transactions]);
 
   const filtered = useMemo(() => {
     let rows = transactions;

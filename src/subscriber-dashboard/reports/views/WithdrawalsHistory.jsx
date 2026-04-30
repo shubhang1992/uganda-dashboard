@@ -29,7 +29,7 @@ function pillTone(status) {
 
 export default function WithdrawalsHistory() {
   const { data: sub } = useCurrentSubscriber();
-  const withdrawals = sub?.withdrawals || [];
+  const withdrawals = useMemo(() => sub?.withdrawals || [], [sub?.withdrawals]);
 
   const [bucketFilter, setBucketFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');

@@ -10,7 +10,7 @@ function txYear(isoDate) {
 
 export default function AnnualStatement() {
   const { data: sub } = useCurrentSubscriber();
-  const transactions = sub?.transactions || [];
+  const transactions = useMemo(() => sub?.transactions || [], [sub?.transactions]);
 
   /* Build a set of years present in transactions */
   const years = useMemo(() => {

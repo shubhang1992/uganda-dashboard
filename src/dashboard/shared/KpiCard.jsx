@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import styles from './KpiCard.module.css';
 
-export default function KpiCard({ icon, label, value, suffix, className }) {
+function KpiCard({ icon, label, value, suffix, className }) {
   return (
     <div className={className ? `${styles.kpiCard} ${className}` : styles.kpiCard}>
       <div className={styles.kpiIcon}>{icon}</div>
@@ -9,3 +10,5 @@ export default function KpiCard({ icon, label, value, suffix, className }) {
     </div>
   );
 }
+
+export default memo(KpiCard);

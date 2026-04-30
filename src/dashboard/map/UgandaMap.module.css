@@ -22,15 +22,18 @@
   background: transparent;
 }
 
-/* Override Leaflet defaults */
+/* Override Leaflet defaults. We strip the default ugly browser outlines on
+   pointer interaction but RESTORE a visible :focus-visible outline so
+   keyboard users can still see what's focused. */
 :global(.leaflet-container) {
   background: transparent !important;
   font-family: var(--font-body);
   outline: none;
 }
 
-:global(.leaflet-container):focus {
-  outline: none;
+:global(.leaflet-container):focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: -2px;
 }
 
 :global(.leaflet-grab) {
@@ -41,21 +44,23 @@
   cursor: grabbing;
 }
 
-/* Interactive GeoJSON — pointer cursor + smooth transitions */
+/* Interactive GeoJSON — pointer cursor + smooth transitions. Mouse focus
+   stays clean; keyboard focus shows a subtle indigo halo via filter. */
 :global(.leaflet-interactive) {
   cursor: pointer !important;
-  outline: none !important;
+  outline: none;
   transition: fill-opacity 0.25s ease, stroke-width 0.2s ease, stroke-opacity 0.2s ease, filter 0.3s ease;
 }
 
-:global(.leaflet-interactive):focus {
-  outline: none !important;
+:global(.leaflet-interactive):focus-visible {
+  outline: none;
+  filter: drop-shadow(0 0 3px var(--color-indigo-soft));
 }
 
-/* Kill focus outlines on all Leaflet SVG elements */
-:global(.leaflet-overlay-pane svg),
-:global(.leaflet-overlay-pane svg *) {
-  outline: none !important;
+/* SVG container panes don't need their own outlines — but don't suppress
+   :focus-visible on focusable children. */
+:global(.leaflet-overlay-pane svg) {
+  outline: none;
 }
 
 /* ── Glow markers (bokeh halos at region centroids) ── */
@@ -68,25 +73,28 @@
   animation: glowPulse 5s ease-in-out infinite;
 }
 
-/* Kill Leaflet's default marker icon outlines/borders */
+/* Leaflet's default marker icons — keep mouse-focus clean,
+   give keyboard focus a visible halo. */
 :global(.leaflet-marker-icon) {
-  outline: none !important;
+  outline: none;
 }
 
-:global(.leaflet-marker-icon):focus {
-  outline: none !important;
+:global(.leaflet-marker-icon):focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 :global(.leaflet-marker-icon) svg {
-  outline: none !important;
-  border: none !important;
+  outline: none;
+  border: none;
 }
 
-/* Prevent Leaflet pane focus outlines */
+/* Map panes are non-interactive containers; safe to suppress outlines. */
 :global(.leaflet-pane),
 :global(.leaflet-map-pane),
 :global(.leaflet-marker-pane) {
-  outline: none !important;
+  outline: none;
 }
 
 @keyframes glowPulse {

@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, GeoJSON, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -74,8 +74,6 @@ function UgandaMap() {
   const [regionsGeo, setRegionsGeo] = useState(null);
   const [districtsGeo, setDistrictsGeo] = useState(null);
   const [geoError, setGeoError] = useState(null);
-  const geoLayerRef = useRef(null);
-
   // Entity data via hooks
   const { data: regionsArr = [] } = useAllEntities('region');
   const { data: districtsArr = [] } = useAllEntities('district');

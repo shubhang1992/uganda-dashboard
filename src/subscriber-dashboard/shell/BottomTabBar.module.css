@@ -1,0 +1,114 @@
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-top: 1px solid var(--color-lavender);
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  height: calc(64px + env(safe-area-inset-bottom));
+  font-family: var(--font-display);
+}
+
+@media (min-width: 1024px) {
+  .bar { display: none; }
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  text-decoration: none;
+  color: var(--color-gray);
+  font-family: var(--font-display);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 4px;
+  border-radius: var(--radius-md);
+  transition: color 0.18s ease, background 0.18s ease;
+  min-height: 52px;
+  touch-action: manipulation;
+}
+
+.tab:active {
+  background: rgba(41, 40, 103, 0.05);
+}
+
+.tabActive {
+  color: var(--color-indigo);
+}
+
+.tabIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+}
+
+.tabLabel {
+  font-size: 11px;
+  letter-spacing: -0.005em;
+  line-height: 1;
+}
+
+.moreWrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+}
+
+.moreWrap > .tab {
+  width: 100%;
+}
+
+.moreMenu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+.moreItem {
+  background: transparent;
+  border: none;
+  text-align: left;
+  text-decoration: none;
+  color: var(--color-slate);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.moreItem:hover,
+.moreItem:active {
+  background: var(--color-cloud);
+}
+
+.moreItemDanger {
+  color: var(--color-status-poor);
+  border-top: 1px solid var(--color-lavender);
+  margin-top: 4px;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}

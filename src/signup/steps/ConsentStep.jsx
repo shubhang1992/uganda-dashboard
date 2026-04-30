@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useSignup } from '../SignupContext';
+import { LEGAL_TERMS_URL, LEGAL_PRIVACY_URL } from '../../config/env';
 import styles from './Step.module.css';
 import own from './ConsentStep.module.css';
 
@@ -110,7 +111,7 @@ export default function ConsentStep({ onActivate }) {
           <span className={own.consentText}>
             I consent to Universal Pensions processing my personal data for the purposes above, and sharing it with the recipients listed, under Uganda’s <strong>Data Protection and Privacy Act, 2019</strong>. I have read the{' '}
             <a
-              href="https://universalpensions.com/legal/terms"
+              href={LEGAL_TERMS_URL}
               target="_blank"
               rel="noreferrer noopener"
               className={own.policyLink}
@@ -120,7 +121,7 @@ export default function ConsentStep({ onActivate }) {
             </a>
             {' '}and{' '}
             <a
-              href="https://universalpensions.com/legal/privacy"
+              href={LEGAL_PRIVACY_URL}
               target="_blank"
               rel="noreferrer noopener"
               className={own.policyLink}

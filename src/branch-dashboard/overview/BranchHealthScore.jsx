@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, EASE_OUT_EXPO } from '../../utils/finance';
 import { getChatResponse } from '../../services/chat';
 import { useDashboard } from '../../contexts/DashboardContext';
 import styles from './BranchHealthScore.module.css';

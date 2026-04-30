@@ -1,0 +1,127 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding-bottom: var(--space-8);
+}
+
+@media (min-width: 1024px) {
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+}
+
+.body {
+  flex: 1;
+  padding: var(--space-2) var(--space-4) var(--space-6);
+}
+
+/* ── Card grid ────────────────────────────────────────── */
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 720px) {
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4) var(--space-5);
+  cursor: pointer;
+  text-align: left;
+  touch-action: manipulation;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.18s ease;
+}
+
+.card:hover {
+  border-color: var(--color-indigo-soft);
+  box-shadow: var(--shadow-sm);
+}
+
+.cardIcon {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(41, 40, 103, 0.06);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  color: var(--color-indigo);
+}
+
+.cardText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cardTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-sm);
+  letter-spacing: -0.015em;
+  color: var(--color-indigo);
+}
+
+.cardDesc {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-gray);
+  line-height: 1.5;
+}
+
+.cardArrow {
+  flex: 0 0 auto;
+  color: var(--color-indigo-soft);
+  transition: transform 0.18s ease;
+}
+
+.card:hover .cardArrow {
+  transform: translateX(2px);
+}
+
+/* ── Loading / empty ──────────────────────────────────── */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12) 0;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--color-lavender);
+  border-top-color: var(--color-indigo);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.empty {
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  padding: var(--space-8) 0;
+}

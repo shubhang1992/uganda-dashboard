@@ -235,10 +235,10 @@ export default function ViewAgents({ splitMode = false }) {
     }
   }, [viewAgentsOpen, drillTargetAgentId, allAgentsRaw]);
 
-  function handleClose() {
+  const handleClose = useCallback(() => {
     if (drillTargetAgentId) closeDrillPanel();
     else setViewAgentsOpen(false);
-  }
+  }, [drillTargetAgentId, closeDrillPanel, setViewAgentsOpen]);
 
   const totals = useMemo(() => {
     const t = { subs: 0, aum: 0 };
@@ -315,7 +315,7 @@ export default function ViewAgents({ splitMode = false }) {
     function onKey(e) { if (e.key === 'Escape') handleClose(); }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [viewAgentsOpen, setViewAgentsOpen]);
+  }, [viewAgentsOpen, handleClose]);
 
   useEffect(() => {
     if (!regionDropOpen && !sortDropOpen) return;

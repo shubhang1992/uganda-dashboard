@@ -11,11 +11,14 @@ export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const timers = useRef(new Map());
 
-  /* Clean up all timers on unmount */
+  /* Clean up all timers on unmount. Capturing the Map at effect-setup time
+     keeps the lint rule happy and avoids reading the ref in cleanup after
+     it might have been re-assigned. */
   useEffect(() => {
+    const map = timers.current;
     return () => {
-      timers.current.forEach((t) => clearTimeout(t));
-      timers.current.clear();
+      map.forEach((t) => clearTimeout(t));
+      map.clear();
     };
   }, []);
 

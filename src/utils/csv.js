@@ -1,11 +1,19 @@
 // CSV export utility — generates and downloads a CSV file from structured data.
 
+// Cells starting with these characters can be interpreted as formulas in
+// Excel / Google Sheets / LibreOffice Calc, so we prefix them with a single
+// quote and quote-wrap the cell. See OWASP CSV injection.
+const FORMULA_TRIGGERS = /^[=+\-@\t\r]/;
+
 /**
- * Escape a CSV cell value: wrap in quotes if it contains commas, quotes, or newlines.
- * Double any existing quotes per RFC 4180.
+ * Escape a CSV cell value: wrap in quotes if it contains commas, quotes, or newlines
+ * (RFC 4180), and defuse Excel formula injection by prefixing dangerous leads.
  */
 function escapeCell(value) {
   const str = String(value ?? '');
+  if (FORMULA_TRIGGERS.test(str)) {
+    return `"'${str.replace(/"/g, '""')}"`;
+  }
   if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
     return `"${str.replace(/"/g, '""')}"`;
   }

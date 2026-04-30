@@ -7,23 +7,50 @@ import { API_BASE_URL } from '../config/env';
 const AUTH_KEY = 'upensions_auth';
 const TOKEN_KEY = 'upensions_token';
 
+/** localStorage in private-browsing modes can throw; treat as missing. */
+function safeRead(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function safeRemove(key) {
+  try { localStorage.removeItem(key); } catch { /* ignore */ }
+}
+
+/**
+ * Subscribe to 401 (session-expired) events. Wire AuthContext into this so
+ * we can call its `logout` and use react-router's `useNavigate` instead of
+ * a hard `window.location.href` reload (which destroys all in-memory state).
+ */
+const authExpiredListeners = new Set();
+export function onAuthExpired(handler) {
+  authExpiredListeners.add(handler);
+  return () => authExpiredListeners.delete(handler);
+}
+
+const METHODS_WITH_BODY = new Set(['POST', 'PUT', 'PATCH']);
+
 export async function apiFetch(path, options = {}) {
   const url = `${API_BASE_URL}${path}`;
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = safeRead(TOKEN_KEY);
+  const method = (options.method || 'GET').toUpperCase();
 
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
-  });
+  const headers = { ...options.headers };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (METHODS_WITH_BODY.has(method) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const res = await fetch(url, { ...options, headers });
 
   if (res.status === 401) {
-    localStorage.removeItem(AUTH_KEY);
-    localStorage.removeItem(TOKEN_KEY);
-    window.location.href = '/';
+    safeRemove(AUTH_KEY);
+    safeRemove(TOKEN_KEY);
+    // Notify subscribers (AuthContext clears React state + navigates).
+    // Falls back to a soft reload only if no listener is registered.
+    if (authExpiredListeners.size === 0) {
+      if (typeof window !== 'undefined') window.location.assign('/');
+    } else {
+      authExpiredListeners.forEach((h) => { try { h(); } catch { /* ignore */ } });
+    }
     throw new Error('Session expired');
   }
 
@@ -32,6 +59,8 @@ export async function apiFetch(path, options = {}) {
     throw new Error(body.message || `API error: ${res.status}`);
   }
 
+  // 204 No Content / empty body
+  if (res.status === 204) return null;
   return res.json();
 }
 

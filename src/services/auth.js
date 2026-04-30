@@ -11,7 +11,8 @@ const DASHBOARD_ROLES = ['distributor', 'branch', 'subscriber'];
  *   Currently accepts any phone — mock implementation.
  * @scope Public — no authentication required.
  */
-export async function sendOtp(phone, role) {
+// eslint-disable-next-line no-unused-vars -- params kept for the live backend signature
+export async function sendOtp(_phone, _role) {
   // Future: api.post('/auth/send-otp', { phone, role })
   return { success: true };
 }

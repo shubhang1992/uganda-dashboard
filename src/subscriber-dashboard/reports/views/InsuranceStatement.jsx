@@ -27,7 +27,7 @@ function statusTone(s) {
 export default function InsuranceStatement() {
   const { data: sub } = useCurrentSubscriber();
   const insurance = sub?.insurance || {};
-  const claims = sub?.claims || [];
+  const claims = useMemo(() => sub?.claims || [], [sub?.claims]);
   const premiumTx = useMemo(
     () => (sub?.transactions || []).filter((t) => t.type === 'premium'),
     [sub]

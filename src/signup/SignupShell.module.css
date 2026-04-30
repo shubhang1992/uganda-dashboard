@@ -91,7 +91,7 @@
   line-height: 1;
 }
 
-.ring[data-paused] .ringFill { color: #E6A817; }
+.ring[data-paused] .ringFill { color: var(--color-status-warning); }
 .ring[data-paused] .ringNum { color: #8B5A00; }
 
 .ring[data-complete] .ringFill { color: var(--color-green); }

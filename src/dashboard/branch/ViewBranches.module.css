@@ -419,6 +419,9 @@
   box-shadow:
     0 1px 4px rgba(41, 40, 103, 0.04),
     0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  /* Skip rendering off-screen list items entirely (matches ViewAgents/ViewSubscribers). */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
 }
 
 .branchItem:hover {

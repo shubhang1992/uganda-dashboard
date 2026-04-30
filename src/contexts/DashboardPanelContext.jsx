@@ -33,51 +33,68 @@ import { useDashboardNav } from './DashboardNavContext';
 const DashboardPanelContext = createContext(null);
 
 export function DashboardPanelProvider({ children }) {
-  // UI-only state (not URL-based)
-  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+  // Sidebar submenu state is *derived* from a manual override OR whether a
+  // related slide-in panel is open. Modelling it this way means external
+  // openers (overlay click, drill-down) automatically flip the submenu open
+  // without anyone needing setState-in-effect plumbing.
+  const [manualBranchMenu, setManualBranchMenu] = useState(false);
+  const [manualAgentMenu, setManualAgentMenu] = useState(false);
+  const [manualSubscriberMenu, setManualSubscriberMenu] = useState(false);
+
   const [createBranchOpen, setCreateBranchOpen] = useState(false);
   const [viewBranchesOpen, setViewBranchesOpen] = useState(false);
-  const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   const [createAgentOpen, setCreateAgentOpen] = useState(false);
   const [viewAgentsOpen, setViewAgentsOpen] = useState(false);
-  const [subscriberMenuOpen, setSubscriberMenuOpen] = useState(false);
   const [viewSubscribersOpen, setViewSubscribersOpen] = useState(false);
   const [viewReportsOpen, setViewReportsOpen] = useState(false);
   const [commissionsOpen, setCommissionsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [reportContext, setReportContext] = useState(null);
 
-  // Subscriber dashboard panels
-  const [contributeOpen, setContributeOpen] = useState(false);
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
-  const [insuranceOpen, setInsuranceOpen] = useState(false);
-  const [insuranceTab, setInsuranceTab] = useState('coverage'); // 'coverage' | 'claims' | 'beneficiaries'
-  const [nomineesOpen, setNomineesOpen] = useState(false);
-  const [nomineesTab, setNomineesTab] = useState('pension'); // 'pension' | 'insurance'
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [subscriberReportsOpen, setSubscriberReportsOpen] = useState(false);
-  const [contributionSettingsOpen, setContributionSettingsOpen] = useState(false);
-  const [yourGoalOpen, setYourGoalOpen] = useState(false);
-  const [agentContactOpen, setAgentContactOpen] = useState(false);
+  const { drillTargetBranchId, drillTargetAgentId } = useDashboardNav();
 
-  // Register panel setters into the nav context's onPanelAction ref so
+  // Submenu is open if user toggled it manually OR a related panel is open
+  // (and we're not in drill-down mode where the parent district view matters).
+  const branchMenuOpen =
+    manualBranchMenu || ((createBranchOpen || viewBranchesOpen) && !drillTargetBranchId);
+  const agentMenuOpen =
+    manualAgentMenu || ((createAgentOpen || viewAgentsOpen) && !drillTargetAgentId);
+  const subscriberMenuOpen = manualSubscriberMenu || viewSubscribersOpen;
+
+  // Setter accepts boolean or updater fn — toggles the manual override only.
+  // The derived value still respects panel-open state.
+  const setBranchMenuOpen = useCallback((next) => {
+    setManualBranchMenu((prev) => (typeof next === 'function' ? next(prev) : next));
+  }, []);
+  const setAgentMenuOpen = useCallback((next) => {
+    setManualAgentMenu((prev) => (typeof next === 'function' ? next(prev) : next));
+  }, []);
+  const setSubscriberMenuOpen = useCallback((next) => {
+    setManualSubscriberMenu((prev) => (typeof next === 'function' ? next(prev) : next));
+  }, []);
+
+  // Register panel setters into the nav context's onPanelActionRef ref so
   // nav-driven effects (auto-open on drill-down) can call them.
-  const { onPanelAction } = useDashboardNav();
+  const { onPanelActionRef } = useDashboardNav();
 
   useEffect(() => {
-    onPanelAction.current = {
+    onPanelActionRef.current = {
       setViewBranchesOpen,
       setViewAgentsOpen,
       setViewReportsOpen,
       setBranchMenuOpen,
       setAgentMenuOpen,
     };
-    return () => { onPanelAction.current = null; };
-  }, []); // setters from useState are stable — no deps needed
+    return () => { onPanelActionRef.current = null; };
+  }, [onPanelActionRef, setBranchMenuOpen, setAgentMenuOpen]);
 
   /* Close every slide-in panel — used by single-panel layouts (e.g. branch
-     dashboard) to guarantee panels never stack on top of each other. */
+     dashboard) to guarantee panels never stack on top of each other. Also
+     drops any manual submenu overrides so the sidebar collapses cleanly. */
   const closeAllPanels = useCallback(() => {
+    setManualBranchMenu(false);
+    setManualAgentMenu(false);
+    setManualSubscriberMenu(false);
     setCreateBranchOpen(false);
     setViewBranchesOpen(false);
     setCreateAgentOpen(false);
@@ -86,15 +103,6 @@ export function DashboardPanelProvider({ children }) {
     setViewReportsOpen(false);
     setCommissionsOpen(false);
     setSettingsOpen(false);
-    setContributeOpen(false);
-    setWithdrawOpen(false);
-    setInsuranceOpen(false);
-    setNomineesOpen(false);
-    setHelpOpen(false);
-    setSubscriberReportsOpen(false);
-    setContributionSettingsOpen(false);
-    setYourGoalOpen(false);
-    setAgentContactOpen(false);
   }, []);
 
   const value = useMemo(() => ({
@@ -110,30 +118,14 @@ export function DashboardPanelProvider({ children }) {
     commissionsOpen, setCommissionsOpen,
     settingsOpen, setSettingsOpen,
     reportContext, setReportContext,
-    // Subscriber
-    contributeOpen, setContributeOpen,
-    withdrawOpen, setWithdrawOpen,
-    insuranceOpen, setInsuranceOpen,
-    insuranceTab, setInsuranceTab,
-    nomineesOpen, setNomineesOpen,
-    nomineesTab, setNomineesTab,
-    helpOpen, setHelpOpen,
-    subscriberReportsOpen, setSubscriberReportsOpen,
-    contributionSettingsOpen, setContributionSettingsOpen,
-    yourGoalOpen, setYourGoalOpen,
-    agentContactOpen, setAgentContactOpen,
     closeAllPanels,
   }), [
     branchMenuOpen, createBranchOpen, viewBranchesOpen,
     agentMenuOpen, createAgentOpen, viewAgentsOpen,
     subscriberMenuOpen, viewSubscribersOpen, viewReportsOpen,
     commissionsOpen, settingsOpen, reportContext,
-    contributeOpen, withdrawOpen, insuranceOpen, insuranceTab,
-    nomineesOpen, nomineesTab, helpOpen, subscriberReportsOpen,
-    contributionSettingsOpen,
-    yourGoalOpen,
-    agentContactOpen,
     closeAllPanels,
+    setBranchMenuOpen, setAgentMenuOpen, setSubscriberMenuOpen,
   ]);
 
   return (

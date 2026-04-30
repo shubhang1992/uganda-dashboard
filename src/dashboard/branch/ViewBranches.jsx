@@ -411,10 +411,10 @@ export default function ViewBranches() {
     }
   }, [viewBranchesOpen, drillTargetBranchId, allBranchesRaw]);
 
-  function handleClose() {
+  const handleClose = useCallback(() => {
     if (drillTargetBranchId) closeDrillPanel();
     else setViewBranchesOpen(false);
-  }
+  }, [drillTargetBranchId, closeDrillPanel, setViewBranchesOpen]);
 
   // Aggregate stats for summary strip
   const totals = useMemo(() => {
@@ -498,7 +498,7 @@ export default function ViewBranches() {
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [viewBranchesOpen, drillTargetBranchId]);
+  }, [viewBranchesOpen, drillTargetBranchId, handleClose]);
 
   useEffect(() => {
     if (!regionDropOpen && !sortDropOpen) return;

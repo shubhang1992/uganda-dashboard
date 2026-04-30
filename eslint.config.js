@@ -24,7 +24,24 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]|^motion$', destructuredArrayIgnorePattern: '^_' }],
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true, allowExportNames: ['useSignIn', 'useApp', 'useDashboard'] }],
+      'react-refresh/only-export-components': ['warn', {
+        allowConstantExport: true,
+        allowExportNames: [
+          'useAuth',
+          'useBranchScope',
+          'useDashboard',
+          'useDashboardNav',
+          'useDashboardPanel',
+          'useSignIn',
+          'useSignup',
+          'useToast',
+          'useApp',
+          'STEPS',
+          'AGENT_STEP',
+          'PENDING_REVIEW_STEP',
+          'getStepIndex',
+        ],
+      }],
     },
   },
 ])

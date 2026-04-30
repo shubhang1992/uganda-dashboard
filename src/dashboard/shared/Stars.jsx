@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import styles from './Stars.module.css';
 
-export default function Stars({ rating }) {
+function Stars({ rating }) {
   const full = Math.round(rating);
   return (
     <div className={styles.ratingWrap}>
@@ -13,3 +14,5 @@ export default function Stars({ rating }) {
     </div>
   );
 }
+
+export default memo(Stars);

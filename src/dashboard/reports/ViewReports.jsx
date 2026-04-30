@@ -56,19 +56,29 @@ export default function ViewReports({ splitMode = false }) {
   const [activeReportId, setActiveReportId] = useState(null);
   const bodyRef = useRef(null);
 
-  // Auto-navigate to a report when opened via reportContext
+  // Auto-navigate to a report when the panel was opened via reportContext.
+  // Tracking the last consumed context lets us perform the sync at render
+  // time (no cascading effect) and clear the context once consumed.
+  const [consumedContext, setConsumedContext] = useState(null);
+  if (viewReportsOpen && reportContext && reportContext !== consumedContext) {
+    setConsumedContext(reportContext);
+    setActiveReportId(reportContext);
+  }
+
+  // Clearing the shared context value is an external sync — keep it in an
+  // effect, but only fire it once the value has actually been consumed.
   useEffect(() => {
-    if (viewReportsOpen && reportContext) {
-      setActiveReportId(reportContext);
+    if (reportContext && reportContext === consumedContext) {
       setReportContext(null);
     }
-  }, [viewReportsOpen, reportContext]);
+  }, [reportContext, consumedContext, setReportContext]);
 
-  // Reset state when panel closes
+  // Reset state when panel closes (delayed so exit animation finishes first).
   useEffect(() => {
     if (viewReportsOpen) return;
     const t = setTimeout(() => {
       setActiveReportId(null);
+      setConsumedContext(null);
     }, 400);
     return () => clearTimeout(t);
   }, [viewReportsOpen]);
@@ -86,7 +96,7 @@ export default function ViewReports({ splitMode = false }) {
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [viewReportsOpen]);
+  }, [viewReportsOpen, setViewReportsOpen]);
 
   function handleBack() {
     setActiveReportId(null);

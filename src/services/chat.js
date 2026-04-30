@@ -2,7 +2,6 @@
 // When backend is ready, replace with real LLM + DB integration.
 
 import { COUNTRY, REGIONS, AGENTS, BRANCHES } from '../data/mockData';
-import { formatUGX } from '../utils/finance';
 
 let _responses = null;
 

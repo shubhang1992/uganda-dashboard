@@ -233,9 +233,9 @@ export default function ViewSubscribers() {
   const bodyRef = useRef(null);
   const sortBtnRef = useRef(null);
 
-  function handleClose() {
+  const handleClose = useCallback(() => {
     setViewSubscribersOpen(false);
-  }
+  }, [setViewSubscribersOpen]);
 
   // Aggregate stats for summary strip
   const totals = useMemo(() => {
@@ -296,7 +296,7 @@ export default function ViewSubscribers() {
     function onKey(e) { if (e.key === 'Escape') handleClose(); }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [viewSubscribersOpen]);
+  }, [viewSubscribersOpen, handleClose]);
 
   // Close dropdowns on outside click
   useEffect(() => {

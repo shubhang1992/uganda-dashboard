@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
@@ -131,27 +131,14 @@ export default function BranchSidebar() {
     settingsOpen, setSettingsOpen,
     setDrillTargetAgentId,
   } = useDashboard();
-  const [active, setActive] = useState('overview');
-
-  useEffect(() => {
-    if (viewAgentsOpen || createAgentOpen) setActive('agents');
-    else if (active === 'agents') setActive('overview');
-  }, [viewAgentsOpen, createAgentOpen]);
-
-  useEffect(() => {
-    if (viewReportsOpen) setActive('reports');
-    else if (active === 'reports') setActive('overview');
-  }, [viewReportsOpen]);
-
-  useEffect(() => {
-    if (commissionsOpen) setActive('commissions');
-    else if (active === 'commissions') setActive('overview');
-  }, [commissionsOpen]);
-
-  useEffect(() => {
-    if (settingsOpen) setActive('settings');
-    else if (active === 'settings') setActive('overview');
-  }, [settingsOpen]);
+  // `active` is derived from which panel is open — no setState-in-effect needed.
+  const active = useMemo(() => {
+    if (viewAgentsOpen || createAgentOpen) return 'agents';
+    if (viewReportsOpen) return 'reports';
+    if (commissionsOpen) return 'commissions';
+    if (settingsOpen) return 'settings';
+    return 'overview';
+  }, [viewAgentsOpen, createAgentOpen, viewReportsOpen, commissionsOpen, settingsOpen]);
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
 
@@ -188,7 +175,6 @@ export default function BranchSidebar() {
 
     if (id === 'overview') {
       closeAllPanels();
-      setActive('overview');
       return;
     }
     if (id === 'agents') {
@@ -198,32 +184,27 @@ export default function BranchSidebar() {
     if (id === 'create-agent') {
       closeAllPanels();
       setCreateAgentOpen(true);
-      setActive('agents');
       return;
     }
     if (id === 'view-agents') {
       closeAllPanels();
       setDrillTargetAgentId(null);
       setViewAgentsOpen(true);
-      setActive('agents');
       return;
     }
     if (id === 'commissions') {
       closeAllPanels();
       setCommissionsOpen(true);
-      setActive('commissions');
       return;
     }
     if (id === 'reports') {
       closeAllPanels();
       setViewReportsOpen(true);
-      setActive('reports');
       return;
     }
     if (id === 'settings') {
       closeAllPanels();
       setSettingsOpen(true);
-      setActive('settings');
       return;
     }
     if (id === 'logout') {

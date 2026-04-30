@@ -138,7 +138,7 @@
 }
 
 .pill[data-tone='alert'] {
-  color: #DC3545;
+  color: var(--color-status-poor);
   background: rgba(220, 53, 69, 0.08);
 }
 

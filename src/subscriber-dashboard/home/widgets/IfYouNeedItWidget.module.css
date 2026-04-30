@@ -1,0 +1,128 @@
+.card {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+}
+
+.eyebrowDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-amber);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+  margin: 0;
+}
+
+.halves {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  gap: 0;
+  align-items: stretch;
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.half {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: var(--space-4);
+  cursor: pointer;
+  touch-action: manipulation;
+  min-height: 96px;
+  transition: background 0.18s ease;
+}
+
+.half:active {
+  background: var(--color-lavender);
+}
+
+.divider {
+  background: var(--color-lavender);
+}
+
+.halfIcon {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(41, 40, 103, 0.08);
+  color: var(--color-indigo);
+}
+
+.halfIcon[data-tone='claim'] {
+  background: rgba(45, 212, 191, 0.14);
+  color: var(--color-teal);
+}
+
+.halfStack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.halfLabel {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-indigo);
+  letter-spacing: -0.01em;
+}
+
+.halfValue {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-base);
+  color: var(--color-slate);
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+
+.halfHint {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--color-gray);
+}
+
+.halfHint[data-tone='ok'] {
+  color: var(--color-green);
+  font-weight: 600;
+}

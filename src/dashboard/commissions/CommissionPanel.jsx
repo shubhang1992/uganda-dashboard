@@ -1088,7 +1088,6 @@ export default function CommissionPanel({ splitMode = false }) {
                         <button
                           className={styles.bulkApproveBtn}
                           onClick={() => {
-                            const ids = selectedRequestAgent.requests.map((r) => r.id);
                             settleAgentMutation.mutate(selectedRequestAgent.agentId);
                           }}
                         >

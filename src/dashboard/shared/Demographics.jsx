@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import styles from './Demographics.module.css';
 
-export default function Demographics({ metrics }) {
+function Demographics({ metrics }) {
   const m = metrics;
   const ageTotal = Object.values(m.ageDistribution).reduce((s, x) => s + x, 0);
   return (
@@ -31,3 +32,5 @@ export default function Demographics({ metrics }) {
     </div>
   );
 }
+
+export default memo(Demographics);

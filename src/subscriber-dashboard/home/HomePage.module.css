@@ -1,0 +1,54 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: calc(env(safe-area-inset-top) + var(--space-3)) var(--space-4) var(--space-6);
+}
+
+@media (min-width: 600px) {
+  .page {
+    gap: var(--space-4);
+    padding: var(--space-5) var(--space-5) var(--space-8);
+  }
+}
+
+@media (min-width: 1024px) {
+  .page {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: row;
+    gap: var(--space-4);
+    padding: var(--space-6) 0 var(--space-8);
+  }
+  .page > :global(*) {
+    min-width: 0;
+  }
+  /* Pulse spans full width — emotional anchor */
+  .page > :global(*):nth-child(1) {
+    grid-column: 1 / -1;
+  }
+  /* Help/agent spans full width at the bottom */
+  .page > :global(*):nth-child(6) {
+    grid-column: 1 / -1;
+  }
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 2.5px solid var(--color-lavender);
+  border-top-color: var(--color-indigo);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

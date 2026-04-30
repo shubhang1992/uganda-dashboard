@@ -12,12 +12,6 @@ import logo from '../assets/logo-white.png';
 import { EASE_OUT_EXPO as EASE } from '../utils/finance';
 import styles from './SignInModal.module.css';
 
-const STEPS = ['role', 'distributor', 'phone', 'otp'];
-
-function getStepIndex(step) {
-  return STEPS.indexOf(step);
-}
-
 export default function SignInModal() {
   const { isOpen, close } = useSignIn();
   const { login } = useAuth();
@@ -25,7 +19,6 @@ export default function SignInModal() {
   const [step, setStep] = useState('role');
   const [role, setRole] = useState(null);
   const [phone, setPhone] = useState('');
-  const [direction, setDirection] = useState(1);
   const prevStep = useRef('role');
 
   const modalRef = useRef(null);
@@ -105,14 +98,12 @@ export default function SignInModal() {
         setStep('role');
         setRole(null);
         setPhone('');
-        setDirection(1);
       }, 300);
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
   function goTo(nextStep) {
-    setDirection(getStepIndex(nextStep) > getStepIndex(prevStep.current) ? 1 : -1);
     prevStep.current = step;
     setStep(nextStep);
   }

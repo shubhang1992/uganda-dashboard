@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import styles from './TrendArrow.module.css';
 
 const TrendArrow = ({ trend }) => (
@@ -20,4 +21,4 @@ const TrendArrow = ({ trend }) => (
   </span>
 );
 
-export default TrendArrow;
+export default memo(TrendArrow);

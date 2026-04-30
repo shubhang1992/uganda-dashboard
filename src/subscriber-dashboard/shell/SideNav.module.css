@@ -1,0 +1,134 @@
+.nav {
+  display: none;
+  flex-direction: column;
+  width: 240px;
+  flex: 0 0 auto;
+  background: linear-gradient(180deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
+  color: var(--color-white);
+  padding: var(--space-5) var(--space-3) var(--space-4);
+  box-shadow: 0 0 32px rgba(27, 26, 74, 0.2);
+}
+
+@media (min-width: 1024px) {
+  .nav {
+    display: flex;
+  }
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 var(--space-3) var(--space-5);
+}
+
+.brandLogo {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: brightness(2.2);
+}
+
+.brandText {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-sm);
+  letter-spacing: -0.01em;
+  color: var(--color-white);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: var(--space-3) var(--space-3);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  color: rgba(217, 220, 242, 0.78);
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  letter-spacing: -0.005em;
+  transition: background 0.18s ease, color 0.18s ease;
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-white);
+}
+
+.itemActive,
+.itemActive:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--color-white);
+}
+
+.itemSecondary {
+  font-weight: 500;
+  color: rgba(217, 220, 242, 0.62);
+}
+
+.itemSecondary:hover {
+  color: rgba(217, 220, 242, 0.95);
+}
+
+.itemIcon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.itemLabel {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.logout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  color: rgba(248, 113, 113, 0.85);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+  min-height: 40px;
+  text-align: left;
+}
+
+.logout:hover {
+  background: rgba(248, 113, 113, 0.1);
+  color: var(--color-alert);
+}

@@ -69,6 +69,16 @@ export default function TopBar() {
   const filterRef = useRef(null);
   const filterBtnRef = useRef(null);
 
+  // Reset filter when navigating to a different level/entity. Adjusting state
+  // during render (instead of in an effect) avoids a cascading render.
+  const navKey = `${level}-${parentId}`;
+  const [lastNavKey, setLastNavKey] = useState(navKey);
+  if (navKey !== lastNavKey) {
+    setLastNavKey(navKey);
+    setFilterValue(null);
+    setFilterOpen(false);
+  }
+
   // Close on outside click
   useEffect(() => {
     if (!filterOpen) return;
@@ -93,12 +103,6 @@ export default function TopBar() {
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
   }, [filterOpen]);
-
-  // Reset filter when level changes
-  useEffect(() => {
-    setFilterValue(null);
-    setFilterOpen(false);
-  }, [level, parentId]);
 
   // CSV download handler
   const handleDownload = useCallback(() => {

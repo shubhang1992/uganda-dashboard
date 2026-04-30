@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
@@ -198,54 +198,24 @@ export default function Sidebar() {
   const [moreOpen, setMoreOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const { section, reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, subscriberMenuOpen, setSubscriberMenuOpen, viewSubscribersOpen, setViewSubscribersOpen, drillTargetBranchId, setDrillTargetBranchId, drillTargetAgentId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen, setCommissionsOpen, settingsOpen, setSettingsOpen } = useDashboard();
-  const [active, setActive] = useState('overview');
+  const { reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, subscriberMenuOpen, setSubscriberMenuOpen, viewSubscribersOpen, setViewSubscribersOpen, setDrillTargetBranchId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen, setCommissionsOpen, settingsOpen, setSettingsOpen } = useDashboard();
 
-  // Sync active state when reports panel opens/closes
-  useEffect(() => {
-    if (viewReportsOpen) setActive('reports');
-    else if (active === 'reports') setActive('overview');
-  }, [viewReportsOpen]);
-
-  // Sync active state when commissions panel opens/closes
-  useEffect(() => {
-    if (commissionsOpen) setActive('commissions');
-    else if (active === 'commissions') setActive('overview');
-  }, [commissionsOpen]);
-
-  // Sync active state when settings panel opens/closes
-  useEffect(() => {
-    if (settingsOpen) setActive('settings');
-    else if (active === 'settings') setActive('overview');
-  }, [settingsOpen]);
-
-  // Keep branch submenu open while a branch panel is visible — but NOT when
-  // the panel was auto-opened via drill-down (from map / district list).
-  // Drill-down focuses a single branch; the submenu would just clutter the map.
-  useEffect(() => {
-    if (drillTargetBranchId) return;
-    if (createBranchOpen || viewBranchesOpen) {
-      setBranchMenuOpen(true);
-      setActive('branches');
-    }
-  }, [createBranchOpen, viewBranchesOpen, drillTargetBranchId]);
-
-  // Keep agent submenu open while agent panel is visible — same drill-down guard
-  useEffect(() => {
-    if (drillTargetAgentId) return;
-    if (viewAgentsOpen) {
-      setAgentMenuOpen(true);
-      setActive('agents');
-    }
-  }, [viewAgentsOpen, drillTargetAgentId]);
-
-  // Keep subscriber submenu open while subscriber panel is visible
-  useEffect(() => {
-    if (viewSubscribersOpen) {
-      setSubscriberMenuOpen(true);
-      setActive('subscribers');
-    }
-  }, [viewSubscribersOpen]);
+  // `active` is purely derived from which panel/menu is open.
+  // No setState-in-effect needed — submenu open state itself is now derived
+  // in DashboardPanelContext, so panels opening externally automatically
+  // light up the right sidebar item.
+  const active = useMemo(() => {
+    if (viewReportsOpen) return 'reports';
+    if (commissionsOpen) return 'commissions';
+    if (settingsOpen) return 'settings';
+    if (branchMenuOpen) return 'branches';
+    if (agentMenuOpen) return 'agents';
+    if (subscriberMenuOpen) return 'subscribers';
+    return 'overview';
+  }, [
+    viewReportsOpen, commissionsOpen, settingsOpen,
+    branchMenuOpen, agentMenuOpen, subscriberMenuOpen,
+  ]);
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
 
@@ -282,7 +252,7 @@ export default function Sidebar() {
     };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
-  }, [branchMenuOpen, agentMenuOpen, subscriberMenuOpen, createBranchOpen, viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen]);
+  }, [branchMenuOpen, agentMenuOpen, subscriberMenuOpen, createBranchOpen, viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen, setBranchMenuOpen, setAgentMenuOpen, setSubscriberMenuOpen]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -299,7 +269,6 @@ export default function Sidebar() {
       setViewReportsOpen(false);
       setCommissionsOpen(false);
       setBranchMenuOpen((prev) => !prev);
-      setActive(id);
       return;
     }
     if (id === 'agents') {
@@ -308,7 +277,6 @@ export default function Sidebar() {
       setViewReportsOpen(false);
       setCommissionsOpen(false);
       setAgentMenuOpen((prev) => !prev);
-      setActive(id);
       return;
     }
     if (id === 'subscribers') {
@@ -317,7 +285,6 @@ export default function Sidebar() {
       setViewReportsOpen(false);
       setCommissionsOpen(false);
       setSubscriberMenuOpen((prev) => !prev);
-      setActive(id);
       return;
     }
     setBranchMenuOpen(false);
@@ -327,7 +294,6 @@ export default function Sidebar() {
       setViewReportsOpen(false);
       setCommissionsOpen(false);
       setSettingsOpen(true);
-      setActive(id);
       return;
     }
     if (id === 'logout') {
@@ -342,18 +308,15 @@ export default function Sidebar() {
     if (id === 'commissions') {
       setViewReportsOpen(false);
       setCommissionsOpen(true);
-      setActive(id);
       return;
     }
     if (id === 'reports') {
       setCommissionsOpen(false);
       setViewReportsOpen(true);
-      setActive(id);
       return;
     }
     setViewReportsOpen(false);
     setCommissionsOpen(false);
-    setActive(id);
   }
 
   function handleBranchSub(subId) {

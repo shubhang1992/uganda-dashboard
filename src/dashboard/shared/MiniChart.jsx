@@ -1,9 +1,10 @@
+import { memo } from 'react';
 import { formatUGX } from '../../utils/finance';
 import styles from './MiniChart.module.css';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-export default function MiniChart({ data }) {
+function MiniChart({ data }) {
   const max = Math.max(...data, 1);
   const peakIdx = data.indexOf(max);
   return (
@@ -19,3 +20,5 @@ export default function MiniChart({ data }) {
     </div>
   );
 }
+
+export default memo(MiniChart);

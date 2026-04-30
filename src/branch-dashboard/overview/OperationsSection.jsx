@@ -37,7 +37,7 @@ function fmtVal(v, key) {
   return `${Math.round(v)}%`;
 }
 
-export default function OperationsSection({ agents = [], commissionSummary, metrics = {} }) {
+export default function OperationsSection({ agents = [], commissionSummary }) {
   const { setCommissionsOpen, setViewAgentsOpen, setDrillTargetAgentId, closeAllPanels } = useDashboard();
   const [sortKey, setSortKey] = useState('contributions');
   const [tab, setTab] = useState('commissions');

@@ -1,4 +1,7 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { onAuthExpired } from '../services/api';
 
 /**
  * @typedef {Object} AuthUser
@@ -32,22 +35,42 @@ function readStoredSession() {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(readStoredSession);
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const login = useCallback((userData) => {
     setUser(userData);
-    localStorage.setItem(AUTH_KEY, JSON.stringify(userData));
+    try {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(userData));
+    } catch {
+      // Quota / private-browsing — non-fatal; session lives in memory only.
+    }
   }, []);
 
   const logout = useCallback(() => {
     setUser(null);
-    localStorage.removeItem(AUTH_KEY);
-  }, []);
+    try {
+      localStorage.removeItem(AUTH_KEY);
+    } catch {
+      // Storage may be inaccessible — non-fatal.
+    }
+    // Drop cached server data so the next user doesn't inherit it.
+    queryClient.clear();
+  }, [queryClient]);
 
-  return (
-    <AuthContext value={{ user, role: user?.role ?? null, isAuthenticated: !!user, login, logout }}>
-      {children}
-    </AuthContext>
+  // When the API client surfaces a 401, log out and route home via
+  // react-router rather than a full page reload.
+  useEffect(() => onAuthExpired(() => {
+    logout();
+    navigate('/');
+  }), [logout, navigate]);
+
+  const value = useMemo(
+    () => ({ user, role: user?.role ?? null, isAuthenticated: !!user, login, logout }),
+    [user, login, logout],
   );
+
+  return <AuthContext value={value}>{children}</AuthContext>;
 }
 
 /**

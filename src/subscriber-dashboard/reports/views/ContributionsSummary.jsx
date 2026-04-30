@@ -12,7 +12,7 @@ function monthLabel(i, len) {
 
 export default function ContributionsSummary() {
   const { data: sub } = useCurrentSubscriber();
-  const history = sub?.contributionHistory || [];
+  const history = useMemo(() => sub?.contributionHistory || [], [sub?.contributionHistory]);
   const schedule = sub?.contributionSchedule;
   const retPct = (schedule?.retirementPct ?? 80) / 100;
 

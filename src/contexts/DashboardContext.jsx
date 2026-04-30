@@ -9,7 +9,7 @@ import { DashboardPanelProvider, useDashboardPanel } from './DashboardPanelConte
 /**
  * Convenience wrapper that composes both Nav and Panel providers.
  * Nav wraps Panel so the panel context can register into the nav context's
- * onPanelAction ref.
+ * onPanelActionRef ref.
  */
 export function DashboardProvider({ children }) {
   return (

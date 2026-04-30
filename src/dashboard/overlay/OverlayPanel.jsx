@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useChildren, useTopBranch, useSearch } from '../../hooks/useEntity';
@@ -362,8 +362,14 @@ export default function OverlayPanel() {
     drillDown(targetLevel, targetId);
   }, [drillDown]);
 
-  // Collapse the expanded list view when the user navigates to a different entity
-  useEffect(() => { setListExpanded(false); }, [displayLevel, parentId]);
+  // Collapse the expanded list view when the user navigates to a different entity.
+  // Adjusting state during render (instead of in an effect) avoids a cascading render.
+  const [lastNavKey, setLastNavKey] = useState(`${displayLevel}-${parentId}`);
+  const navKey = `${displayLevel}-${parentId}`;
+  if (navKey !== lastNavKey) {
+    setLastNavKey(navKey);
+    setListExpanded(false);
+  }
 
   if (!currentEntity) return null;
 

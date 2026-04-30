@@ -1089,7 +1089,6 @@ Object.values(BRANCHES).forEach((branch) => {
 // Rank globally (1 = best)
 const branchesByScore = Object.values(BRANCHES).sort((a, b) => b.score - a.score);
 branchesByScore.forEach((branch, i) => { branch.rank = i + 1; });
-const totalBranchCount = branchesByScore.length;
 
 // Rank within each district
 const branchesByDistrict = {};

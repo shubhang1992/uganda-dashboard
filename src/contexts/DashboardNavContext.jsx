@@ -18,7 +18,7 @@ import { getEntitySync } from '../services/entities';
  * @property {string|null} drillTargetAgentId - Agent ID opened via map drill-down
  * @property {(id: string|null) => void} setDrillTargetAgentId
  * @property {() => void} closeDrillPanel - Close drill-triggered panel and go to district
- * @property {import('react').MutableRefObject} onPanelAction - Ref for panel setter registration
+ * @property {import('react').MutableRefObject} onPanelActionRef - Ref for panel setter registration
  */
 
 const DashboardNavContext = createContext(null);
@@ -72,41 +72,45 @@ export function DashboardNavProvider({ children }) {
 
   // Callback ref that the panel context registers its setters into.
   // This lets nav effects call panel setters without a direct dependency.
-  const onPanelAction = useRef(null);
+  const onPanelActionRef = useRef(null);
 
   // Auto-open reports panel when URL is /dashboard/reports, then redirect to /dashboard
   useEffect(() => {
     if (section === 'reports') {
-      onPanelAction.current?.setViewReportsOpen(true);
+      onPanelActionRef.current?.setViewReportsOpen(true);
       navigate('/dashboard', { replace: true });
     }
   }, [section, navigate]);
 
-  // Auto-open slide-in panels when URL reaches branch/agent level
+  // Auto-open slide-in panels when URL reaches branch/agent level. The URL
+  // is an external system (browser history), so syncing React state from it
+  // is exactly what useEffect is for — the cascading-renders lint rule is
+  // overzealous here.
   useEffect(() => {
     if (level === 'branch' && entityId) {
       drillBranchRef.current = entityId;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- URL → state sync
       setDrillTargetBranchId(entityId);
-      onPanelAction.current?.setViewBranchesOpen(true);
+      onPanelActionRef.current?.setViewBranchesOpen(true);
       // Close the sidebar's Branches submenu — it's redundant once a specific
       // branch is in focus, and leaving it open pollutes the district view
       // after the user clicks Back.
-      onPanelAction.current?.setBranchMenuOpen?.(false);
+      onPanelActionRef.current?.setBranchMenuOpen?.(false);
     } else if (level === 'agent' && entityId) {
       drillAgentRef.current = entityId;
       setDrillTargetAgentId(entityId);
-      onPanelAction.current?.setViewAgentsOpen(true);
-      onPanelAction.current?.setAgentMenuOpen?.(false);
+      onPanelActionRef.current?.setViewAgentsOpen(true);
+      onPanelActionRef.current?.setAgentMenuOpen?.(false);
     } else {
       if (drillBranchRef.current) {
         drillBranchRef.current = null;
         setDrillTargetBranchId(null);
-        onPanelAction.current?.setViewBranchesOpen(false);
+        onPanelActionRef.current?.setViewBranchesOpen(false);
       }
       if (drillAgentRef.current) {
         drillAgentRef.current = null;
         setDrillTargetAgentId(null);
-        onPanelAction.current?.setViewAgentsOpen(false);
+        onPanelActionRef.current?.setViewAgentsOpen(false);
       }
     }
   }, [level, entityId]);
@@ -118,10 +122,10 @@ export function DashboardNavProvider({ children }) {
     drillAgentRef.current = null;
     setDrillTargetBranchId(null);
     setDrillTargetAgentId(null);
-    onPanelAction.current?.setViewBranchesOpen(false);
-    onPanelAction.current?.setViewAgentsOpen(false);
-    onPanelAction.current?.setBranchMenuOpen?.(false);
-    onPanelAction.current?.setAgentMenuOpen?.(false);
+    onPanelActionRef.current?.setViewBranchesOpen(false);
+    onPanelActionRef.current?.setViewAgentsOpen(false);
+    onPanelActionRef.current?.setBranchMenuOpen?.(false);
+    onPanelActionRef.current?.setAgentMenuOpen?.(false);
     if (districtId) {
       navigate(`/dashboard/${LEVEL_TO_SEGMENT.district}/${districtId}`);
     } else {
@@ -176,7 +180,7 @@ export function DashboardNavProvider({ children }) {
     drillTargetAgentId, setDrillTargetAgentId,
     drillBranchRef, drillAgentRef,
     closeDrillPanel,
-    onPanelAction,
+    onPanelActionRef,
   }), [
     level, selectedIds, section, reportId,
     drillDown, drillUp, goToLevel, reset,
