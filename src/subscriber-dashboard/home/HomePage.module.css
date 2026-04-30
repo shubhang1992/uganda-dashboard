@@ -19,9 +19,18 @@
     grid-auto-flow: row;
     gap: var(--space-4);
     padding: var(--space-6) 0 var(--space-8);
+    align-items: stretch;
   }
+  /* Each grid cell is a motion.div wrapping a widget card. Make the wrapper a
+     flex column and let the card grow so paired cards line up to the same
+     bottom edge instead of sitting at their natural content height. */
   .page > :global(*) {
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .page > :global(*) > :global(*) {
+    flex: 1 1 auto;
   }
   /* Pulse spans full width — emotional anchor */
   .page > :global(*):nth-child(1) {
