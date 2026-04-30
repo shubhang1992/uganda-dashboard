@@ -1,26 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { calcFV, EASE_OUT_EXPO } from '../../utils/finance';
+import { calcFV, EASE_OUT_EXPO, formatUGXExact, parseAmount, FREQUENCY, periodsPerYear } from '../../utils/finance';
+import {
+  RETIREMENT_AGE,
+  MIN_CONTRIBUTION,
+  INSURANCE_PREMIUM_MONTHLY,
+  INSURANCE_COVER,
+} from '../../constants/savings';
 import logo from '../../assets/logo.png';
 import PaymentStep from './PaymentStep';
 import styles from './ContributionSettings.module.css';
 
-export const MIN_CONTRIBUTION = 5000;
-const RETIREMENT_AGE = 60;
+export { MIN_CONTRIBUTION };
 
 const FREQUENCIES = [
-  { id: 'weekly',      label: 'Weekly',      helper: 'every week',     cadence: 'every week',     perYear: 52 },
-  { id: 'monthly',     label: 'Monthly',     helper: 'every month',    cadence: 'every month',    perYear: 12 },
-  { id: 'quarterly',   label: 'Quarterly',   helper: 'every 3 months', cadence: 'every 3 months', perYear: 4  },
-  { id: 'half-yearly', label: 'Half-Yearly', helper: 'every 6 months', cadence: 'every 6 months', perYear: 2  },
-  { id: 'annually',    label: 'Annually',    helper: 'every year',     cadence: 'every year',     perYear: 1  },
+  { id: FREQUENCY.WEEKLY,      label: 'Weekly',      helper: 'every week',     cadence: 'every week'     },
+  { id: FREQUENCY.MONTHLY,     label: 'Monthly',     helper: 'every month',    cadence: 'every month'    },
+  { id: FREQUENCY.QUARTERLY,   label: 'Quarterly',   helper: 'every 3 months', cadence: 'every 3 months' },
+  { id: FREQUENCY.HALF_YEARLY, label: 'Half-Yearly', helper: 'every 6 months', cadence: 'every 6 months' },
+  { id: FREQUENCY.ANNUALLY,    label: 'Annually',    helper: 'every year',     cadence: 'every year'     },
 ];
 
 const PRESET_AMOUNTS = [10000, 25000, 50000, 100000];
-
-/** Flat insurance baseline — scales to chosen frequency. */
-const INSURANCE_PREMIUM_MONTHLY = 2000;
-const INSURANCE_COVER = 1_000_000;
 
 /** Relatable Ugandan milestones — shown at retirement. */
 const MILESTONES = [
@@ -28,17 +29,6 @@ const MILESTONES = [
   { id: 'tuition', cost: 4_000_000, one: 'year of university',  many: 'years of university' },
   { id: 'income',  cost: 1_000_000, one: 'month of income',     many: 'months of retirement income' },
 ];
-
-function formatUGXExact(n) {
-  if (!Number.isFinite(n) || n <= 0) return 'UGX 0';
-  return `UGX ${Math.round(n).toLocaleString('en-UG')}`;
-}
-
-function parseAmount(str) {
-  const cleaned = String(str).replace(/[^\d]/g, '');
-  if (!cleaned) return null;
-  return Number.parseInt(cleaned, 10);
-}
 
 function getFreq(frequencyId) {
   return FREQUENCIES.find((f) => f.id === frequencyId) ?? FREQUENCIES[1];
@@ -97,13 +87,14 @@ export default function ContributionSettings({ initial, dob, phone, onClose, onC
   const canConfirm = hasAmount;
 
   // ── Projections ────────────────────────────────────────────────
+  const freqPerYear = periodsPerYear(freq.id);
   const insurancePremium = includeInsurance
-    ? Math.round((INSURANCE_PREMIUM_MONTHLY * 12) / freq.perYear)
+    ? Math.round((INSURANCE_PREMIUM_MONTHLY * 12) / freqPerYear)
     : 0;
   const totalPerPeriod   = hasAmount ? amount + insurancePremium : 0;
-  const annualTotal      = hasAmount ? totalPerPeriod * freq.perYear : 0;
+  const annualTotal      = hasAmount ? totalPerPeriod * freqPerYear : 0;
 
-  const contribAnnual       = hasAmount ? amount * freq.perYear : 0;
+  const contribAnnual       = hasAmount ? amount * freqPerYear : 0;
   const contribMonthly      = contribAnnual / 12;
   const retirementPerPeriod = hasAmount ? Math.round(amount * (retirementPct / 100)) : 0;
   const emergencyPerPeriod  = hasAmount ? amount - retirementPerPeriod : 0;

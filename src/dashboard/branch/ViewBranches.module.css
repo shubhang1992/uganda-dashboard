@@ -1406,3 +1406,49 @@
     text-align: center;
   }
 }
+
+/* ── Confirm modal (replaces window.confirm for branch status changes) ────── */
+.confirmBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(27, 26, 74, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 220;
+  padding: var(--space-6);
+}
+
+.confirmDialog {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-lavender);
+  padding: var(--space-6);
+  max-width: 380px;
+  width: 100%;
+  box-shadow: 0 24px 60px rgba(41, 40, 103, 0.24);
+}
+
+.confirmTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  color: var(--color-indigo);
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--space-2);
+  text-wrap: balance;
+}
+
+.confirmBody {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  line-height: 1.55;
+  margin: 0 0 var(--space-5);
+}
+
+.confirmActions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}

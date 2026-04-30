@@ -155,11 +155,32 @@ function DashboardContent() {
   );
 }
 
+function MissingBranchIdScreen({ onLogout }) {
+  return (
+    <div className={styles.missingBranch}>
+      <div className={styles.missingBranchInner}>
+        <h1 className={styles.missingBranchTitle}>Branch not assigned</h1>
+        <p className={styles.missingBranchText}>
+          Your account doesn&apos;t have a branch on file. Please contact a Distributor Admin to
+          assign you to a branch before signing in again.
+        </p>
+        <button type="button" className={styles.missingBranchBtn} onClick={onLogout}>
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function BranchDashboardShell() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { user, role } = useAuth();
-  if (role !== 'branch') return <Navigate to="/dashboard" replace />;
+  const { user, role, logout } = useAuth();
+  const navigate = useNavigate();
+  if (role !== 'branch') return <Navigate to="/coming-soon" replace />;
   const branchId = user?.branchId;
+  if (!branchId) {
+    return <MissingBranchIdScreen onLogout={() => { logout(); navigate('/'); }} />;
+  }
   return (
     <DashboardProvider>
       <BranchScopeProvider branchId={branchId}>

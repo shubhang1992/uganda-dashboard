@@ -52,10 +52,13 @@ export default function AgentPage() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [seedKey, setSeedKey] = useState(null);
   const listRef = useRef(null);
 
-  const [seedKey, setSeedKey] = useState(null);
   const targetKey = subId && agent ? `${subId}:${agent.id}` : null;
+  // Adjust state during render when the conversation identity changes — this
+  // is the React 19-supported pattern for deriving state from props without
+  // a layout-thrashing effect. See react.dev "You Might Not Need an Effect".
   if (targetKey && targetKey !== seedKey) {
     setSeedKey(targetKey);
     const persisted = loadMessages(subId);

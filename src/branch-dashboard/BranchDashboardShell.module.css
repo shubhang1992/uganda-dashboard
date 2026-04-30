@@ -7,6 +7,51 @@
   overflow: hidden;
 }
 
+.missingBranch {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-cloud);
+  padding: var(--space-6);
+}
+
+.missingBranchInner {
+  max-width: 440px;
+  text-align: center;
+}
+
+.missingBranchTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-2xl);
+  color: var(--color-indigo);
+  letter-spacing: -0.03em;
+  margin: 0 0 var(--space-3);
+  text-wrap: balance;
+}
+
+.missingBranchText {
+  font-family: var(--font-body);
+  color: var(--color-slate);
+  line-height: 1.6;
+  margin: 0 0 var(--space-5);
+}
+
+.missingBranchBtn {
+  background: var(--color-indigo);
+  color: var(--color-white);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 0.75rem 2rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 .main {
   overflow-y: auto;
   overflow-x: hidden;

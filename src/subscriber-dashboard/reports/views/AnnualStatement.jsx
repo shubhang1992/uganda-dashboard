@@ -78,19 +78,9 @@ export default function AnnualStatement() {
             <button
               key={y}
               type="button"
+              className={frameStyles.yearChip}
+              data-active={year === y}
               onClick={() => setYear(y)}
-              style={{
-                padding: '0.375rem 0.875rem',
-                minHeight: 34,
-                borderRadius: 999,
-                border: '1.5px solid var(--color-lavender)',
-                background: year === y ? 'var(--color-indigo)' : 'var(--color-white)',
-                color: year === y ? 'var(--color-white)' : 'var(--color-indigo-soft)',
-                fontFamily: 'var(--font-display)',
-                fontWeight: 700,
-                fontSize: 'var(--text-xs)',
-                letterSpacing: '-0.01em',
-              }}
             >
               {y}
             </button>
@@ -119,44 +109,32 @@ export default function AnnualStatement() {
 
       <section className={frameStyles.statSection}>
         <div className={frameStyles.statSectionTitle}>{year} summary</div>
-        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <li style={rowStyle}>
+        <ul className={frameStyles.summaryList}>
+          <li className={frameStyles.summaryRow}>
             <span>Total saved ({totals.contributions ? 'gross' : 'none'})</span>
             <strong>{formatUGXExact(totals.contributions)}</strong>
           </li>
-          <li style={rowStyle}>
+          <li className={frameStyles.summaryRow}>
             <span>Insurance premiums paid</span>
             <strong>{formatUGXExact(totals.premiums)}</strong>
           </li>
-          <li style={rowStyle}>
+          <li className={frameStyles.summaryRow}>
             <span>Withdrawals made</span>
             <strong>{formatUGXExact(totals.withdrawals)}</strong>
           </li>
-          <li style={rowStyle}>
+          <li className={frameStyles.summaryRow}>
             <span>Insurance claim payouts</span>
             <strong>{formatUGXExact(totals.claimsInflow)}</strong>
           </li>
-          <li style={{ ...rowStyle, borderTop: '1px solid var(--color-lavender)', paddingTop: '0.75rem', fontWeight: 800 }}>
+          <li className={`${frameStyles.summaryRow} ${frameStyles.summaryTotal}`}>
             <span>Net inflow to your account</span>
             <strong>{formatUGXExact(Math.max(0, totals.netInflow))}</strong>
           </li>
         </ul>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--text-xs)', color: 'var(--color-gray)', lineHeight: 1.6 }}>
+        <p className={frameStyles.summaryNote}>
           This summary is for your personal records. Universal Pensions contributions may be tax-deductible in some cases — check with a qualified tax advisor.
         </p>
       </section>
     </div>
   );
 }
-
-const rowStyle = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '0.625rem 0.875rem',
-  background: 'var(--color-cloud)',
-  borderRadius: 'var(--radius-sm)',
-  fontFamily: 'var(--font-body)',
-  fontSize: 'var(--text-sm)',
-  color: 'var(--color-slate)',
-};

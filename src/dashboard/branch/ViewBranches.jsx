@@ -1,10 +1,11 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useAllEntities } from '../../hooks/useEntity';
+import { useAllEntities, useUpdateBranch, useSetBranchStatus } from '../../hooks/useEntity';
 import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
+import { useToast } from '../../contexts/ToastContext';
 import { getInitials, getTrend, perfLevel } from '../../utils/dashboard';
 import Stars from '../shared/Stars';
 import { Icons } from '../shared/Icons';
@@ -364,11 +365,15 @@ const SORT_OPTIONS = [
 
 export default function ViewBranches() {
   const { viewBranchesOpen, setViewBranchesOpen, drillTargetBranchId, closeDrillPanel } = useDashboard();
+  const { addToast } = useToast();
+  const updateBranchMutation = useUpdateBranch();
+  const setBranchStatusMutation = useSetBranchStatus();
 
   const [view, setView] = useState('list');
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [editSection, setEditSection] = useState(null);
+  const [confirmStatusOpen, setConfirmStatusOpen] = useState(false);
 
   const [search, setSearch] = useState('');
   const [regionFilter, setRegionFilter] = useState(null);
@@ -514,16 +519,33 @@ export default function ViewBranches() {
   function handleSelectAgent(agent) { setSelectedAgent(agent); setView('agent'); }
   function handleEdit(section) { setEditSection(section); setView('edit'); }
 
-  function handleSaveEdit(updates) {
-    Object.assign(selectedBranch, updates);
-    setView('detail');
+  async function handleSaveEdit(updates) {
+    if (!selectedBranch) return;
+    try {
+      const updated = await updateBranchMutation.mutateAsync({ id: selectedBranch.id, updates });
+      setSelectedBranch(updated);
+      setView('detail');
+      addToast('success', 'Branch updated.');
+    } catch (err) {
+      addToast('error', err?.message || 'Could not update branch.');
+    }
   }
 
-  function handleToggleStatus() {
-    const action = selectedBranch.status === 'active' ? 'deactivate' : 'activate';
-    if (!window.confirm(`Are you sure you want to ${action} this branch?`)) return;
-    selectedBranch.status = selectedBranch.status === 'active' ? 'inactive' : 'active';
-    setSelectedBranch({ ...selectedBranch });
+  function handleToggleStatusRequest() {
+    setConfirmStatusOpen(true);
+  }
+
+  async function handleToggleStatusConfirm() {
+    if (!selectedBranch) return;
+    const nextStatus = selectedBranch.status === 'active' ? 'inactive' : 'active';
+    try {
+      const updated = await setBranchStatusMutation.mutateAsync({ id: selectedBranch.id, status: nextStatus });
+      setSelectedBranch(updated);
+      setConfirmStatusOpen(false);
+      addToast('success', nextStatus === 'active' ? 'Branch activated.' : 'Branch deactivated.');
+    } catch (err) {
+      addToast('error', err?.message || 'Could not update status.');
+    }
   }
 
   function handleBack() {
@@ -886,9 +908,9 @@ export default function ViewBranches() {
             {view === 'detail' && selectedBranch && (
               <div className={styles.footer}>
                 {selectedBranch.status === 'active' ? (
-                  <button className={styles.deactivateBtn} onClick={handleToggleStatus}>Deactivate Branch</button>
+                  <button className={styles.deactivateBtn} onClick={handleToggleStatusRequest}>Deactivate Branch</button>
                 ) : (
-                  <button className={styles.activateBtn} onClick={handleToggleStatus}>Activate Branch</button>
+                  <button className={styles.activateBtn} onClick={handleToggleStatusRequest}>Activate Branch</button>
                 )}
                 <div className={styles.footerSpacer} />
                 <button className={styles.editBtn} onClick={() => handleEdit('details')}>
@@ -899,6 +921,62 @@ export default function ViewBranches() {
                 </button>
               </div>
             )}
+
+            {/* ── Confirm status-change modal ─────────────────────── */}
+            <AnimatePresence>
+              {confirmStatusOpen && selectedBranch && (
+                <motion.div
+                  className={styles.confirmBackdrop}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  onClick={() => !setBranchStatusMutation.isPending && setConfirmStatusOpen(false)}
+                >
+                  <motion.div
+                    className={styles.confirmDialog}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="confirm-status-title"
+                    initial={{ opacity: 0, scale: 0.96, y: 8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.96, y: 4 }}
+                    transition={{ duration: 0.22, ease: EASE_OUT_EXPO }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <h3 id="confirm-status-title" className={styles.confirmTitle}>
+                      {selectedBranch.status === 'active' ? 'Deactivate this branch?' : 'Activate this branch?'}
+                    </h3>
+                    <p className={styles.confirmBody}>
+                      {selectedBranch.status === 'active'
+                        ? `${selectedBranch.name} will stop accepting new subscribers and its agents won't be able to log in until it's reactivated.`
+                        : `${selectedBranch.name} will resume normal operation.`}
+                    </p>
+                    <div className={styles.confirmActions}>
+                      <button
+                        type="button"
+                        className={styles.cancelBtn}
+                        onClick={() => setConfirmStatusOpen(false)}
+                        disabled={setBranchStatusMutation.isPending}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className={selectedBranch.status === 'active' ? styles.deactivateBtn : styles.activateBtn}
+                        onClick={handleToggleStatusConfirm}
+                        disabled={setBranchStatusMutation.isPending}
+                        autoFocus
+                      >
+                        {setBranchStatusMutation.isPending
+                          ? 'Working…'
+                          : selectedBranch.status === 'active' ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>

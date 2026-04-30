@@ -233,3 +233,16 @@
   text-align: center;
   margin: 0;
 }
+
+.soonBadge {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-indigo-soft);
+  background: rgba(94, 99, 168, 0.10);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+  flex-shrink: 0;
+}

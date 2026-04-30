@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useChildren } from '../../hooks/useEntity';
@@ -104,29 +104,46 @@ export default function TopBar() {
     return () => document.removeEventListener('keydown', handleKey);
   }, [filterOpen]);
 
-  // CSV download handler
+  // Filter config for current level
+  const filterConfig = getFilterOptions(level, children);
+
+  // Apply the active filter to the children list before CSV export.
+  const filteredChildren = useMemo(() => {
+    if (!filterValue || !filterConfig) return children;
+    const defaultOption = filterConfig.options[0];
+    if (filterValue === defaultOption) return children;
+    if (level === 'district') {
+      // Status filter: 'Active' or 'Inactive'
+      const wantActive = filterValue === 'Active';
+      return children.filter((c) => (c.active !== false) === wantActive);
+    }
+    // Region/district: filter by name
+    return children.filter((c) => c.name === filterValue);
+  }, [children, filterValue, filterConfig, level]);
+
+  // CSV download handler — exports the filtered children
   const handleDownload = useCallback(() => {
-    if (!children.length || !currentEntity) return;
+    if (!filteredChildren.length || !currentEntity) return;
 
     const childLevel = CHILD_LEVEL[level];
     const childLabel = childLevel ? CHILD_LABEL_PLURAL[childLevel] : 'Data';
     const entityName = currentEntity.name || 'Uganda';
     const safeName = entityName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
-    const filename = `upensions-${childLabel.toLowerCase()}-${safeName}-${getDateStamp()}.csv`;
+    const filterSuffix = filterValue && filterValue !== filterConfig?.options[0]
+      ? `-${filterValue.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`
+      : '';
+    const filename = `upensions-${childLabel.toLowerCase()}-${safeName}${filterSuffix}-${getDateStamp()}.csv`;
 
-    // Tag children with their level for the CSV
-    const tagged = children.map((c) => ({ ...c, level: childLevel || '' }));
+    const tagged = filteredChildren.map((c) => ({ ...c, level: childLevel || '' }));
     const { headers, rows } = buildCSVRows(tagged);
     downloadCSV(filename, headers, rows);
-  }, [children, currentEntity, level]);
-
-  // Filter config for current level
-  const filterConfig = getFilterOptions(level, children);
+  }, [filteredChildren, currentEntity, level, filterValue, filterConfig]);
 
   const handleFilterSelect = useCallback((option) => {
-    setFilterValue(option);
+    const defaultOption = filterConfig?.options[0];
+    setFilterValue(option === defaultOption ? null : option);
     setFilterOpen(false);
-  }, []);
+  }, [filterConfig]);
 
   // Don't render at branch/agent level (slide-in panels take over)
   if (level === 'branch' || level === 'agent') return null;
@@ -144,7 +161,8 @@ export default function TopBar() {
         <button
           ref={filterBtnRef}
           className={styles.btn}
-          aria-label="Filters"
+          data-active={!!filterValue || undefined}
+          aria-label={filterValue ? `Filter: ${filterValue}` : 'Filters'}
           aria-expanded={filterOpen}
           aria-haspopup="true"
           onClick={() => setFilterOpen((v) => !v)}
@@ -152,7 +170,7 @@ export default function TopBar() {
           <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="18" height="18">
             <path d="M3 4h14M3 10h14M3 16h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
-          Filters
+          {filterValue || 'Filters'}
         </button>
         <AnimatePresence>
           {filterOpen && filterConfig && (
@@ -190,7 +208,7 @@ export default function TopBar() {
         className={styles.btn}
         aria-label="Download CSV"
         onClick={handleDownload}
-        disabled={!children.length}
+        disabled={!filteredChildren.length}
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="18" height="18">
           <path d="M10 3v10M6 9l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>

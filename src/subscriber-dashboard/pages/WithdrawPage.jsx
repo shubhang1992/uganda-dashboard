@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO, formatUGXExact, formatUGX, calcFV } from '../../utils/finance';
+import { EASE_OUT_EXPO, formatUGXExact, formatUGX, calcFV, parseAmount } from '../../utils/finance';
 import { useCurrentSubscriber, useRequestWithdrawal } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
+import { MIN_WITHDRAW, RETIREMENT_AGE } from '../../constants/savings';
 import PageHeader from '../shell/PageHeader';
 import styles from './WithdrawPage.module.css';
 
@@ -20,14 +21,6 @@ const METHODS = [
   { id: 'airtel', label: 'Airtel Money' },
   { id: 'bank',   label: 'Bank transfer' },
 ];
-
-const MIN_WITHDRAW = 5000;
-
-function parseAmount(str) {
-  const cleaned = String(str).replace(/[^\d]/g, '');
-  if (!cleaned) return null;
-  return Number.parseInt(cleaned, 10);
-}
 
 export default function WithdrawPage() {
   const navigate = useNavigate();
@@ -47,7 +40,7 @@ export default function WithdrawPage() {
   const retirementBalance = sub?.retirementBalance || 0;
 
   const retirementEligible = useMemo(() => {
-    if (typeof sub?.age === 'number') return sub.age >= 60;
+    if (typeof sub?.age === 'number') return sub.age >= RETIREMENT_AGE;
     return false;
   }, [sub]);
 
@@ -60,7 +53,7 @@ export default function WithdrawPage() {
   const retirementImpact = useMemo(() => {
     if (bucket !== 'retirement' || !hasAmount) return null;
     const age = sub?.age || 40;
-    const yrs = Math.max(1, 60 - age);
+    const yrs = Math.max(1, RETIREMENT_AGE - age);
     const perMonthIfInvested = amount / (yrs * 12);
     return calcFV(perMonthIfInvested, yrs);
   }, [bucket, hasAmount, amount, sub]);
@@ -170,7 +163,7 @@ export default function WithdrawPage() {
                           </>
                         )}
                       </svg>
-                      {retirementEligible ? 'Eligible' : 'Locked until 60'}
+                      {retirementEligible ? 'Eligible' : `Locked until ${RETIREMENT_AGE}`}
                     </span>
                   </button>
                 </div>
@@ -217,7 +210,7 @@ export default function WithdrawPage() {
                 )}
                 {bucket === 'retirement' && !retirementEligible && (
                   <p className={styles.helperLine}>
-                    Retirement funds unlock at age 60. Use your Emergency bucket any time.
+                    Retirement funds unlock at age {RETIREMENT_AGE}. Use your Emergency bucket any time.
                   </p>
                 )}
               </section>

@@ -86,7 +86,7 @@ function ChatCard({ open, onToggle }) {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } }}
-                placeholder="Ask about your data\u2026"
+                placeholder="Ask about your data…"
                 aria-label="Chat message"
                 name="chat"
                 autoComplete="off"

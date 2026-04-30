@@ -106,7 +106,7 @@ export default function CommissionPanel({ splitMode = false }) {
   const [rateInput, setRateInput] = useState('');
   const [selectedDisputeAgent, setSelectedDisputeAgent] = useState(null);
   const [selectedRequestAgent, setSelectedRequestAgent] = useState(null);
-  const [selectedIds, setSelectedIds] = useState(new Set()); // multi-select for bulk actions
+  const [selectedIds, setSelectedIds] = useState(() => new Set()); // multi-select for bulk actions
 
   // Data hooks
   const { data: rate } = useCommissionRate();

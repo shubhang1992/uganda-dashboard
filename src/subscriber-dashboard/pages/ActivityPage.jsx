@@ -41,10 +41,11 @@ export default function ActivityPage() {
   const { data: sub } = useCurrentSubscriber();
   const [filter, setFilter] = useState('all');
 
-  const all = sub?.transactions || [];
-  const filterFn = FILTERS.find((f) => f.id === filter)?.test ?? (() => true);
-
-  const filtered = useMemo(() => all.filter(filterFn), [all, filterFn]);
+  const filtered = useMemo(() => {
+    const all = sub?.transactions || [];
+    const filterFn = FILTERS.find((f) => f.id === filter)?.test ?? (() => true);
+    return all.filter(filterFn);
+  }, [sub?.transactions, filter]);
 
   const totals = useMemo(() => {
     let inflow = 0, outflow = 0;

@@ -1,17 +1,14 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGX, formatUGXExact } from '../../../utils/finance';
+import { EASE_OUT_EXPO, formatUGX, formatUGXExact, normalizeFrequency, FREQUENCY } from '../../../utils/finance';
 import styles from './TopUpWidget.module.css';
 
 const FREQ_LABEL = {
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  'half-yearly': 'Half-yearly',
-  semiAnnually: 'Half-yearly',
-  halfYearly: 'Half-yearly',
-  annually: 'Annually',
-  yearly: 'Annually',
+  [FREQUENCY.WEEKLY]: 'Weekly',
+  [FREQUENCY.MONTHLY]: 'Monthly',
+  [FREQUENCY.QUARTERLY]: 'Quarterly',
+  [FREQUENCY.HALF_YEARLY]: 'Half-yearly',
+  [FREQUENCY.ANNUALLY]: 'Annually',
 };
 
 const QUICK_AMOUNTS = [10000, 25000, 50000, 100000];
@@ -26,7 +23,7 @@ export default function TopUpWidget({ subscriber }) {
   const schedule = subscriber?.contributionSchedule;
   const hasSchedule = Boolean(schedule?.amount);
   const dueLabel = formatDueDate(schedule?.nextDueDate);
-  const freq = schedule?.frequency ? FREQ_LABEL[schedule.frequency] : null;
+  const freq = schedule?.frequency ? FREQ_LABEL[normalizeFrequency(schedule.frequency)] : null;
 
   function payScheduled() {
     if (!hasSchedule) return;

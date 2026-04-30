@@ -74,9 +74,11 @@ export default function HelpPage() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [seeded, setSeeded] = useState(false);
   const listRef = useRef(null);
 
-  const [seeded, setSeeded] = useState(false);
+  // Adjust state during render — the React 19-supported pattern for deriving
+  // state from props without an effect. See react.dev "You Might Not Need an Effect".
   if (subId && !seeded) {
     setSeeded(true);
     const persisted = loadMessages(subId);
@@ -123,10 +125,10 @@ export default function HelpPage() {
   return (
     <div className={styles.page}>
       <PageHeader
-        title={view === 'home' ? 'How can we help?' : 'Chat with us'}
+        title={view === 'home' ? 'How can we help?' : 'Live support chat'}
         subtitle={
-          view === 'home' ? 'Find answers, contact support, or chat with an agent'
-          : 'An agent will reply within ~2 minutes · 8am–8pm'
+          view === 'home' ? 'Find answers, contact support, or message your agent'
+          : 'Universal Pensions assistant · responds instantly'
         }
         onBack={handleBack}
       />
@@ -169,8 +171,8 @@ export default function HelpPage() {
                       </svg>
                     </span>
                     <span className={styles.contactText}>
-                      <span className={styles.contactLabel}>Talk to an agent</span>
-                      <span className={styles.contactHelper}>Live chat · 8am–8pm</span>
+                      <span className={styles.contactLabel}>Live support chat</span>
+                      <span className={styles.contactHelper}>Instant assistant · 24/7</span>
                     </span>
                     <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10" className={styles.contactArrow}>
                       <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />

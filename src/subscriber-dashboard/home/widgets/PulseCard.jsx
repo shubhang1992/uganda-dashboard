@@ -1,12 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO, formatUGXExact, formatUGX, calcFV } from '../../../utils/finance';
+import { EASE_OUT_EXPO, formatUGXExact, formatUGX, calcFV, monthlyEquivalent } from '../../../utils/finance';
+import { RETIREMENT_AGE, START_AGE } from '../../../constants/savings';
 import styles from './PulseCard.module.css';
 
 const HIDE_KEY = 'up-sub-balance-hidden';
-const RETIREMENT_AGE = 60;
-const START_AGE = 25; // assumed working-life start for the progress arc
 
 function hourGreeting() {
   const h = new Date().getHours();
@@ -34,27 +33,12 @@ function useCountUp(target, duration = 1100, run = true) {
   return active ? v : 0;
 }
 
-function monthlyEquivalent(schedule) {
-  if (!schedule?.amount) return 0;
-  const a = schedule.amount;
-  switch (schedule.frequency) {
-    case 'weekly':       return (a * 52) / 12;
-    case 'monthly':      return a;
-    case 'quarterly':    return a / 3;
-    case 'half-yearly':
-    case 'semi-annually':
-    case 'halfYearly':   return a / 6;
-    case 'annually':
-    case 'yearly':       return a / 12;
-    default:             return a;
-  }
-}
-
 export default function PulseCard({ subscriber, user }) {
   const navigate = useNavigate();
   const [hide, setHide] = useState(() => {
     try { return window.localStorage.getItem(HIDE_KEY) === 'true'; } catch { return false; }
   });
+  const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     try { window.localStorage.setItem(HIDE_KEY, String(hide)); } catch { /* ignore */ }
   }, [hide]);
@@ -74,6 +58,17 @@ export default function PulseCard({ subscriber, user }) {
     () => (yearsToRetirement > 0 ? balance + calcFV(monthly, yearsToRetirement) : balance),
     [balance, monthly, yearsToRetirement]
   );
+
+  const units = subscriber?.unitsHeld || 0;
+  const totalContributed = subscriber?.totalContributions || 0;
+  const totalWithdrawn = subscriber?.totalWithdrawals || 0;
+  const netInvested = Math.max(0, totalContributed - totalWithdrawn);
+  const growth = balance - netInvested;
+  const retirementBal = subscriber?.retirementBalance || 0;
+  const emergencyBal = subscriber?.emergencyBalance || 0;
+  const splitTotal = retirementBal + emergencyBal;
+  const retirementPct = splitTotal > 0 ? (retirementBal / splitTotal) * 100 : 0;
+  const emergencyPct = splitTotal > 0 ? (emergencyBal / splitTotal) * 100 : 0;
 
   return (
     <section className={styles.card} aria-label="Your savings">
@@ -123,9 +118,102 @@ export default function PulseCard({ subscriber, user }) {
         </button>
       </div>
 
-      <div className={styles.balanceValue} aria-live="polite">
-        {hide ? <span className={styles.balanceMask}>UGX ••••••••</span> : formatUGXExact(Math.round(counted))}
-      </div>
+      <button
+        type="button"
+        className={styles.balanceTrigger}
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        aria-controls="pulse-metrics"
+        aria-label={hide ? 'Balance hidden' : `Balance ${formatUGXExact(balance)}`}
+      >
+        <span className={styles.balanceValue} aria-hidden="true">
+          {hide ? <span className={styles.balanceMask}>UGX ••••••••</span> : formatUGXExact(Math.round(counted))}
+        </span>
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 16 16"
+          width="14"
+          height="14"
+          fill="none"
+          className={styles.balanceChevron}
+          data-expanded={expanded || undefined}
+        >
+          <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            key="metrics"
+            id="pulse-metrics"
+            className={styles.metrics}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.36, ease: EASE_OUT_EXPO }}
+          >
+            <div className={styles.metricsInner}>
+              <div className={styles.statGrid}>
+                <div className={styles.stat}>
+                  <span className={styles.statLabel}>Units held</span>
+                  <span className={styles.statValue}>
+                    {hide ? '••••' : units.toLocaleString('en-UG', { maximumFractionDigits: 4 })}
+                  </span>
+                </div>
+                <div className={styles.stat}>
+                  <span className={styles.statLabel}>Net invested</span>
+                  <span className={styles.statValue}>
+                    {hide ? '••••' : formatUGX(netInvested)}
+                  </span>
+                </div>
+                <div className={styles.stat}>
+                  <span className={styles.statLabel}>Growth</span>
+                  <span className={styles.statValue} data-tone={growth >= 0 ? 'positive' : 'negative'}>
+                    {hide ? '••••' : `${growth >= 0 ? '+' : '−'}${formatUGX(Math.abs(growth))}`}
+                  </span>
+                </div>
+              </div>
+
+              <div className={styles.split}>
+                <div className={styles.splitHead}>
+                  <span className={styles.splitLabel}>Retirement vs Emergency</span>
+                </div>
+                <div className={styles.splitBar} role="img" aria-label={`${Math.round(retirementPct)}% retirement, ${Math.round(emergencyPct)}% emergency`}>
+                  <motion.span
+                    className={styles.splitRetirement}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${retirementPct}%` }}
+                    transition={{ duration: 0.6, ease: EASE_OUT_EXPO, delay: 0.08 }}
+                  />
+                  <motion.span
+                    className={styles.splitEmergency}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${emergencyPct}%` }}
+                    transition={{ duration: 0.6, ease: EASE_OUT_EXPO, delay: 0.14 }}
+                  />
+                </div>
+                <div className={styles.splitLegend}>
+                  <span className={styles.splitItem}>
+                    <span className={styles.splitDot} data-tone="retirement" aria-hidden="true" />
+                    <span className={styles.splitItemLabel}>Retirement</span>
+                    <span className={styles.splitItemValue}>
+                      {hide ? '••••' : formatUGX(retirementBal)}
+                    </span>
+                  </span>
+                  <span className={styles.splitItem}>
+                    <span className={styles.splitDot} data-tone="emergency" aria-hidden="true" />
+                    <span className={styles.splitItemLabel}>Emergency</span>
+                    <span className={styles.splitItemValue}>
+                      {hide ? '••••' : formatUGX(emergencyBal)}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className={styles.progress}>
         <div className={styles.progressTrack} aria-hidden="true">

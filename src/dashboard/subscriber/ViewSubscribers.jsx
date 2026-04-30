@@ -84,22 +84,14 @@ function SubscriberDetail({ subscriber, agentsMap, branchesMap }) {
           <div className={styles.profileBadges}>
             <span className={styles.kycBadge} data-kyc={subscriber.kycStatus}>
               {subscriber.kycStatus === 'complete' && (
-                <svg aria-hidden="true" viewBox="0 0 12 12" fill="none" width="10" height="10" style={{ marginRight: 3 }}>
+                <svg aria-hidden="true" viewBox="0 0 12 12" fill="none" width="10" height="10" className={styles.kycCheckIcon}>
                   <path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
               {kycLabel(subscriber.kycStatus)}
             </span>
             <span className={styles.kycBadge} data-kyc={status === 'active' ? 'complete' : 'incomplete'}>
-              <span style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: status === 'active' ? 'var(--color-status-good)' : 'var(--color-status-poor)',
-                display: 'inline-block',
-                marginRight: 4,
-                flexShrink: 0,
-              }} />
+              <span className={styles.statusDot} data-tone={status} aria-hidden="true" />
               {status === 'active' ? 'Active' : 'Inactive'}
             </span>
           </div>
@@ -136,7 +128,7 @@ function SubscriberDetail({ subscriber, agentsMap, branchesMap }) {
         <div className={styles.infoCard}>
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Gender</span>
-            <span className={styles.infoValue} style={{ textTransform: 'capitalize' }}>{subscriber.gender}</span>
+            <span className={`${styles.infoValue} ${styles.capitalize}`}>{subscriber.gender}</span>
           </div>
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Age</span>
@@ -161,15 +153,15 @@ function SubscriberDetail({ subscriber, agentsMap, branchesMap }) {
         <div className={styles.infoCard}>
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Total Contributions</span>
-            <span className={styles.infoValue} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatUGX(subscriber.totalContributions)}</span>
+            <span className={`${styles.infoValue} ${styles.tabular}`}>{formatUGX(subscriber.totalContributions)}</span>
           </div>
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Total Withdrawals</span>
-            <span className={styles.infoValue} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatUGX(subscriber.totalWithdrawals)}</span>
+            <span className={`${styles.infoValue} ${styles.tabular}`}>{formatUGX(subscriber.totalWithdrawals)}</span>
           </div>
           <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Net Balance</span>
-            <span className={styles.infoValue} style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--color-indigo)' }}>{formatUGX(balance)}</span>
+            <span className={`${styles.infoValue} ${styles.netBalanceValue}`}>{formatUGX(balance)}</span>
           </div>
         </div>
       </div>
@@ -409,7 +401,7 @@ export default function ViewSubscribers() {
                       className={styles.searchInput}
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search by name or phone\u2026"
+                      placeholder="Search by name or phone…"
                       aria-label="Search subscribers"
                       name="search"
                       autoComplete="off"

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO, formatUGXExact, formatUGX } from '../../utils/finance';
+import { EASE_OUT_EXPO, formatUGXExact, formatUGX, parseAmount } from '../../utils/finance';
 import { useCurrentSubscriber, useSubmitClaim } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import PageHeader from '../shell/PageHeader';
@@ -50,7 +50,7 @@ export default function ClaimPage() {
   const claims = sub?.claims || [];
   const noPolicy = !insurance || insurance.status !== 'active';
 
-  const claimAmtNum = Number.parseInt(claimAmount.replace(/[^\d]/g, '') || '0', 10);
+  const claimAmtNum = parseAmount(claimAmount) ?? 0;
   const canReview = claimType && claimDate && claimAmtNum > 0 && claimDesc.trim().length >= 6;
 
   function handleBack() {
@@ -256,7 +256,7 @@ export default function ClaimPage() {
                       type="text"
                       inputMode="numeric"
                       className={styles.input}
-                      value={claimAmount ? Number.parseInt(claimAmount.replace(/[^\d]/g, ''), 10).toLocaleString('en-UG') : ''}
+                      value={claimAmount ? (parseAmount(claimAmount) ?? 0).toLocaleString('en-UG') : ''}
                       onChange={(e) => setClaimAmount(e.target.value.replace(/[^\d]/g, ''))}
                       placeholder="e.g. 350,000"
                     />

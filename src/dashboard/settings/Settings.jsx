@@ -72,7 +72,7 @@ export default function Settings({ splitMode = false }) {
     setNomineesOpen,
     setNomineesTab,
   } = useDashboard();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { addToast } = useToast();
   const isSubscriber = user?.role === 'subscriber';
   const { data: subscriber } = useCurrentSubscriber();
@@ -156,8 +156,17 @@ export default function Settings({ splitMode = false }) {
     e.preventDefault();
     if (!validate()) return;
 
-    /* In production this would call an API — for now show success toast */
-    addToast('success', 'Settings saved');
+    // Profile changes flow through updateUser so the avatar / phone shown in
+    // header chips updates immediately. Password change still needs the
+    // backend — surfaced as a more honest pending notice for now.
+    if (hasProfileChanges) {
+      updateUser({ name: name.trim(), email: email.trim(), phone });
+    }
+    if (hasPasswordEntry) {
+      addToast('info', 'Password change will activate once the backend lands.');
+    } else {
+      addToast('success', 'Profile updated.');
+    }
     setCurrentPw('');
     setNewPw('');
     setConfirmPw('');
@@ -320,7 +329,6 @@ export default function Settings({ splitMode = false }) {
                     </label>
                     <div className={styles.phoneGroup}>
                       <div className={styles.phonePrefix}>
-                        <span className={styles.flag} aria-hidden="true">🇺🇬</span>
                         <span className={styles.phoneCode}>+256</span>
                       </div>
                       <input

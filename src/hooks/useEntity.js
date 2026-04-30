@@ -159,3 +159,35 @@ export function useCreateAgent() {
     },
   });
 }
+
+/**
+ * Mutation to apply partial updates to a branch (admin info, name, etc).
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useUpdateBranch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, updates }) => entities.updateBranch(id, updates),
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['entity', 'branch', id] });
+      queryClient.invalidateQueries({ queryKey: ['entities', 'branch'] });
+      queryClient.invalidateQueries({ queryKey: ['children'] });
+    },
+  });
+}
+
+/**
+ * Mutation to flip a branch between active and inactive.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useSetBranchStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }) => entities.setBranchStatus(id, status),
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['entity', 'branch', id] });
+      queryClient.invalidateQueries({ queryKey: ['entities', 'branch'] });
+      queryClient.invalidateQueries({ queryKey: ['children'] });
+    },
+  });
+}

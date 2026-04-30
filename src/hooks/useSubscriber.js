@@ -106,3 +106,11 @@ export function useUpdateInsuranceCover(id) {
     onSuccess: invalidate,
   });
 }
+
+export function useUpdateProfile(id) {
+  const invalidate = useInvalidateSubscriber(id);
+  return useMutation({
+    mutationFn: (updates) => subscriberService.updateProfile(id, updates),
+    onSuccess: invalidate,
+  });
+}

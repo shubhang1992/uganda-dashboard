@@ -1,12 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGX, formatUGXExact, calcFV, MONTHLY_RATE } from '../../utils/finance';
+import { EASE_OUT_EXPO, formatUGX, formatUGXExact, calcFV, MONTHLY_RATE, monthlyEquivalent } from '../../utils/finance';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
+import { RETIREMENT_AGE } from '../../constants/savings';
 import PageHeader from '../shell/PageHeader';
 import styles from './ProjectionPage.module.css';
 
-const RETIREMENT_AGE = 60;
 const FALLBACK_AGE = 30;
 
 const GOALS = [
@@ -16,22 +16,6 @@ const GOALS = [
   { id: 'house',      label: 'Buy a house',            hint: 'Family home in Kampala',        target: 250_000_000 },
   { id: 'retirement', label: 'Comfortable retirement', hint: '20 years of living costs',      target: 500_000_000 },
 ];
-
-function monthlyFromSchedule(schedule) {
-  if (!schedule?.amount) return 0;
-  const amount = schedule.amount;
-  switch (schedule.frequency) {
-    case 'weekly':       return (amount * 52) / 12;
-    case 'monthly':      return amount;
-    case 'quarterly':    return amount / 3;
-    case 'half-yearly':
-    case 'semi-annually':
-    case 'halfYearly':   return amount / 6;
-    case 'annually':
-    case 'yearly':       return amount / 12;
-    default:             return amount;
-  }
-}
 
 function requiredMonthly(target, years) {
   const n = years * 12;
@@ -47,12 +31,14 @@ export default function ProjectionPage() {
 
   const age = typeof subscriber?.age === 'number' ? subscriber.age : FALLBACK_AGE;
   const yearsToRetirement = Math.max(0, RETIREMENT_AGE - age);
+  const atOrPastRetirement = yearsToRetirement === 0;
 
+  const balance = subscriber?.netBalance || 0;
   const schedule = subscriber?.contributionSchedule;
-  const monthlyCurrent = useMemo(() => monthlyFromSchedule(schedule), [schedule]);
+  const monthlyCurrent = useMemo(() => monthlyEquivalent(schedule), [schedule]);
   const projectedAtRetirement = useMemo(
-    () => calcFV(monthlyCurrent, yearsToRetirement),
-    [monthlyCurrent, yearsToRetirement],
+    () => balance + calcFV(monthlyCurrent, yearsToRetirement),
+    [balance, monthlyCurrent, yearsToRetirement],
   );
 
   const goal = GOALS.find((g) => g.id === goalId) ?? GOALS[0];
@@ -68,7 +54,11 @@ export default function ProjectionPage() {
     <div className={styles.page}>
       <PageHeader
         title="Goal projection"
-        subtitle={`Retirement at ${RETIREMENT_AGE} · ${yearsToRetirement} yrs to go`}
+        subtitle={
+          atOrPastRetirement
+            ? `You're at retirement age — current balance ${formatUGX(balance)}`
+            : `Retirement at ${RETIREMENT_AGE} · ${yearsToRetirement} yrs to go`
+        }
       />
 
       <div className={styles.body}>

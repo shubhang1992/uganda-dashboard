@@ -209,6 +209,7 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
 
   const alerts = useMemo(() => computeAlerts(metrics, commissionSummary), [metrics, commissionSummary]);
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [copilotUserToggled, setCopilotUserToggled] = useState(false);
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -228,10 +229,14 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages, isTyping]);
 
-  // Auto-open copilot when entering split view, collapse when leaving
-  useEffect(() => {
-    setCopilotOpen(split);
-  }, [split]);
+  // Auto-open copilot when entering split view, collapse when leaving — but
+  // only if the user hasn't already taken control of the toggle. Derived
+  // during render (not via effect) to avoid a setState-in-effect lint hit.
+  const [lastSplit, setLastSplit] = useState(split);
+  if (split !== lastSplit) {
+    setLastSplit(split);
+    if (!copilotUserToggled) setCopilotOpen(split);
+  }
 
   function handleSend(text) {
     const msg = text || chatInput.trim();
@@ -348,8 +353,11 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
         {/* Col 3: Activity */}
         <div className={styles.activitySection}>
           <div className={styles.activityHeader}>
-            <span className={styles.activityTitle}>Recent Activity</span>
-            <span className={styles.activityLive}><span className={styles.liveDot} />Live</span>
+            <span className={styles.activityTitle}>Today&apos;s Snapshot</span>
+            <span className={styles.activityLive} aria-label="Updated just now">
+              <span className={styles.liveDot} aria-hidden="true" />
+              Updated
+            </span>
           </div>
           <div className={styles.activityFeed}>
             {events.map((event, i) => (
@@ -395,7 +403,11 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
 
       {/* ── Copilot strip (collapsed = insight highlights, expanded = full chat) ── */}
       <div className={styles.copilotStrip}>
-        <button className={styles.copilotToggle} onClick={() => setCopilotOpen(!copilotOpen)} aria-expanded={copilotOpen}>
+        <button
+          className={styles.copilotToggle}
+          onClick={() => { setCopilotOpen(!copilotOpen); setCopilotUserToggled(true); }}
+          aria-expanded={copilotOpen}
+        >
           <div className={styles.copilotLeft}>
             <span className={styles.copilotDot} />
             <span className={styles.copilotTitle}>Branch Copilot</span>

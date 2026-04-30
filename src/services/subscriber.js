@@ -18,6 +18,7 @@ function readSession(id) {
       scheduleOverride: null,
       nomineesOverride: null,
       insuranceOverride: null,
+      profileOverride: null,
       balanceDelta: { retirement: 0, emergency: 0, total: 0 },
     });
   }
@@ -31,6 +32,7 @@ function applyMutations(sub) {
   mergedTx.sort((a, b) => b.date.localeCompare(a.date));
   return {
     ...sub,
+    ...(m.profileOverride ?? null),
     contributionSchedule: m.scheduleOverride ?? sub.contributionSchedule,
     nominees: m.nomineesOverride ?? sub.nominees,
     insurance: m.insuranceOverride ?? sub.insurance,
@@ -50,9 +52,9 @@ function applyMutations(sub) {
 }
 
 /**
- * Returns the current subscriber. Looks up by auth phone; falls back to the
- * first available subscriber in the mock map so the dashboard is always
- * populated in prototype mode.
+ * Returns the current subscriber. Looks up by auth phone; falls back to a
+ * working-age subscriber with a contribution schedule so the prototype demo
+ * always renders meaningful numbers.
  */
 export async function getCurrentSubscriber(phone) {
   const list = Object.values(SUBSCRIBERS);
@@ -61,7 +63,12 @@ export async function getCurrentSubscriber(phone) {
     const match = list.find((s) => s.phone?.endsWith(phone) || s.phone === phone);
     if (match) return applyMutations(match);
   }
-  return applyMutations(list[0]);
+  const demo = list.find((s) =>
+    typeof s.age === 'number' &&
+    s.age >= 28 && s.age <= 42 &&
+    s.contributionSchedule?.amount > 0
+  );
+  return applyMutations(demo ?? list[0]);
 }
 
 export async function getSubscriberTransactions(id, { type, range, status } = {}) {
@@ -217,4 +224,13 @@ export async function updateInsuranceCover(id, { cover, premiumMonthly }) {
     status: cover > 0 ? 'active' : 'inactive',
   };
   return m.insuranceOverride;
+}
+
+/** Apply partial profile updates (name / phone / email). */
+export async function updateProfile(id, updates) {
+  const sub = SUBSCRIBERS[id];
+  if (!sub) throw new Error('Subscriber not found');
+  const m = readSession(id);
+  m.profileOverride = { ...(m.profileOverride ?? {}), ...updates };
+  return m.profileOverride;
 }

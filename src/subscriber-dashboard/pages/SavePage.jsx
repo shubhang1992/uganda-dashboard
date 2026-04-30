@@ -1,25 +1,19 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { EASE_OUT_EXPO, formatUGXExact, formatUGX } from '../../utils/finance';
+import { EASE_OUT_EXPO, formatUGXExact, formatUGX, parseAmount } from '../../utils/finance';
 import { useCurrentSubscriber, useMakeContribution } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
+import { MIN_CONTRIBUTION, QUICK_CONTRIBUTION_AMOUNTS } from '../../constants/savings';
 import PageHeader from '../shell/PageHeader';
 import styles from './SavePage.module.css';
 
-const PRESET_AMOUNTS = [10000, 25000, 50000, 100000, 250000];
+const PRESET_AMOUNTS = QUICK_CONTRIBUTION_AMOUNTS;
 const METHODS = [
   { id: 'mtn',    label: 'MTN Mobile Money', helper: '+256 7X XXX XXXX' },
   { id: 'airtel', label: 'Airtel Money',     helper: '+256 7X XXX XXXX' },
   { id: 'bank',   label: 'Bank transfer',    helper: 'Stanbic · ABSA · Centenary' },
 ];
-const MIN_CONTRIBUTION = 5000;
-
-function parseAmount(str) {
-  const cleaned = String(str).replace(/[^\d]/g, '');
-  if (!cleaned) return null;
-  return Number.parseInt(cleaned, 10);
-}
 
 export default function SavePage() {
   const navigate = useNavigate();

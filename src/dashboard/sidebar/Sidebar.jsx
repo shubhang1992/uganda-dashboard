@@ -4,7 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useAllEntities } from '../../hooks/useEntity';
 import styles from './Sidebar.module.css';
+
+function formatCount(n) {
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  if (n >= 10_000) return `${Math.round(n / 1000)}K`;
+  return n.toLocaleString('en-UG');
+}
 
 const MOBILE_NAV = [
   {
@@ -199,6 +206,14 @@ export default function Sidebar() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const { reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, subscriberMenuOpen, setSubscriberMenuOpen, viewSubscribersOpen, setViewSubscribersOpen, setDrillTargetBranchId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen, setCommissionsOpen, settingsOpen, setSettingsOpen } = useDashboard();
+
+  // Real counts for the submenu headers — replaces previous hardcoded values.
+  const { data: branchesArr = [] } = useAllEntities('branch');
+  const { data: agentsArr = [] } = useAllEntities('agent');
+  const { data: subscribersArr = [] } = useAllEntities('subscriber');
+  const branchCount = formatCount(branchesArr.length);
+  const agentCount = formatCount(agentsArr.length);
+  const subscriberCount = formatCount(subscribersArr.length);
 
   // `active` is purely derived from which panel/menu is open.
   // No setState-in-effect needed — submenu open state itself is now derived
@@ -397,7 +412,7 @@ export default function Sidebar() {
                     <span className={styles.subMenuArrow} />
                     <div className={styles.subMenuHeader}>
                       <span className={styles.subMenuTitle}>Branches</span>
-                      <span className={styles.subMenuCount}>310</span>
+                      <span className={styles.subMenuCount}>{branchCount}</span>
                     </div>
                     <div className={styles.subMenuDivider} />
                     {BRANCH_SUB.map((sub, i) => {
@@ -440,7 +455,7 @@ export default function Sidebar() {
                     <span className={styles.subMenuArrow} />
                     <div className={styles.subMenuHeader}>
                       <span className={styles.subMenuTitle}>Agents</span>
-                      <span className={styles.subMenuCount}>2,036</span>
+                      <span className={styles.subMenuCount}>{agentCount}</span>
                     </div>
                     <div className={styles.subMenuDivider} />
                     {AGENT_SUB.map((sub, i) => {
@@ -483,7 +498,7 @@ export default function Sidebar() {
                     <span className={styles.subMenuArrow} />
                     <div className={styles.subMenuHeader}>
                       <span className={styles.subMenuTitle}>Subscribers</span>
-                      <span className={styles.subMenuCount}>30,000</span>
+                      <span className={styles.subMenuCount}>{subscriberCount}</span>
                     </div>
                     <div className={styles.subMenuDivider} />
                     {SUBSCRIBER_SUB.map((sub, i) => {

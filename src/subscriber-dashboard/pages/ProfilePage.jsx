@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
-import { useCurrentSubscriber } from '../../hooks/useSubscriber';
+import { useCurrentSubscriber, useUpdateProfile } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import PageHeader from '../shell/PageHeader';
 import styles from './ProfilePage.module.css';
@@ -17,6 +17,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
+  const updateProfile = useUpdateProfile(sub?.id);
 
   const [name, setName] = useState(sub?.name || '');
   const [email, setEmail] = useState(sub?.email || '');
@@ -36,15 +37,18 @@ export default function ProfilePage() {
   const canSave = dirty && validName && validPhone && validEmail;
 
   async function handleSave() {
-    if (!canSave) return;
+    if (!canSave || !sub) return;
     setSubmitting(true);
     try {
-      // Profile mutation isn't wired to the service yet — this is a UI-only patch
-      // that signals success and returns to settings. When the backend lands,
-      // swap this for a useUpdateProfile hook.
-      await new Promise((r) => setTimeout(r, 600));
+      await updateProfile.mutateAsync({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phoneDigits ? `+256${phoneDigits}` : '',
+      });
       addToast('success', 'Profile updated.');
       navigate(-1);
+    } catch (err) {
+      addToast('error', err?.message || 'Could not update profile.');
     } finally {
       setSubmitting(false);
     }

@@ -47,6 +47,20 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  /** Apply partial updates to the active session (e.g. profile edits). */
+  const updateUser = useCallback((updates) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...updates };
+      try {
+        localStorage.setItem(AUTH_KEY, JSON.stringify(next));
+      } catch {
+        // Storage may be inaccessible — non-fatal.
+      }
+      return next;
+    });
+  }, []);
+
   const logout = useCallback(() => {
     setUser(null);
     try {
@@ -66,8 +80,8 @@ export function AuthProvider({ children }) {
   }), [logout, navigate]);
 
   const value = useMemo(
-    () => ({ user, role: user?.role ?? null, isAuthenticated: !!user, login, logout }),
-    [user, login, logout],
+    () => ({ user, role: user?.role ?? null, isAuthenticated: !!user, login, logout, updateUser }),
+    [user, login, logout, updateUser],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;

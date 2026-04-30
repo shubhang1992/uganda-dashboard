@@ -305,7 +305,6 @@ export default function CreateAgent({ splitMode = false }) {
                           <label className={styles.label} htmlFor="ca-phone">Phone Number <span className={styles.req}>*</span></label>
                           <div className={styles.phoneGroup} data-error={!!errors.phone}>
                             <div className={styles.phonePrefix}>
-                              <span className={styles.flag}>&#x1F1FA;&#x1F1EC;</span>
                               <span className={styles.phoneCode}>+256</span>
                             </div>
                             <input

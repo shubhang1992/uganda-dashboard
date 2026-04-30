@@ -69,6 +69,7 @@ const SECTIONS = [
     label: 'Notifications',
     helper: 'SMS, email, push',
     to: '/dashboard/settings/notifications',
+    soon: true,
   },
   {
     id: 'security',
@@ -81,6 +82,7 @@ const SECTIONS = [
     label: 'Security',
     helper: 'PIN, devices, sessions',
     to: '/dashboard/settings/security',
+    soon: true,
   },
 ];
 
@@ -158,6 +160,7 @@ export default function SettingsPage() {
                     <span className={styles.sectionLabel}>{s.label}</span>
                     <span className={styles.sectionHelper}>{s.helper}</span>
                   </span>
+                  {s.soon && <span className={styles.soonBadge}>Soon</span>}
                   <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10" className={styles.sectionArrow}>
                     <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
                   </svg>

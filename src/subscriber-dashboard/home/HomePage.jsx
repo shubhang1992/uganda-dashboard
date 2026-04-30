@@ -7,7 +7,7 @@ import TopUpWidget from './widgets/TopUpWidget';
 import ProjectionWidget from './widgets/ProjectionWidget';
 import IfYouNeedItWidget from './widgets/IfYouNeedItWidget';
 import ActivityWidget from './widgets/ActivityWidget';
-import HelpAgentWidget from './widgets/HelpAgentWidget';
+import CoPilotWidget from './widgets/CoPilotWidget';
 import styles from './HomePage.module.css';
 
 const stagger = {
@@ -54,7 +54,7 @@ export default function HomePage() {
         <ActivityWidget subscriber={sub} />
       </motion.div>
       <motion.div variants={item}>
-        <HelpAgentWidget subscriber={sub} />
+        <CoPilotWidget />
       </motion.div>
     </motion.div>
   );

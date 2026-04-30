@@ -9,7 +9,7 @@ export default function Breadcrumb() {
   if (level === 'country' || !crumbs) return null;
 
   return (
-    <nav className={styles.breadcrumb} aria-label="Navigation" aria-live="polite">
+    <nav className={styles.breadcrumb} aria-label="Drill-down path">
       {crumbs.map((crumb, i) => (
         <span key={crumb.level} className={styles.item}>
           {i > 0 && (
@@ -22,7 +22,7 @@ export default function Breadcrumb() {
               {crumb.name}
             </button>
           ) : (
-            <span className={styles.current}>{crumb.name}</span>
+            <span className={styles.current} aria-current="page">{crumb.name}</span>
           )}
         </span>
       ))}

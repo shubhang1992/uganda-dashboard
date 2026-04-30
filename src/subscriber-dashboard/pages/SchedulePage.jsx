@@ -1,32 +1,28 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGXExact, calcFV } from '../../utils/finance';
+import { EASE_OUT_EXPO, formatUGXExact, calcFV, parseAmount, FREQUENCY, periodsPerYear } from '../../utils/finance';
 import { useCurrentSubscriber, useUpdateSchedule } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
+import {
+  RETIREMENT_AGE,
+  MIN_CONTRIBUTION,
+  INSURANCE_PREMIUM_MONTHLY,
+  INSURANCE_COVER,
+  QUICK_CONTRIBUTION_AMOUNTS,
+} from '../../constants/savings';
 import PageHeader from '../shell/PageHeader';
 import styles from './SchedulePage.module.css';
 
-const MIN_CONTRIBUTION = 5000;
-const RETIREMENT_AGE = 60;
-
 const FREQUENCIES = [
-  { id: 'weekly',      label: 'Weekly',      helper: 'every week',     cadence: 'every week',     perYear: 52 },
-  { id: 'monthly',     label: 'Monthly',     helper: 'every month',    cadence: 'every month',    perYear: 12 },
-  { id: 'quarterly',   label: 'Quarterly',   helper: 'every 3 months', cadence: 'every 3 months', perYear: 4  },
-  { id: 'half-yearly', label: 'Half-yearly', helper: 'every 6 months', cadence: 'every 6 months', perYear: 2  },
-  { id: 'annually',    label: 'Annually',    helper: 'every year',     cadence: 'every year',     perYear: 1  },
+  { id: FREQUENCY.WEEKLY,      label: 'Weekly',      helper: 'every week',     cadence: 'every week'     },
+  { id: FREQUENCY.MONTHLY,     label: 'Monthly',     helper: 'every month',    cadence: 'every month'    },
+  { id: FREQUENCY.QUARTERLY,   label: 'Quarterly',   helper: 'every 3 months', cadence: 'every 3 months' },
+  { id: FREQUENCY.HALF_YEARLY, label: 'Half-yearly', helper: 'every 6 months', cadence: 'every 6 months' },
+  { id: FREQUENCY.ANNUALLY,    label: 'Annually',    helper: 'every year',     cadence: 'every year'     },
 ];
 
-const PRESET_AMOUNTS = [10000, 25000, 50000, 100000, 250000];
-const INSURANCE_PREMIUM_MONTHLY = 2000;
-const INSURANCE_COVER = 1_000_000;
-
-function parseAmount(str) {
-  const cleaned = String(str).replace(/[^\d]/g, '');
-  if (!cleaned) return null;
-  return Number.parseInt(cleaned, 10);
-}
+const PRESET_AMOUNTS = QUICK_CONTRIBUTION_AMOUNTS;
 
 function getFreq(id) {
   return FREQUENCIES.find((f) => f.id === id) ?? FREQUENCIES[1];
@@ -61,21 +57,22 @@ export default function SchedulePage() {
 
   const amount = parseAmount(amountStr);
   const freq = getFreq(frequency);
+  const freqPerYear = periodsPerYear(freq.id);
   const hasAmount = amount !== null && amount >= MIN_CONTRIBUTION;
   const belowMin = amount !== null && amount < MIN_CONTRIBUTION;
   const emergencyPct = 100 - retirementPct;
 
   const insurancePremium = includeInsurance
-    ? Math.round((INSURANCE_PREMIUM_MONTHLY * 12) / freq.perYear)
+    ? Math.round((INSURANCE_PREMIUM_MONTHLY * 12) / freqPerYear)
     : 0;
   const totalPerPeriod = hasAmount ? amount + insurancePremium : 0;
-  const annualTotal = hasAmount ? totalPerPeriod * freq.perYear : 0;
+  const annualTotal = hasAmount ? totalPerPeriod * freqPerYear : 0;
 
   const retirementPerPeriod = hasAmount ? Math.round(amount * (retirementPct / 100)) : 0;
   const emergencyPerPeriod = hasAmount ? amount - retirementPerPeriod : 0;
 
   const years = yearsToRetirement(sub?.age);
-  const contribMonthly = hasAmount ? (amount * freq.perYear) / 12 : 0;
+  const contribMonthly = hasAmount ? (amount * freqPerYear) / 12 : 0;
   const retMonthly = contribMonthly * (retirementPct / 100);
   const retirementFV = useMemo(
     () => (years > 0 && retMonthly > 0 ? calcFV(retMonthly, years) : 0),

@@ -185,8 +185,7 @@ function NavAnnouncer() {
 
   return (
     <div
-      aria-live="assertive"
-      role="status"
+      aria-live="polite"
       style={{
         position: 'absolute',
         width: '1px',
@@ -208,14 +207,14 @@ function DashboardContent() {
   const isMobile = useIsMobile();
   return (
     <>
-      <div className={styles.main}>
+      <main className={styles.main} id="main">
         <NavAnnouncer />
         {!isMobile && <UgandaMap />}
         <Breadcrumb />
         <OverlayPanel />
         <TopBar />
         <MetricsRow />
-      </div>
+      </main>
       <CreateBranch />
       <ViewBranches />
       <ViewAgents />

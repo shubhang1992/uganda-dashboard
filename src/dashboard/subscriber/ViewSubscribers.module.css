@@ -972,3 +972,39 @@
     text-align: center;
   }
 }
+
+/* ── Detail-view utility classes (replaces previous inline styles) ───────── */
+.kycCheckIcon {
+  margin-right: 3px;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.statusDot[data-tone='active'] {
+  background: var(--color-status-good);
+}
+
+.statusDot[data-tone='inactive'] {
+  background: var(--color-status-poor);
+}
+
+.capitalize {
+  text-transform: capitalize;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.netBalanceValue {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--color-indigo);
+}

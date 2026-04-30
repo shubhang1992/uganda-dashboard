@@ -9,6 +9,24 @@ import {
 } from '../data/mockData';
 
 /**
+ * Per-session entity overrides — same pattern as subscriber.js. Avoids
+ * mutating frozen mockData while still letting the prototype show edits.
+ * Keyed by `${level}:${id}`.
+ */
+const _entityOverrides = new Map();
+
+function overrideKey(level, id) {
+  return `${level}:${id}`;
+}
+
+/** Apply pending overrides to an entity (or null) before returning it. */
+function withOverrides(level, entity) {
+  if (!entity) return entity;
+  const ov = _entityOverrides.get(overrideKey(level, entity.id));
+  return ov ? { ...entity, ...ov } : entity;
+}
+
+/**
  * @endpoint GET /api/country
  * @returns {Promise<{id: string, name: string, center: [number, number], metrics: Metrics}>}
  * @description Returns the country-level entity with aggregated metrics.
@@ -31,7 +49,7 @@ export async function getCountry() {
  */
 export async function getEntity(level, id) {
   // Future: api.get(`/${level}s/${id}`)
-  return getEntityById(level, id);
+  return withOverrides(level, getEntityById(level, id));
 }
 
 /**
@@ -46,7 +64,9 @@ export async function getEntity(level, id) {
  */
 export async function getChildren(level, parentId) {
   // Future: api.get(`/${level}s/${parentId}/children`)
-  return getChildEntities(level, parentId);
+  const childLevel = { country: 'region', region: 'district', district: 'branch', branch: 'agent', agent: 'subscriber' }[level];
+  const list = getChildEntities(level, parentId);
+  return childLevel ? list.map((e) => withOverrides(childLevel, e)) : list;
 }
 
 /**
@@ -61,7 +81,8 @@ export async function getChildren(level, parentId) {
  */
 export async function getAllAtLevel(level) {
   // Future: api.get(`/${level}s`)
-  return getAllEntities(level);
+  const list = getAllEntities(level);
+  return list.map((e) => withOverrides(level, e));
 }
 
 /**
@@ -186,4 +207,35 @@ export async function getAllAtLevelMap(level) {
  */
 export function getEntitySync(level, id) {
   return getEntityById(level, id);
+}
+
+/**
+ * @endpoint PATCH /api/branches/:id
+ * @param {string} id - Branch ID
+ * @param {Partial<{name: string, managerName: string, managerPhone: string, managerEmail: string}>} updates
+ * @returns {Promise<Object>} The updated branch
+ * @description Apply partial updates to a branch. Stores in the per-session
+ *   override map so the underlying mock data stays immutable.
+ * @cache Invalidates: ['entity', 'branch', id], ['entities', 'branch'], ['children']
+ * @scope Distributor only.
+ */
+export async function updateBranch(id, updates) {
+  // Future: api.patch(`/branches/${id}`, updates)
+  const current = _entityOverrides.get(overrideKey('branch', id)) ?? {};
+  _entityOverrides.set(overrideKey('branch', id), { ...current, ...updates });
+  return withOverrides('branch', getEntityById('branch', id));
+}
+
+/**
+ * @endpoint POST /api/branches/:id/status
+ * @param {string} id - Branch ID
+ * @param {'active'|'inactive'} status
+ * @returns {Promise<Object>} The updated branch
+ * @description Activate or deactivate a branch.
+ * @cache Same as updateBranch
+ * @scope Distributor only.
+ */
+export async function setBranchStatus(id, status) {
+  // Future: api.post(`/branches/${id}/status`, { status })
+  return updateBranch(id, { status });
 }

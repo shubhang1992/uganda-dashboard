@@ -298,27 +298,21 @@ function UgandaMap() {
     [selectedRegionId, selectedDistrictId]
   );
 
-  if (geoError && !regionsGeo && !districtsGeo) {
+  // Either layer failing to load is fatal — the map can't render correctly
+  // without both region overlays and district outlines.
+  if (geoError && (!regionsGeo || !districtsGeo)) {
     return (
       <div className={styles.mapContainer} data-level={level}>
-        <div style={{
-          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: '0.75rem',
-          background: 'var(--map-bg)', color: 'var(--color-gray)', fontFamily: 'var(--font-body)',
-        }}>
-          <svg viewBox="0 0 24 24" fill="none" width="32" height="32">
+        <div className={styles.errorFallback} role="alert">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="32" height="32">
             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.75" />
             <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
           </svg>
-          <p style={{ fontSize: 'var(--text-sm)', margin: 0 }}>Map data could not be loaded</p>
+          <p className={styles.errorMessage}>Map data could not be loaded</p>
           <button
+            type="button"
+            className={styles.errorRetryBtn}
             onClick={() => { setGeoError(null); window.location.reload(); }}
-            style={{
-              background: 'var(--color-indigo)', color: 'white', border: 'none',
-              borderRadius: 'var(--radius-full)', padding: '0.5rem 1.25rem',
-              fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--text-xs)',
-              cursor: 'pointer',
-            }}
           >
             Retry
           </button>
@@ -328,7 +322,12 @@ function UgandaMap() {
   }
 
   return (
-    <div className={styles.mapContainer} data-level={level}>
+    <div
+      className={styles.mapContainer}
+      data-level={level}
+      role="region"
+      aria-label="Map of Uganda — drill into regions, districts and branches. Use the search in the overlay panel for keyboard navigation."
+    >
       <MapContainer
         center={UGANDA_CENTER}
         zoom={7.5}
