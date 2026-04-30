@@ -267,14 +267,15 @@ export default function ClaimPage() {
               <section className={styles.section}>
                 <div className={styles.sectionHead}>
                   <span className={styles.sectionIdx}>03</span>
-                  <h2 className={styles.sectionTitle}>Describe it</h2>
+                  <h2 className={styles.sectionTitle} id="claim-desc-label">Describe it</h2>
                 </div>
                 <textarea
                   className={styles.textarea}
                   value={claimDesc}
                   onChange={(e) => setClaimDesc(e.target.value)}
-                  placeholder="A short summary of the incident and what you&#39;re claiming for."
+                  placeholder="A short summary of the incident and what you're claiming for."
                   rows={4}
+                  aria-labelledby="claim-desc-label"
                 />
                 <span className={styles.charHint}>{claimDesc.length} chars · min 6</span>
               </section>

@@ -287,8 +287,9 @@ export default function CreateAgent({ splitMode = false }) {
                         transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
                       >
                         <div className={styles.field}>
-                          <label className={styles.label}>Full Name <span className={styles.req}>*</span></label>
+                          <label className={styles.label} htmlFor="ca-fullName">Full Name <span className={styles.req}>*</span></label>
                           <input
+                            id="ca-fullName"
                             className={styles.input}
                             value={fullName}
                             onChange={(e) => setFullName(e.target.value)}
@@ -301,13 +302,14 @@ export default function CreateAgent({ splitMode = false }) {
                         </div>
 
                         <div className={styles.field}>
-                          <label className={styles.label}>Phone Number <span className={styles.req}>*</span></label>
+                          <label className={styles.label} htmlFor="ca-phone">Phone Number <span className={styles.req}>*</span></label>
                           <div className={styles.phoneGroup} data-error={!!errors.phone}>
                             <div className={styles.phonePrefix}>
                               <span className={styles.flag}>&#x1F1FA;&#x1F1EC;</span>
                               <span className={styles.phoneCode}>+256</span>
                             </div>
                             <input
+                              id="ca-phone"
                               type="tel"
                               inputMode="numeric"
                               className={styles.phoneInput}
@@ -322,8 +324,9 @@ export default function CreateAgent({ splitMode = false }) {
                         </div>
 
                         <div className={styles.field}>
-                          <label className={styles.label}>Email Address</label>
+                          <label className={styles.label} htmlFor="ca-email">Email Address</label>
                           <input
+                            id="ca-email"
                             type="email"
                             className={styles.input}
                             value={email}
@@ -335,13 +338,13 @@ export default function CreateAgent({ splitMode = false }) {
                         </div>
 
                         <div className={styles.field}>
-                          <label className={styles.label}>Gender <span className={styles.req}>*</span></label>
+                          <label className={styles.label} htmlFor="ca-gender">Gender <span className={styles.req}>*</span></label>
                           <select
+                            id="ca-gender"
                             className={styles.select}
                             value={gender || ''}
                             onChange={(e) => { setGender(e.target.value || null); if (errors.gender) setErrors((p) => ({ ...p, gender: '' })); }}
                             data-error={!!errors.gender}
-                            aria-label="Gender"
                           >
                             <option value="">Select gender</option>
                             <option value="male">Male</option>
@@ -352,8 +355,9 @@ export default function CreateAgent({ splitMode = false }) {
                         </div>
 
                         <div className={styles.field}>
-                          <label className={styles.label}>National ID Number</label>
+                          <label className={styles.label} htmlFor="ca-idNumber">National ID Number</label>
                           <input
+                            id="ca-idNumber"
                             className={styles.input}
                             value={idNumber}
                             onChange={(e) => setIdNumber(e.target.value)}
@@ -365,8 +369,9 @@ export default function CreateAgent({ splitMode = false }) {
                         </div>
 
                         <div className={styles.field}>
-                          <label className={styles.label}>Employee ID</label>
+                          <label className={styles.label} htmlFor="ca-employeeId">Employee ID</label>
                           <input
+                            id="ca-employeeId"
                             className={styles.input}
                             value={employeeId}
                             onChange={(e) => setEmployeeId(e.target.value)}

@@ -58,7 +58,7 @@ function ChatCard({ open, onToggle }) {
       </button>
       <div className={styles.chatBody}>
         <div className={styles.chatBodyInner}>
-          <div className={styles.chatMessages} ref={listRef} aria-live="polite" aria-relevant="additions">
+          <div className={styles.chatMessages} ref={listRef} aria-live="polite" aria-relevant="additions text">
             {messages.map((m, i) => (
               <div key={i} className={styles.chatMsg} data-role={m.role}>
                 <div className={styles.chatBubble} data-role={m.role}>{m.text}</div>

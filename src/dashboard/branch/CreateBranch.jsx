@@ -35,7 +35,7 @@ const townOptions = TOWNS.map((t) => ({
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  SearchableSelect — type-to-filter dropdown with optional free text       */
 /* ═══════════════════════════════════════════════════════════════════════════ */
-function SearchableSelect({ options, value, onChange, placeholder, allowCustom }) {
+function SearchableSelect({ options, value, onChange, placeholder, allowCustom, id, ariaLabel }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -89,6 +89,8 @@ function SearchableSelect({ options, value, onChange, placeholder, allowCustom }
     <div className={styles.selectWrap} ref={wrapRef}>
       <input
         ref={inputRef}
+        id={id}
+        aria-label={ariaLabel}
         className={styles.selectInput}
         value={open ? query : value?.name || ''}
         onChange={(e) => setQuery(e.target.value)}
@@ -434,8 +436,9 @@ export default function CreateBranch() {
                         transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
                       >
                         <div className={styles.field}>
-                          <label className={styles.label}>Branch Name <span className={styles.req}>*</span></label>
+                          <label className={styles.label} htmlFor="cb-branchName">Branch Name <span className={styles.req}>*</span></label>
                           <input
+                            id="cb-branchName"
                             className={styles.input}
                             value={branchName}
                             onChange={(e) => setBranchName(e.target.value)}
@@ -448,8 +451,9 @@ export default function CreateBranch() {
                         </div>
 
                         <div className={styles.field}>
-                          <label className={styles.label}>District <span className={styles.req}>*</span></label>
+                          <label className={styles.label} htmlFor="cb-district">District <span className={styles.req}>*</span></label>
                           <SearchableSelect
+                            id="cb-district"
                             options={districtOptions}
                             value={district}
                             onChange={setDistrict}
@@ -459,8 +463,9 @@ export default function CreateBranch() {
                         </div>
 
                         <div className={styles.field}>
-                          <label className={styles.label}>Region</label>
+                          <label className={styles.label} htmlFor="cb-region">Region</label>
                           <input
+                            id="cb-region"
                             className={styles.input}
                             value={region}
                             readOnly
@@ -470,8 +475,9 @@ export default function CreateBranch() {
                         </div>
 
                         <div className={styles.field}>
-                          <label className={styles.label}>City / Town <span className={styles.req}>*</span></label>
+                          <label className={styles.label} htmlFor="cb-cityTown">City / Town <span className={styles.req}>*</span></label>
                           <SearchableSelect
+                            id="cb-cityTown"
                             options={townOptions}
                             value={cityTown}
                             onChange={setCityTown}
@@ -482,8 +488,9 @@ export default function CreateBranch() {
                         </div>
 
                         <div className={styles.field}>
-                          <label className={styles.label}>Address <span className={styles.req}>*</span></label>
+                          <label className={styles.label} htmlFor="cb-address">Address <span className={styles.req}>*</span></label>
                           <textarea
+                            id="cb-address"
                             className={styles.textarea}
                             value={address}
                             onChange={(e) => setAddress(e.target.value)}
@@ -537,8 +544,9 @@ export default function CreateBranch() {
                         </p>
 
                         <div className={styles.field}>
-                          <label className={styles.label}>Full Name <span className={styles.req}>*</span></label>
+                          <label className={styles.label} htmlFor="cb-adminName">Full Name <span className={styles.req}>*</span></label>
                           <input
+                            id="cb-adminName"
                             className={styles.input}
                             value={adminName}
                             onChange={(e) => setAdminName(e.target.value)}
@@ -551,13 +559,14 @@ export default function CreateBranch() {
                         </div>
 
                         <div className={styles.field}>
-                          <label className={styles.label}>Phone Number <span className={styles.req}>*</span></label>
+                          <label className={styles.label} htmlFor="cb-adminPhone">Phone Number <span className={styles.req}>*</span></label>
                           <div className={styles.phoneGroup} data-error={!!errors.adminPhone}>
                             <div className={styles.phonePrefix}>
                               <span className={styles.flag}>🇺🇬</span>
                               <span className={styles.phoneCode}>+256</span>
                             </div>
                             <input
+                              id="cb-adminPhone"
                               type="tel"
                               inputMode="numeric"
                               className={styles.phoneInput}
@@ -572,8 +581,9 @@ export default function CreateBranch() {
                         </div>
 
                         <div className={styles.field}>
-                          <label className={styles.label}>Email Address</label>
+                          <label className={styles.label} htmlFor="cb-adminEmail">Email Address</label>
                           <input
+                            id="cb-adminEmail"
                             type="email"
                             className={styles.input}
                             value={adminEmail}
