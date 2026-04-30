@@ -36,7 +36,13 @@ export default defineConfig({
           if (id.includes('/framer-motion') || id.includes('/motion-utils') || id.includes('/motion-dom')) return 'vendor-motion';
           if (id.includes('/@tanstack/')) return 'vendor-tanstack';
           if (id.includes('/react-router') || id.includes('/@remix-run')) return 'vendor-router';
-          if (id.includes('/react-dom') || /\/react\//.test(id)) return 'vendor-react';
+          // Keep React core + its tightly coupled runtime deps together so a
+          // generic `vendor` chunk can't circular-reference back into them
+          // (which surfaced as `Cannot read properties of undefined (reading
+          // 'forwardRef')` in production after chunk hashes shifted).
+          if (/\/(react|react-dom|scheduler|use-sync-external-store|object-assign|js-tokens|loose-envify)\//.test(id)) {
+            return 'vendor-react';
+          }
           return 'vendor';
         },
       },
