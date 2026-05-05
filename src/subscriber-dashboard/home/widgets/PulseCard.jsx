@@ -208,16 +208,22 @@ export default function PulseCard({ subscriber, user }) {
         onClick={() => navigate('/dashboard/projection')}
         aria-label={`Open goal projection · at your pace, ${formatUGX(Math.round(projectedAt60))} by 60`}
       >
-        <span className={styles.projLabel}>At your pace, by 60</span>
-        <span className={styles.projRight}>
+        <span className={styles.projIcon} aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+            <path d="M3 17l6-6 4 4 8-8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M14 7h7v7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </span>
+        <span className={styles.projBody}>
+          <span className={styles.projLabel}>At your pace, by 60</span>
           <span className={styles.projValue}>
             {formatUGX(Math.round(projectedAt60))}
           </span>
-          <span className={styles.projChevron} aria-hidden="true">
-            <svg viewBox="0 0 12 12" width="12" height="12" fill="none">
-              <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </span>
+        </span>
+        <span className={styles.projChevron} aria-hidden="true">
+          <svg viewBox="0 0 12 12" width="12" height="12" fill="none">
+            <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </span>
       </button>
     </section>

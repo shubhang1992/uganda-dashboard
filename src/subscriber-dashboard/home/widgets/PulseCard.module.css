@@ -368,27 +368,31 @@
 }
 
 .projection {
-  display: flex;
+  display: grid;
+  grid-template-columns: 40px 1fr 32px;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) 6px 6px;
-  margin: 0 -6px -6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: transparent;
-  border-left: none;
-  border-right: none;
-  border-bottom: none;
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  gap: 12px;
+  padding: 12px 14px;
+  margin-top: var(--space-3);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--radius-lg);
   color: inherit;
   text-align: left;
   cursor: pointer;
   touch-action: manipulation;
-  transition: background 0.18s ease;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .projection:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(27, 26, 74, 0.25);
+}
+
+.projection:active {
+  transform: translateY(0);
 }
 
 .projection:focus-visible {
@@ -396,48 +400,79 @@
   outline-offset: 2px;
 }
 
-.projLabel {
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  color: rgba(217, 220, 242, 0.75);
+.projIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--color-accent-mint);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background 0.18s ease, transform 0.18s ease;
 }
 
-.projRight {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.projection:hover .projIcon {
+  background: rgba(255, 255, 255, 0.16);
+  transform: scale(1.05);
+}
+
+.projBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.projLabel {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(217, 220, 242, 0.70);
 }
 
 .projValue {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: var(--text-base);
-  letter-spacing: -0.015em;
-  color: var(--color-accent-mint);
+  font-size: var(--text-lg);
+  letter-spacing: -0.02em;
+  color: var(--color-white);
   font-variant-numeric: tabular-nums;
+  line-height: 1.05;
 }
 
 .projChevron {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: rgba(45, 212, 191, 0.16);
-  color: var(--color-accent-mint);
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(217, 220, 242, 0.85);
+  flex-shrink: 0;
   transition: background 0.18s ease, transform 0.18s ease, color 0.18s ease;
 }
 
 .projection:hover .projChevron {
-  background: var(--color-accent-mint);
+  background: var(--color-white);
   color: var(--color-indigo-deep);
   transform: translateX(2px);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .projection,
+  .projIcon,
   .projChevron {
     transition: none;
+  }
+  .projection:hover {
+    transform: none;
+  }
+  .projection:hover .projIcon {
+    transform: none;
   }
 }

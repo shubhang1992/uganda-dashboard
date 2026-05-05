@@ -27,7 +27,7 @@ export default function SavePage() {
   const prefillAmount = location.state?.prefillAmount;
 
   const [view, setView] = useState('form'); // form | confirm | success
-  const [amountStr, setAmountStr] = useState(prefillAmount ? String(prefillAmount) : '');
+  const [amountStr, setAmountStr] = useState(prefillAmount ? String(prefillAmount) : '10000');
   const [customSplit, setCustomSplit] = useState(false);
   const [retirementPct, setRetirementPct] = useState(defaultRetPct);
   const [method, setMethod] = useState('mtn');
@@ -90,11 +90,6 @@ export default function SavePage() {
         }
         onBack={handleBack}
       />
-
-      <div className={styles.runningBalance}>
-        <span className={styles.runningLabel}>After this top-up</span>
-        <span className={styles.runningValue}>{formatUGXExact(newBalance)}</span>
-      </div>
 
       <div className={styles.body}>
         <AnimatePresence mode="wait" initial={false}>

@@ -26,19 +26,6 @@ const PRIMARY = [
     ),
   },
   {
-    to: '/dashboard/reports',
-    label: 'Reports',
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
-        <path d="M3 3v18h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-        <path d="M7 14l4-4 4 4 5-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    ),
-  },
-];
-
-const SECONDARY = [
-  {
     to: '/dashboard/withdraw',
     label: 'Withdrawals',
     icon: (
@@ -46,6 +33,19 @@ const SECONDARY = [
         <path d="M12 3v12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
         <path d="M7 8l5-5 5 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+];
+
+const SECONDARY = [
+  {
+    to: '/dashboard/reports',
+    label: 'Reports',
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
+        <path d="M3 3v18h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+        <path d="M7 14l4-4 4 4 5-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     ),
   },
