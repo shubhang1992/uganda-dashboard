@@ -5,38 +5,55 @@ import { EASE_OUT_EXPO, formatUGX, calcFV, monthlyEquivalent } from '../../../ut
 import { RETIREMENT_AGE } from '../../../constants/savings';
 import styles from './ProjectionWidget.module.css';
 
-const ALL_HORIZONS = [
-  { id: '5y',  label: '5 yrs',  years: 5  },
-  { id: '10y', label: '10 yrs', years: 10 },
-  { id: '20y', label: '20 yrs', years: 20 },
-  { id: 'r',   label: `At ${RETIREMENT_AGE}`, years: null },
-];
+// Mirrors STORAGE_KEY in src/signup/SignupContext.jsx — the signup wizard
+// persists DOB here, so we can use the user's actual date of birth instead of
+// falling back to mock subscriber.age.
+const SIGNUP_STORAGE_KEY = 'uganda-pensions-signup';
 
-function horizonsForAge(age) {
-  const yearsLeft = Math.max(0, RETIREMENT_AGE - age);
-  if (yearsLeft <= 0) return [];
-  return ALL_HORIZONS.filter((h) => h.years === null || h.years <= yearsLeft);
+function ageFromDob(dob) {
+  if (!dob) return null;
+  const t = new Date(dob).getTime();
+  if (!Number.isFinite(t)) return null;
+  const years = (Date.now() - t) / (365.25 * 24 * 3600 * 1000);
+  if (years < 0 || years > 120) return null;
+  return Math.floor(years);
+}
+
+function readSignupDob() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(SIGNUP_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.dob || null;
+  } catch {
+    return null;
+  }
 }
 
 export default function ProjectionWidget({ subscriber }) {
   const navigate = useNavigate();
-  const age = typeof subscriber?.age === 'number' ? subscriber.age : 30;
-  const horizons = useMemo(() => horizonsForAge(age), [age]);
-  const yearsToRetirement = Math.max(0, RETIREMENT_AGE - age);
-  const defaultHorizonId =
-    horizons.find((h) => h.id === '10y')?.id
-    ?? horizons.find((h) => h.id === 'r')?.id
-    ?? horizons[0]?.id
-    ?? '5y';
-  const [horizonId, setHorizonId] = useState(defaultHorizonId);
+
+  const dob = useMemo(() => readSignupDob(), []);
+  const ageFromSignup = useMemo(() => ageFromDob(dob), [dob]);
+  const age = ageFromSignup
+    ?? (typeof subscriber?.age === 'number' ? subscriber.age : 30);
+
+  const minAge = age + 1;
+  const maxAge = RETIREMENT_AGE;
+  const canProject = minAge <= maxAge;
+
+  const [selectedAge, setSelectedAge] = useState(() =>
+    Math.min(Math.max(age + 10, minAge), maxAge)
+  );
 
   const balance = subscriber?.netBalance || 0;
   const monthly = useMemo(() => monthlyEquivalent(subscriber?.contributionSchedule), [subscriber]);
 
-  const horizon = horizons.find((h) => h.id === horizonId) ?? horizons[0];
-  const years = horizon ? (horizon.years ?? yearsToRetirement) : 0;
+  const years = canProject ? Math.max(0, selectedAge - age) : 0;
   const futureValue = balance + calcFV(monthly, years);
   const growth = Math.max(0, futureValue - balance);
+  const isRetirement = selectedAge === RETIREMENT_AGE;
 
   return (
     <section className={styles.card} aria-labelledby="proj-title">
@@ -48,54 +65,62 @@ export default function ProjectionWidget({ subscriber }) {
         <h3 id="proj-title" className={styles.title}>Where you&apos;re heading</h3>
       </header>
 
-      {horizons.length > 0 ? (
+      {canProject ? (
         <>
-          <div className={styles.chips} role="radiogroup" aria-label="Time horizon">
-            {horizons.map((h) => (
-              <button
-                key={h.id}
-                type="button"
-                role="radio"
-                aria-checked={horizonId === h.id}
-                className={styles.chip}
-                data-active={horizonId === h.id}
-                onClick={() => setHorizonId(h.id)}
-              >
-                {h.label}
-              </button>
-            ))}
-          </div>
-
           <motion.div
-            key={horizonId}
-            className={styles.valueBlock}
+            key={selectedAge}
+            className={styles.featured}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
           >
-            <span className={styles.valueLabel}>
-              {horizon?.id === 'r' ? `In ${years} years (age ${RETIREMENT_AGE})` : `In ${years} years`}
-            </span>
-            <span className={styles.valueAmount}>{formatUGX(Math.round(futureValue))}</span>
-            {monthly > 0 ? (
-              <span className={styles.valueGrowth}>
-                <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10">
-                  <path d="M2 9l3-3 2 2 3-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                </svg>
-                +{formatUGX(Math.round(growth))} growth on top of today&apos;s balance
+            <span className={styles.featuredMesh} aria-hidden="true" />
+            <span className={styles.featuredGrain} aria-hidden="true" />
+            <div className={styles.featuredText}>
+              <span className={styles.featuredEyebrow}>
+                <span className={styles.featuredDot} aria-hidden="true" />
+                At age {selectedAge}{isRetirement ? ' (retirement)' : ''} · in {years} {years === 1 ? 'year' : 'years'}
               </span>
-            ) : (
-              <span className={styles.valueHint}>Set a contribution schedule to see growth.</span>
-            )}
+              <span className={styles.featuredAmount}>{formatUGX(Math.round(futureValue))}</span>
+              <span className={styles.featuredHint}>
+                {monthly > 0
+                  ? `+${formatUGX(Math.round(growth))} projected growth`
+                  : 'Set a contribution schedule to see growth.'}
+              </span>
+            </div>
           </motion.div>
+
+          <div className={styles.slider} role="group" aria-label="Project balance to age">
+            <input
+              type="range"
+              min={minAge}
+              max={maxAge}
+              step={1}
+              value={selectedAge}
+              onChange={(e) => setSelectedAge(Number(e.target.value))}
+              className={styles.sliderInput}
+              style={{ '--progress': `${((selectedAge - minAge) / Math.max(1, maxAge - minAge)) * 100}%` }}
+              aria-label={`Future value at age ${selectedAge}`}
+              aria-valuemin={minAge}
+              aria-valuemax={maxAge}
+              aria-valuenow={selectedAge}
+              aria-valuetext={`Age ${selectedAge}, in ${years} ${years === 1 ? 'year' : 'years'}`}
+            />
+            <div className={styles.sliderEnds} aria-hidden="true">
+              <span>Age {minAge}</span>
+              <span className={styles.sliderEndRetire}>Retirement {maxAge}</span>
+            </div>
+          </div>
         </>
       ) : (
-        <div className={styles.valueBlock}>
-          <span className={styles.valueLabel}>Today (age {age})</span>
-          <span className={styles.valueAmount}>{formatUGX(Math.round(balance))}</span>
-          <span className={styles.valueHint}>
-            You&apos;ve reached retirement age. Your balance is available to draw down.
-          </span>
+        <div className={styles.featured} data-empty="true">
+          <div className={styles.featuredText}>
+            <span className={styles.featuredEyebrow}>Today · age {age}</span>
+            <span className={styles.featuredAmount}>{formatUGX(Math.round(balance))}</span>
+            <span className={styles.featuredHint}>
+              You&apos;ve reached retirement age. Your balance is available to draw down.
+            </span>
+          </div>
         </div>
       )}
 

@@ -96,7 +96,7 @@
   text-align: left;
   touch-action: manipulation;
   box-shadow: 0 10px 24px rgba(27, 26, 74, 0.18);
-  min-height: 92px;
+  min-height: 108px;
 }
 
 .featured[data-empty='true'] {
