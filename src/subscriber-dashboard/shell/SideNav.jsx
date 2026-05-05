@@ -103,10 +103,13 @@ export default function SideNav() {
   return (
     <aside className={styles.nav} aria-label="Primary">
       <div className={styles.brand}>
-        <span className={styles.brandLogo}>
-          <img src={logoWhite} alt="" width="22" height="22" />
-        </span>
-        <span className={styles.brandText}>Universal Pensions</span>
+        <img
+          src={logoWhite}
+          alt="Universal Pensions"
+          width="160"
+          height="56"
+          className={styles.brandLogo}
+        />
       </div>
 
       <div className={styles.group}>

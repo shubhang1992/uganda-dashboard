@@ -1,21 +1,47 @@
 .card {
   position: relative;
   background:
-    radial-gradient(85% 60% at 100% 0%, rgba(45, 212, 191, 0.10) 0%, rgba(255, 255, 255, 0) 60%),
-    radial-gradient(60% 50% at 0% 100%, rgba(94, 99, 168, 0.08) 0%, rgba(255, 255, 255, 0) 60%),
-    var(--color-white);
+    linear-gradient(135deg, var(--color-white) 0%, rgba(246, 247, 251, 0.85) 100%);
   border: 1px solid var(--color-lavender);
   border-radius: var(--radius-xl);
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   overflow: hidden;
+  isolation: isolate;
 }
 
+.glowA,
+.glowB {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(48px);
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.55;
+}
+
+.glowA {
+  top: -60px;
+  right: -40px;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(closest-side, rgba(45, 212, 191, 0.45), rgba(45, 212, 191, 0));
+}
+
+.glowB {
+  bottom: -80px;
+  left: -40px;
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(closest-side, rgba(94, 99, 168, 0.4), rgba(94, 99, 168, 0));
+}
+
+/* ── Header ─────────────────────────────────────────── */
 .head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   min-width: 0;
 }
@@ -23,26 +49,37 @@
 .avatar {
   position: relative;
   flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(140deg, var(--color-indigo) 0%, var(--color-indigo-deep) 60%, #2DD4BF 130%);
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(94, 99, 168, 0.6), rgba(41, 40, 103, 0) 60%),
+    linear-gradient(140deg, var(--color-indigo) 0%, var(--color-indigo-deep) 60%, #2DD4BF 130%);
   color: var(--color-white);
   isolation: isolate;
-  box-shadow: 0 6px 14px rgba(41, 40, 103, 0.18);
+  box-shadow: 0 6px 14px rgba(41, 40, 103, 0.20);
 }
 
 .avatarRing {
   position: absolute;
   inset: -3px;
   border-radius: 50%;
-  background: conic-gradient(from 0deg, rgba(45, 212, 191, 0.5), rgba(94, 99, 168, 0.45), rgba(45, 212, 191, 0.5));
-  filter: blur(4px);
-  opacity: 0.55;
+  background: conic-gradient(from 0deg, rgba(45, 212, 191, 0.55), rgba(94, 99, 168, 0.5), rgba(45, 212, 191, 0.55));
+  filter: blur(5px);
+  opacity: 0.5;
   z-index: -1;
+  animation: avatarSpin 8s linear infinite;
+}
+
+@keyframes avatarSpin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .avatarRing { animation: none; }
 }
 
 .headText {
@@ -58,7 +95,7 @@
   gap: 6px;
   font-family: var(--font-display);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-indigo-soft);
@@ -79,17 +116,155 @@
   color: var(--color-indigo);
   letter-spacing: -0.015em;
   margin: 0;
+  text-wrap: balance;
 }
 
-.sub {
+@media (min-width: 600px) {
+  .title { font-size: var(--text-lg); }
+}
+
+/* ── Composer (primary CTA) ─────────────────────────── */
+.composer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-white);
+  border: 1.5px solid var(--color-lavender);
+  border-radius: var(--radius-full);
+  padding: 6px 6px 6px 16px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  box-shadow: 0 2px 8px rgba(41, 40, 103, 0.04);
+}
+
+/* Subtle gradient outline that brightens on focus — gives the composer
+   a richer, more "primary" feel than a flat border swap. */
+.composer::before {
+  content: '';
+  position: absolute;
+  inset: -1.5px;
+  border-radius: var(--radius-full);
+  padding: 1.5px;
+  background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-accent-mint) 100%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  pointer-events: none;
+}
+
+.composer:focus-within {
+  border-color: transparent;
+  box-shadow: 0 6px 18px rgba(41, 40, 103, 0.10);
+}
+
+.composer:focus-within::before {
+  opacity: 1;
+}
+
+.composerIcon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-indigo-soft);
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.composer:focus-within .composerIcon {
+  color: var(--color-indigo);
+  transform: rotate(8deg);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
   font-family: var(--font-body);
-  font-size: 12px;
-  color: var(--color-gray);
-  margin: 0;
+  font-size: 14px;
+  color: var(--color-slate);
+  padding: 11px 0;
 }
 
-/* ── Suggestions ─────────────────────────────────────── */
+.input::placeholder {
+  color: var(--color-gray);
+}
+
+.input:disabled {
+  color: var(--color-gray);
+}
+
+.send {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  background: var(--color-indigo);
+  color: var(--color-white);
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  touch-action: manipulation;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.005em;
+  transition: background 0.15s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 2px 6px rgba(41, 40, 103, 0.22);
+}
+
+.send:hover:not(:disabled) {
+  background: var(--color-indigo-deep);
+  box-shadow: 0 4px 12px rgba(41, 40, 103, 0.30);
+  transform: translateX(1px);
+}
+
+.send:active:not(:disabled) {
+  transform: translateX(0) scale(0.97);
+}
+
+.send:disabled {
+  background: var(--color-lavender);
+  color: var(--color-indigo-soft);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* On phone, drop the "Ask" label and shrink to an icon-only button to
+   save horizontal room — the arrow alone reads as Send. */
+@media (max-width: 599px) {
+  .send {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+  .sendLabel { display: none; }
+}
+
+/* ── Suggestions (desktop only) ─────────────────────── */
 .suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggestionsLabel {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+}
+
+.pills {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -99,22 +274,38 @@
   font-family: var(--font-body);
   font-size: 12px;
   color: var(--color-indigo);
-  background: var(--color-cloud);
+  background: rgba(255, 255, 255, 0.8);
   border: 1px solid var(--color-lavender);
   border-radius: var(--radius-full);
-  padding: 7px 12px;
+  padding: 7px 14px;
   cursor: pointer;
   touch-action: manipulation;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.18s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  backdrop-filter: blur(6px);
 }
 
 .pill:hover {
-  background: rgba(41, 40, 103, 0.05);
-  border-color: var(--color-indigo-soft);
+  background: var(--color-indigo);
+  border-color: var(--color-indigo);
+  color: var(--color-white);
+  box-shadow: 0 4px 10px rgba(41, 40, 103, 0.18);
+  transform: translateY(-1px);
 }
 
 .pill:active {
-  transform: scale(0.98);
+  transform: translateY(0) scale(0.97);
+}
+
+@media (max-width: 599px) {
+  .suggestions { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill,
+  .send,
+  .composerIcon {
+    transition: none;
+  }
 }
 
 /* ── Exchange ────────────────────────────────────────── */
@@ -144,7 +335,7 @@
 }
 
 .aiBubble {
-  background: linear-gradient(135deg, rgba(45, 212, 191, 0.08) 0%, rgba(94, 99, 168, 0.06) 100%);
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.10) 0%, rgba(94, 99, 168, 0.06) 100%);
   border: 1px solid rgba(45, 212, 191, 0.25);
   align-self: flex-start;
   max-width: 95%;
@@ -205,73 +396,6 @@
 
 .resetBtn:hover {
   color: var(--color-indigo-deep);
-}
-
-/* ── Composer ────────────────────────────────────────── */
-.composer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--color-cloud);
-  border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-full);
-  padding: 4px 4px 4px 14px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.composer:focus-within {
-  border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
-}
-
-.input {
-  flex: 1;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-family: var(--font-body);
-  font-size: 13px;
-  color: var(--color-slate);
-  padding: 8px 0;
-}
-
-.input::placeholder {
-  color: var(--color-gray);
-}
-
-.input:disabled {
-  color: var(--color-gray);
-}
-
-.send {
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-indigo);
-  color: var(--color-white);
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background 0.15s ease, transform 0.18s ease;
-}
-
-.send:hover:not(:disabled) {
-  background: var(--color-indigo-deep);
-}
-
-.send:active:not(:disabled) {
-  transform: scale(0.94);
-}
-
-.send:disabled {
-  background: var(--color-lavender);
-  color: var(--color-gray);
-  cursor: not-allowed;
 }
 
 @media (max-width: 600px) {

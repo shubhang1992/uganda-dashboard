@@ -5,6 +5,20 @@
   padding: calc(env(safe-area-inset-top) + var(--space-3)) var(--space-4) var(--space-6);
 }
 
+/* Phone-only adjustments: hide the safety widget (withdraw/claim live in
+   the sidebar) and surface the AI co-pilot above the future-value card so
+   subscribers get to a question-friendly entry point sooner. */
+@media (max-width: 599px) {
+  .phoneHide { display: none; }
+
+  .slotPulse      { order: 1; }
+  .slotContrib    { order: 2; }
+  .slotCopilot    { order: 3; }
+  .slotProjection { order: 4; }
+  .slotSafety     { order: 5; }
+  .slotActivity   { order: 6; }
+}
+
 @media (min-width: 600px) {
   .page {
     gap: var(--space-4);

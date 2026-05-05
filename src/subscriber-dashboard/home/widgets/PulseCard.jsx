@@ -5,8 +5,6 @@ import { EASE_OUT_EXPO, formatUGXExact, formatUGX, calcFV, monthlyEquivalent } f
 import { RETIREMENT_AGE, START_AGE } from '../../../constants/savings';
 import styles from './PulseCard.module.css';
 
-const HIDE_KEY = 'up-sub-balance-hidden';
-
 function hourGreeting() {
   const h = new Date().getHours();
   if (h < 12) return 'morning';
@@ -35,16 +33,10 @@ function useCountUp(target, duration = 1100, run = true) {
 
 export default function PulseCard({ subscriber, user }) {
   const navigate = useNavigate();
-  const [hide, setHide] = useState(() => {
-    try { return window.localStorage.getItem(HIDE_KEY) === 'true'; } catch { return false; }
-  });
   const [expanded, setExpanded] = useState(false);
-  useEffect(() => {
-    try { window.localStorage.setItem(HIDE_KEY, String(hide)); } catch { /* ignore */ }
-  }, [hide]);
 
   const balance = subscriber?.netBalance || 0;
-  const counted = useCountUp(hide ? 0 : balance);
+  const counted = useCountUp(balance);
   const firstName = (user?.name || subscriber?.name || 'there').split(' ')[0];
 
   const age = typeof subscriber?.age === 'number' ? subscriber.age : 30;
@@ -96,26 +88,6 @@ export default function PulseCard({ subscriber, user }) {
 
       <div className={styles.balanceRow}>
         <span className={styles.balanceLabel}>Total balance</span>
-        <button
-          type="button"
-          className={styles.eye}
-          onClick={() => setHide((v) => !v)}
-          aria-label={hide ? 'Show balance' : 'Hide balance'}
-          aria-pressed={hide}
-        >
-          {hide ? (
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5"/>
-            </svg>
-          ) : (
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
-              <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M14.12 14.12a3 3 0 11-4.24-4.24" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          )}
-        </button>
       </div>
 
       <button
@@ -124,10 +96,10 @@ export default function PulseCard({ subscriber, user }) {
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
         aria-controls="pulse-metrics"
-        aria-label={hide ? 'Balance hidden' : `Balance ${formatUGXExact(balance)}`}
+        aria-label={`Balance ${formatUGXExact(balance)}`}
       >
         <span className={styles.balanceValue} aria-hidden="true">
-          {hide ? <span className={styles.balanceMask}>UGX ••••••••</span> : formatUGXExact(Math.round(counted))}
+          {formatUGXExact(Math.round(counted))}
         </span>
         <svg
           aria-hidden="true"
@@ -158,19 +130,19 @@ export default function PulseCard({ subscriber, user }) {
                 <div className={styles.stat}>
                   <span className={styles.statLabel}>Units held</span>
                   <span className={styles.statValue}>
-                    {hide ? '••••' : units.toLocaleString('en-UG', { maximumFractionDigits: 4 })}
+                    {units.toLocaleString('en-UG', { maximumFractionDigits: 4 })}
                   </span>
                 </div>
                 <div className={styles.stat}>
                   <span className={styles.statLabel}>Net invested</span>
                   <span className={styles.statValue}>
-                    {hide ? '••••' : formatUGX(netInvested)}
+                    {formatUGX(netInvested)}
                   </span>
                 </div>
                 <div className={styles.stat}>
                   <span className={styles.statLabel}>Growth</span>
                   <span className={styles.statValue} data-tone={growth >= 0 ? 'positive' : 'negative'}>
-                    {hide ? '••••' : `${growth >= 0 ? '+' : '−'}${formatUGX(Math.abs(growth))}`}
+                    {growth >= 0 ? '+' : '−'}{formatUGX(Math.abs(growth))}
                   </span>
                 </div>
               </div>
@@ -198,14 +170,14 @@ export default function PulseCard({ subscriber, user }) {
                     <span className={styles.splitDot} data-tone="retirement" aria-hidden="true" />
                     <span className={styles.splitItemLabel}>Retirement</span>
                     <span className={styles.splitItemValue}>
-                      {hide ? '••••' : formatUGX(retirementBal)}
+                      {formatUGX(retirementBal)}
                     </span>
                   </span>
                   <span className={styles.splitItem}>
                     <span className={styles.splitDot} data-tone="emergency" aria-hidden="true" />
                     <span className={styles.splitItemLabel}>Emergency</span>
                     <span className={styles.splitItemValue}>
-                      {hide ? '••••' : formatUGX(emergencyBal)}
+                      {formatUGX(emergencyBal)}
                     </span>
                   </span>
                 </div>
@@ -230,12 +202,24 @@ export default function PulseCard({ subscriber, user }) {
         </div>
       </div>
 
-      <div className={styles.projection}>
+      <button
+        type="button"
+        className={styles.projection}
+        onClick={() => navigate('/dashboard/projection')}
+        aria-label={`Open goal projection · at your pace, ${formatUGX(Math.round(projectedAt60))} by 60`}
+      >
         <span className={styles.projLabel}>At your pace, by 60</span>
-        <span className={styles.projValue}>
-          {hide ? '••••' : formatUGX(Math.round(projectedAt60))}
+        <span className={styles.projRight}>
+          <span className={styles.projValue}>
+            {formatUGX(Math.round(projectedAt60))}
+          </span>
+          <span className={styles.projChevron} aria-hidden="true">
+            <svg viewBox="0 0 12 12" width="12" height="12" fill="none">
+              <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </span>
         </span>
-      </div>
+      </button>
     </section>
   );
 }

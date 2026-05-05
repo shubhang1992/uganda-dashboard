@@ -52,10 +52,13 @@ export default function CoPilotWidget() {
 
   return (
     <section className={styles.card} aria-labelledby="copilot-title">
+      <span className={styles.glowA} aria-hidden="true" />
+      <span className={styles.glowB} aria-hidden="true" />
+
       <header className={styles.head}>
         <span className={styles.avatar} aria-hidden="true">
           <span className={styles.avatarRing} />
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
             <path
               d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"
               fill="currentColor"
@@ -71,17 +74,16 @@ export default function CoPilotWidget() {
             <span className={styles.eyebrowDot} aria-hidden="true" />
             Co-Pilot
           </span>
-          <h3 id="copilot-title" className={styles.title}>Ask anything</h3>
-          <p className={styles.sub}>Your AI savings assistant</p>
+          <h3 id="copilot-title" className={styles.title}>Ask anything about your savings</h3>
         </div>
       </header>
 
-      <AnimatePresence initial={false} mode="wait">
-        {exchange ? (
+      <AnimatePresence initial={false}>
+        {exchange && (
           <motion.div
             key="exchange"
             className={styles.exchange}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
@@ -124,30 +126,16 @@ export default function CoPilotWidget() {
               </button>
             )}
           </motion.div>
-        ) : (
-          <motion.div
-            key="suggestions"
-            className={styles.suggestions}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.28, ease: EASE_OUT_EXPO }}
-          >
-            {SUGGESTIONS.map((q) => (
-              <button
-                key={q}
-                type="button"
-                className={styles.pill}
-                onClick={() => ask(q)}
-              >
-                {q}
-              </button>
-            ))}
-          </motion.div>
         )}
       </AnimatePresence>
 
       <form className={styles.composer} onSubmit={handleSubmit}>
+        <span className={styles.composerIcon} aria-hidden="true">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+            <path d="M8 2l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3z" fill="currentColor" opacity="0.85"/>
+            <path d="M12.5 9l.4 1.1 1.1.4-1.1.4-.4 1.1-.4-1.1-1.1-.4 1.1-.4.4-1.1z" fill="currentColor" opacity="0.7"/>
+          </svg>
+        </span>
         <input
           ref={inputRef}
           type="text"
@@ -166,11 +154,30 @@ export default function CoPilotWidget() {
           disabled={!input.trim() || isThinking}
           aria-label="Send"
         >
-          <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+          <span className={styles.sendLabel}>Ask</span>
+          <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" fill="none">
             <path d="M2 8h11M9 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
       </form>
+
+      {!exchange && (
+        <div className={styles.suggestions}>
+          <span className={styles.suggestionsLabel}>Try asking</span>
+          <div className={styles.pills}>
+            {SUGGESTIONS.map((q) => (
+              <button
+                key={q}
+                type="button"
+                className={styles.pill}
+                onClick={() => ask(q)}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -113,26 +113,6 @@
   letter-spacing: 0.02em;
 }
 
-.eye {
-  background: transparent;
-  border: none;
-  color: rgba(217, 220, 242, 0.8);
-  cursor: pointer;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-full);
-  touch-action: manipulation;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.eye:active {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--color-white);
-}
-
 .balanceTrigger {
   display: inline-flex;
   align-items: baseline;
@@ -167,10 +147,6 @@
   font-variant-numeric: tabular-nums;
   line-height: 1;
   padding-left: 10px;
-}
-
-.balanceMask {
-  letter-spacing: 0.04em;
 }
 
 .balanceChevron {
@@ -396,14 +372,40 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding-top: var(--space-3);
+  padding: var(--space-3) 6px 6px;
+  margin: 0 -6px -6px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.18s ease;
+}
+
+.projection:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.projection:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.45);
+  outline-offset: 2px;
 }
 
 .projLabel {
   font-family: var(--font-body);
   font-size: var(--text-xs);
   color: rgba(217, 220, 242, 0.75);
+}
+
+.projRight {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .projValue {
@@ -413,4 +415,29 @@
   letter-spacing: -0.015em;
   color: var(--color-accent-mint);
   font-variant-numeric: tabular-nums;
+}
+
+.projChevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(45, 212, 191, 0.16);
+  color: var(--color-accent-mint);
+  transition: background 0.18s ease, transform 0.18s ease, color 0.18s ease;
+}
+
+.projection:hover .projChevron {
+  background: var(--color-accent-mint);
+  color: var(--color-indigo-deep);
+  transform: translateX(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .projection,
+  .projChevron {
+    transition: none;
+  }
 }

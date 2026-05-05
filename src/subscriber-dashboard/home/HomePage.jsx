@@ -38,22 +38,22 @@ export default function HomePage() {
       initial="initial"
       animate="animate"
     >
-      <motion.div variants={item}>
+      <motion.div variants={item} className={styles.slotPulse}>
         <PulseCard subscriber={sub} user={user} />
       </motion.div>
-      <motion.div variants={item}>
+      <motion.div variants={item} className={styles.slotContrib}>
         <TopUpWidget subscriber={sub} />
       </motion.div>
-      <motion.div variants={item}>
+      <motion.div variants={item} className={styles.slotProjection}>
         <ProjectionWidget subscriber={sub} />
       </motion.div>
-      <motion.div variants={item}>
+      <motion.div variants={item} className={`${styles.slotSafety} ${styles.phoneHide}`}>
         <IfYouNeedItWidget subscriber={sub} />
       </motion.div>
-      <motion.div variants={item}>
+      <motion.div variants={item} className={styles.slotActivity}>
         <ActivityWidget subscriber={sub} />
       </motion.div>
-      <motion.div variants={item}>
+      <motion.div variants={item} className={styles.slotCopilot}>
         <CoPilotWidget />
       </motion.div>
     </motion.div>
