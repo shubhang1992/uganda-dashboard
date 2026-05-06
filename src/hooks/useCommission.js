@@ -220,3 +220,49 @@ export function useSettleAllCommissions() {
     },
   });
 }
+
+/* ─── Agent-side mutations ────────────────────────────────────────────────── */
+
+function invalidateAfterAgentMutation(queryClient) {
+  queryClient.invalidateQueries({ queryKey: ['commissionSummary'] });
+  queryClient.invalidateQueries({ queryKey: ['agentCommissions'] });
+  queryClient.invalidateQueries({ queryKey: ['agentCommissionDetail'] });
+  queryClient.invalidateQueries({ queryKey: ['settlementRequests'] });
+  queryClient.invalidateQueries({ queryKey: ['disputedAgents'] });
+}
+
+/**
+ * Mutation for an agent to confirm receipt of a paid commission.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useAgentConfirmCommission() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: commissions.agentConfirmCommission,
+    onSuccess: () => invalidateAfterAgentMutation(queryClient),
+  });
+}
+
+/**
+ * Mutation for an agent to flag a due commission for settlement.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useRequestCommissionSettlement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: commissions.requestCommissionSettlement,
+    onSuccess: () => invalidateAfterAgentMutation(queryClient),
+  });
+}
+
+/**
+ * Mutation for an agent to dispute a commission.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useDisputeCommission() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commissionId, reason }) => commissions.disputeCommission(commissionId, reason),
+    onSuccess: () => invalidateAfterAgentMutation(queryClient),
+  });
+}

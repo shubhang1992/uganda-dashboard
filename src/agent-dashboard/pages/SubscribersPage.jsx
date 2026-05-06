@@ -1,0 +1,154 @@
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { formatUGX } from '../../utils/finance';
+import { getInitials } from '../../utils/dashboard';
+import { useAgentScope } from '../../contexts/AgentScopeContext';
+import { useAgentSubscribers } from '../../hooks/useAgent';
+import PageHeader from '../shell/PageHeader';
+import styles from './SubscribersPage.module.css';
+
+const SORT_OPTIONS = [
+  { key: 'contributions', label: 'Contributions', fn: (a, b) => b.totalContributions - a.totalContributions },
+  { key: 'balance', label: 'Balance', fn: (a, b) => (b.netBalance || 0) - (a.netBalance || 0) },
+  { key: 'registration', label: 'Registration', fn: (a, b) => (b.registeredDate || '').localeCompare(a.registeredDate || '') },
+  { key: 'name', label: 'Name', fn: (a, b) => a.name.localeCompare(b.name) },
+];
+
+const FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'active', label: 'Active' },
+  { id: 'dormant', label: 'Dormant' },
+];
+
+function StatusPill({ status }) {
+  return (
+    <span className={styles.statusPill} data-tone={status}>
+      <span className={styles.statusDot} />
+      {status === 'active' ? 'Active' : 'Dormant'}
+    </span>
+  );
+}
+
+export default function SubscribersPage() {
+  const navigate = useNavigate();
+  const { agentId } = useAgentScope();
+  const { data: subscribers = [], isLoading } = useAgentSubscribers(agentId);
+
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [sortKey, setSortKey] = useState('contributions');
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const sortFn = SORT_OPTIONS.find((o) => o.key === sortKey)?.fn;
+    const out = subscribers.filter((s) => {
+      if (filter === 'active' && !s.isActive) return false;
+      if (filter === 'dormant' && s.isActive) return false;
+      if (q && !s.name.toLowerCase().includes(q) && !s.id.toLowerCase().includes(q) && !(s.phone || '').includes(q)) {
+        return false;
+      }
+      return true;
+    });
+    return sortFn ? out.sort(sortFn) : out;
+  }, [subscribers, filter, search, sortKey]);
+
+  const counts = useMemo(() => {
+    const active = subscribers.filter((s) => s.isActive).length;
+    return {
+      all: subscribers.length,
+      active,
+      dormant: subscribers.length - active,
+    };
+  }, [subscribers]);
+
+  const subtitle = `${counts.all} total · ${counts.active} active · ${counts.dormant} dormant`;
+
+  return (
+    <div className={styles.page}>
+      <PageHeader title="My subscribers" subtitle={subtitle} fallback="/dashboard" />
+
+      <div className={styles.toolbar}>
+        <div className={styles.searchWrap}>
+          <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+            <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <input
+            className={styles.search}
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, ID or phone…"
+            aria-label="Search subscribers"
+            spellCheck={false}
+          />
+          <select
+            className={styles.sortSelect}
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value)}
+            aria-label="Sort by"
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.filterRow} role="tablist" aria-label="Filter subscribers">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              role="tab"
+              aria-selected={filter === f.id}
+              className={styles.filterBtn}
+              data-active={filter === f.id}
+              onClick={() => setFilter(f.id)}
+            >
+              {f.label}
+              <span className={styles.filterCount}>{counts[f.id]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={styles.list}>
+        {isLoading && (
+          <div className={styles.empty}>
+            <div className={styles.spinner} />
+            <p>Loading your subscribers…</p>
+          </div>
+        )}
+        {!isLoading && filtered.length === 0 && (
+          <div className={styles.empty}>
+            <p className={styles.emptyTitle}>No subscribers match</p>
+            <p>Try clearing the search or switching the filter.</p>
+          </div>
+        )}
+        {filtered.map((sub) => (
+          <button
+            key={sub.id}
+            type="button"
+            className={styles.row}
+            onClick={() => navigate(`/dashboard/subscribers/${sub.id}`)}
+          >
+            <span className={styles.avatar} data-gender={sub.gender} aria-hidden="true">{getInitials(sub.name)}</span>
+            <div className={styles.rowBody}>
+              <div className={styles.rowName}>
+                <span>{sub.name}</span>
+              </div>
+              <div className={styles.rowMeta}>
+                <span>{sub.phone}</span>
+                <span aria-hidden="true">·</span>
+                <StatusPill status={sub.isActive ? 'active' : 'dormant'} />
+              </div>
+            </div>
+            <div className={styles.rowAmount}>
+              <span className={styles.rowAmountValue}>{formatUGX(sub.totalContributions)}</span>
+              <span className={styles.rowAmountLabel}>contributed</span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

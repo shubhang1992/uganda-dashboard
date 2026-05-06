@@ -172,6 +172,33 @@ export default function KycCompliance({ onBack }) {
         <FilterSelect label="Region" value={regionFilter} onChange={setRegionFilter} options={regionOptions} />
       )}
     >
+      <div
+        role="note"
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '0.625rem',
+          padding: '0.75rem 1rem',
+          marginBottom: 'var(--space-3)',
+          background: 'rgba(46, 139, 87, 0.06)',
+          border: '1px solid rgba(46, 139, 87, 0.22)',
+          borderRadius: 'var(--radius-md)',
+          fontFamily: 'var(--font-body)',
+          fontSize: 'var(--text-xs)',
+          color: 'var(--color-slate)',
+          lineHeight: 1.55,
+        }}
+      >
+        <span aria-hidden="true" style={{ color: 'var(--color-green)', display: 'inline-flex', alignItems: 'center', flexShrink: 0, marginTop: 1 }}>
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+            <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M5.5 8.2l1.8 1.8L10.5 6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+        <span>
+          All Universal Pensions subscribers complete KYC during signup or agent-led onboarding before their record is created. This report tracks edge cases and historical data only — modern subscribers are 100% verified by definition.
+        </span>
+      </div>
       <ReportTable columns={columns} data={filtered} defaultSort="incompletePct" loading={isBranch ? loadingAgents : loadingSubs} />
     </ReportView>
   );

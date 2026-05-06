@@ -21,6 +21,7 @@ import About from './pages/About';
 const DashboardShell = lazy(() => import('./dashboard/DashboardShell'));
 const BranchDashboardShell = lazy(() => import('./branch-dashboard/BranchDashboardShell'));
 const SubscriberDashboardShell = lazy(() => import('./subscriber-dashboard/SubscriberDashboardShell'));
+const AgentDashboardShell = lazy(() => import('./agent-dashboard/AgentDashboardShell'));
 const SignupPage = lazy(() => import('./signup/SignupPage'));
 
 function DashboardFallback() {
@@ -151,6 +152,7 @@ function ProtectedDashboard() {
   let Shell = DashboardShell;
   if (role === 'branch') Shell = BranchDashboardShell;
   else if (role === 'subscriber') Shell = SubscriberDashboardShell;
+  else if (role === 'agent') Shell = AgentDashboardShell;
   return (
     <ErrorBoundary>
       <Suspense fallback={<DashboardFallback />}>

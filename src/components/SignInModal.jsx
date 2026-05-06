@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSignIn } from '../contexts/SignInContext';
 import { useAuth } from '../contexts/AuthContext';
 import { hasDashboard } from '../services/auth';
+import { isSignupComplete } from '../signup/signupState';
 import RoleSelect from './signin/RoleSelect';
 import DistributorSelect from './signin/DistributorSelect';
 import PhoneEntry from './signin/PhoneEntry';
@@ -129,7 +130,19 @@ export default function SignInModal() {
 
   function handleVerify() {
     close();
-    login({ role, phone, name: 'Demo User', ...(role === 'branch' ? { branchId: 'b-kam-015' } : {}) });
+    login({
+      role,
+      phone,
+      name: 'Demo User',
+      ...(role === 'branch' ? { branchId: 'b-kam-015' } : {}),
+      ...(role === 'agent' ? { agentId: 'a-001' } : {}),
+    });
+    // Subscribers with incomplete KYC resume the signup flow instead of landing
+    // on the dashboard with no profile data.
+    if (role === 'subscriber' && !isSignupComplete()) {
+      navigate('/signup');
+      return;
+    }
     navigate(hasDashboard(role) ? '/dashboard' : '/coming-soon');
   }
 

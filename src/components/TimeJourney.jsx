@@ -447,6 +447,7 @@ export default function TimeJourney() {
               exit={{ opacity: 0 }}
               transition={{ delay: 0.5 }}>
               <motion.span
+                aria-hidden="true"
                 animate={{ y: [0, 5, 0] }}
                 transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}>
                 ↓
@@ -465,6 +466,7 @@ export default function TimeJourney() {
               exit={{ opacity: 0 }}
               transition={{ delay: 0.5 }}>
               <motion.span
+                aria-hidden="true"
                 animate={{ x: [0, 12, 0] }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}>
                 →

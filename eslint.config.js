@@ -27,6 +27,7 @@ export default defineConfig([
       'react-refresh/only-export-components': ['warn', {
         allowConstantExport: true,
         allowExportNames: [
+          'useAgentScope',
           'useAuth',
           'useBranchScope',
           'useDashboard',

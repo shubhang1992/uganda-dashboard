@@ -8,9 +8,8 @@ import ContributionSettings from './ContributionSettings';
  *
  * Reads the existing schedule (if any) from the signup context so editing
  * pre-fills. On payment confirm, the subscriber is logged in and sent to
- * the subscriber dashboard (currently `/coming-soon`, since that dashboard
- * hasn't been built yet). Cancel returns to the activation step without
- * saving.
+ * the subscriber dashboard at `/dashboard`. Cancel returns to the activation
+ * step without saving.
  */
 export default function ContributionRoute() {
   const navigate = useNavigate();

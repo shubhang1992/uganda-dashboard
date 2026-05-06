@@ -1,6 +1,14 @@
 // Mock Data — Distributor Admin Dashboard, Universal Pensions Uganda
 // Hierarchy: Country → 4 Regions → 135 Districts → ~314 Branches → ~2,000 Agents → ~30,000 Subscribers
 
+// ─── Reference "now" ─────────────────────────────────────────────────────────
+// Mock dates (registeredDate, dueDate, paidDate, contribution history, etc.)
+// are generated relative to this fixed point so demo data stays internally
+// consistent — "due in 5 days" should always mean 5 days from this same
+// reference, not from the wall clock. Replace with `new Date()` once real data
+// arrives from the backend.
+export const MOCK_NOW = new Date(2026, 3, 8); // 2026-04-08
+
 // ─── Seeded RNG for deterministic data ───────────────────────────────────────
 let _seed = 42;
 function rand() { _seed = (_seed * 16807 + 0) % 2147483647; return (_seed - 1) / 2147483646; }
@@ -598,7 +606,11 @@ Object.keys(BRANCHES).forEach((branchId) => {
 
 // ─── SUBSCRIBERS (generated lazily) ──────────────────────────────────────────
 const PRODUCTS = ['SavePlus', 'PensionBasic', 'PensionPremium', 'EducationSaver', 'HealthCover'];
-const KYC_STATUSES = ['complete', 'complete', 'complete', 'complete', 'complete', 'complete', 'complete', 'pending', 'pending', 'incomplete']; // ~70% complete
+// Every Universal Pensions subscriber is KYC-verified by definition: KYC is
+// captured during agent-led onboarding (or the subscriber signup flow) before
+// the record is created. The constant remains as a single-element array so
+// the picker still works without cascading changes elsewhere.
+const KYC_STATUSES = ['complete'];
 const EMAIL_DOMAINS = ['gmail.com', 'gmail.com', 'gmail.com', 'yahoo.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'mail.ug'];
 
 let _subscribersCache = null;

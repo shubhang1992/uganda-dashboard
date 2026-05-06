@@ -5,6 +5,7 @@ import {
   COMMISSIONS, COMMISSION_CONFIG,
   commissionsByAgent, commissionsByBranch,
   AGENTS, BRANCHES, DISTRICTS, SUBSCRIBERS,
+  MOCK_NOW,
 } from '../data/mockData';
 
 /**
@@ -149,8 +150,7 @@ export async function getAgentCommissionDetail(agentId) {
     })),
     dueTransactions: due.map((c) => {
       const dueDate = new Date(c.dueDate);
-      const now = new Date(2026, 3, 8);
-      const daysToDate = Math.ceil((dueDate - now) / 86400000);
+      const daysToDate = Math.ceil((dueDate - MOCK_NOW) / 86400000);
       return {
         id: c.id,
         dueDate: c.dueDate,
@@ -339,8 +339,7 @@ export async function bulkRejectCommissions(commissionIds) {
  * @scope Distributor and Branch Admin.
  */
 export async function settleCommissions(commissionIds) {
-  const now = new Date(2026, 3, 8);
-  const paidDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const paidDate = `${MOCK_NOW.getFullYear()}-${String(MOCK_NOW.getMonth() + 1).padStart(2, '0')}-${String(MOCK_NOW.getDate()).padStart(2, '0')}`;
 
   commissionIds.forEach((id) => {
     const c = COMMISSIONS[id];
@@ -457,4 +456,61 @@ export async function settleAllCommissions(branchId = null) {
     : Object.values(COMMISSIONS);
   const dueIds = pool.filter((c) => c.status === 'due').map((c) => c.id);
   return settleCommissions(dueIds);
+}
+
+/* ─── Agent-side actions (maker-checker partner of admin settle/approve) ─── */
+
+/**
+ * @endpoint POST /api/commissions/:commissionId/agent-confirm
+ * @param {string} commissionId - Paid commission to confirm receipt of
+ * @returns {Promise<Object|null>} Updated commission with agentConfirmed=true
+ * @description Agent confirms they received the settlement payment. The
+ *   maker-checker counterpart of `settleCommissions`: admin marks paid, agent
+ *   confirms. No-op if commission isn't 'paid'.
+ * @cache Invalidates: ['agentCommissionDetail', agentId], ['commissionSummary']
+ * @scope Agent (own commissions only).
+ */
+export async function agentConfirmCommission(commissionId) {
+  const c = COMMISSIONS[commissionId];
+  if (!c || c.status !== 'paid') return null;
+  c.agentConfirmed = true;
+  invalidateSummaryCache();
+  return c;
+}
+
+/**
+ * @endpoint POST /api/commissions/:commissionId/request-settlement
+ * @param {string} commissionId - Due commission to flag for settlement
+ * @returns {Promise<Object|null>} Updated commission with settlementRequested=true
+ * @description Agent flags a due commission as ready for settlement. No-op if
+ *   the commission isn't currently 'due'.
+ * @cache Invalidates: ['agentCommissionDetail', agentId], ['settlementRequests']
+ * @scope Agent (own commissions only).
+ */
+export async function requestCommissionSettlement(commissionId) {
+  const c = COMMISSIONS[commissionId];
+  if (!c || c.status !== 'due') return null;
+  c.settlementRequested = true;
+  invalidateSummaryCache();
+  return c;
+}
+
+/**
+ * @endpoint POST /api/commissions/:commissionId/dispute
+ * @param {string} commissionId - Commission to dispute
+ * @param {string} reason - Reason text shown to admin reviewers
+ * @returns {Promise<Object|null>} Updated commission with status='disputed'
+ * @description Agent raises a dispute on a commission. Sets status to 'disputed'
+ *   and stores the reason. Distributor / Branch Admin then approves or rejects.
+ * @cache Invalidates: ['agentCommissionDetail', agentId], ['disputedAgents']
+ * @scope Agent (own commissions only).
+ */
+export async function disputeCommission(commissionId, reason) {
+  const c = COMMISSIONS[commissionId];
+  if (!c) return null;
+  c.status = 'disputed';
+  c.disputeReason = reason || 'Dispute raised by agent';
+  c.settlementRequested = false;
+  invalidateSummaryCache();
+  return c;
 }

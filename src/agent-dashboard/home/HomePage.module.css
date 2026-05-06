@@ -1,0 +1,26 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-6);
+}
+
+@media (min-width: 600px) {
+  .page {
+    padding: var(--space-4) var(--space-4) var(--space-8);
+    gap: var(--space-4);
+  }
+}
+
+@media (min-width: 1024px) {
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+    width: 100%;
+    gap: var(--space-5);
+    padding: var(--space-6) 0 var(--space-8);
+  }
+}
+
+/* Mobile + desktop both stack:
+   PortfolioPulseCard → CommissionsWidget → CoPilotWidget */

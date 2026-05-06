@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
+import { SIGNUP_STORAGE_KEY } from './signupState';
 
 /**
  * @typedef {Object} Beneficiary
@@ -129,13 +130,12 @@ function reducer(state, action) {
 // File/Blob + object URL fields can't be serialised to localStorage. They're
 // dropped on persist and re-nulled on rehydrate — the user re-uploads ID/selfie
 // after a refresh, but KYC data, OCR results, beneficiaries, consent, etc. survive.
-const STORAGE_KEY = 'uganda-pensions-signup';
 const EPHEMERAL_KEYS = ['idFrontFile', 'idBackFile', 'selfieFile', 'idFrontPreviewUrl', 'idBackPreviewUrl'];
 
 function loadPersisted() {
   if (typeof window === 'undefined') return INITIAL_STATE;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(SIGNUP_STORAGE_KEY);
     if (!raw) return INITIAL_STATE;
     const parsed = JSON.parse(raw);
     const ephemeral = Object.fromEntries(EPHEMERAL_KEYS.map((k) => [k, null]));
@@ -150,7 +150,7 @@ function persist(state) {
   try {
     const toStore = { ...state };
     EPHEMERAL_KEYS.forEach((k) => { delete toStore[k]; });
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
+    window.localStorage.setItem(SIGNUP_STORAGE_KEY, JSON.stringify(toStore));
   } catch {
     // Quota / private-browsing — non-fatal.
   }
@@ -166,7 +166,7 @@ export function SignupProvider({ children }) {
   const patch = useCallback((payload) => dispatch({ type: 'patch', payload }), []);
   const reset = useCallback(() => {
     if (typeof window !== 'undefined') {
-      try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+      try { window.localStorage.removeItem(SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
     }
     dispatch({ type: 'reset' });
   }, []);

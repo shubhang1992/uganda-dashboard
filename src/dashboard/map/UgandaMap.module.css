@@ -12,7 +12,7 @@
 .mapContainer[data-level='district'],
 .mapContainer[data-level='branch'],
 .mapContainer[data-level='agent'] {
-  background: #f2f3f7;
+  background: var(--color-cloud);
 }
 
 .map {

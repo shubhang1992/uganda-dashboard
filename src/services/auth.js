@@ -1,6 +1,6 @@
 // Auth service — mock implementation. Replace with real API calls when backend is ready.
 
-const DASHBOARD_ROLES = ['distributor', 'branch', 'subscriber'];
+const DASHBOARD_ROLES = ['distributor', 'branch', 'subscriber', 'agent'];
 
 /**
  * @endpoint POST /api/auth/send-otp
@@ -38,8 +38,10 @@ export async function verifyOtp(phone, otp, role) {
 }
 
 /**
- * @description Checks whether a role has dashboard access. Currently only 'distributor' and 'branch'.
- *   This is a client-side guard — the backend should enforce the same check on protected endpoints.
+ * @description Checks whether a role has a built dashboard. Currently 'distributor',
+ *   'branch', 'subscriber', and 'agent' have dashboards. Other roles (employer,
+ *   admin) are routed to `/coming-soon`. This is a client-side guard — the
+ *   backend should enforce the same check on protected endpoints.
  * @param {string} role - User role to check
  * @returns {boolean} Whether the role has a dashboard
  */

@@ -53,4 +53,13 @@ export const Icons = {
       <path d="M5 21v-1a7 7 0 0114 0v1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
   ),
+  chart: (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
+      <path d="M4 19V5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M4 19h16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <rect x="7.5" y="11" width="3" height="6" rx="0.6" stroke="currentColor" strokeWidth="1.75" />
+      <rect x="12.5" y="7" width="3" height="10" rx="0.6" stroke="currentColor" strokeWidth="1.75" />
+      <rect x="17.5" y="13" width="3" height="4" rx="0.6" stroke="currentColor" strokeWidth="1.75" />
+    </svg>
+  ),
 };
