@@ -35,7 +35,6 @@ function OnboardFlow() {
   const [stage, setStage] = useState('awareness');
   const [awareness, setAwareness] = useState({
     answers: { q1: null, q2: null, q3: null, q4: null, q5: null },
-    explained: false,
   });
 
   const stageIdx = getStageIndex(stage);
@@ -46,7 +45,6 @@ function OnboardFlow() {
     setStage('awareness');
     setAwareness({
       answers: { q1: null, q2: null, q3: null, q4: null, q5: null },
-      explained: false,
     });
   }
 

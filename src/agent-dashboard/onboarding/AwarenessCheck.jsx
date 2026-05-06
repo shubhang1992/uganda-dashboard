@@ -5,9 +5,10 @@ import styles from './AwarenessCheck.module.css';
 
 /**
  * The 5 awareness points every new subscriber must understand before KYC.
- * The agent first walks through the talking points (so they know what to
- * convey), then quizzes the subscriber and records whether each answer was
- * correct. Yes/No is the agent's judgment, not a literal yes/no question.
+ * Each card exposes the canonical answer the agent should convey, the
+ * question to ask, and a Yes/No control to record whether the subscriber
+ * answered correctly. Yes/No is the agent's judgment, not a literal
+ * yes/no question.
  */
 const POINTS = [
   {
@@ -53,16 +54,13 @@ const POINTS = [
 ];
 
 /**
- * AwarenessCheck — single screen with two phases driven by the `explained`
- * flag in state:
- *  1. Talking points (cards expand to reveal the canonical answer)
- *  2. Quiz mode (each card surfaces Yes/No to record the subscriber's answer)
- *
- * Why one screen with a phase toggle instead of two stages: keeps the agent
- * close to the answer copy while quizzing, so they can correct on the spot.
+ * AwarenessCheck — single screen where the agent walks through 5 must-know
+ * points with the subscriber and records whether each answer was correct.
+ * The talking point sits inside each card (expandable for reference) so
+ * the agent can quiz on the spot without switching screens.
  */
 export default function AwarenessCheck({ state, onChange, onContinue }) {
-  const { answers, explained } = state;
+  const { answers } = state;
   const [expandedId, setExpandedId] = useState(POINTS[0].id);
 
   const answeredCount = useMemo(
@@ -74,60 +72,47 @@ export default function AwarenessCheck({ state, onChange, onContinue }) {
     [answers],
   );
   const allAnswered = answeredCount === POINTS.length;
+  const lowScore = allAnswered && correctCount < 3;
 
   function setAnswer(id, value) {
-    onChange({ ...state, answers: { ...answers, [id]: value } });
-  }
+    const nextAnswers = { ...answers, [id]: value };
+    onChange({ ...state, answers: nextAnswers });
 
-  function markExplained() {
-    onChange({ ...state, explained: true });
-    setExpandedId(POINTS[0].id);
-  }
-
-  function backToExplain() {
-    onChange({ ...state, explained: false });
+    const idx = POINTS.findIndex((p) => p.id === id);
+    const upcoming = POINTS.slice(idx + 1).find((p) => nextAnswers[p.id] === null);
+    setExpandedId(upcoming ? upcoming.id : null);
   }
 
   return (
     <div className={styles.wrap}>
-      {!explained ? (
-        <ExplainPhase
-          expandedId={expandedId}
-          setExpandedId={setExpandedId}
-          onContinue={markExplained}
-        />
-      ) : (
-        <QuizPhase
-          answers={answers}
-          setAnswer={setAnswer}
-          answeredCount={answeredCount}
-          correctCount={correctCount}
-          allAnswered={allAnswered}
-          onBack={backToExplain}
-          onContinue={onContinue}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ────────────────────────── Phase 1: Explain ───────────────────────── */
-function ExplainPhase({ expandedId, setExpandedId, onContinue }) {
-  return (
-    <>
       <div className={styles.phaseHeader}>
-        <span className={styles.phaseEyebrow}>Phase 1 of 2 · Discuss</span>
-        <h3 className={styles.phaseHeading}>Walk the subscriber through these 5 points</h3>
+        <span className={styles.phaseEyebrow}>Awareness check</span>
+        <h3 className={styles.phaseHeading}>Cover these 5 points and record the subscriber&apos;s answers</h3>
         <p className={styles.phaseLead}>
-          Tap any point to reveal the answer the subscriber should understand. Once you&apos;ve covered all five, move on to record their responses.
+          Tap a card to reveal the talking point, ask the question, then mark whether the subscriber answered correctly.
         </p>
+
+        <div className={styles.scoreRow}>
+          <span className={styles.scoreCount}>
+            <strong>{correctCount}</strong>/{POINTS.length} correct
+          </span>
+          <span className={styles.scoreMeta}>
+            {answeredCount}/{POINTS.length} answered
+          </span>
+        </div>
       </div>
 
       <ul className={styles.list}>
         {POINTS.map((p, i) => {
           const isOpen = expandedId === p.id;
+          const value = answers[p.id];
           return (
-            <li key={p.id} className={styles.card} data-open={isOpen || undefined}>
+            <li
+              key={p.id}
+              className={styles.card}
+              data-open={isOpen || undefined}
+              data-answered={value !== null || undefined}
+            >
               <button
                 type="button"
                 className={styles.cardHeader}
@@ -165,59 +150,12 @@ function ExplainPhase({ expandedId, setExpandedId, onContinue }) {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </li>
-          );
-        })}
-      </ul>
 
-      <div className={styles.actions}>
-        <button type="button" className={styles.primaryBtn} onClick={onContinue}>
-          I&apos;ve covered all 5 points · quiz subscriber
-          <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
-            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      </div>
-    </>
-  );
-}
-
-/* ────────────────────────── Phase 2: Quiz ──────────────────────────── */
-function QuizPhase({ answers, setAnswer, answeredCount, correctCount, allAnswered, onBack, onContinue }) {
-  const lowScore = allAnswered && correctCount < 3;
-
-  return (
-    <>
-      <div className={styles.phaseHeader}>
-        <span className={styles.phaseEyebrow}>Phase 2 of 2 · Confirm</span>
-        <h3 className={styles.phaseHeading}>Did the subscriber answer correctly?</h3>
-        <p className={styles.phaseLead}>
-          Ask each question and mark whether the subscriber gave a correct answer. You can revisit the talking points anytime.
-        </p>
-
-        <div className={styles.scoreRow}>
-          <span className={styles.scoreCount}>
-            <strong>{correctCount}</strong>/{answers ? Object.keys(answers).length : 5} correct
-          </span>
-          <span className={styles.scoreMeta}>
-            {answeredCount}/{Object.keys(answers).length} answered
-          </span>
-        </div>
-      </div>
-
-      <ul className={styles.list}>
-        {POINTS.map((p, i) => {
-          const value = answers[p.id];
-          return (
-            <li key={p.id} className={styles.quizCard} data-answered={value !== null || undefined}>
-              <div className={styles.quizCardHead}>
-                <span className={styles.cardIndex}>{i + 1}</span>
-                <span className={styles.cardHeaderText}>
-                  <span className={styles.cardShort}>{p.short}</span>
-                  <span className={styles.cardQuestion}>{p.question}</span>
-                </span>
-              </div>
-              <div className={styles.quizActions} role="radiogroup" aria-label={p.short}>
+              <div
+                className={styles.quizActions}
+                role="radiogroup"
+                aria-label={`${p.short} — did the subscriber answer correctly?`}
+              >
                 <button
                   type="button"
                   role="radio"
@@ -263,9 +201,6 @@ function QuizPhase({ answers, setAnswer, answeredCount, correctCount, allAnswere
       )}
 
       <div className={styles.actions}>
-        <button type="button" className={styles.secondaryBtn} onClick={onBack}>
-          ← Back to talking points
-        </button>
         <button
           type="button"
           className={styles.primaryBtn}
@@ -278,6 +213,6 @@ function QuizPhase({ answers, setAnswer, answeredCount, correctCount, allAnswere
           </svg>
         </button>
       </div>
-    </>
+    </div>
   );
 }
