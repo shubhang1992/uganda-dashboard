@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import { useAuth } from '../../contexts/AuthContext';
+import ErrorCard from '../../components/feedback/ErrorCard';
 import PulseCard from './widgets/PulseCard';
 import TopUpWidget from './widgets/TopUpWidget';
 import ProjectionWidget from './widgets/ProjectionWidget';
@@ -21,12 +22,33 @@ const item = {
 
 export default function HomePage() {
   const { user } = useAuth();
-  const { data: sub, isLoading } = useCurrentSubscriber();
+  const { data: sub, isLoading, isError, error, refetch } = useCurrentSubscriber();
 
-  if (isLoading || !sub) {
+  if (isLoading) {
     return (
       <div className={styles.loading}>
         <div className={styles.spinner} />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className={styles.loading}>
+        <ErrorCard
+          title="We couldn't load your account"
+          message={error}
+          onRetry={refetch}
+        />
+      </div>
+    );
+  }
+  if (!sub) {
+    return (
+      <div className={styles.loading}>
+        <ErrorCard
+          title="No account found"
+          message="We couldn't find a subscriber profile for your sign-in. Please sign in again or contact support."
+        />
       </div>
     );
   }

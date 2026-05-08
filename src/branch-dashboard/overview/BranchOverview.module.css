@@ -20,10 +20,17 @@
 
 /* Operations row: takes all extra space in normal mode (flex-grow 1, basis 0).
    In split mode flex-grow goes to 0 and the wrapper collapses + fades + squishes.
-   Animating only flex-grow (a number) keeps the transition perfectly smooth. */
+   Animating only flex-grow (a number) keeps the transition perfectly smooth.
+
+   `padding-bottom` gives the inner card's drop-shadow room to fade out before
+   `overflow: hidden` clips it. Without it the shadow is sliced flat against
+   the wrapper's bottom edge, leaving a small dark square at each rounded
+   bottom corner of the card where the shadow sits below the curve. */
 .opsWrap {
   flex: 1 1 0;
   min-height: 0;
+  padding-bottom: 12px;
+  margin-bottom: -12px;
   overflow: hidden;
   opacity: 1;
   transform: scaleY(1);

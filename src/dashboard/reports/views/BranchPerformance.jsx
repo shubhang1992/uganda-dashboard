@@ -3,7 +3,8 @@ import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
 import { formatUGX } from '../../../utils/finance';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
-import FilterSelect, { SearchFilter } from '../FilterSelect';
+import FilterSelect from '../FilterSelect';
+import SearchFilter from '../SearchFilter';
 
 function RankBadge({ rank, total }) {
   const pct = rank / total;

@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { isValidUGPhone } from '../../utils/phone';
+import { getInitials } from '../../utils/dashboard';
 import { useCurrentSubscriber, useUpdateNominees } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import PageHeader from '../shell/PageHeader';
@@ -28,7 +30,7 @@ function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle
     <li className={styles.row} data-expanded={expanded || undefined}>
       <button type="button" className={styles.rowHead} onClick={onToggle} aria-expanded={expanded}>
         <span className={styles.avatar} aria-hidden="true">
-          {(nominee.name || '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase() || '?'}
+          {getInitials(nominee.name) || '?'}
         </span>
         <div className={styles.headText}>
           <span className={styles.headName}>{nominee.name || 'New nominee'}</span>
@@ -172,7 +174,7 @@ export default function NomineesPage() {
   const totalShare = useMemo(() => currentList.reduce((s, n) => s + (Number(n.share) || 0), 0), [currentList]);
   const shareValid = totalShare === 100;
   const fieldsValid = useMemo(
-    () => currentList.every((n) => n.name?.trim() && n.relationship && (n.phone?.replace(/\D/g, '').length >= 11)),
+    () => currentList.every((n) => n.name?.trim() && n.relationship && isValidUGPhone(n.phone)),
     [currentList],
   );
 

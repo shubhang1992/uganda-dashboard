@@ -50,23 +50,20 @@
   gap: var(--space-3);
 }
 
-/* Compact alerts in split: 2×2 grid fits comfortably in the narrower hero */
+/* Compact alerts in split: stacked single column fits the narrower hero */
 .hero[data-split='true'] .heroAlerts {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
 }
 
 .hero[data-split='true'] .heroAlert {
   padding: 0.6875rem var(--space-3);
   gap: 0.625rem;
-}
-
-.hero[data-split='true'] .heroAlert:nth-child(2) {
   border-right: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.hero[data-split='true'] .heroAlert:nth-child(1),
-.hero[data-split='true'] .heroAlert:nth-child(2) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+.hero[data-split='true'] .heroAlert:last-child {
+  border-bottom: none;
 }
 
 .hero[data-split='true'] .heroAlertValue {
@@ -680,7 +677,7 @@
 
 .heroAlerts {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   position: relative;
   z-index: 1;
   border-top: 1px solid rgba(255,255,255,0.06);

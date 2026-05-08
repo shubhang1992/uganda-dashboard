@@ -78,6 +78,15 @@
   color: rgba(217,220,242,0.9);
 }
 
+.pending {
+  color: rgba(217,220,242,0.3);
+  cursor: default;
+}
+
+.pending:hover {
+  color: rgba(217,220,242,0.3);
+}
+
 .bottom {
   display: flex;
   justify-content: space-between;

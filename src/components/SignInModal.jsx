@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useSignIn } from '../contexts/SignInContext';
 import { useAuth } from '../contexts/AuthContext';
-import { hasDashboard } from '../services/auth';
+import { hasDashboard, sendOtp, verifyOtp } from '../services/auth';
 import { isSignupComplete } from '../signup/signupState';
 import RoleSelect from './signin/RoleSelect';
 import DistributorSelect from './signin/DistributorSelect';
@@ -78,8 +78,12 @@ export default function SignInModal() {
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      if (previouslyFocused.current && previouslyFocused.current.focus) {
-        previouslyFocused.current.focus();
+      // Only restore focus if the previously-focused element still exists in the
+      // DOM. Route changes can detach it; calling .focus() on a detached node
+      // throws on some browsers and is a silent no-op on others.
+      const prev = previouslyFocused.current;
+      if (prev && typeof prev.focus === 'function' && document.body.contains(prev)) {
+        prev.focus();
       }
     };
   }, [isOpen]);
@@ -123,27 +127,35 @@ export default function SignInModal() {
     goTo('phone');
   }
 
-  function handlePhoneSubmit(phoneNum) {
+  async function handlePhoneSubmit(phoneNum) {
     setPhone(phoneNum);
+    // Fire-and-forget the send so the OTP step can render immediately.
+    // Any backend rejection surfaces on the verify step instead.
+    sendOtp(phoneNum, role).catch(() => { /* ignore — verify will surface real errors */ });
     goTo('otp');
   }
 
-  function handleVerify() {
+  async function handleResend() {
+    await sendOtp(phone, role);
+  }
+
+  /**
+   * Verify the OTP. Throws an AuthError on failure so OtpVerify can render
+   * a per-code message (invalid_otp, rate_limited, locked). The backend owns
+   * the user shape — branchId/agentId/distributorId come from `verifyOtp`,
+   * not the client.
+   */
+  async function handleVerify(code) {
+    const { user } = await verifyOtp(phone, code, role);
     close();
-    login({
-      role,
-      phone,
-      name: 'Demo User',
-      ...(role === 'branch' ? { branchId: 'b-kam-015' } : {}),
-      ...(role === 'agent' ? { agentId: 'a-001' } : {}),
-    });
+    login(user);
     // Subscribers with incomplete KYC resume the signup flow instead of landing
     // on the dashboard with no profile data.
-    if (role === 'subscriber' && !isSignupComplete()) {
+    if (user.role === 'subscriber' && !isSignupComplete()) {
       navigate('/signup');
       return;
     }
-    navigate(hasDashboard(role) ? '/dashboard' : '/coming-soon');
+    navigate(hasDashboard(user.role) ? '/dashboard' : '/coming-soon');
   }
 
   function handlePhoneBack() {
@@ -190,8 +202,13 @@ export default function SignInModal() {
             transition={{ duration: 0.45, ease: EASE }}
             role="dialog"
             aria-modal="true"
-            aria-label="Sign in"
+            aria-labelledby="signin-modal-title"
           >
+            {/* Stable, screen-reader-only heading so the dialog has a single
+                announced name regardless of which step is active. */}
+            <h2 id="signin-modal-title" className={styles.srOnly}>
+              Sign in to Universal Pensions
+            </h2>
             {/* Branded header */}
             <div className={styles.header}>
               <div className={styles.headerBg} aria-hidden="true">
@@ -317,6 +334,7 @@ export default function SignInModal() {
                     <OtpVerify
                       phone={phone}
                       onVerify={handleVerify}
+                      onResend={handleResend}
                       onBack={() => goTo('phone')}
                     />
                   </motion.div>

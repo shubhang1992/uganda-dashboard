@@ -28,6 +28,8 @@ export default function AmlStep({ onNext, onFlagged }) {
           fullName: signup.fullName,
           dob: signup.dob,
           nin: signup.nin,
+          sessionId: signup.onboardingSessionId,
+          niraTrackingId: signup.niraTrackingId,
         });
         if (cancelled) return;
         signup.patch({
@@ -74,8 +76,8 @@ export default function AmlStep({ onNext, onFlagged }) {
             />
           </svg>
         </motion.div>
-        <h2 className={styles.heading} style={{ textAlign: 'center' }}>Background check passed</h2>
-        <p className={styles.subtext} style={{ textAlign: 'center' }} role="status">
+        <h2 className={`${styles.heading} textCenter`}>Background check passed</h2>
+        <p className={`${styles.subtext} textCenter`} role="status">
           You're cleared. Moving on to beneficiaries…
         </p>
       </div>

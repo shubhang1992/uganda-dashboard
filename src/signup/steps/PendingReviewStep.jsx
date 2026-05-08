@@ -24,8 +24,8 @@ export default function PendingReviewStep({ onExit }) {
         </svg>
       </motion.div>
 
-      <h2 className={styles.heading} style={{ textAlign: 'center' }}>Your account is under review</h2>
-      <p className={styles.subtext} style={{ textAlign: 'center' }}>
+      <h2 className={`${styles.heading} textCenter`}>Your account is under review</h2>
+      <p className={`${styles.subtext} textCenter`}>
         Thank you for completing the signup. Your application needs a quick manual review before your account can be activated. We’ll be in touch shortly — no action is required from you right now.
       </p>
 

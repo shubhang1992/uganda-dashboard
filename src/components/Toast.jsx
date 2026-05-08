@@ -84,7 +84,11 @@ export default function ToastContainer() {
   const { toasts, removeToast } = useToast();
 
   return (
-    <div className={styles.container}>
+    <div
+      className={styles.container}
+      role="region"
+      aria-label="Notifications"
+    >
       <AnimatePresence mode="popLayout">
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} onClose={removeToast} />

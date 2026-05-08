@@ -35,7 +35,16 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
     await wait(700);
     setPhase(PHASES.analyzing);
     try {
-      const result = await faceMatch({ selfieFile: null, nin: signup.nin });
+      // Prototype: real camera capture is not implemented; produce a placeholder
+      // Blob so faceMatch's defensive null-guard passes. Replace with a real
+      // camera-captured Blob (getUserMedia → ImageCapture / canvas.toBlob) when
+      // wiring the live KYC provider.
+      const placeholderSelfie = new Blob([new Uint8Array([0])], { type: 'image/jpeg' });
+      const result = await faceMatch({
+        selfieFile: placeholderSelfie,
+        nin: signup.nin,
+        sessionId: signup.onboardingSessionId,
+      });
       if (result.outcome === 'ok') {
         signup.patch({ faceMatchOutcome: 'ok' });
         setPhase(PHASES.ok);
@@ -77,8 +86,8 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
               <path d="M28 16v14M28 38v2" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
             </svg>
           </motion.div>
-          <h2 className={styles.heading} style={{ textAlign: 'center' }}>Let’s try that again</h2>
-          <p className={styles.subtext} style={{ textAlign: 'center' }}>
+          <h2 className={`${styles.heading} textCenter`}>Let’s try that again</h2>
+          <p className={`${styles.subtext} textCenter`}>
             We couldn’t confirm that was a live person. Face the camera directly in good lighting — no hats or glasses.
           </p>
           <p className={own.retryNotice} role="status">
@@ -87,6 +96,9 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
           <div className={styles.actions}>
             <button type="button" className={styles.submit} onClick={retry}>
               Retake selfie
+            </button>
+            <button type="button" className={styles.secondaryBtn} onClick={onAgentFallback}>
+              Get help from an agent
             </button>
           </div>
         </div>
@@ -224,10 +236,10 @@ function TerminalBlock({ onAgentFallback, kind }) {
         </svg>
       </motion.div>
 
-      <h2 className={styles.heading} style={{ textAlign: 'center' }}>
+      <h2 className={`${styles.heading} textCenter`}>
         {kind === 'liveness' ? 'Verification paused' : 'Selfie didn’t match'}
       </h2>
-      <p className={styles.subtext} style={{ textAlign: 'center' }}>{copy}</p>
+      <p className={`${styles.subtext} textCenter`}>{copy}</p>
 
       <div className={styles.actions}>
         <button type="button" className={styles.submit} onClick={onAgentFallback}>

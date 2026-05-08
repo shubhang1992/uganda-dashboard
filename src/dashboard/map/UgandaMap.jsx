@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useAllEntities } from '../../hooks/useEntity';
+import { IS_DEV, MAP_TILE_URL } from '../../config/env';
 import styles from './UgandaMap.module.css';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -89,11 +90,11 @@ function UgandaMap() {
     fetch('/uganda-regions.geojson')
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(setRegionsGeo)
-      .catch((err) => { console.error('Failed to load regions GeoJSON:', err); setGeoError(err); });
+      .catch((err) => { if (IS_DEV) console.error('Failed to load regions GeoJSON:', err); setGeoError(err); });
     fetch('/uganda-districts.geojson')
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(setDistrictsGeo)
-      .catch((err) => { console.error('Failed to load districts GeoJSON:', err); setGeoError(err); });
+      .catch((err) => { if (IS_DEV) console.error('Failed to load districts GeoJSON:', err); setGeoError(err); });
   }, []);
 
   const selectedRegionId = selectedIds.region;
@@ -278,15 +279,23 @@ function UgandaMap() {
       mouseover: highlightDistrict,
       mouseout: (e) => resetHighlight(e, districtStyle),
     });
-    layer.bindTooltip(
-      `<strong>${feature.properties.name}</strong><br/><span style="opacity:0.6">${feature.properties.region}</span>`,
-      {
-        sticky: true,
-        className: styles.mapTooltip,
-        direction: 'top',
-        offset: [0, -10],
-      }
-    );
+    // Build the tooltip via DOM nodes (textContent) instead of an HTML string
+    // so an unsanitised feature property cannot inject script tags.
+    const root = document.createElement('div');
+    const name = document.createElement('strong');
+    name.textContent = feature.properties.name;
+    root.appendChild(name);
+    root.appendChild(document.createElement('br'));
+    const region = document.createElement('span');
+    region.style.opacity = '0.6';
+    region.textContent = feature.properties.region;
+    root.appendChild(region);
+    layer.bindTooltip(root, {
+      sticky: true,
+      className: styles.mapTooltip,
+      direction: 'top',
+      offset: [0, -10],
+    });
   }, [onDistrictClick, highlightDistrict, resetHighlight, districtStyle]);
 
   const regionKey = useMemo(
@@ -344,7 +353,7 @@ function UgandaMap() {
       >
         {/* Tile layer — CartoDB Positron, very reduced */}
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
+          url={MAP_TILE_URL}
           opacity={0.2}
         />
 

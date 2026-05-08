@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers, useUpdateSubscriberSchedule } from '../../hooks/useAgent';
 import { useToast } from '../../contexts/ToastContext';
+import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../shell/PageHeader';
 import ContributionSettingsForm from '../../components/contribution/ContributionSettingsForm';
 import styles from './SubscriberSchedulePage.module.css';
@@ -11,7 +12,7 @@ export default function SubscriberSchedulePage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { agentId } = useAgentScope();
-  const { data: subscribers = [], isLoading } = useAgentSubscribers(agentId);
+  const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
   const updateSchedule = useUpdateSubscriberSchedule(id, agentId);
   const { addToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
@@ -47,6 +48,21 @@ export default function SubscriberSchedulePage() {
     return (
       <div className={styles.page}>
         <PageHeader title="Loading…" fallback={`/dashboard/subscribers/${id}`} />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className={styles.page}>
+        <PageHeader title="Schedule" fallback={`/dashboard/subscribers/${id}`} />
+        <div style={{ padding: 'var(--space-4)' }}>
+          <ErrorCard
+            title="We couldn't load this subscriber"
+            message={error}
+            onRetry={refetch}
+          />
+        </div>
       </div>
     );
   }

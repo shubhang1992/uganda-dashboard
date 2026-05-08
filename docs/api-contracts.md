@@ -30,8 +30,12 @@
   - User object stored in localStorage as `upensions_auth`
 
 ### hasDashboard(role) — Client-side only
-- **Not an API endpoint** — client-side guard checking if role is in `['distributor', 'branch']`
+- **Not an API endpoint** — client-side guard checking if role is in `['distributor', 'branch', 'subscriber', 'agent']`
 - Backend should enforce equivalent authorization on protected endpoints
+
+### Auth error shape
+- `verifyOtp` (and any auth-related endpoint) must reject with the canonical `AuthError` shape: `{ code: 'invalid_otp' | 'rate_limited' | 'locked', message?: string, retryAfterSeconds?: number }`.
+- The client (`OtpVerify`) maps each `code` to a specific user-facing message. Rate-limit / locked responses freeze the form until the resend cooldown elapses.
 
 ---
 
@@ -327,17 +331,193 @@ When `branchId` is provided (Branch Admin), reports:
 
 ---
 
-## 7. Export / Download
+## 7. Subscriber endpoints
 
-### GET /api/export/:reportType
-- **Not yet implemented** — the Download button in `TopBar.jsx` is a placeholder
-- **Intended behavior:** Export current report view as CSV
+The Subscriber dashboard consumes these via `src/hooks/useSubscriber.js`. All require an authenticated subscriber token; the backend MUST scope every response by the authenticated subscriber's ID — never accept a `subscriberId` query param from the client for "self" reads.
+
+### GET /api/subscribers/me
+- **Service Function:** `getCurrentSubscriber(phone)` (resolves to the authenticated subscriber)
+- **Response:** Full subscriber object (see `data-model.md`) with embedded `transactions[]`, `claims[]`, `withdrawals[]`, `nominees`, `insurance`, `contributionSchedule`, `agent`.
+- **Cache Key:** `['currentSubscriber', phone]`
+- **Notes:** First-load read for the entire subscriber dashboard. Embedding sub-collections keeps initial load to a single round-trip; pagination becomes important once a subscriber has thousands of transactions.
+
+### GET /api/subscribers/me/transactions
+- **Service Function:** `getSubscriberTransactions(id, filters)`
+- **Query Params:** `type`, `status`, `from`, `to`, `page`, `pageSize`
+- **Response:** `{ transactions: Transaction[], total: number }`
+- **Cache Key:** `['subscriberTransactions', id, filters]`
+
+### GET /api/subscribers/me/claims
+- **Service Function:** `getSubscriberClaims(id)`
+- **Response:** `Claim[]`
+- **Cache Key:** `['subscriberClaims', id]`
+
+### GET /api/subscribers/me/nominees
+- **Service Function:** `getSubscriberNominees(id)`
+- **Response:** `{ pension: Nominee[], insurance: Nominee[] }`
+- **Cache Key:** `['subscriberNominees', id]`
+
+### GET /api/subscribers/me/agent
+- **Service Function:** `getSubscriberAgent(id)`
+- **Response:** `{ id, name, phone, branchId, branchName, ... }` — the assigned agent enriched with branch info
+- **Cache Key:** `['subscriberAgent', id]`
+
+### POST /api/subscribers/me/contribute
+- **Service Function:** `makeAdHocContribution(id, payload)`
+- **Request Body:** `{ amount: number, method: 'mtn' | 'airtel' | 'card' | ..., reference?: string }`
+- **Response:** Updated `Transaction`
+- **Hook:** `useMakeContribution` — invalidates `currentSubscriber`, `subscriberTransactions`.
+
+### POST /api/subscribers/me/withdraw
+- **Service Function:** `requestWithdrawal(id, payload)`
+- **Request Body:** `{ amount: number, bucket: 'retirement' | 'emergency', reason: string, method: string }`
+- **Response:** New `Withdrawal` record with status: `'pending'`.
+- **Hook:** `useRequestWithdrawal`
+
+### POST /api/subscribers/me/claims
+- **Service Function:** `submitClaim(id, payload)`
+- **Request Body (multipart/form-data):**
+  - `type` — `medical | accident | hospitalization | critical_illness`
+  - `incidentDate` — ISO date
+  - `amount` — UGX integer
+  - `description` — string
+  - `files[]` — actual `File` blobs (the client now passes real files, not just metadata)
+- **Response:** New `Claim` record with status: `'submitted'`.
+- **Hook:** `useSubmitClaim`. Alternative implementation: presigned URL upload first, then send URL refs in JSON body.
+
+### PUT /api/subscribers/me/schedule
+- **Service Function:** `updateContributionSchedule(id, schedule)`
+- **Request Body:** `{ frequency: 'weekly'|'monthly'|'quarterly'|'half-yearly'|'annually', amount: number, retirementPct: number, emergencyPct: number }`
+- **Response:** Updated `subscriber.contributionSchedule`
+- **Hook:** `useUpdateSchedule` (subscriber-side) and `useUpdateSubscriberSchedule(subscriberId, agentId)` (agent-side; same endpoint, just additionally invalidates the agent's portfolio cache).
+
+### PUT /api/subscribers/me/nominees
+- **Service Function:** `updateNominees(id, payload)`
+- **Request Body:** `{ pension?: Nominee[], insurance?: Nominee[] }` (only the tab being edited is sent)
+- **Response:** Updated `nominees`
+- **Hook:** `useUpdateNominees` — uses optimistic update + rollback (see Phase B-7 in the audit's backend-readiness checklist).
+
+### PUT /api/subscribers/me/insurance
+- **Service Function:** `updateInsuranceCover(id, payload)`
+- **Request Body:** `{ cover: number, premiumMonthly: number }` — works for both upgrade and downgrade.
+- **Response:** Updated `insurance`
+- **Hook:** `useUpdateInsuranceCover`
+
+### PUT /api/subscribers/me/profile
+- **Service Function:** `updateProfile(id, updates)`
+- **Request Body:** Partial of `{ name, email, phone }`. Phone is canonical 9-digit Uganda local digits (validated via `utils/phone.js#isValidUGPhone`).
+- **Response:** Updated subscriber-shaped fields
+- **Hook:** `useUpdateProfile` — uses optimistic update + rollback.
+
+---
+
+## 8. Agent endpoints
+
+Agent dashboard consumes these via `src/hooks/useAgent.js`. Every response must be scoped to the authenticated agent's ID — never trust client-supplied `agentId` for "self" reads.
+
+### GET /api/agents/me/subscribers
+- **Service Function:** `getAgentSubscriberList(agentId)`
+- **Response:** `Array<{ id, name, phone, gender, age, district, registeredDate, totalContributions, netBalance, isActive, contributionSchedule, products[] }>`
+- **Cache Key:** `['agentSubscribers', agentId]`
+- **Notes:** Used by SubscribersPage list, SubscriberDetailPage, AnalyticsPage demographics derivation. At 60 subscribers/agent average, no pagination needed for this endpoint specifically.
+
+### GET /api/agents/me/commissions/detail
+- Same shape as `/api/commissions/agents/:agentId` (Section 3) but always scoped to the authenticated agent.
+- **Cache Key:** `['agentCommissionDetail', agentId]`
+
+### GET /api/agents/me/cadence
+- **Service Function:** `getNetworkCadence()` (currently shared client-side; agents may have per-account cadence in production)
+- **Response:** `{ cadence: 'WEEKLY_FRIDAY' | 'BIWEEKLY_FRIDAY' | 'MONTHLY_FIRST' }`
+- **Cache Key:** `['networkCadence']`
+
+### POST /api/commissions/:commissionId/agent-confirm
+- **Service Function:** `agentConfirmCommission(commissionId)`
+- **Response:** Updated commission (`agentConfirmed: true`)
+- **Hook:** `useAgentConfirmCommission`. Maker-checker counterpart to admin `settleCommissions`.
+
+### POST /api/commissions/:commissionId/dispute
+- **Service Function:** `disputeCommission(commissionId, reason)`
+- **Request Body:** `{ reason: string }`
+- **Response:** Updated commission (`status: 'disputed'`, `disputeReason` set)
+- **Hook:** `useDisputeCommission`
+
+### POST /api/commissions/:commissionId/withdraw-dispute
+- **Service Function:** `withdrawDispute(commissionId)`
+- **Response:** Updated commission (status reverts to `'due'`)
+
+### POST /api/agents/me/onboard-subscriber
+- **Inferred** from `OnboardPage` flow (4-stage: awareness → KYC → schedule → done).
+- **Request Body (multipart/form-data):** Full subscriber payload + KYC documents collected during the 9-step KYC sub-flow. The agent's `onboardingSessionId` correlates the KYC stages.
+- **Response:** New subscriber record + commission record (status `'due'`) for the agent.
+
+---
+
+## 9. KYC endpoints
+
+The signup flow at `/signup/*` (also embedded in agent's `/dashboard/onboard`) consumes these via `src/services/kyc.js`. Each request includes a client-generated `onboardingSessionId` (UUID, persisted in `SignupContext`) so the backend can correlate every stage of one onboarding job.
+
+The backend integration target is **Smile ID v2** — endpoint shapes match Smile ID's request/response contract. Each endpoint accepts `{ ...payload, sessionId, prevTrackingIds? }` and returns a `trackingId` the next stage can pass back as a correlation key.
+
+### POST /api/kyc/id-quality
+- **Service Function:** `assessImageQuality(file)`
+- **Request Body (multipart/form-data):** `image` (File), `sessionId`
+- **Response:** `{ blur: boolean, corners: boolean, glare: boolean, pass: boolean, score: number }`
+- **Notes:** Client-side guard rail. Real provider runs the same checks server-side before committing OCR credits.
+
+### POST /api/kyc/id-ocr
+- **Service Function:** `extractIdFields({ front, back, sessionId })`
+- **Request Body (multipart/form-data):** `front`, `back` (Files), `sessionId`
+- **Response:** `IdExtraction` — `{ fullName, nin, cardNumber, dob, districtId, gender, barcodeRaw, confidence, trackingId }`
+- **Notes:** OCR + barcode cross-check. Confidence is a 0-1 composite reflecting both OCR and barcode agreement; the client renders this as a high/mid/low badge on ReviewStep.
+
+### POST /api/kyc/nira-verify
+- **Service Function:** `verifyNira({ nin, cardNumber, dob, fullName, sessionId })`
+- **Response:** `{ result: 'match' | 'partial' | 'no-match', mismatchedFields?: string[], reason?: string, trackingId }`
+- **Notes:** On `'partial'`, the client shows the mismatched fields and gives the user a "Fix and re-verify" or "Continue (flagged)" choice rather than auto-advancing.
+
+### POST /api/kyc/otp-send / POST /api/kyc/otp-verify
+- **Service Functions:** `sendOtp({ phone, sessionId })`, `verifyOtp({ phone, code, sessionId })`
+- **Response:** `{ success, expiresIn }` / `{ verified }`
+- **Notes:** Distinct from the SignInModal OTP flow. This is the signup OTP that confirms the phone is reachable before binding it to the new account.
+
+### POST /api/kyc/face-match
+- **Service Function:** `faceMatch({ selfieFile, nin, sessionId })`
+- **Request Body (multipart/form-data):** `selfie` (File), `nin`, `sessionId`
+- **Response:** `{ match, liveness, matchScore, outcome: 'ok' | 'liveness-fail' | 'no-match', trackingId }`
+- **Notes:** The client defensively rejects null `selfieFile` before calling — a missing blob (after localStorage rehydration drops it) shouldn't reach the backend.
+
+### POST /api/kyc/aml-screen
+- **Service Function:** `screenAml({ fullName, dob, nin, sessionId, niraTrackingId })`
+- **Response:** `{ outcome: 'clear' | 'flagged', trackingId }`
+- **Notes:** AML sanction-list + PEP screening. Flagged users are routed to back-office review; the user does not see the reason.
+
+### POST /api/kyc/agent-referral
+- **Service Function:** `referToAgent({ phone, reason, stage?, trackingId?, sessionId })`
+- **Response:** `{ ticketId, eta }`
+- **Notes:** Called by `AgentFallbackStep` when KYC cannot complete automatically (NIRA / liveness failure).
+
+---
+
+## 10. Contact form
+
+### POST /api/contact
+- **Service Function:** `submitContactForm({ name, email, message })` (in `services/contact.js`)
+- **Currently:** Demo mode — logs to dev console, returns `{ ok: true, demo: true }` after a 600ms simulated delay; the success screen surfaces the demo state and points users to `support@upensions.ug`.
+- **Backend target:** `POST /api/contact` writes to a support inbox or forwards to a transactional email service (Formspree / SendGrid). Honour `name`, `email`, `message` validation already done client-side.
+
+---
+
+## 11. Export / Download
+
+CSV export is **fully wired client-side** via `src/utils/csv.js#downloadCSV(filename, headers, rows)` (RFC 4180 escaping + formula-injection defence + UTF-8 BOM for Excel). Both the distributor `TopBar` and every subscriber report view export the current filtered rows.
+
+Server-side CSV is **not strictly required for current report sizes**, but should be added for:
+- `/api/entities/subscriber` exports (~30K rows) — stream from server.
+- Multi-year activity exports — once subscriber transaction history grows.
+
+### GET /api/export/:reportType (future)
+- **Intended behavior:** Server-side CSV generation for very large or multi-year reports.
 - **Query Params:** Same filters as the report view (search, region, status, etc.)
-- **Notes:** Backend should generate CSV on the server. For large reports (All Subscribers), stream the response.
-
-### GET /api/export/dashboard
-- **Not yet implemented** — the Download button in TopBar appears on the map overlay
-- **Intended behavior:** Export current dashboard view data (entity metrics at current drill level)
 
 ---
 

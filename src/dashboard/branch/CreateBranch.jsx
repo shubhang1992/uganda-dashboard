@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAllEntities } from '../../hooks/useEntity';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { isValidUGPhone } from '../../utils/phone';
 import { useDashboard } from '../../contexts/DashboardContext';
 import styles from './CreateBranch.module.css';
 
@@ -231,7 +232,7 @@ export default function CreateBranch() {
   function validateStep2() {
     const e = {};
     if (!adminName.trim()) e.adminName = 'Full name is required';
-    if (adminPhone.length < 9) e.adminPhone = 'Enter a valid 9-digit phone number';
+    if (!isValidUGPhone(adminPhone)) e.adminPhone = 'Enter a valid Ugandan mobile number';
     setErrors(e);
     return Object.keys(e).length === 0;
   }

@@ -8,10 +8,13 @@ import styles from './MetricsRow.module.css';
 
 const SUGGESTIONS = ['Top agents?', 'Coverage by region?', 'Active subscribers?', 'Gender split?'];
 
-// ── Chat Card ──
-// Body is always rendered; collapse/expand uses CSS grid-template-rows (no AnimatePresence)
-// so there is never a frame where React is mounting invisible content against a white bg.
-function ChatCard({ open, onToggle }) {
+// Chat body — split out so that its state, scroll-effect, and message list
+// are NOT created until the card is opened at least once. ChatCard tracks
+// `hasOpened` and lazily mounts `ChatCardBody` after the first open. Past
+// versions of MetricsRow always mounted the body even when collapsed,
+// keeping the message list, ref, and effect alive for every render of the
+// distributor dashboard. This removes that cost on first paint.
+function ChatCardBody() {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: 'Ask me anything about your network data.' },
   ]);
@@ -38,6 +41,62 @@ function ChatCard({ open, onToggle }) {
   }
 
   return (
+    <div className={styles.chatBodyInner}>
+      <div className={styles.chatMessages} ref={listRef} aria-live="polite" aria-relevant="additions text">
+        {messages.map((m, i) => (
+          <div key={i} className={styles.chatMsg} data-role={m.role}>
+            <div className={styles.chatBubble} data-role={m.role}>{m.text}</div>
+          </div>
+        ))}
+        {isTyping && (
+          <div className={styles.chatMsg} data-role="assistant">
+            <div className={styles.chatBubble} data-role="assistant" aria-label="Typing">
+              <span className={styles.typingDots}><span /><span /><span /></span>
+            </div>
+          </div>
+        )}
+      </div>
+      {messages.length <= 1 && (
+        <div className={styles.chatSuggestions}>
+          {SUGGESTIONS.map((s) => (
+            <button key={s} className={styles.chatSuggest} onClick={() => handleSend(s)}>{s}</button>
+          ))}
+        </div>
+      )}
+      <div className={styles.chatInput}>
+        <div className={styles.chatInputInner}>
+          <input
+            className={styles.chatField}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } }}
+            placeholder="Ask about your data…"
+            aria-label="Chat message"
+            name="chat"
+            autoComplete="off"
+          />
+          <button className={styles.chatSend} onClick={() => handleSend()} disabled={!input.trim()} aria-label="Send message">
+            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 8l12-6-6 12V8H2z" fill="currentColor"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Chat Card ──
+// Header is always visible; the body's state + effects are deferred until the
+// user opens the card the first time, then kept mounted to preserve message
+// history while the user toggles it.
+function ChatCard({ open, onToggle }) {
+  // Adjust state during render — the React 19 pattern documented in CLAUDE.md
+  // for deriving a sticky boolean from a prop without an extra effect.
+  const [hasOpened, setHasOpened] = useState(open);
+  if (open && !hasOpened) {
+    setHasOpened(true);
+  }
+
+  return (
     <motion.div className={styles.chatCard} data-open={open} variants={item}>
       <button className={styles.chatHeader} onClick={onToggle} type="button" aria-expanded={open}>
         <div className={styles.chatHeaderLeft}>
@@ -57,46 +116,7 @@ function ChatCard({ open, onToggle }) {
         </svg>
       </button>
       <div className={styles.chatBody}>
-        <div className={styles.chatBodyInner}>
-          <div className={styles.chatMessages} ref={listRef} aria-live="polite" aria-relevant="additions text">
-            {messages.map((m, i) => (
-              <div key={i} className={styles.chatMsg} data-role={m.role}>
-                <div className={styles.chatBubble} data-role={m.role}>{m.text}</div>
-              </div>
-            ))}
-            {isTyping && (
-              <div className={styles.chatMsg} data-role="assistant">
-                <div className={styles.chatBubble} data-role="assistant" aria-label="Typing">
-                  <span className={styles.typingDots}><span /><span /><span /></span>
-                </div>
-              </div>
-            )}
-          </div>
-          {messages.length <= 1 && (
-            <div className={styles.chatSuggestions}>
-              {SUGGESTIONS.map((s) => (
-                <button key={s} className={styles.chatSuggest} onClick={() => handleSend(s)}>{s}</button>
-              ))}
-            </div>
-          )}
-          <div className={styles.chatInput}>
-            <div className={styles.chatInputInner}>
-              <input
-                className={styles.chatField}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } }}
-                placeholder="Ask about your data…"
-                aria-label="Chat message"
-                name="chat"
-                autoComplete="off"
-              />
-              <button className={styles.chatSend} onClick={() => handleSend()} disabled={!input.trim()} aria-label="Send message">
-                <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 8l12-6-6 12V8H2z" fill="currentColor"/></svg>
-              </button>
-            </div>
-          </div>
-        </div>
+        {hasOpened && <ChatCardBody />}
       </div>
     </motion.div>
   );

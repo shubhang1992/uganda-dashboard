@@ -154,16 +154,25 @@ export default function SettingsPage() {
           <ul className={styles.sectionList}>
             {SECTIONS.map((s) => (
               <li key={s.id}>
-                <button type="button" className={styles.sectionRow} onClick={() => navigate(s.to)}>
+                <button
+                  type="button"
+                  className={styles.sectionRow}
+                  data-soon={s.soon || undefined}
+                  aria-disabled={s.soon || undefined}
+                  disabled={s.soon}
+                  onClick={() => { if (!s.soon) navigate(s.to); }}
+                >
                   <span className={styles.sectionIcon} aria-hidden="true">{s.icon}</span>
                   <span className={styles.sectionText}>
                     <span className={styles.sectionLabel}>{s.label}</span>
                     <span className={styles.sectionHelper}>{s.helper}</span>
                   </span>
                   {s.soon && <span className={styles.soonBadge}>Soon</span>}
-                  <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10" className={styles.sectionArrow}>
-                    <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                  </svg>
+                  {!s.soon && (
+                    <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10" className={styles.sectionArrow}>
+                      <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    </svg>
+                  )}
                 </button>
               </li>
             ))}

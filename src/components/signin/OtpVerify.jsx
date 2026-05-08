@@ -1,14 +1,39 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { formatUGPhone } from '../../utils/phone';
 import styles from './OtpVerify.module.css';
 
 const OTP_LENGTH = 6;
+const MAX_ATTEMPTS = 5;
+const RESEND_COOLDOWN_SECONDS = 30;
 
-export default function OtpVerify({ phone, onVerify, onBack }) {
+/**
+ * Map an AuthError-like exception to a user-readable message.
+ * Backend rejection codes: invalid_otp | rate_limited | locked | network.
+ */
+function authErrorMessage(err) {
+  const code = err?.code;
+  const wait = err?.retryAfterSeconds;
+  if (code === 'rate_limited') {
+    return wait
+      ? `Too many attempts. Try again in ${Math.ceil(wait / 60)} minute${Math.ceil(wait / 60) === 1 ? '' : 's'}.`
+      : 'Too many attempts. Please wait a moment and try again.';
+  }
+  if (code === 'locked') {
+    return 'This account is temporarily locked. Contact support if this is unexpected.';
+  }
+  if (code === 'invalid_otp') return 'Invalid code. Please try again.';
+  if (err?.message) return err.message;
+  return 'Could not verify the code. Please try again.';
+}
+
+export default function OtpVerify({ phone, onVerify, onResend, onBack }) {
   const [digits, setDigits] = useState(Array(OTP_LENGTH).fill(''));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(30);
+  const [resendTimer, setResendTimer] = useState(RESEND_COOLDOWN_SECONDS);
+  const [attempts, setAttempts] = useState(0);
+  const [locked, setLocked] = useState(false);
   const inputsRef = useRef([]);
 
   useEffect(() => {
@@ -53,6 +78,7 @@ export default function OtpVerify({ phone, onVerify, onBack }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (locked) return;
     const code = digits.join('');
     if (code.length < OTP_LENGTH) {
       setError('Enter the full 6-digit code');
@@ -61,18 +87,39 @@ export default function OtpVerify({ phone, onVerify, onBack }) {
     setLoading(true);
     try {
       await onVerify(code);
+      // Success: parent navigates / closes modal.
+    } catch (err) {
+      const nextAttempts = attempts + 1;
+      setAttempts(nextAttempts);
+      // A locked or rate-limited response is server-final — stop trying.
+      if (err?.code === 'locked' || err?.code === 'rate_limited' || nextAttempts >= MAX_ATTEMPTS) {
+        setLocked(true);
+        setError(
+          err?.code === 'locked' || err?.code === 'rate_limited'
+            ? authErrorMessage(err)
+            : 'Too many incorrect attempts. Request a new code to continue.'
+        );
+      } else {
+        setError(authErrorMessage(err));
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  function handleResend() {
-    setResendTimer(30);
+  async function handleResend() {
+    setError('');
     setDigits(Array(OTP_LENGTH).fill(''));
+    setAttempts(0);
+    setLocked(false);
+    setResendTimer(RESEND_COOLDOWN_SECONDS);
     inputsRef.current[0]?.focus();
+    if (onResend) {
+      try { await onResend(); } catch { /* surface via verify */ }
+    }
   }
 
-  const masked = phone ? `+256 ${phone.slice(0, 1)}XX XXX ${phone.slice(6)}` : '';
+  const masked = phone ? formatUGPhone(phone) : '';
 
   return (
     <div className={styles.wrapper}>
@@ -112,13 +159,14 @@ export default function OtpVerify({ phone, onVerify, onBack }) {
               aria-label={`Digit ${i + 1} of ${OTP_LENGTH}`}
               spellCheck={false}
               name={`otp-${i}`}
+              disabled={locked}
               {...(i === 0 ? { autoComplete: 'one-time-code' } : {})}
             />
           ))}
         </div>
         {error && <p className={styles.error} role="alert">{error}</p>}
 
-        <button type="submit" className={styles.submit} disabled={loading}>
+        <button type="submit" className={styles.submit} disabled={loading || locked}>
           {loading ? (
             <span className={styles.spinnerWrap}>
               <span className={styles.spinner} />
@@ -133,7 +181,7 @@ export default function OtpVerify({ phone, onVerify, onBack }) {
             <span className={styles.resendText}>Resend code in {resendTimer}s</span>
           ) : (
             <button type="button" className={styles.resendBtn} onClick={handleResend}>
-              Resend code
+              {locked ? 'Send a new code' : 'Resend code'}
             </button>
           )}
         </div>

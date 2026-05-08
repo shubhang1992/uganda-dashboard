@@ -10,7 +10,7 @@ function Demographics({ metrics }) {
         <div className={styles.demoTitle}>Gender</div>
         {['male', 'female', 'other'].map((g) => (
           <div key={g} className={styles.demoItem}>
-            <span className={styles.demoItemLabel} style={{ textTransform: 'capitalize' }}>{g}</span>
+            <span className={`${styles.demoItemLabel} capitalize`}>{g}</span>
             <div className={styles.demoBar}><div className={styles.demoBarFill} style={{ width: `${m.genderRatio[g]}%` }} /></div>
             <span className={styles.demoItemValue}>{m.genderRatio[g]}%</span>
           </div>

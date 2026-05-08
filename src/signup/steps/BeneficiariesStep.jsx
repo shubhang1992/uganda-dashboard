@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { isValidUGPhone } from '../../utils/phone';
 import { useSignup } from '../SignupContext';
 import styles from './Step.module.css';
 import own from './BeneficiariesStep.module.css';
@@ -81,7 +82,7 @@ function validList(list) {
   if (!list.length) return false;
   const allComplete = list.every(
     (b) => b.name.trim().length >= 3 &&
-           b.phone.length === 9 &&
+           isValidUGPhone(b.phone) &&
            !!b.relationship &&
            Number.isFinite(b.share) && b.share > 0,
   );

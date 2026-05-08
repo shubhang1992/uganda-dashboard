@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react';
 import { useCurrentSubscriber } from '../../../hooks/useSubscriber';
 import { formatUGX, formatUGXExact } from '../../../utils/finance';
 import { downloadCSV } from '../../../utils/csv';
+import ErrorCard from '../../../components/feedback/ErrorCard';
+import ExportButton from '../../../components/reports/ExportButton';
 import frameStyles from './ReportFrame.module.css';
 
 function txYear(isoDate) {
@@ -9,7 +11,7 @@ function txYear(isoDate) {
 }
 
 export default function AnnualStatement() {
-  const { data: sub } = useCurrentSubscriber();
+  const { data: sub, isError, error, refetch } = useCurrentSubscriber();
   const transactions = useMemo(() => sub?.transactions || [], [sub?.transactions]);
 
   /* Build a set of years present in transactions */
@@ -55,6 +57,16 @@ export default function AnnualStatement() {
     downloadCSV(`annual-statement-${year}.csv`, headers, rows);
   }
 
+  if (isError) {
+    return (
+      <ErrorCard
+        title="We couldn't load your annual statement"
+        message={error}
+        onRetry={refetch}
+      />
+    );
+  }
+
   return (
     <div className={frameStyles.frame}>
       <div className={frameStyles.headerRow}>
@@ -62,13 +74,7 @@ export default function AnnualStatement() {
           <span className={frameStyles.eyebrow}>Annual tax statement</span>
           <span className={frameStyles.headerDesc}>A year-end summary for your records.</span>
         </div>
-        <button type="button" className={frameStyles.exportBtn} onClick={handleExport}>
-          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="14" height="14">
-            <path d="M10 3v10M10 13l-3-3M10 13l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M3 15v2h14v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          <span>Export CSV</span>
-        </button>
+        <ExportButton onExport={handleExport} />
       </div>
 
       {/* Year chips */}

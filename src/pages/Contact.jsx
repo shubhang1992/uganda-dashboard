@@ -3,21 +3,50 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import { EASE_OUT_EXPO } from '../utils/finance';
+import { SUPPORT_EMAIL } from '../config/env';
+import { submitContactForm } from '../services/contact';
 import styles from './Contact.module.css';
 
-const EASE_OUT_EXPO = [0.16, 1, 0.3, 1];
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Contact() {
   const [form, setForm] = useState({ name: '', email: '', message: '' });
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+  const [demoMode, setDemoMode] = useState(false);
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
+    if (error) setError('');
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    setSubmitted(true);
+    setError('');
+    if (!form.name.trim()) {
+      setError('Please enter your name.');
+      return;
+    }
+    if (!EMAIL_PATTERN.test(form.email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (!form.message.trim()) {
+      setError('Please write a short message.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await submitContactForm(form);
+      setDemoMode(!!res.demo);
+      setSubmitted(true);
+    } catch (err) {
+      setError(err?.message || `Couldn't send. Please email ${SUPPORT_EMAIL} instead.`);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -77,7 +106,7 @@ export default function Contact() {
                   </svg>
                 </div>
                 <h3 className={styles.infoLabel}>Email</h3>
-                <p className={styles.infoText}>support@universalpensions.ug</p>
+                <p className={styles.infoText}>{SUPPORT_EMAIL}</p>
               </div>
 
               <div className={styles.regulatory}>
@@ -97,12 +126,20 @@ export default function Contact() {
                     <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.75"/>
                     <polyline points="8,12 11,15 16,9" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                  <h3 className={styles.successTitle}>Message sent</h3>
-                  <p className={styles.successText}>Thank you for reaching out. Our team will get back to you shortly.</p>
+                  <h3 className={styles.successTitle}>Message received</h3>
+                  {demoMode ? (
+                    <p className={styles.successText}>
+                      Thanks for reaching out. While we wire up our messaging backend, please also email{' '}
+                      <a href={`mailto:${SUPPORT_EMAIL}`} className={styles.successLink}>{SUPPORT_EMAIL}</a>{' '}
+                      so our team sees this directly.
+                    </p>
+                  ) : (
+                    <p className={styles.successText}>Thank you for reaching out. Our team will get back to you shortly.</p>
+                  )}
                   <Link to="/" className={styles.backBtn}>Back to home</Link>
                 </div>
               ) : (
-                <form className={styles.form} onSubmit={handleSubmit}>
+                <form className={styles.form} onSubmit={handleSubmit} noValidate>
                   <h2 className={styles.formTitle}>Send us a message</h2>
                   <div className={styles.field}>
                     <label htmlFor="contact-name" className={styles.label}>Name</label>
@@ -116,6 +153,7 @@ export default function Contact() {
                       required
                       autoComplete="name"
                       placeholder="Your full name"
+                      disabled={submitting}
                     />
                   </div>
                   <div className={styles.field}>
@@ -130,6 +168,7 @@ export default function Contact() {
                       required
                       autoComplete="email"
                       placeholder="you@example.com"
+                      disabled={submitting}
                     />
                   </div>
                   <div className={styles.field}>
@@ -143,9 +182,15 @@ export default function Contact() {
                       required
                       rows={5}
                       placeholder="How can we help?"
+                      disabled={submitting}
                     />
                   </div>
-                  <button type="submit" className={styles.submit}>Send message</button>
+                  {error && (
+                    <p className={styles.error} role="alert">{error}</p>
+                  )}
+                  <button type="submit" className={styles.submit} disabled={submitting}>
+                    {submitting ? 'Sending…' : 'Send message'}
+                  </button>
                 </form>
               )}
             </motion.div>

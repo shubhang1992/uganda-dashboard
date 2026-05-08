@@ -1,20 +1,75 @@
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo-white.png';
+import { LEGAL_TERMS_URL, LEGAL_PRIVACY_URL } from '../config/env';
 import styles from './Footer.module.css';
 
-/** Map of link labels to routes for pages that use react-router */
-const ROUTE_MAP = {
-  'About us': '/about',
-  'Contact us': '/contact',
-  'Help center': '/faq',
+/**
+ * Footer link metadata. Each item is one of:
+ *   - { type: 'route', to } — internal route (react-router Link)
+ *   - { type: 'hash', to }  — internal route + hash anchor (Link to "/#section")
+ *   - { type: 'external', href } — external URL (opens in new tab)
+ *   - { type: 'pending' } — destination not yet built; rendered as a disabled
+ *     "Coming soon" item rather than a dead anchor.
+ */
+const LINKS = {
+  Platform: [
+    { label: 'How it works', type: 'hash', to: '/#how-it-works' },
+    { label: 'For individuals', type: 'hash', to: '/#for-you' },
+    { label: 'For employers', type: 'hash', to: '/#for-you' },
+    { label: 'For agents', type: 'hash', to: '/#for-you' },
+  ],
+  Company: [
+    { label: 'About us', type: 'route', to: '/about' },
+    { label: 'Our mission', type: 'pending' },
+    { label: 'Careers', type: 'pending' },
+    { label: 'Press', type: 'pending' },
+  ],
+  Legal: [
+    { label: 'Terms of service', type: 'external', href: LEGAL_TERMS_URL },
+    { label: 'Privacy policy', type: 'external', href: LEGAL_PRIVACY_URL },
+    { label: 'Regulatory notice', type: 'pending' },
+    { label: 'NSSF compliance', type: 'pending' },
+  ],
+  Support: [
+    { label: 'Help center', type: 'route', to: '/faq' },
+    { label: 'Contact us', type: 'route', to: '/contact' },
+    { label: 'Find an agent', type: 'pending' },
+    { label: 'Branch locator', type: 'pending' },
+  ],
 };
 
-const LINKS = {
-  Platform: ['How it works', 'For individuals', 'For employers', 'For agents'],
-  Company: ['About us', 'Our mission', 'Careers', 'Press'],
-  Legal: ['Terms of service', 'Privacy policy', 'Regulatory notice', 'NSSF compliance'],
-  Support: ['Help center', 'Contact us', 'Find an agent', 'Branch locator'],
-};
+const BOTTOM_LINKS = [
+  { label: 'Privacy', type: 'external', href: LEGAL_PRIVACY_URL },
+  { label: 'Terms', type: 'external', href: LEGAL_TERMS_URL },
+  { label: 'Cookies', type: 'pending' },
+];
+
+function FooterItem({ item, className }) {
+  if (item.type === 'route' || item.type === 'hash') {
+    return (
+      <Link to={item.to} className={className}>
+        {item.label}
+      </Link>
+    );
+  }
+  if (item.type === 'external') {
+    return (
+      <a href={item.href} target="_blank" rel="noreferrer" className={className}>
+        {item.label}
+      </a>
+    );
+  }
+  // pending — non-interactive placeholder so users don't navigate to a dead anchor.
+  return (
+    <span
+      className={`${className} ${styles.pending}`}
+      aria-disabled="true"
+      title="Coming soon"
+    >
+      {item.label}
+    </span>
+  );
+}
 
 export default function Footer() {
   return (
@@ -37,16 +92,8 @@ export default function Footer() {
                 <h3 className={styles.groupLabel}>{group}</h3>
                 <ul className={styles.linkList}>
                   {items.map((item) => (
-                    <li key={item}>
-                      {ROUTE_MAP[item] ? (
-                        <Link to={ROUTE_MAP[item]} className={styles.link}>
-                          {item}
-                        </Link>
-                      ) : (
-                        <a href={`#${item.toLowerCase().replace(/\s+/g, '-')}`} className={styles.link}>
-                          {item}
-                        </a>
-                      )}
+                    <li key={item.label}>
+                      <FooterItem item={item} className={styles.link} />
                     </li>
                   ))}
                 </ul>
@@ -60,9 +107,9 @@ export default function Footer() {
             © {new Date().getFullYear()} Universal Pensions Limited. All rights reserved.
           </div>
           <div className={styles.bottomLinks}>
-            <a href="#privacy" className={styles.bottomLink}>Privacy</a>
-            <a href="#terms" className={styles.bottomLink}>Terms</a>
-            <a href="#cookies" className={styles.bottomLink}>Cookies</a>
+            {BOTTOM_LINKS.map((item) => (
+              <FooterItem key={item.label} item={item} className={styles.bottomLink} />
+            ))}
           </div>
         </div>
       </div>

@@ -204,6 +204,23 @@
   line-height: 1.6;
 }
 
+.successLink {
+  color: var(--color-indigo);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.successLink:hover {
+  color: var(--color-indigo-deep);
+}
+
+.error {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: #dc3545;
+  margin: 0;
+}
+
 .backBtn {
   display: inline-flex;
   align-items: center;

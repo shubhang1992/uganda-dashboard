@@ -76,8 +76,7 @@ export default function ActivatedStep({ onFinish }) {
       </motion.div>
 
       <motion.h2
-        className={styles.heading}
-        style={{ textAlign: 'center' }}
+        className={`${styles.heading} textCenter`}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.5, ease: EASE_OUT_EXPO }}
@@ -85,8 +84,7 @@ export default function ActivatedStep({ onFinish }) {
         You’re all set, {firstName}
       </motion.h2>
       <motion.p
-        className={styles.subtext}
-        style={{ textAlign: 'center' }}
+        className={`${styles.subtext} textCenter`}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.65, ease: EASE_OUT_EXPO }}

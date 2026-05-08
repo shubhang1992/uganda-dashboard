@@ -3,10 +3,25 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as commissions from '../services/commissions';
 
-/**
- * Fetch the current commission rate configuration.
- * @returns {import('@tanstack/react-query').UseQueryResult<{rate: number, currency: string}>}
- */
+/* ─── Cadence + rate ────────────────────────────────────────────────────── */
+
+export function useNetworkCadence() {
+  return useQuery({
+    queryKey: ['networkCadence'],
+    queryFn: commissions.getNetworkCadence,
+  });
+}
+
+export function useSetNetworkCadence() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: commissions.setNetworkCadence,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['networkCadence'] });
+    },
+  });
+}
+
 export function useCommissionRate() {
   return useQuery({
     queryKey: ['commissionRate'],
@@ -14,10 +29,6 @@ export function useCommissionRate() {
   });
 }
 
-/**
- * Mutation to update the commission rate.
- * @returns {import('@tanstack/react-query').UseMutationResult}
- */
 export function useSetCommissionRate() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -28,11 +39,8 @@ export function useSetCommissionRate() {
   });
 }
 
-/**
- * Fetch commission summary, optionally filtered by branch.
- * @param {string|null} [branchId=null] - Branch ID filter or null for all
- * @returns {import('@tanstack/react-query').UseQueryResult<Object>}
- */
+/* ─── Summaries + listings ─────────────────────────────────────────────── */
+
 export function useCommissionSummary(branchId = null) {
   return useQuery({
     queryKey: ['commissionSummary', branchId || 'all'],
@@ -40,11 +48,6 @@ export function useCommissionSummary(branchId = null) {
   });
 }
 
-/**
- * Fetch list of agents with commission data, optionally filtered by status.
- * @param {string} [statusFocus] - Filter by commission status ('paid'|'due'|'disputed')
- * @returns {import('@tanstack/react-query').UseQueryResult<Object[]>}
- */
 export function useAgentCommissionList(statusFocus) {
   return useQuery({
     queryKey: ['agentCommissions', statusFocus || 'all'],
@@ -52,11 +55,6 @@ export function useAgentCommissionList(statusFocus) {
   });
 }
 
-/**
- * Fetch detailed commission data for a specific agent.
- * @param {string} agentId - Agent entity ID
- * @returns {import('@tanstack/react-query').UseQueryResult<Object>}
- */
 export function useAgentCommissionDetail(agentId) {
   return useQuery({
     queryKey: ['agentCommissionDetail', agentId],
@@ -65,12 +63,6 @@ export function useAgentCommissionDetail(agentId) {
   });
 }
 
-/**
- * Fetch subscribers with commission records for a specific agent.
- * @param {string} agentId - Agent entity ID
- * @param {string} [filter] - Status filter
- * @returns {import('@tanstack/react-query').UseQueryResult<Object[]>}
- */
 export function useCommissionSubscribers(agentId, filter) {
   return useQuery({
     queryKey: ['commissionSubscribers', agentId, filter || 'all'],
@@ -79,10 +71,6 @@ export function useCommissionSubscribers(agentId, filter) {
   });
 }
 
-/**
- * Fetch list of agents with disputed commissions.
- * @returns {import('@tanstack/react-query').UseQueryResult<Object[]>}
- */
 export function useDisputedAgentList() {
   return useQuery({
     queryKey: ['disputedAgents'],
@@ -90,23 +78,6 @@ export function useDisputedAgentList() {
   });
 }
 
-/**
- * Fetch list of pending settlement requests.
- * @returns {import('@tanstack/react-query').UseQueryResult<Object[]>}
- */
-export function useSettlementRequestList() {
-  return useQuery({
-    queryKey: ['settlementRequests'],
-    queryFn: commissions.getSettlementRequestList,
-  });
-}
-
-/**
- * Fetch aggregated commission summary for any hierarchy level entity.
- * @param {string} level - Hierarchy level
- * @param {string} entityId - Entity ID (or 'ug' for country)
- * @returns {import('@tanstack/react-query').UseQueryResult<{totalPaid: number, totalDue: number, totalDisputed: number, countPaid: number, countDue: number, countDisputed: number, total: number, countTotal: number, settlementRate: number}>}
- */
 export function useEntityCommissionSummary(level, entityId) {
   return useQuery({
     queryKey: ['entityCommissionSummary', level, entityId],
@@ -115,154 +86,202 @@ export function useEntityCommissionSummary(level, entityId) {
   });
 }
 
-const ALL_COMMISSION_KEYS = ['commissionSummary', 'agentCommissions', 'agentCommissionDetail', 'disputedAgents', 'settlementRequests', 'entityCommissionSummary'];
+/* ─── Settlement runs ───────────────────────────────────────────────────── */
 
-/**
- * Mutation to approve a single commission. Invalidates all commission caches.
- * @returns {import('@tanstack/react-query').UseMutationResult}
- */
-export function useApproveCommission() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: commissions.approveCommission,
-    onSuccess: () => {
-      ALL_COMMISSION_KEYS.forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
-    },
+export function useCurrentRun() {
+  return useQuery({
+    queryKey: ['currentRun'],
+    queryFn: commissions.getCurrentRun,
   });
 }
 
-/**
- * Mutation to reject a single commission.
- * @returns {import('@tanstack/react-query').UseMutationResult}
- */
-export function useRejectCommission() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: commissions.rejectCommission,
-    onSuccess: () => {
-      ALL_COMMISSION_KEYS.forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
-    },
+export function useRun(runId) {
+  return useQuery({
+    queryKey: ['settlementRun', runId],
+    queryFn: () => commissions.getRunById(runId),
+    enabled: !!runId,
   });
 }
 
-/**
- * Mutation to bulk-approve multiple commissions.
- * @returns {import('@tanstack/react-query').UseMutationResult}
- */
-export function useBulkApproveCommissions() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: commissions.bulkApproveCommissions,
-    onSuccess: () => {
-      ALL_COMMISSION_KEYS.forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
-    },
+export function useRunsList({ limit, branchId } = {}) {
+  return useQuery({
+    queryKey: ['settlementRunsList', branchId || 'all', limit ?? 'unlimited'],
+    queryFn: () => commissions.listRuns({ limit, branchId }),
   });
 }
 
-/**
- * Mutation to bulk-reject multiple commissions.
- * @returns {import('@tanstack/react-query').UseMutationResult}
- */
-export function useBulkRejectCommissions() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: commissions.bulkRejectCommissions,
-    onSuccess: () => {
-      ALL_COMMISSION_KEYS.forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
-    },
+export function useBranchRunReview(runId, branchId) {
+  return useQuery({
+    queryKey: ['runForBranch', runId, branchId],
+    queryFn: () => commissions.getRunForBranch(runId, branchId),
+    enabled: !!runId && !!branchId,
   });
 }
 
-/**
- * Mutation to settle commissions (mark as paid).
- * @returns {import('@tanstack/react-query').UseMutationResult}
- */
-export function useSettleCommissions() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: commissions.settleCommissions,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['commissionSummary'] });
-      queryClient.invalidateQueries({ queryKey: ['agentCommissions'] });
-      queryClient.invalidateQueries({ queryKey: ['agentCommissionDetail'] });
-    },
+export function useRunBranchBreakdown(runId) {
+  return useQuery({
+    queryKey: ['runBranchBreakdown', runId],
+    queryFn: () => commissions.getRunBranchBreakdown(runId),
+    enabled: !!runId,
   });
 }
 
-/**
- * Mutation to settle all commissions for a specific agent.
- * @returns {import('@tanstack/react-query').UseMutationResult}
- */
-export function useSettleAgentCommissions() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: commissions.settleAgentCommissions,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['commissionSummary'] });
-      queryClient.invalidateQueries({ queryKey: ['agentCommissions'] });
-      queryClient.invalidateQueries({ queryKey: ['agentCommissionDetail'] });
-    },
+export function useRunBranchAgents(runId, branchId) {
+  return useQuery({
+    queryKey: ['runBranchAgents', runId, branchId],
+    queryFn: () => commissions.getRunBranchAgents(runId, branchId),
+    enabled: !!runId && !!branchId,
   });
 }
 
-/**
- * Mutation to settle all outstanding commissions platform-wide.
- * @returns {import('@tanstack/react-query').UseMutationResult}
- */
-export function useSettleAllCommissions() {
+/* ─── Mutations ──────────────────────────────────────────────────────────── */
+
+const ALL_RUN_KEYS = [
+  'currentRun', 'settlementRun', 'settlementRunsList', 'runForBranch',
+  'runBranchBreakdown', 'runBranchAgents',
+];
+const ALL_COMMISSION_KEYS = [
+  'commissionSummary', 'agentCommissions', 'agentCommissionDetail',
+  'commissionSubscribers', 'disputedAgents', 'entityCommissionSummary',
+];
+
+function invalidateAll(queryClient) {
+  [...ALL_RUN_KEYS, ...ALL_COMMISSION_KEYS].forEach((k) =>
+    queryClient.invalidateQueries({ queryKey: [k] })
+  );
+}
+
+export function useApproveDispute() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: commissions.settleAllCommissions,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['commissionSummary'] });
-      queryClient.invalidateQueries({ queryKey: ['agentCommissions'] });
-      queryClient.invalidateQueries({ queryKey: ['agentCommissionDetail'] });
-    },
+    mutationFn: ({ commissionId, outcomeReason, resolvedBy }) =>
+      commissions.approveDispute(commissionId, { outcomeReason, resolvedBy }),
+    onSuccess: () => invalidateAll(queryClient),
   });
 }
 
-/* ─── Agent-side mutations ────────────────────────────────────────────────── */
-
-function invalidateAfterAgentMutation(queryClient) {
-  queryClient.invalidateQueries({ queryKey: ['commissionSummary'] });
-  queryClient.invalidateQueries({ queryKey: ['agentCommissions'] });
-  queryClient.invalidateQueries({ queryKey: ['agentCommissionDetail'] });
-  queryClient.invalidateQueries({ queryKey: ['settlementRequests'] });
-  queryClient.invalidateQueries({ queryKey: ['disputedAgents'] });
-}
-
-/**
- * Mutation for an agent to confirm receipt of a paid commission.
- * @returns {import('@tanstack/react-query').UseMutationResult}
- */
-export function useAgentConfirmCommission() {
+export function useRejectDispute() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: commissions.agentConfirmCommission,
-    onSuccess: () => invalidateAfterAgentMutation(queryClient),
+    mutationFn: ({ commissionId, outcomeReason, resolvedBy }) =>
+      commissions.rejectDispute(commissionId, { outcomeReason, resolvedBy }),
+    onSuccess: () => invalidateAll(queryClient),
   });
 }
 
-/**
- * Mutation for an agent to flag a due commission for settlement.
- * @returns {import('@tanstack/react-query').UseMutationResult}
- */
-export function useRequestCommissionSettlement() {
+export function useBulkApproveDisputes() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: commissions.requestCommissionSettlement,
-    onSuccess: () => invalidateAfterAgentMutation(queryClient),
+    mutationFn: ({ commissionIds, outcomeReason, resolvedBy }) =>
+      commissions.bulkApproveDisputes(commissionIds, { outcomeReason, resolvedBy }),
+    onSuccess: () => invalidateAll(queryClient),
   });
 }
 
-/**
- * Mutation for an agent to dispute a commission.
- * @returns {import('@tanstack/react-query').UseMutationResult}
- */
+export function useBulkRejectDisputes() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commissionIds, outcomeReason, resolvedBy }) =>
+      commissions.bulkRejectDisputes(commissionIds, { outcomeReason, resolvedBy }),
+    onSuccess: () => invalidateAll(queryClient),
+  });
+}
+
+export function useWithdrawDispute() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: commissions.withdrawDispute,
+    onSuccess: () => invalidateAll(queryClient),
+  });
+}
+
+export function useBranchDisputeLine() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commissionId, reason }) => commissions.branchDisputeLine(commissionId, reason),
+    onSuccess: () => invalidateAll(queryClient),
+  });
+}
+
+export function useOpenRun() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: commissions.openRun,
+    onSuccess: () => invalidateAll(queryClient),
+  });
+}
+
+export function useCancelRun() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: commissions.cancelRun,
+    onSuccess: () => invalidateAll(queryClient),
+  });
+}
+
+export function useBranchApproveLine() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: commissions.branchApproveLine,
+    onSuccess: () => invalidateAll(queryClient),
+  });
+}
+
+export function useBranchHoldLine() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commissionId, reason }) => commissions.branchHoldLine(commissionId, reason),
+    onSuccess: () => invalidateAll(queryClient),
+  });
+}
+
+export function useBranchApproveAll() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ runId, branchId }) => commissions.branchApproveAll(runId, branchId),
+    onSuccess: () => invalidateAll(queryClient),
+  });
+}
+
+export function useMarkBranchReviewed() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ runId, branchId }) => commissions.markBranchReviewed(runId, branchId),
+    onSuccess: () => invalidateAll(queryClient),
+  });
+}
+
+export function useReleaseRun() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ runId, txnRefByAgent }) => commissions.releaseRun(runId, { txnRefByAgent }),
+    onSuccess: () => invalidateAll(queryClient),
+  });
+}
+
+export function useReleaseBranch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ runId, branchId, txnRefByAgent }) =>
+      commissions.releaseBranch(runId, branchId, { txnRefByAgent }),
+    onSuccess: () => invalidateAll(queryClient),
+  });
+}
+
+/* ─── Agent-side mutations ──────────────────────────────────────────────── */
+
+export function useConfirmCommission() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: commissions.confirmCommission,
+    onSuccess: () => invalidateAll(queryClient),
+  });
+}
+
 export function useDisputeCommission() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ commissionId, reason }) => commissions.disputeCommission(commissionId, reason),
-    onSuccess: () => invalidateAfterAgentMutation(queryClient),
+    onSuccess: () => invalidateAll(queryClient),
   });
 }

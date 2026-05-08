@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useOutsideClick } from '../../hooks/useOutsideClick';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAllEntities } from '../../hooks/useEntity';
@@ -290,15 +291,8 @@ export default function ViewSubscribers() {
     return () => document.removeEventListener('keydown', onKey);
   }, [viewSubscribersOpen, handleClose]);
 
-  // Close dropdowns on outside click
-  useEffect(() => {
-    if (!sortDropOpen) return;
-    function handler(e) {
-      if (sortBtnRef.current && !sortBtnRef.current.contains(e.target)) setSortDropOpen(false);
-    }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [sortDropOpen]);
+  // Close sort dropdown on outside click + Escape.
+  useOutsideClick(sortDropOpen, () => setSortDropOpen(false), [sortBtnRef]);
 
   function handleSelectSubscriber(sub) {
     setSelectedSubscriber(sub);
@@ -511,7 +505,7 @@ export default function ViewSubscribers() {
                                 <div className={styles.subName}>{sub.name}</div>
                                 <div className={styles.subMeta}>
                                   <span className={styles.subStatus} data-status={status} />
-                                  <span style={{ textTransform: 'capitalize' }}>{status}</span>
+                                  <span className="capitalize">{status}</span>
                                   <span>&middot;</span>
                                   <span>{sub.phone}</span>
                                 </div>

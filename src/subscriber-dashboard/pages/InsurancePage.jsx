@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGX, formatUGXExact } from '../../utils/finance';
+import { getInitials } from '../../utils/dashboard';
 import { useCurrentSubscriber, useUpdateInsuranceCover } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import PageHeader from '../shell/PageHeader';
@@ -43,17 +44,37 @@ export default function InsurancePage() {
   }, [insurance?.cover]);
 
   const selectedTier = COVER_TIERS[coverIdx];
-  const tierIsUpgrade = selectedTier.cover > (insurance?.cover || 0);
+  const currentCover = insurance?.cover || 0;
+  const tierDelta = selectedTier.cover - currentCover;
+  const isUpgrade = tierDelta > 0;
+  const isDowngrade = tierDelta < 0;
+  const isCurrent = tierDelta === 0;
+  // Two-tap confirm for downgrades — first tap exposes "Confirm downgrade",
+  // second tap commits. Reset whenever the tier selection changes.
+  const [confirmingDowngrade, setConfirmingDowngrade] = useState(false);
+  useEffect(() => { setConfirmingDowngrade(false); }, [coverIdx]);
+  const pickerRef = useRef(null);
 
-  async function handleUpgradeCover() {
-    if (!sub || !tierIsUpgrade) return;
+  function scrollToPicker() {
+    pickerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function handleApplyCover() {
+    if (!sub || isCurrent) return;
+    if (isDowngrade && !confirmingDowngrade) {
+      setConfirmingDowngrade(true);
+      return;
+    }
     setSubmitting(true);
     try {
       await updateCover.mutateAsync({
         cover: selectedTier.cover,
         premiumMonthly: selectedTier.premium,
       });
-      addToast('success', `Cover upgraded to ${formatUGX(selectedTier.cover)}.`);
+      addToast('success', isUpgrade
+        ? `Cover upgraded to ${formatUGX(selectedTier.cover)}.`
+        : `Cover lowered to ${formatUGX(selectedTier.cover)}. New premium starts next cycle.`);
+      setConfirmingDowngrade(false);
     } finally {
       setSubmitting(false);
     }
@@ -82,6 +103,9 @@ export default function InsurancePage() {
               <p className={styles.emptyText}>
                 Add life cover from <strong>UGX 2,000 / mo</strong>. You&apos;ll be covered up to UGX 1M.
               </p>
+              <button type="button" className={styles.emptyCta} onClick={scrollToPicker}>
+                Pick your cover
+              </button>
             </section>
           ) : (
             <section className={styles.coverCard}>
@@ -104,7 +128,7 @@ export default function InsurancePage() {
             </section>
           )}
 
-          <section className={styles.section}>
+          <section ref={pickerRef} className={styles.section}>
             <div className={styles.sectionHead}>
               <h2 className={styles.sectionTitle}>{noPolicy ? 'Pick your cover' : 'Upgrade your cover'}</h2>
             </div>
@@ -149,14 +173,23 @@ export default function InsurancePage() {
             <button
               type="button"
               className={styles.primaryBtn}
-              disabled={!tierIsUpgrade || submitting}
-              onClick={handleUpgradeCover}
+              disabled={isCurrent || submitting}
+              onClick={handleApplyCover}
+              data-confirming={confirmingDowngrade || undefined}
             >
               {submitting ? 'Updating…'
-                : tierIsUpgrade ? `Upgrade to ${formatUGX(selectedTier.cover)}`
+                : isUpgrade ? `Upgrade to ${formatUGX(selectedTier.cover)}`
+                : isDowngrade && confirmingDowngrade
+                  ? `Confirm downgrade to ${formatUGX(selectedTier.cover)}`
+                : isDowngrade ? `Downgrade to ${formatUGX(selectedTier.cover)}`
                 : noPolicy ? 'Pick a cover above'
                 : 'Current cover'}
             </button>
+            {isDowngrade && (
+              <p className={styles.downgradeNote}>
+                Lowering cover reduces your premium but also your payout cap. New cover takes effect at the next renewal cycle.
+              </p>
+            )}
           </section>
 
           <section className={styles.section}>
@@ -172,7 +205,7 @@ export default function InsurancePage() {
                 {insNominees.slice(0, 3).map((n) => (
                   <li key={n.id} className={styles.beneRow}>
                     <span className={styles.beneAvatar}>
-                      {(n.name || '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
+                      {getInitials(n.name) || '?'}
                     </span>
                     <div className={styles.beneText}>
                       <span className={styles.beneName}>{n.name}</span>

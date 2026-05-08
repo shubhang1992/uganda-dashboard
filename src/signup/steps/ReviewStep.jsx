@@ -42,6 +42,7 @@ export default function ReviewStep({ onNext }) {
         const result = await extractIdFields({
           front: signup.idFrontFile,
           back: signup.idBackFile,
+          sessionId: signup.onboardingSessionId,
         });
         if (cancelled) return;
         signup.patch({
@@ -198,6 +199,16 @@ export default function ReviewStep({ onNext }) {
   }
 
   /* ── Review form ────────────────────────────────────────────────────── */
+  // Confidence band: green ≥ 0.9, amber 0.7–0.9, red < 0.7. Bands tell the user
+  // whether to slow down and double-check fields the OCR was less sure about.
+  const confidence = signup.idConfidence;
+  const confidencePct = confidence != null ? Math.round(confidence * 100) : null;
+  const confidenceTone =
+    confidence == null ? null
+      : confidence >= 0.9 ? 'high'
+      : confidence >= 0.7 ? 'mid'
+      : 'low';
+
   return (
     <div className={styles.card}>
       <span className={styles.eyebrow}>Step 2 · Review</span>
@@ -205,6 +216,19 @@ export default function ReviewStep({ onNext }) {
       <p className={styles.subtext}>
         We read these from your ID. Fix anything we got wrong. Fill in your phone number and occupation below.
       </p>
+
+      {confidencePct != null && (
+        <div className={own.confidenceBadge} data-tone={confidenceTone}>
+          <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+            <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M8 4.5v3.5l2 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <span>
+            Auto-fill confidence: <strong>{confidencePct}%</strong>
+            {confidenceTone !== 'high' && ' — please double-check the fields below.'}
+          </span>
+        </div>
+      )}
 
       {/* Thumbnails */}
       <div className={own.thumbs}>

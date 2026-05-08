@@ -1,16 +1,41 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AgentScopeProvider } from '../contexts/AgentScopeContext';
 import { useAuth } from '../contexts/AuthContext';
 import AgentShell from './shell/AgentShell';
 import HomePage from './home/HomePage';
-import OnboardPage from './pages/OnboardPage';
-import SubscribersPage from './pages/SubscribersPage';
-import SubscriberDetailPage from './pages/SubscriberDetailPage';
-import SubscriberSchedulePage from './pages/SubscriberSchedulePage';
-import AnalyticsPage from './pages/AnalyticsPage';
-import CommissionsPage from './pages/CommissionsPage';
-import SettingsPage from './pages/SettingsPage';
 import styles from './AgentDashboardShell.module.css';
+
+// Secondary routes are lazy-loaded so the home page doesn't pay for their
+// JS on first paint. The shell itself is already lazy-loaded one level up.
+const OnboardPage = lazy(() => import('./pages/OnboardPage'));
+const SubscribersPage = lazy(() => import('./pages/SubscribersPage'));
+const SubscriberDetailPage = lazy(() => import('./pages/SubscriberDetailPage'));
+const SubscriberSchedulePage = lazy(() => import('./pages/SubscriberSchedulePage'));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const CommissionsPage = lazy(() => import('./pages/CommissionsPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+
+function PageFallback() {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 'var(--space-8) var(--space-4)',
+      minHeight: '40vh',
+    }}>
+      <div style={{
+        width: 28,
+        height: 28,
+        border: '2.5px solid var(--color-lavender)',
+        borderTopColor: 'var(--color-indigo)',
+        borderRadius: '50%',
+        animation: 'spin 0.7s linear infinite',
+      }} />
+    </div>
+  );
+}
 
 function MissingAgentIdScreen({ onLogout }) {
   return (
@@ -42,14 +67,14 @@ export default function AgentDashboardShell() {
       <Routes>
         <Route element={<AgentShell />}>
           <Route index element={<HomePage />} />
-          <Route path="onboard" element={<OnboardPage />} />
-          <Route path="subscribers" element={<SubscribersPage />} />
-          <Route path="subscribers/:id" element={<SubscriberDetailPage />} />
-          <Route path="subscribers/:id/schedule" element={<SubscriberSchedulePage />} />
-          <Route path="analytics" element={<AnalyticsPage />} />
-          <Route path="commissions" element={<CommissionsPage />} />
-          <Route path="commissions/:view" element={<CommissionsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route path="onboard" element={<Suspense fallback={<PageFallback />}><OnboardPage /></Suspense>} />
+          <Route path="subscribers" element={<Suspense fallback={<PageFallback />}><SubscribersPage /></Suspense>} />
+          <Route path="subscribers/:id" element={<Suspense fallback={<PageFallback />}><SubscriberDetailPage /></Suspense>} />
+          <Route path="subscribers/:id/schedule" element={<Suspense fallback={<PageFallback />}><SubscriberSchedulePage /></Suspense>} />
+          <Route path="analytics" element={<Suspense fallback={<PageFallback />}><AnalyticsPage /></Suspense>} />
+          <Route path="commissions" element={<Suspense fallback={<PageFallback />}><CommissionsPage /></Suspense>} />
+          <Route path="commissions/:view" element={<Suspense fallback={<PageFallback />}><CommissionsPage /></Suspense>} />
+          <Route path="settings" element={<Suspense fallback={<PageFallback />}><SettingsPage /></Suspense>} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>

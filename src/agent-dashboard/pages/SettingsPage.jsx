@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { isValidUGPhone } from '../../utils/phone';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { getInitials } from '../../utils/dashboard';
@@ -49,7 +50,7 @@ export default function SettingsPage() {
   const validate = useCallback(() => {
     const e = {};
     if (!name.trim()) e.name = 'Full name is required';
-    if (phone.replace(/\D/g, '').length < 9) e.phone = 'Enter a valid phone number';
+    if (!isValidUGPhone(phone)) e.phone = 'Enter a valid Ugandan mobile number';
 
     if (hasPasswordEntry) {
       if (!currentPw) e.currentPw = 'Enter your current password';
@@ -69,21 +70,29 @@ export default function SettingsPage() {
     return Object.keys(e).length === 0;
   }, [name, phone, hasPasswordEntry, currentPw, newPw, confirmPw]);
 
-  function handleSave(e) {
+  async function handleSave(e) {
     e.preventDefault();
     if (!validate()) return;
 
-    if (hasProfileChanges) {
-      updateUser({ name: name.trim(), email: email.trim(), phone });
+    try {
+      if (hasProfileChanges) {
+        // updateUser() is sync today but may become async with a real backend.
+        // Promise.resolve makes the try/catch correct in either case.
+        await Promise.resolve(
+          updateUser({ name: name.trim(), email: email.trim(), phone })
+        );
+      }
+      if (hasPasswordEntry) {
+        addToast('info', 'Password change will activate once the backend lands.');
+      } else {
+        addToast('success', 'Profile updated.');
+      }
+      setCurrentPw('');
+      setNewPw('');
+      setConfirmPw('');
+    } catch (err) {
+      addToast('error', err?.message || 'Could not update profile.');
     }
-    if (hasPasswordEntry) {
-      addToast('info', 'Password change will activate once the backend lands.');
-    } else {
-      addToast('success', 'Profile updated.');
-    }
-    setCurrentPw('');
-    setNewPw('');
-    setConfirmPw('');
   }
 
   function clearFieldError(field) {

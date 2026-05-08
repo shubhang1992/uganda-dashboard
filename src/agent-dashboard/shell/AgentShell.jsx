@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
@@ -7,10 +8,18 @@ import styles from './AgentShell.module.css';
 
 export default function AgentShell() {
   const location = useLocation();
+  const viewportRef = useRef(null);
+
+  // The actual scroll container is .viewport (overflow-y: auto), not <body>.
+  // Reset its scrollTop on route change before paint so each page lands at top.
+  useLayoutEffect(() => {
+    viewportRef.current?.scrollTo(0, 0);
+  }, [location.pathname]);
+
   return (
     <div className={styles.shell}>
       <SideNav />
-      <main className={styles.viewport} id="main">
+      <main ref={viewportRef} className={styles.viewport} id="main">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={location.pathname}

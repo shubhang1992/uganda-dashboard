@@ -1,8 +1,9 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useAuth } from '../../contexts/AuthContext';
+import { useOutsideClick } from '../../hooks/useOutsideClick';
 import styles from './BottomTabBar.module.css';
 
 const TABS = [
@@ -56,21 +57,7 @@ export default function BottomTabBar() {
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
 
-  useEffect(() => {
-    if (!moreOpen) return;
-    function handler(e) {
-      if (moreRef.current && !moreRef.current.contains(e.target)) closeMore();
-    }
-    function onKey(e) {
-      if (e.key === 'Escape') closeMore();
-    }
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [moreOpen, closeMore]);
+  useOutsideClick(moreOpen, closeMore, [moreRef]);
 
   function handleLogout() {
     closeMore();
@@ -79,7 +66,7 @@ export default function BottomTabBar() {
   }
 
   return (
-    <nav className={styles.bar} aria-label="Primary">
+    <nav className={styles.bar} aria-label="Quick navigation">
       {TABS.map((tab) => (
         <NavLink
           key={tab.to || 'home'}

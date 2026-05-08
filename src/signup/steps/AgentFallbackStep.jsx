@@ -7,7 +7,7 @@ import styles from './Step.module.css';
 import own from './AgentFallbackStep.module.css';
 
 export default function AgentFallbackStep({ onExit }) {
-  const { phone, failureReason, failureStage } = useSignup();
+  const { phone, failureReason, failureStage, onboardingSessionId } = useSignup();
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -17,6 +17,7 @@ export default function AgentFallbackStep({ onExit }) {
       phone,
       reason: failureReason || 'Onboarding could not complete automatically',
       stage: failureStage,
+      sessionId: onboardingSessionId,
     }).then((res) => {
       if (!cancelled) {
         setTicket(res);
@@ -26,7 +27,7 @@ export default function AgentFallbackStep({ onExit }) {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [phone, failureReason, failureStage]);
+  }, [phone, failureReason, failureStage, onboardingSessionId]);
 
   return (
     <div className={styles.card}>
@@ -44,10 +45,10 @@ export default function AgentFallbackStep({ onExit }) {
         </svg>
       </motion.div>
 
-      <h2 className={styles.heading} style={{ textAlign: 'center' }}>
+      <h2 className={`${styles.heading} textCenter`}>
         We’ll finish this with an agent
       </h2>
-      <p className={styles.subtext} style={{ textAlign: 'center' }}>
+      <p className={`${styles.subtext} textCenter`}>
         {failureReason
           ? failureReason
           : 'Your onboarding needs a quick in-person check.'} A field agent will contact you shortly to complete verification.

@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { useCurrentSubscriber } from '../../../hooks/useSubscriber';
 import { formatUGX, formatUGXExact } from '../../../utils/finance';
 import { downloadCSV } from '../../../utils/csv';
+import ErrorCard from '../../../components/feedback/ErrorCard';
+import ExportButton from '../../../components/reports/ExportButton';
 import frameStyles from './ReportFrame.module.css';
 
 function monthLabel(i, len) {
@@ -11,7 +13,7 @@ function monthLabel(i, len) {
 }
 
 export default function ContributionsSummary() {
-  const { data: sub } = useCurrentSubscriber();
+  const { data: sub, isError, error, refetch } = useCurrentSubscriber();
   const history = useMemo(() => sub?.contributionHistory || [], [sub?.contributionHistory]);
   const schedule = sub?.contributionSchedule;
   const retPct = (schedule?.retirementPct ?? 80) / 100;
@@ -47,6 +49,16 @@ export default function ContributionsSummary() {
     downloadCSV(`contributions-summary-${stamp}.csv`, headers, rows);
   }
 
+  if (isError) {
+    return (
+      <ErrorCard
+        title="We couldn't load your contributions"
+        message={error}
+        onRetry={refetch}
+      />
+    );
+  }
+
   return (
     <div className={frameStyles.frame}>
       <div className={frameStyles.headerRow}>
@@ -54,13 +66,7 @@ export default function ContributionsSummary() {
           <span className={frameStyles.eyebrow}>Month-by-month view</span>
           <span className={frameStyles.headerDesc}>Your contributions split by retirement and emergency bucket.</span>
         </div>
-        <button type="button" className={frameStyles.exportBtn} onClick={handleExport}>
-          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="14" height="14">
-            <path d="M10 3v10M10 13l-3-3M10 13l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M3 15v2h14v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          <span>Export CSV</span>
-        </button>
+        <ExportButton onExport={handleExport} />
       </div>
 
       <div className={frameStyles.kpiStrip}>

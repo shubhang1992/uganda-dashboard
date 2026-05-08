@@ -1,13 +1,11 @@
 /**
- * Settlement-cycle helpers for the Agent dashboard.
+ * Settlement-cycle helpers.
  *
- * Settlement is automatic: every commission marked "due" rolls into the
- * agent's next payout cycle. Cadence is the agent's choice (weekly Friday,
- * bi-weekly Friday, or monthly 1st). Persistence is local for the prototype;
- * a real backend will own this on the agent profile.
+ * The cadence (weekly / bi-weekly / monthly) is set network-wide by the
+ * distributor admin and fetched via `useNetworkCadence`. These helpers are
+ * pure date-math utilities; they take a cadence string as an argument and
+ * compute window boundaries / labels for any date input.
  */
-
-const STORAGE_KEY = 'upensions_agent_settlement_cadence';
 
 export const CADENCES = Object.freeze({
   WEEKLY_FRIDAY: 'weekly-friday',
@@ -15,7 +13,6 @@ export const CADENCES = Object.freeze({
   MONTHLY_FIRST: 'monthly-first',
 });
 
-const VALID = new Set(Object.values(CADENCES));
 const DEFAULT_CADENCE = CADENCES.MONTHLY_FIRST;
 
 const CADENCE_LABEL = {
@@ -32,27 +29,6 @@ const CADENCE_SHORT = {
 
 const FRIDAY = 5;
 const MS_DAY = 86400000;
-
-export function getCadencePref() {
-  if (typeof localStorage === 'undefined') return DEFAULT_CADENCE;
-  try {
-    const v = localStorage.getItem(STORAGE_KEY);
-    return VALID.has(v) ? v : DEFAULT_CADENCE;
-  } catch {
-    return DEFAULT_CADENCE;
-  }
-}
-
-export function setCadencePref(cadence) {
-  if (!VALID.has(cadence)) return false;
-  if (typeof localStorage === 'undefined') return false;
-  try {
-    localStorage.setItem(STORAGE_KEY, cadence);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export function cadenceLabel(cadence) {
   return CADENCE_LABEL[cadence] || CADENCE_LABEL[DEFAULT_CADENCE];

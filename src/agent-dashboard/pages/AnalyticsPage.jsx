@@ -10,7 +10,8 @@ import {
 } from 'recharts';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
-import { formatUGX, normalizeFrequency } from '../../utils/finance';
+import { formatUGX, normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
+import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../shell/PageHeader';
 import styles from './AnalyticsPage.module.css';
 
@@ -42,13 +43,6 @@ const AMOUNT_BUCKETS = [
   { key: '50K+', test: (a) => a >= 50000 },
 ];
 
-const FREQUENCY_LABEL = {
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  'half-yearly': 'Half-yearly',
-  annually: 'Annually',
-};
 const FREQUENCY_ORDER = ['weekly', 'monthly', 'quarterly', 'half-yearly', 'annually'];
 
 const MONTHS_BACK = 6;
@@ -74,7 +68,7 @@ function chartTooltip({ active, payload, label, valueFormatter }) {
 export default function AnalyticsPage() {
   const navigate = useNavigate();
   const { agentId } = useAgentScope();
-  const { data: subscribers = [], isLoading } = useAgentSubscribers(agentId);
+  const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
   const reduceMotion = useReducedMotion();
 
   const data = useMemo(() => deriveAnalytics(subscribers), [subscribers]);
@@ -88,6 +82,21 @@ export default function AnalyticsPage() {
           {[0, 1, 2, 3, 4].map((i) => (
             <div key={i} className={styles.skeleton} />
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className={styles.page}>
+        <PageHeader title="Analytics" fallback="/dashboard" />
+        <div className={styles.empty}>
+          <ErrorCard
+            title="We couldn't load your analytics"
+            message={error}
+            onRetry={refetch}
+          />
         </div>
       </div>
     );

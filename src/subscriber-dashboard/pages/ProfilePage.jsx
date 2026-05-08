@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { isValidUGPhone } from '../../utils/phone';
 import { useCurrentSubscriber, useUpdateProfile } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import PageHeader from '../shell/PageHeader';
@@ -32,7 +33,7 @@ export default function ProfilePage() {
     phoneDigits !== (sub?.phone ? sub.phone.replace(/^\+256/, '').replace(/\D/g, '') : '');
 
   const validName = name.trim().length >= 2;
-  const validPhone = phoneDigits.length >= 9;
+  const validPhone = isValidUGPhone(phoneDigits);
   const validEmail = !email || /^\S+@\S+\.\S+$/.test(email);
   const canSave = dirty && validName && validPhone && validEmail;
 

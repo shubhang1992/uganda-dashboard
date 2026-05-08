@@ -1,6 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import {
+  AreaChart, Area, XAxis, YAxis, ReferenceLine, Tooltip, ResponsiveContainer,
+} from 'recharts';
 import { EASE_OUT_EXPO, formatUGX, formatUGXExact, calcFV, MONTHLY_RATE, monthlyEquivalent } from '../../utils/finance';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import { RETIREMENT_AGE } from '../../constants/savings';
@@ -49,6 +52,20 @@ export default function ProjectionPage() {
   const shortfall = Math.max(0, goal.target - projectedAtRetirement);
   const neededMonthly = requiredMonthly(goal.target, yearsToRetirement);
   const extraNeeded = Math.max(0, neededMonthly - monthlyCurrent);
+
+  // Year-by-year balance trajectory from today to retirement. Used by the area
+  // chart so users can see how the balance grows, not just the endpoint.
+  const trajectory = useMemo(() => {
+    if (yearsToRetirement <= 0) return [];
+    const points = [];
+    for (let t = 0; t <= yearsToRetirement; t += 1) {
+      points.push({
+        age: age + t,
+        balance: Math.round(balance + calcFV(monthlyCurrent, t)),
+      });
+    }
+    return points;
+  }, [age, balance, monthlyCurrent, yearsToRetirement]);
 
   return (
     <div className={styles.page}>
@@ -135,6 +152,58 @@ export default function ProjectionPage() {
                   <span className={styles.paceProjectionLabel}>Projected at age {RETIREMENT_AGE}</span>
                   <span className={styles.paceProjectionValue}>{formatUGX(projectedAtRetirement)}</span>
                 </div>
+
+                {trajectory.length > 1 && (
+                  <div className={styles.chartWrap} aria-hidden="true">
+                    <ResponsiveContainer width="100%" height={140}>
+                      <AreaChart data={trajectory} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="proj-fill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#5E63A8" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="#5E63A8" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis
+                          dataKey="age"
+                          tick={{ fontSize: 10, fill: 'var(--color-gray)' }}
+                          tickLine={false}
+                          axisLine={false}
+                          interval="preserveStartEnd"
+                        />
+                        <YAxis hide domain={[0, Math.max(goal.target, projectedAtRetirement) * 1.1]} />
+                        <ReferenceLine
+                          y={goal.target}
+                          stroke="#2E8B57"
+                          strokeDasharray="4 4"
+                          strokeWidth={1.25}
+                        />
+                        <Tooltip
+                          formatter={(v) => formatUGX(v)}
+                          labelFormatter={(label) => `Age ${label}`}
+                          contentStyle={{
+                            background: 'var(--color-white)',
+                            border: '1px solid var(--color-lavender)',
+                            borderRadius: 'var(--radius-md)',
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '0.8rem',
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="balance"
+                          stroke="#292867"
+                          strokeWidth={2}
+                          fill="url(#proj-fill)"
+                          isAnimationActive={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                    <span className={styles.chartLegend}>
+                      <span className={styles.chartLegendDot} data-tone="indigo" /> Projected balance
+                      <span className={styles.chartLegendDot} data-tone="green" /> {goal.label} target
+                    </span>
+                  </div>
+                )}
 
                 <div className={styles.progressWrap} data-on-track={onTrack || undefined}>
                   <div className={styles.progressBar}>

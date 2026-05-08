@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useOutsideClick } from '../../hooks/useOutsideClick';
 import logoWhite from '../../assets/logo-white.png';
 import styles from './BranchSidebar.module.css';
 
@@ -149,17 +150,8 @@ export default function BranchSidebar() {
     return () => document.removeEventListener('click', handler);
   }, [moreOpen, closeMore]);
 
-  // Close agent popover on outside click
-  useEffect(() => {
-    if (!agentPopover) return;
-    function handler(e) {
-      if (agentPopoverRef.current && !agentPopoverRef.current.contains(e.target)) {
-        setAgentPopover(false);
-      }
-    }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [agentPopover]);
+  // Close agent popover on outside click + Escape.
+  useOutsideClick(agentPopover, () => setAgentPopover(false), [agentPopoverRef]);
 
   function closeAllPanels() {
     setViewAgentsOpen(false);

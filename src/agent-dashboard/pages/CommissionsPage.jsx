@@ -5,19 +5,20 @@ import { EASE_OUT_EXPO, formatUGX, fmtShort } from '../../utils/finance';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import {
   useAgentCommissionDetail,
-  useAgentConfirmCommission,
+  useConfirmCommission,
   useDisputeCommission,
+  useWithdrawDispute,
+  useNetworkCadence,
 } from '../../hooks/useCommission';
 import { useToast } from '../../contexts/ToastContext';
+import ErrorCard from '../../components/feedback/ErrorCard';
 import {
   CADENCES,
   cadenceLabel,
   cycleWindow,
   formatCycleLabel,
   formatPayoutDate,
-  getCadencePref,
   groupCommissionsByPaidCycle,
-  setCadencePref,
 } from '../../utils/settlementCycle';
 import PageHeader from '../shell/PageHeader';
 import styles from './CommissionsPage.module.css';
@@ -37,12 +38,6 @@ const DISPUTE_REASONS = [
   'Subscriber details incorrect',
   'Duplicate commission entry',
   'Other',
-];
-
-const CADENCE_OPTIONS = [
-  { value: CADENCES.WEEKLY_FRIDAY, label: 'Weekly', sub: 'Every Friday' },
-  { value: CADENCES.BIWEEKLY_FRIDAY, label: 'Bi-weekly', sub: 'Every other Friday' },
-  { value: CADENCES.MONTHLY_FIRST, label: 'Monthly', sub: '1st of every month' },
 ];
 
 function formatDate(dateStr) {
@@ -83,29 +78,43 @@ const Icons = {
 };
 
 function StatusBadge({ commission }) {
-  if (commission.status === 'paid') {
-    return commission.agentConfirmed
-      ? <span className={styles.badge} data-tone="confirmed">Confirmed</span>
-      : <span className={styles.badge} data-tone="awaiting">Confirm</span>;
+  switch (commission.status) {
+    case 'confirmed':
+      return <span className={styles.badge} data-tone="confirmed">Confirmed</span>;
+    case 'released':
+      return <span className={styles.badge} data-tone="awaiting">Confirm</span>;
+    case 'in_run':
+      return <span className={styles.badge} data-tone="awaiting">In current run</span>;
+    case 'held':
+      return <span className={styles.badge} data-tone="awaiting">On hold</span>;
+    case 'due':
+      return <span className={styles.badge} data-tone="due">Due</span>;
+    case 'disputed':
+      return <span className={styles.badge} data-tone="disputed">Under review</span>;
+    case 'rejected':
+    default:
+      return <span className={styles.badge} data-tone="rejected">Closed</span>;
   }
-  if (commission.status === 'due') {
-    return <span className={styles.badge} data-tone="due">Due</span>;
-  }
-  if (commission.status === 'disputed') {
-    return <span className={styles.badge} data-tone="disputed">Under review</span>;
-  }
-  return <span className={styles.badge} data-tone="rejected">Closed</span>;
 }
 
-function CommissionRow({ commission, onConfirm, onDispute, isPending }) {
-  const isPaidUnconfirmed = commission.status === 'paid' && !commission.agentConfirmed;
-  const dateLabel = commission.status === 'paid'
-    ? `Paid ${formatDate(commission.paidDate)}`
-    : commission.status === 'due'
-      ? `Due ${formatDate(commission.dueDate)}`
-      : commission.status === 'disputed'
-        ? 'Filed for review'
-        : '';
+function CommissionRow({ commission, onConfirm, onDispute, onWithdraw, isPending }) {
+  const isReleased = commission.status === 'released';
+  const isPaidLike = isReleased || commission.status === 'confirmed';
+  const isOutstanding =
+    commission.status === 'due' || commission.status === 'in_run' || commission.status === 'held';
+  const isDisputed = commission.status === 'disputed';
+  const canWithdraw = isDisputed && !commission.resolvedAt;
+
+  let dateLabel = '';
+  if (isPaidLike) dateLabel = `Paid ${formatDate(commission.paidDate)}`;
+  else if (commission.status === 'in_run') dateLabel = 'Bundled into current settlement run';
+  else if (commission.status === 'held') dateLabel = 'Held — will roll into the next run';
+  else if (commission.status === 'due') dateLabel = `Due ${formatDate(commission.dueDate)}`;
+  else if (isDisputed) {
+    dateLabel = commission.disputedAt
+      ? `Filed ${formatDate(commission.disputedAt)}`
+      : 'Filed for review';
+  }
 
   return (
     <div className={styles.row}>
@@ -118,19 +127,35 @@ function CommissionRow({ commission, onConfirm, onDispute, isPending }) {
           <span>{dateLabel}</span>
           <span className={styles.rowAmount}>{formatUGX(commission.amount)}</span>
         </div>
-        {commission.status === 'disputed' && commission.disputeReason && (
+        {isDisputed && commission.disputeReason && (
           <div className={styles.disputeNote}>{commission.disputeReason}</div>
+        )}
+        {commission.status === 'held' && commission.holdReason && (
+          <div className={styles.disputeNote}>Held: {commission.holdReason}</div>
+        )}
+        {commission.resolvedAt && commission.outcomeReason && (
+          <div className={styles.outcomeNote}>
+            Resolved {formatDate(commission.resolvedAt)} · {commission.outcomeReason}
+          </div>
+        )}
+        {isPaidLike && commission.txnRef && (
+          <div className={styles.disputeNote}>Ref: {commission.txnRef}</div>
         )}
       </div>
 
-      {(isPaidUnconfirmed || commission.status === 'paid' || commission.status === 'due') && (
+      {(isReleased || isPaidLike || isOutstanding || canWithdraw) && (
         <div className={styles.rowActions}>
-          {isPaidUnconfirmed && (
+          {isReleased && (
             <button type="button" className={styles.btnPrimary} disabled={isPending} onClick={() => onConfirm(commission)}>
               Confirm receipt
             </button>
           )}
-          {(commission.status === 'paid' || commission.status === 'due') && (
+          {canWithdraw && (
+            <button type="button" className={styles.btnLink} disabled={isPending} onClick={() => onWithdraw(commission)}>
+              Withdraw
+            </button>
+          )}
+          {(isPaidLike || isOutstanding) && commission.status !== 'held' && (
             <button type="button" className={styles.btnLink} onClick={() => onDispute(commission)}>
               Dispute
             </button>
@@ -141,10 +166,7 @@ function CommissionRow({ commission, onConfirm, onDispute, isPending }) {
   );
 }
 
-function PayoutScheduleCard({ cadence, onCadenceChange, nextEnd, nextTotal, nextCount }) {
-  const [editing, setEditing] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
-
+function PayoutScheduleCard({ cadence, nextEnd, nextTotal, nextCount }) {
   return (
     <section className={styles.payoutCard} aria-labelledby="payout-schedule-title">
       <header className={styles.payoutHead}>
@@ -152,16 +174,6 @@ function PayoutScheduleCard({ cadence, onCadenceChange, nextEnd, nextTotal, next
           <span className={styles.payoutEyebrowIcon} aria-hidden="true">{Icons.calendar}</span>
           Payout schedule
         </span>
-        <button
-          type="button"
-          className={styles.payoutEditBtn}
-          aria-expanded={editing}
-          aria-controls="payout-edit-panel"
-          onClick={() => setEditing((v) => !v)}
-        >
-          {editing ? 'Done' : 'Edit'}
-          <span className={styles.payoutEditChevron} data-open={editing}>{Icons.chevDown}</span>
-        </button>
       </header>
 
       <h2 id="payout-schedule-title" className={styles.payoutCadence}>
@@ -174,86 +186,26 @@ function PayoutScheduleCard({ cadence, onCadenceChange, nextEnd, nextTotal, next
           <span className={styles.payoutMetaValue}>{formatPayoutDate(nextEnd)}</span>
         </div>
         <div className={styles.payoutMetaRow}>
-          <span className={styles.payoutMetaLabel}>Total this cycle</span>
+          <span className={styles.payoutMetaLabel}>Bundled this cycle</span>
           <span className={styles.payoutMetaValue}>{formatUGX(nextTotal)}</span>
         </div>
         <div className={styles.payoutMetaRow}>
           <span className={styles.payoutMetaLabel}>
             {nextCount > 0
-              ? `${nextCount} commission${nextCount === 1 ? '' : 's'} auto-included`
-              : 'No commissions in this cycle yet'}
+              ? `${nextCount} commission${nextCount === 1 ? '' : 's'} in the current run`
+              : 'No commissions in the current run yet'}
           </span>
-          {nextCount > 0 && (
-            <button
-              type="button"
-              className={styles.payoutPreviewToggle}
-              onClick={() => setPreviewOpen((v) => !v)}
-              aria-expanded={previewOpen}
-            >
-              {previewOpen ? 'Hide' : 'Preview'}
-              <span data-open={previewOpen} className={styles.payoutEditChevron}>{Icons.chevDown}</span>
-            </button>
-          )}
         </div>
       </div>
 
-      <AnimatePresence initial={false}>
-        {editing && (
-          <motion.div
-            id="payout-edit-panel"
-            key="edit"
-            className={styles.payoutEdit}
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.28, ease: EASE_OUT_EXPO }}
-          >
-            <div className={styles.payoutEditInner}>
-              <div className={styles.payoutEditHelp}>
-                Pick when commissions should auto-settle. We&apos;ll roll every commission into your next cycle so you never miss one.
-              </div>
-              <div className={styles.payoutOptions} role="radiogroup" aria-label="Settlement cadence">
-                {CADENCE_OPTIONS.map((opt) => {
-                  const active = opt.value === cadence;
-                  return (
-                    <label key={opt.value} className={styles.payoutOption} data-active={active}>
-                      <input
-                        type="radio"
-                        name="cadence"
-                        value={opt.value}
-                        checked={active}
-                        onChange={() => onCadenceChange(opt.value)}
-                      />
-                      <span className={styles.payoutOptionText}>
-                        <span className={styles.payoutOptionLabel}>{opt.label}</span>
-                        <span className={styles.payoutOptionSub}>{opt.sub}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence initial={false}>
-        {previewOpen && nextCount > 0 && (
-          <motion.div
-            key="preview"
-            className={styles.payoutPreview}
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.28, ease: EASE_OUT_EXPO }}
-          />
-        )}
-      </AnimatePresence>
+      <p className={styles.payoutFootnote}>
+        Schedule is set by the distributor. New commissions roll into the next run automatically.
+      </p>
     </section>
   );
 }
 
-function PastCyclesSection({ cycles, onConfirm, onDispute, isPending }) {
+function PastCyclesSection({ cycles, onConfirm, onDispute, onWithdraw, isPending }) {
   const [openKey, setOpenKey] = useState(cycles[0]?.key || null);
 
   if (cycles.length === 0) return null;
@@ -303,6 +255,7 @@ function PastCyclesSection({ cycles, onConfirm, onDispute, isPending }) {
                           commission={c}
                           onConfirm={onConfirm}
                           onDispute={onDispute}
+                          onWithdraw={onWithdraw}
                           isPending={isPending}
                         />
                       ))}
@@ -396,13 +349,15 @@ export default function CommissionsPage() {
   const { view } = useParams();
   const navigate = useNavigate();
   const { agentId } = useAgentScope();
-  const { data: detail, isLoading } = useAgentCommissionDetail(agentId);
-  const confirm = useAgentConfirmCommission();
+  const { data: detail, isLoading, isError, error, refetch } = useAgentCommissionDetail(agentId);
+  const { data: cadenceCfg } = useNetworkCadence();
+  const cadence = cadenceCfg?.cadence || CADENCES.MONTHLY_FIRST;
+  const confirm = useConfirmCommission();
   const dispute = useDisputeCommission();
+  const withdraw = useWithdrawDispute();
   const { addToast } = useToast();
 
   const [disputeTarget, setDisputeTarget] = useState(null);
-  const [cadence, setCadenceState] = useState(() => getCadencePref());
 
   // Defensive: if a stale URL still points at /commissions/requests, redirect home.
   useEffect(() => {
@@ -416,26 +371,36 @@ export default function CommissionsPage() {
 
   const all = useMemo(() => detail?.commissions || [], [detail]);
   const totals = useMemo(() => {
-    const paid = all.filter((c) => c.status === 'paid');
-    const due = all.filter((c) => c.status === 'due');
-    const disputed = all.filter((c) => c.status === 'disputed');
-    const awaitingConfirm = paid.filter((c) => !c.agentConfirmed);
+    const paid = all.filter((c) => c.status === 'released' || c.status === 'confirmed');
+    const due = all.filter((c) => c.status === 'due' || c.status === 'in_run' || c.status === 'held');
+    const inRun = all.filter((c) => c.status === 'in_run');
+    // Keep recently-resolved disputes in the My-Disputes view so the agent
+    // sees the outcome — once status flips off `disputed`, only the
+    // outcomeReason + resolvedAt fields remain.
+    const disputed = all.filter(
+      (c) => c.status === 'disputed' || (c.resolvedAt && c.outcomeReason)
+    );
+    const awaitingConfirm = all.filter((c) => c.status === 'released');
+    const openDisputes = disputed.filter((c) => c.status === 'disputed');
     const totalPaid = paid.reduce((s, c) => s + c.amount, 0);
     const totalDue = due.reduce((s, c) => s + c.amount, 0);
-    const totalDisputed = disputed.reduce((s, c) => s + c.amount, 0);
+    const totalDisputed = openDisputes.reduce((s, c) => s + c.amount, 0);
     const totalAll = totalPaid + totalDue + totalDisputed;
     const settledPct = totalAll ? Math.round((totalPaid / totalAll) * 100) : 0;
     return {
-      paid, due, disputed, awaitingConfirm,
+      paid, due, inRun, disputed, openDisputes, awaitingConfirm,
       totalPaid, totalDue, totalDisputed, totalAll, settledPct,
     };
   }, [all]);
 
   const nextCycle = useMemo(() => {
     const win = cycleWindow(cadence);
-    let total = 0;
-    let count = 0;
+    // Lines already in the current run are guaranteed to pay out next cycle.
+    let total = totals.inRun.reduce((s, c) => s + c.amount, 0);
+    let count = totals.inRun.length;
+    // Plus any due lines whose dueDate falls within the upcoming cycle window.
     for (const c of totals.due) {
+      if (c.status !== 'due') continue;
       const d = c.dueDate ? new Date(c.dueDate) : null;
       if (d && d.getTime() <= win.end.getTime()) {
         total += c.amount || 0;
@@ -443,7 +408,7 @@ export default function CommissionsPage() {
       }
     }
     return { end: win.end, total, count };
-  }, [totals.due, cadence]);
+  }, [totals.due, totals.inRun, cadence]);
 
   const pastCycles = useMemo(
     () => groupCommissionsByPaidCycle(totals.paid, cadence),
@@ -456,13 +421,6 @@ export default function CommissionsPage() {
     if (viewId === 'confirm') return totals.awaitingConfirm;
     if (viewId === 'disputes') return totals.disputed;
     return [];
-  }
-
-  function handleCadenceChange(next) {
-    if (next === cadence) return;
-    setCadenceState(next);
-    setCadencePref(next);
-    addToast('success', 'Payout schedule updated.');
   }
 
   async function handleConfirm(commission) {
@@ -485,12 +443,21 @@ export default function CommissionsPage() {
     }
   }
 
-  const isAnyMutating = confirm.isPending || dispute.isPending;
+  async function handleWithdraw(commission) {
+    try {
+      await withdraw.mutateAsync(commission.id);
+      addToast('success', 'Dispute withdrawn.');
+    } catch {
+      addToast('error', 'Could not withdraw. Try again.');
+    }
+  }
+
+  const isAnyMutating = confirm.isPending || dispute.isPending || withdraw.isPending;
   const list = activeView ? listFor(activeView) : [];
 
   const title = isHome ? 'Commissions' : VIEW_LABELS[activeView];
   const subtitle = isHome
-    ? 'Auto-settled on your chosen cadence. Confirm receipts and raise disputes here.'
+    ? 'Settled on the distributor schedule. Confirm receipts and raise disputes here.'
     : `${list.length} record${list.length === 1 ? '' : 's'}`;
 
   return (
@@ -509,11 +476,20 @@ export default function CommissionsPage() {
           </div>
         )}
 
-        {!isLoading && isHome && (
+        {isError && !isLoading && (
+          <div className={styles.empty}>
+            <ErrorCard
+              title="We couldn't load your commissions"
+              message={error}
+              onRetry={refetch}
+            />
+          </div>
+        )}
+
+        {!isLoading && !isError && isHome && (
           <div className={styles.homeWrap}>
             <PayoutScheduleCard
               cadence={cadence}
-              onCadenceChange={handleCadenceChange}
               nextEnd={nextCycle.end}
               nextTotal={nextCycle.total}
               nextCount={nextCycle.count}
@@ -553,7 +529,7 @@ export default function CommissionsPage() {
               </button>
             </div>
 
-            {(totals.awaitingConfirm.length > 0 || totals.disputed.length > 0) && (
+            {(totals.awaitingConfirm.length > 0 || totals.openDisputes.length > 0) && (
               <div className={styles.attentionSection}>
                 <div className={styles.attentionTitle}>Needs attention</div>
                 {totals.awaitingConfirm.length > 0 && (
@@ -569,16 +545,16 @@ export default function CommissionsPage() {
                     <span className={styles.chev} aria-hidden="true">{Icons.chev}</span>
                   </button>
                 )}
-                {totals.disputed.length > 0 && (
+                {totals.openDisputes.length > 0 && (
                   <button className={styles.attentionRow} onClick={() => navigate('/dashboard/commissions/disputes')}>
                     <div className={styles.attentionAccent} data-type="disputed" />
                     <div className={styles.attentionInfo}>
                       <div className={styles.attentionLabel}>My disputes</div>
                       <div className={styles.attentionDesc}>
-                        {formatUGX(totals.totalDisputed)} under review by branch admin
+                        {formatUGX(totals.totalDisputed)} under review
                       </div>
                     </div>
-                    <div className={styles.attentionCount} data-type="disputed">{totals.disputed.length}</div>
+                    <div className={styles.attentionCount} data-type="disputed">{totals.openDisputes.length}</div>
                     <span className={styles.chev} aria-hidden="true">{Icons.chev}</span>
                   </button>
                 )}
@@ -589,6 +565,7 @@ export default function CommissionsPage() {
               cycles={pastCycles}
               onConfirm={handleConfirm}
               onDispute={(c) => setDisputeTarget(c)}
+              onWithdraw={handleWithdraw}
               isPending={isAnyMutating}
             />
 
@@ -600,7 +577,7 @@ export default function CommissionsPage() {
           </div>
         )}
 
-        {!isLoading && !isHome && activeView && (
+        {!isLoading && !isError && !isHome && activeView && (
           list.length === 0 ? (
             <div className={styles.empty}>
               <p className={styles.emptyTitle}>{(() => {
@@ -614,8 +591,8 @@ export default function CommissionsPage() {
               })()}</p>
               <p>{(() => {
                 switch (activeView) {
-                  case 'earned': return 'Settlements appear here as soon as Branch Admin pays out a cycle.';
-                  case 'owed': return 'New commissions roll into your next payout cycle automatically.';
+                  case 'earned': return 'Settlements appear here once the distributor releases a run.';
+                  case 'owed': return 'New commissions roll into the next settlement run automatically.';
                   case 'confirm': return 'Nothing to confirm right now. Great work.';
                   case 'disputes': return "Anything you flag will appear here while it's reviewed.";
                   default: return '';
@@ -630,6 +607,7 @@ export default function CommissionsPage() {
                   commission={commission}
                   onConfirm={handleConfirm}
                   onDispute={(c) => setDisputeTarget(c)}
+                  onWithdraw={handleWithdraw}
                   isPending={isAnyMutating}
                 />
               ))}

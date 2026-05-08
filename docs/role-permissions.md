@@ -9,11 +9,11 @@
 
 | Role | Sign-In Category | Dashboard | Status |
 |------|-----------------|-----------|--------|
-| subscriber | Subscriber | Coming Soon | **Planned** |
+| subscriber | Subscriber | SubscriberDashboardShell | **Built** |
 | employer | Employer | Coming Soon | **Planned** |
 | distributor | Distributor → Distributor Admin | DashboardShell | **Built** |
 | branch | Distributor → Branch Admin | BranchDashboardShell | **Built** |
-| agent | Distributor → Agent | Coming Soon | **Planned** |
+| agent | Distributor → Agent | AgentDashboardShell | **Built** |
 | admin | Admin | Coming Soon | **Planned** |
 
 Sign-in flow: Role Select → (Distributor Sub-select if applicable) → Phone Entry → OTP Verify
@@ -147,41 +147,48 @@ All slide-in panels use `splitMode={true}`:
 
 ---
 
-## Role 3: Subscriber (`subscriber`) — PLANNED
-
-> These capabilities are inferred from the data model, landing page content (ForYou section), and subscriber entity fields. The frontend shows "Subscriber coming soon" when this role logs in.
+## Role 3: Subscriber (`subscriber`) — BUILT
 
 ### Dashboard Access
-- **Has dashboard:** No (planned)
-- **Dashboard shell:** TBD
-- **Expected focus:** Personal savings dashboard
+- **Has dashboard:** Yes
+- **Dashboard shell:** `SubscriberDashboardShell` (mobile-first, routed pages with `<AnimatePresence>` page transitions)
+- **Sidebar items (desktop SideNav):** Home, Save, Withdraw, Activity (redirects to AllTransactions report), Reports, Help, Agent, Settings
+- **Mobile shell:** Bottom tab bar with 3 core tabs + "More" popover
+- **KYC gate:** A subscriber with `isSignupComplete() === false` is routed to `/signup` rather than `/dashboard` after sign-in (`SignInModal#handleVerify`).
 
-### Planned Pages/Views
-| View | Priority | Description |
-|------|----------|-------------|
-| Balance Overview | High | Current AUM, total contributions, total withdrawals |
-| Contribution History | High | 12-month contribution trend chart, transaction list |
-| Progress Tracker | High | Savings goal progress, projected retirement value |
-| Products Held | Medium | List of products (SavePlus, PensionBasic, etc.) with details |
-| KYC Status | Medium | Current status (complete/pending/incomplete), required documents |
-| Profile & Settings | Medium | Update name, email, phone, password |
-| Withdrawal Request | Low | Request a withdrawal (subject to approval flow) |
-| Statements / Documents | Low | Download contribution statements |
+### Pages/Views Accessible
+| View | Access | Notes |
+|------|--------|-------|
+| Home (6 widgets) | Full | PulseCard balance, TopUp, Projection, IfYouNeedIt (desktop only), Activity (last 3), CoPilot |
+| Save (multi-step) | Full | Pay-now contribution: amount + retirement split + method → confirm → success |
+| Schedule | Full | Frequency + amount + split via shared `ContributionSettingsForm` |
+| Withdraw hub | Full | Choose savings withdrawal vs insurance claim |
+| Withdraw → savings | Full | Bucket + amount + reason |
+| Withdraw → claim | Full | Type + date + amount + description + **real File blob upload** (multipart-ready) |
+| Projection | Full | 5 preset goals + Recharts trajectory chart from age-now to retirement |
+| Reports hub + 5 reports | Full | All Transactions, Contributions Summary, Withdrawals History, Insurance Statement, Annual Statement — all with CSV export |
+| Help | Full | FAQ + contact + chat with capped persistence |
+| Agent (DM) | Full | Chat with assigned agent; capped at 100 persisted messages |
+| Settings | Full | Profile, Nominees (pension + insurance), Insurance cover (with downgrade path) |
+| Notifications, Security | Disabled | Show "Soon" badge; rows are non-interactive until built |
 
-### Planned Data Scope
-- **Visibility:** Own subscriber record only
-- **Fields visible:** name, phone, email, age, gender, kycStatus, isActive, contributionHistory, totalContributions, totalWithdrawals, productsHeld, registeredDate
+### Data Scope
+- **Visibility:** Own subscriber record only (resolved server-side from authenticated phone/token)
 - **No access to:** Other subscribers, agents, branches, commissions, or network data
 
-### Planned Actions
+### Actions (CRUD)
 | Action | Permission | Scope |
 |--------|-----------|-------|
 | View own balance & contributions | Read | Own record |
-| View own KYC status | Read | Own record |
-| View own products | Read | Own record |
-| Update own profile | Update | Own user |
-| Request withdrawal | Create | Own record (subject to approval) |
-| Upload KYC documents | Create | Own record |
+| Make ad-hoc contribution | Create | Own record (`useMakeContribution`) |
+| Update contribution schedule | Update | Own record (`useUpdateSchedule`) |
+| Request withdrawal | Create | Own record (`useRequestWithdrawal`) |
+| Submit insurance claim (with files) | Create | Own record (`useSubmitClaim`) |
+| Update profile | Update | Own user (`useUpdateProfile` — optimistic + rollback) |
+| Update nominees | Update | Own record (`useUpdateNominees` — optimistic + rollback) |
+| Update insurance cover | Update | Own record (`useUpdateInsuranceCover`) — upgrade or downgrade-with-confirm |
+| Message assigned agent | Create | Own record |
+| View own statements / export CSV | Read | Own record (5 report views with `downloadCSV`) |
 
 ---
 
@@ -219,42 +226,46 @@ All slide-in panels use `splitMode={true}`:
 
 ---
 
-## Role 5: Agent (`agent`) — PLANNED
-
-> Inferred from agent entity fields, commission system, and the agent's role in subscriber onboarding.
+## Role 5: Agent (`agent`) — BUILT
 
 ### Dashboard Access
-- **Has dashboard:** No (planned)
-- **Dashboard shell:** TBD
-- **Expected focus:** Subscriber enrollment, collection tracking, commission visibility
+- **Has dashboard:** Yes
+- **Dashboard shell:** `AgentDashboardShell` (routed pages, mobile-first, modeled on Subscriber dashboard rather than slide-in panels)
+- **Sidebar items (desktop SideNav):** Home, Subscribers, Commissions, featured "Onboard subscriber" indigo button, Settings, Logout
+- **Mobile shell:** Bottom tab bar with Home / Subscribers / centered Onboard FAB / Commissions / "More" popover
+- **Scope provider:** `AgentScopeProvider` wraps dashboard with `agentId` from auth session; `MissingAgentIdScreen` shown if missing.
 
-### Planned Pages/Views
-| View | Priority | Description |
-|------|----------|-------------|
-| Today's Pulse | High | Daily registrations, collections, pending tasks |
-| My Subscribers | High | List of subscribers registered by this agent |
-| Register Subscriber | High | Guided enrollment workflow (name, phone, KYC, first contribution) |
-| My Commissions | High | Commission list with status (paid/due/disputed), totals |
-| Request Settlement | Medium | Flag due commissions for settlement |
-| Confirm Receipt | Medium | Confirm agent received commission payment (`agentConfirmed` field) |
-| Collection Log | Medium | Record contribution collections from subscribers |
-| Profile & Settings | Medium | Update own profile |
+### Pages/Views Accessible
+| View | Access | Notes |
+|------|--------|-------|
+| Home | Full | `PortfolioPulseCard` (cadence-aware next-payout) + `CoPilotWidget` |
+| Onboard (4-stage flow) | Full | Awareness check → KYC (reuses signup STEPS) → Schedule → Done |
+| Subscribers list | Scoped | Own subscribers only; search + sort + active/dormant filter |
+| Subscriber detail | Scoped | KYC pill + KPIs + schedule + sparkline + products |
+| Subscriber schedule edit | Scoped | Reuses `ContributionSettingsForm` |
+| Analytics | Scoped | Recharts demographics + saving habits + onboarding velocity from agent's portfolio |
+| Commissions home | Scoped | Payout schedule (with cadence editor) + earned/owed cards + Past cycles + Needs Attention |
+| Commissions sub-views | Scoped | `/commissions/:view` ∈ `{earned, owed, confirm, disputes}` |
+| Settings | Full | Profile + password (password change activates with backend) |
 
-### Planned Data Scope
-- **Visibility:** Own agent record, own subscribers, own commissions
+### Data Scope
+- **Visibility:** Own agent record + own subscribers + own commissions
 - **No access to:** Other agents, branch-level data, or network data
+- **Settlement cadence:** Persisted in `localStorage['upensions_agent_settlement_cadence']` (will move to server-owned config when backend lands).
 
-### Planned Actions
+### Actions (CRUD)
 | Action | Permission | Scope |
 |--------|-----------|-------|
-| View own subscribers | Read | Own subscribers |
-| Register new subscriber | Create | Under own agent ID |
-| Record contribution collection | Create | Own subscribers |
-| View own commissions | Read | Own commissions |
-| Request commission settlement | Update | Own due commissions (`settlementRequested = true`) |
-| Confirm commission receipt | Update | Own paid commissions (`agentConfirmed = true`) |
-| Dispute a commission | Create | Own commissions (raise dispute) |
+| View own subscribers | Read | Own subscribers (`useAgentSubscribers`) |
+| Onboard new subscriber | Create | Under own agent ID (full 9-step KYC + schedule capture) |
+| Update subscriber's schedule | Update | Own subscribers (`useUpdateSubscriberSchedule` — optimistic + rollback over the agent's portfolio array) |
+| View own commissions | Read | `useAgentCommissionDetail` |
+| Edit payout cadence | Update | Local agent setting |
+| Confirm commission receipt | Update | Own paid commissions (`useAgentConfirmCommission` — maker-checker counterpart to admin settle) |
+| Dispute a commission | Create | Own commissions (`useDisputeCommission`) |
+| Withdraw a dispute | Update | Own disputed commissions (`useWithdrawDispute`) |
 | Update own profile | Update | Own user |
+| Run analytics over portfolio | Read | Own subscribers (client-side derivation, no separate endpoint) |
 
 ### Commission Interaction
 The `agentConfirmed` field on commissions exists specifically for this role:
@@ -310,16 +321,16 @@ The `agentConfirmed` field on commissions exists specifically for this role:
 |------|------------------|----------------------|--------------|
 | distributor | All entities, all levels | All commissions | All 11 reports, network-wide |
 | branch | Own branch + own agents + own subscribers | Own branch's commissions | 8 reports, branch-scoped |
-| agent (planned) | Own record + own subscribers | Own commissions | None (planned: own performance) |
-| subscriber (planned) | Own record only | None | None (planned: own statements) |
+| agent | Own record + own subscribers | Own commissions (read + confirm + dispute) | Client-side analytics over own portfolio |
+| subscriber | Own record only | None | 5 own-account reports (transactions, contributions, withdrawals, insurance, annual) |
 | employer (planned) | Own org's employees | None | Own org reports |
 | admin (planned) | All entities, all levels | All commissions | All reports, all scopes |
 
 ### Scoping Implementation
 - **Distributor:** No scoping applied — all data visible
 - **Branch:** `BranchScopeProvider` injects `branchId` into context. Report views check `useBranchScope()` and filter data accordingly. Commission endpoints receive `branchId` parameter.
-- **Agent (planned):** Should scope by `agentId` from auth session
-- **Subscriber (planned):** Should scope by `subscriberId` from auth session
+- **Agent:** `AgentScopeProvider` injects `agentId`. `useAgentSubscribers(agentId)` and commission hooks scope automatically. The auth `user.agentId` comes from the backend's `verifyOtp` response — the client no longer injects it.
+- **Subscriber:** `useCurrentSubscriber()` resolves from authenticated phone (server-side); subscriber is the implicit "self" in every endpoint under `/api/subscribers/me/*`.
 - **Employer (planned):** Should scope by `employerId` from auth session
 - **Admin (planned):** No scoping — full access like distributor but with additional admin capabilities
 

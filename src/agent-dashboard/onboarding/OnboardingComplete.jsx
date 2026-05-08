@@ -1,14 +1,6 @@
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGXExact, normalizeFrequency } from '../../utils/finance';
+import { EASE_OUT_EXPO, formatUGXExact, normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
 import styles from './OnboardingComplete.module.css';
-
-const FREQUENCY_LABEL = {
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  'half-yearly': 'Half-yearly',
-  annually: 'Annually',
-};
 
 function formatSchedule(schedule) {
   if (!schedule || !schedule.amount) return null;

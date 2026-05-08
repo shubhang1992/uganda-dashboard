@@ -3,11 +3,35 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../utils/finance';
 import styles from './ForYou.module.css';
 
+const SubscriberIcon = (
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+    <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.75" />
+    <path d="M4 21v-1a8 8 0 0116 0v1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+  </svg>
+);
+
+const EmployerIcon = (
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+    <rect x="4" y="3" width="16" height="18" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
+    <path d="M9 8h2M13 8h2M9 12h2M13 12h2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    <path d="M10 21v-3h4v3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const AgentIcon = (
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+    <circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.75" />
+    <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    <circle cx="18" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.75" />
+    <path d="M21 21v-1.5a3 3 0 00-3-3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+  </svg>
+);
+
 const ROLES = [
   {
     id: 'subscriber',
     label: 'Individuals',
-    emoji: '👤',
+    icon: SubscriberIcon,
     headline: 'Save for yourself.',
     desc: 'Whether you are a gig worker, farmer, or self-employed — Universal Pensions is built for you. Start small, stay consistent, and build long-term security.',
     features: [
@@ -24,7 +48,7 @@ const ROLES = [
   {
     id: 'employer',
     label: 'Employers',
-    emoji: '🏢',
+    icon: EmployerIcon,
     headline: 'Invest in your team.',
     desc: 'Enrol your employees, manage bulk contributions, and track participation — all in one clean, low-friction workspace.',
     features: [
@@ -41,7 +65,7 @@ const ROLES = [
   {
     id: 'agent',
     label: 'Agents',
-    emoji: '🤝',
+    icon: AgentIcon,
     headline: 'Help others secure their future.',
     desc: 'Guide subscribers through registration, contributions, and basic servicing. Fast, mobile-ready tools built for the field.',
     features: [
@@ -114,7 +138,7 @@ export default function ForYou() {
               onClick={() => setActive(r.id)}
               onKeyDown={(e) => handleTabKeyDown(e, index)}
             >
-              <span className={styles.tabEmoji}>{r.emoji}</span>
+              <span className={styles.tabIcon}>{r.icon}</span>
               {r.label}
             </button>
           ))}

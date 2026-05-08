@@ -1119,6 +1119,95 @@
   color: var(--color-indigo);
 }
 
+.modalLabel {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+  margin-bottom: 6px;
+}
+
+.modalTextarea {
+  width: 100%;
+  border: 1.5px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  resize: vertical;
+  min-height: 84px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.modalTextarea:focus {
+  outline: none;
+  border-color: var(--color-indigo);
+  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+}
+
+.modalHint {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  margin-top: var(--space-2);
+  line-height: 1.5;
+}
+
+.modalConsequence {
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.modalConsequence[data-action='reject'] {
+  background: rgba(220, 53, 69, 0.06);
+  border-color: rgba(220, 53, 69, 0.18);
+}
+
+.modalConsequence[data-action='approve'] {
+  background: rgba(46, 139, 87, 0.06);
+  border-color: rgba(46, 139, 87, 0.18);
+}
+
+.modalConsequenceLabel {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+  margin-bottom: 6px;
+}
+
+.modalConsequenceLine {
+  margin: 0 0 6px 0;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-slate);
+  line-height: 1.55;
+}
+
+.modalConsequenceLine:last-child {
+  margin-bottom: 0;
+}
+
+.modalConsequenceLine strong {
+  color: var(--color-indigo);
+  font-weight: 700;
+}
+
+.modalConsequenceLine em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--color-indigo);
+}
+
 /* ── Empty state ─────────────────────────────────────────────────────────── */
 .empty {
   text-align: center;
@@ -1339,6 +1428,26 @@
 
 .rejectBtn:hover {
   background: rgba(220, 53, 69, 0.1);
+}
+
+.holdBtn {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-status-warning);
+  background: rgba(230, 168, 23, 0.08);
+  border: 1px solid rgba(230, 168, 23, 0.18);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.holdBtn:hover {
+  background: rgba(230, 168, 23, 0.16);
 }
 
 /* ── Bulk action bar ─────────────────────────────────────────────────────── */
@@ -1648,5 +1757,542 @@
 
   .detailStats {
     grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  Settlement-run cards & views (added with the runs redesign)               */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.runCard {
+  background: linear-gradient(140deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
+  color: var(--color-white);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  box-shadow: 0 12px 32px rgba(27, 26, 74, 0.18);
+}
+
+.runCardEyebrow {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(217, 220, 242, 0.78);
+}
+
+.runCardTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.runCardMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.runMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3) var(--space-3);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+}
+
+.runMetricLabel {
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(217, 220, 242, 0.62);
+}
+
+.runMetricValue {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-white);
+}
+
+.runCardActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.runPrimaryBtn {
+  flex: 1;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-white);
+  color: var(--color-indigo);
+  border: none;
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  padding: 0 var(--space-5);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.runPrimaryBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.92);
+  transform: translateY(-1px);
+}
+
+.runPrimaryBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.runSecondaryBtn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--color-white);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  padding: 0 var(--space-5);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease;
+}
+
+.runSecondaryBtn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.emptyRunCard {
+  background: var(--color-cloud);
+  border: 1px dashed var(--color-lavender);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.emptyRunCopy {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  line-height: 1.55;
+}
+
+/* ── Settings grid (cadence + rate) ──────────────────────────────────── */
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 600px) {
+  .settingsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Cadence card ────────────────────────────────────────────────────────── */
+.cadenceCard {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cadenceHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.cadenceEyebrow {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+}
+
+.cadenceValue {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 800;
+  color: var(--color-indigo);
+  margin-top: 4px;
+}
+
+.cadenceSub {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  margin-top: 4px;
+}
+
+.cadenceOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cadenceOption {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  background: var(--color-cloud);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.cadenceOption:hover {
+  background: var(--color-white);
+  border-color: var(--color-indigo-soft);
+}
+
+.cadenceOption[data-active='true'] {
+  background: var(--color-indigo);
+  color: var(--color-white);
+  border-color: var(--color-indigo);
+}
+
+/* ── Summary strip ───────────────────────────────────────────────────────── */
+.summaryStrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.summaryItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  padding: var(--space-3);
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.summaryItem:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.summaryItemLabel {
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+}
+
+.summaryItemValue {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryItemCount {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+}
+
+/* ── Run rows in lists ───────────────────────────────────────────────────── */
+.runRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+}
+
+.runRowMain {
+  min-width: 0;
+}
+
+.runRowTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-indigo);
+}
+
+.runRowSub {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  margin-top: 2px;
+}
+
+.runRowAmount {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+.runStateBadge {
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(41, 40, 103, 0.06);
+  color: var(--color-indigo-soft);
+  white-space: nowrap;
+}
+
+.runStateBadge[data-state='released'] {
+  background: rgba(46, 139, 87, 0.12);
+  color: var(--color-status-good);
+}
+
+.runStateBadge[data-state='approved'] {
+  background: rgba(46, 139, 87, 0.12);
+  color: var(--color-status-good);
+}
+
+.runStateBadge[data-state='branch_review'],
+.runStateBadge[data-state='pending'] {
+  background: rgba(230, 168, 23, 0.14);
+  color: var(--color-status-warning);
+}
+
+.runStateBadge[data-state='cancelled'] {
+  background: rgba(220, 53, 69, 0.1);
+  color: var(--color-status-poor);
+}
+
+/* ── Run header (inside run-detail / branch-review views) ───────────────── */
+.runHeader {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.runHeaderRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.runHeaderStat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.runHeaderStat .runMetricLabel {
+  color: var(--color-indigo-soft);
+}
+
+.runHeaderValue {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+  .runCardMetrics,
+  .summaryStrip,
+  .runHeaderRow {
+    grid-template-columns: 1fr 1fr;
+  }
+  .runRow {
+    grid-template-columns: 1fr auto;
+  }
+  .runStateBadge {
+    grid-column: 2;
+  }
+}
+
+/* ── Per-branch row inside run-detail ───────────────────────────────────── */
+.runBranchRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.runBranchRow:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-indigo-soft);
+}
+
+.runBranchMain {
+  min-width: 0;
+}
+
+.runBranchName {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-indigo);
+  letter-spacing: -0.01em;
+}
+
+.runBranchSub {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  margin-top: 2px;
+}
+
+.runBranchAmount {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+.runBranchChev {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-gray);
+  flex-shrink: 0;
+}
+
+/* ── Agent block inside run-branch-detail ──────────────────────────────── */
+.agentBlock {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.agentBlockHead {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.agentBlockAmount {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+.agentLineList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed rgba(41, 40, 103, 0.08);
+}
+
+.agentLineRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-cloud);
+}
+
+.agentLineName {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-slate);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentLineAmount {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+  .runBranchRow {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    row-gap: 6px;
+  }
+  .runBranchAmount {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: right;
+  }
+  .runStateBadge {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .runBranchChev {
+    display: none;
   }
 }

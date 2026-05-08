@@ -73,7 +73,7 @@ export default function BottomTabBar() {
   }
 
   return (
-    <nav className={styles.bar} aria-label="Primary">
+    <nav className={styles.bar} aria-label="Quick navigation">
       <NavLink
         to="/dashboard"
         end

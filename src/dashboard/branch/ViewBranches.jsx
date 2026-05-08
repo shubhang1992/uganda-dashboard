@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useOutsideClick } from '../../hooks/useOutsideClick';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAllEntities, useUpdateBranch, useSetBranchStatus } from '../../hooks/useEntity';
@@ -50,7 +51,7 @@ function AgentDetail({ agent }) {
           <div className={styles.profileName}>{agent.name}</div>
           <div className={styles.profileMeta}>
             <span className={styles.agentStatus} data-status={agent.status} />
-            <span style={{ textTransform: 'capitalize' }}>{agent.status}</span>
+            <span className="capitalize">{agent.status}</span>
             <span>&middot;</span>
             <span>{agent.phone}</span>
             {agent.employeeId && (
@@ -505,15 +506,8 @@ export default function ViewBranches() {
     return () => document.removeEventListener('keydown', onKey);
   }, [viewBranchesOpen, drillTargetBranchId, handleClose]);
 
-  useEffect(() => {
-    if (!regionDropOpen && !sortDropOpen) return;
-    function handler(e) {
-      if (regionDropOpen && regionBtnRef.current && !regionBtnRef.current.contains(e.target)) setRegionDropOpen(false);
-      if (sortDropOpen && sortBtnRef.current && !sortBtnRef.current.contains(e.target)) setSortDropOpen(false);
-    }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [regionDropOpen, sortDropOpen]);
+  useOutsideClick(regionDropOpen, () => setRegionDropOpen(false), [regionBtnRef]);
+  useOutsideClick(sortDropOpen, () => setSortDropOpen(false), [sortBtnRef]);
 
   function handleSelectBranch(branch) { setSelectedBranch(branch); setView('detail'); }
   function handleSelectAgent(agent) { setSelectedAgent(agent); setView('agent'); }

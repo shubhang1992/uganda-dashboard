@@ -61,13 +61,15 @@ export default function ClaimPage() {
   }
 
   function handleFilePick(e) {
-    const files = Array.from(e.target.files || []);
-    const meta = files.slice(0, 4).map((f) => ({ name: f.name, size: f.size }));
-    setClaimFiles(meta);
+    // Keep the actual File objects, not just metadata, so they can be uploaded
+    // when the backend lands. Display fields (.name, .size) read straight off
+    // each File. Cap at 4 to mirror the dropzone copy.
+    const files = Array.from(e.target.files || []).slice(0, 4);
+    setClaimFiles(files);
   }
 
-  function removeFile(name) {
-    setClaimFiles((prev) => prev.filter((f) => f.name !== name));
+  function removeFileAt(index) {
+    setClaimFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleSubmitClaim() {
@@ -79,7 +81,11 @@ export default function ClaimPage() {
         incidentDate: claimDate,
         amount: claimAmtNum,
         description: claimDesc.trim(),
-        files: claimFiles.map((f) => f.name),
+        // Real File objects propagate to the mutation. Today the mock service
+        // only logs the file count; once the backend lands, swap the service
+        // implementation to send a multipart/form-data POST (or a presigned-
+        // URL upload) — the call sites here don't need to change.
+        files: claimFiles,
       });
       setResultClaim(claim);
       setView('success');
@@ -308,8 +314,8 @@ export default function ClaimPage() {
 
                 {claimFiles.length > 0 && (
                   <ul className={styles.filesList}>
-                    {claimFiles.map((f) => (
-                      <li key={f.name} className={styles.fileItem}>
+                    {claimFiles.map((f, i) => (
+                      <li key={`${f.name}-${i}`} className={styles.fileItem}>
                         <svg aria-hidden="true" viewBox="0 0 20 20" width="14" height="14" fill="none">
                           <path d="M5 3h7l4 4v10a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
                         </svg>
@@ -317,7 +323,7 @@ export default function ClaimPage() {
                         <button
                           type="button"
                           className={styles.fileRemove}
-                          onClick={() => removeFile(f.name)}
+                          onClick={() => removeFileAt(i)}
                           aria-label={`Remove ${f.name}`}
                         >
                           <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" fill="none">

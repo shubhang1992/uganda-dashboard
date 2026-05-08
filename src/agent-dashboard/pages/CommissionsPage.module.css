@@ -154,6 +154,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+.payoutFootnote {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: rgba(217, 220, 242, 0.62);
+  line-height: 1.55;
+}
+
 .payoutPreviewToggle {
   display: inline-flex;
   align-items: center;
@@ -722,6 +730,17 @@
   font-family: var(--font-body);
   font-size: var(--text-xs);
   color: #B43E3E;
+  line-height: 1.5;
+}
+
+.outcomeNote {
+  background: rgba(46, 139, 87, 0.08);
+  border: 1px solid rgba(46, 139, 87, 0.2);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-status-good);
   line-height: 1.5;
 }
 

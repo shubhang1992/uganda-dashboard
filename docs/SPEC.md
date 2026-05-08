@@ -44,7 +44,7 @@ Universal Pensions is a digital long-term savings and pension platform designed 
 - **Real-world role:** Individual saver — informal worker, farmer, gig worker, self-employed
 - **Why they use the platform:** Track savings, view contributions, monitor pension growth
 - **Key needs:** Balance visibility, contribution history, progress tracking, simple UX
-- **Status:** Dashboard planned (shows "Coming Soon")
+- **Status:** **Built** — mobile-first dashboard with home widgets (Pulse, TopUp, Projection, Activity, CoPilot), routed pages for Save / Withdraw / Claim / Schedule / Reports / Settings, and 9-step KYC signup flow.
 
 ### Employer
 - **Real-world role:** Organization managing employee pension contributions
@@ -68,7 +68,7 @@ Universal Pensions is a digital long-term savings and pension platform designed 
 - **Real-world role:** Field worker who enrolls subscribers and collects contributions
 - **Why they use the platform:** Register subscribers, record collections, track commissions
 - **Key needs:** Guided workflows, fast mobile actions, commission visibility
-- **Status:** Dashboard planned (shows "Coming Soon")
+- **Status:** **Built** — routed mobile-first dashboard with PortfolioPulseCard, CoPilot, 4-stage Onboard flow, Subscribers list + detail + schedule edit, Recharts Analytics, cadence-aware Commissions with maker-checker confirm/dispute, and Settings.
 
 ### Platform Admin
 - **Real-world role:** System administrator at head office
@@ -297,7 +297,7 @@ Country (Uganda)
 
 **Pagination:** Client-side with page sizes 25, 50, 100. For subscribers (~30K), server-side pagination is required in production.
 
-**Export:** Download button exists in TopBar but is a **placeholder** — no CSV export logic is implemented. Backend should provide CSV generation endpoints.
+**Export:** CSV export is **wired client-side** via `src/utils/csv.js` (`downloadCSV(filename, headers, rows)` — RFC 4180 escaping + formula-injection defence + UTF-8 BOM for Excel). Distributor TopBar exports the current entity's children (filter-aware filename); each subscriber report view exports its own filtered rows. Backend may still need to provide server-side CSV generation for very large datasets (e.g. all 30K subscribers), but the client-side pipeline already covers every active report.
 
 ---
 
@@ -386,23 +386,24 @@ The frontend applies scoping via:
 
 | Feature | Current State | Backend Requirement |
 |---------|--------------|-------------------|
-| OTP Authentication | Mock (any code accepted) | Real SMS OTP service + JWT token issuance |
+| OTP Authentication | Mock (`services/auth.js` returns any 6-digit code; throws structured `AuthError` for QA force-flags) | Real SMS OTP service + JWT token issuance. Errors must use the same `{ code, retryAfterSeconds? }` shape consumed by `OtpVerify`. |
 | Entity CRUD | Mock (in-memory) | REST API for all entity operations |
-| Commission Settlement | Mock (in-memory mutations) | Transactional settlement with payment integration |
+| Commission Settlement | Mock (in-memory mutations); React Query optimistic-update + rollback pattern in place | Transactional settlement with payment integration |
 | Commission Disputes | Mock (status changes) | Dispute workflow with audit trail |
-| AI Chat Assistant | Mock (keyword matching) | LLM integration (e.g., Claude API) with DB access |
+| AI Chat Assistant | Mock (keyword matching) — six chat surfaces: distributor copilot, branch copilot, agent copilot, subscriber copilot, subscriber Help, subscriber↔agent DM | LLM integration (e.g., Claude API) with DB access, scoped to user's data visibility |
 | Search | Mock (client-side filter) | Server-side full-text search (Elasticsearch or PostgreSQL tsvector) |
-| Report Export (CSV) | Placeholder button (no logic) | Server-side CSV generation with streaming for large datasets |
+| Report Export (CSV) | **Wired** — `utils/csv.js` produces RFC 4180 + formula-injection-safe CSVs. Distributor TopBar + subscriber report views all export. | Server-side CSV generation needed for very large datasets (e.g. all 30K subscribers) but client pipeline is complete. |
 | Filter Dropdowns | Client-side filtering | Server-side filtering for reports with >500 rows |
 | Subscriber Pagination | All 30K loaded in memory | Server-side pagination (page, pageSize, sort, filter params) |
 | Map GeoJSON | Static files in /public/ | Could remain static or be served from API |
-| Profile Update | No service function | PUT /api/profile endpoint |
-| Password Change | No service function | PUT /api/profile/password endpoint |
-| Real-time Activity Feed | Mock (generated from metrics) | WebSocket or polling for live events |
+| Profile Update | **Wired** to `services/subscriber.js#updateProfile` and `AuthContext.updateUser`; React Query optimistic-update with rollback. | `PUT /api/subscribers/:id/profile` |
+| Password Change | Stubbed UI (Settings/distributor + agent SettingsPage); shows "activates with backend" toast | `PUT /api/profile/password` |
+| Real-time Activity Feed | Mock (renamed "Today's Snapshot" — derived from current metrics, not a real-time feed) | WebSocket or polling for live events |
 | Agent GPS Location | Mock (jittered from branch) | Real GPS from agent mobile app, or omit |
-| Withdrawal Flow | No UI | Full workflow: request → approve → disburse |
-| KYC Verification | Status field only | Document upload, verification queue, status transitions |
-| Notification/SMS | Mentioned in UI ("credentials sent via SMS") | SMS gateway integration (e.g., Africa's Talking, Twilio) |
+| Withdrawal Flow | **Built** UI — `WithdrawalsHubPage` → `WithdrawPage` (savings) / `ClaimPage` (insurance). ClaimPage now passes `File[]` blobs through to mutation. | Full workflow: request → approve → disburse + multipart upload (or presigned URLs) for claim documents |
+| KYC Verification | **Built** — 9-step Smile-ID-shaped pipeline (id-upload → review → nira → otp → liveness → aml → beneficiaries → consent → done) with `onboardingSessionId` correlation across stages. | Real Smile ID v2 endpoints + agent referral ticket creation. Force-override `localStorage` keys are gated to `IS_DEV` only. |
+| Notification/SMS | Mentioned in UI ("credentials sent via SMS"); subscriber Notifications/Security routes are placeholders | SMS gateway integration (e.g., Africa's Talking, Twilio) |
+| Contact form | Demo-mode stub at `services/contact.js` — logs to console, returns success | `POST /api/contact` (or external provider like Formspree) |
 
 ---
 
@@ -435,8 +436,10 @@ The frontend applies scoping via:
 - JWT token stored in `localStorage` as `upensions_token`
 - User session stored in `localStorage` as `upensions_auth`
 - Token sent as `Authorization: Bearer <token>` header
-- 401 response triggers automatic logout + redirect to landing page
+- 401 response triggers automatic logout + redirect to landing page (via `onAuthExpired` listener registered by `AuthContext`)
 - API base URL configured via `API_BASE_URL` environment variable
+- **Errors:** `services/auth.js` throws `AuthError` instances with `code` (`invalid_otp` | `rate_limited` | `locked`) and optional `retryAfterSeconds`. `OtpVerify` consumes this shape — backend rejection messages must follow the same contract. Max 5 verify attempts per session before the form locks; resend resets the counter.
+- **User shape:** `verifyOtp` MUST return `{ token, user: { phone, role, name, branchId?, agentId?, distributorId? } }`. The client no longer injects scoping IDs — they come from the backend.
 
 ### Frontend Stack
 - React 19 + Vite 6

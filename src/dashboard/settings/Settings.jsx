@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { isValidUGPhone } from '../../utils/phone';
 import { getInitials } from '../../utils/dashboard';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
@@ -129,7 +130,7 @@ export default function Settings({ splitMode = false }) {
   const validate = useCallback(() => {
     const e = {};
     if (!name.trim()) e.name = 'Full name is required';
-    if (phone.replace(/\D/g, '').length < 9) e.phone = 'Enter a valid phone number';
+    if (!isValidUGPhone(phone)) e.phone = 'Enter a valid Ugandan mobile number';
 
     /* Password fields — only validate if any are filled */
     const hasPassword = currentPw || newPw || confirmPw;

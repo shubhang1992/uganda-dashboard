@@ -4,7 +4,8 @@ import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import { formatUGX } from '../../../utils/finance';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
-import FilterSelect, { SearchFilter } from '../FilterSelect';
+import FilterSelect from '../FilterSelect';
+import SearchFilter from '../SearchFilter';
 
 function RatingBadge({ rating }) {
   const color = rating >= 4 ? 'var(--color-status-good)' : rating >= 3 ? 'var(--color-status-warning)' : 'var(--color-status-poor)';

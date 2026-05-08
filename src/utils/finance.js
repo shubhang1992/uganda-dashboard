@@ -18,6 +18,19 @@ export const FREQUENCY = {
   ANNUALLY: 'annually',
 };
 
+/**
+ * Display labels for canonical frequency IDs. Use this for any user-facing
+ * frequency rendering (subscriber detail, analytics, onboarding complete,
+ * pulse cards, etc.) so the prose stays consistent across the app.
+ */
+export const FREQUENCY_LABEL = {
+  [FREQUENCY.WEEKLY]: 'Weekly',
+  [FREQUENCY.MONTHLY]: 'Monthly',
+  [FREQUENCY.QUARTERLY]: 'Quarterly',
+  [FREQUENCY.HALF_YEARLY]: 'Half-yearly',
+  [FREQUENCY.ANNUALLY]: 'Annually',
+};
+
 /** Periods per year for each canonical frequency. */
 const PERIODS_PER_YEAR = {
   [FREQUENCY.WEEKLY]: 52,

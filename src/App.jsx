@@ -13,6 +13,7 @@ import CTA from './components/CTA';
 import Footer from './components/Footer';
 import StickyMobileCTA from './components/StickyMobileCTA';
 import SignInModal from './components/SignInModal';
+import ScrollToTop from './components/ScrollToTop';
 import { hasDashboard } from './services/auth';
 import FAQ from './pages/FAQ';
 import Contact from './pages/Contact';
@@ -165,6 +166,7 @@ function ProtectedDashboard() {
 export default function App() {
   return (
     <SignInProvider>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/faq" element={<FAQ />} />

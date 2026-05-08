@@ -23,6 +23,16 @@
   gap: 0.75rem;
   max-height: calc(100vh - var(--space-6) - 2.5rem - var(--space-6));
   min-height: 0;
+
+  /* GPU-accelerated slide when a sidebar submenu opens. The translateX target
+     equals (parent width) - 310px (panel width) - 2 * var(--space-6) (margins).
+     Parent width = 100vw - var(--sidebar-width) (the dashboard's main column). */
+  transform: translateX(0);
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.panel[data-offset='true'] {
+  transform: translateX(calc(100vw - var(--sidebar-width) - 310px - 2 * var(--space-6)));
 }
 
 /* Prevent fixed-content sections from being squished when panel max-height

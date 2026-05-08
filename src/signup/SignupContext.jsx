@@ -2,6 +2,17 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer 
 import { SIGNUP_STORAGE_KEY } from './signupState';
 
 /**
+ * Generate a unique onboarding-session id. Backend uses this to correlate
+ * every KYC stage (OCR, NIRA, OTP, face-match, AML) into a single record.
+ */
+function createOnboardingSessionId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `sess-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
  * @typedef {Object} Beneficiary
  * @property {string} id
  * @property {string} name
@@ -12,6 +23,12 @@ import { SIGNUP_STORAGE_KEY } from './signupState';
 
 /**
  * @typedef {Object} SignupState
+ *
+ * Session correlation
+ * @property {string} onboardingSessionId  — passed to every KYC API call so
+ *   the backend can link OCR → NIRA → OTP → face-match → AML stages.
+ *   Generated on first signup-context mount; persists across refresh.
+ *
  * Step 1 — ID upload (front + back)
  * @property {File|Blob|null}          idFrontFile
  * @property {File|Blob|null}          idBackFile
@@ -69,6 +86,8 @@ import { SIGNUP_STORAGE_KEY } from './signupState';
  */
 
 const INITIAL_STATE = {
+  onboardingSessionId: '',
+
   idFrontFile: null,
   idBackFile: null,
   idFrontPreviewUrl: null,
@@ -121,7 +140,7 @@ function reducer(state, action) {
     case 'patch':
       return { ...state, ...action.payload };
     case 'reset':
-      return INITIAL_STATE;
+      return { ...INITIAL_STATE, onboardingSessionId: createOnboardingSessionId() };
     default:
       return state;
   }
@@ -133,15 +152,24 @@ function reducer(state, action) {
 const EPHEMERAL_KEYS = ['idFrontFile', 'idBackFile', 'selfieFile', 'idFrontPreviewUrl', 'idBackPreviewUrl'];
 
 function loadPersisted() {
-  if (typeof window === 'undefined') return INITIAL_STATE;
+  // Always create a fresh session ID by default; if persisted state has one,
+  // the spread below overwrites it so refresh keeps the same correlation key.
+  const fresh = { ...INITIAL_STATE, onboardingSessionId: createOnboardingSessionId() };
+  if (typeof window === 'undefined') return fresh;
   try {
     const raw = window.localStorage.getItem(SIGNUP_STORAGE_KEY);
-    if (!raw) return INITIAL_STATE;
+    if (!raw) return fresh;
     const parsed = JSON.parse(raw);
     const ephemeral = Object.fromEntries(EPHEMERAL_KEYS.map((k) => [k, null]));
-    return { ...INITIAL_STATE, ...parsed, ...ephemeral };
+    return {
+      ...fresh,
+      ...parsed,
+      // Preserve persisted session id; if absent (legacy persist), keep the fresh one.
+      onboardingSessionId: parsed.onboardingSessionId || fresh.onboardingSessionId,
+      ...ephemeral,
+    };
   } catch {
-    return INITIAL_STATE;
+    return fresh;
   }
 }
 
@@ -168,6 +196,7 @@ export function SignupProvider({ children }) {
     if (typeof window !== 'undefined') {
       try { window.localStorage.removeItem(SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
     }
+    // The reducer's 'reset' action mints a fresh onboardingSessionId.
     dispatch({ type: 'reset' });
   }, []);
 

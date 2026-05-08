@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { isValidUGPhone } from '../../utils/phone';
 import styles from './PhoneEntry.module.css';
 
 const ROLE_LABELS = {
@@ -24,8 +25,8 @@ export default function PhoneEntry({ role, onSubmit, onBack, hideBadge = false, 
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (phone.length < 9) {
-      setError('Enter a valid 9-digit phone number');
+    if (!isValidUGPhone(phone)) {
+      setError('Enter a valid Ugandan mobile number (e.g. 70X XXX XXX)');
       return;
     }
     setLoading(true);

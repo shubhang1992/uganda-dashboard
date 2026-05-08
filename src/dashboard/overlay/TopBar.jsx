@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useChildren } from '../../hooks/useEntity';
@@ -6,6 +6,7 @@ import { CHILD_LEVEL } from '../../constants/levels';
 import { formatUGX, EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import { downloadCSV } from '../../utils/csv';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { useOutsideClick } from '../../hooks/useOutsideClick';
 import styles from './TopBar.module.css';
 
 const CHILD_LABEL_PLURAL = {
@@ -79,30 +80,8 @@ export default function TopBar() {
     setFilterOpen(false);
   }
 
-  // Close on outside click
-  useEffect(() => {
-    if (!filterOpen) return;
-    function handleClick(e) {
-      if (
-        filterRef.current && !filterRef.current.contains(e.target) &&
-        filterBtnRef.current && !filterBtnRef.current.contains(e.target)
-      ) {
-        setFilterOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [filterOpen]);
-
-  // Close on Escape
-  useEffect(() => {
-    if (!filterOpen) return;
-    function handleKey(e) {
-      if (e.key === 'Escape') setFilterOpen(false);
-    }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [filterOpen]);
+  // Close on outside click + Escape (handled together by useOutsideClick).
+  useOutsideClick(filterOpen, () => setFilterOpen(false), [filterRef, filterBtnRef]);
 
   // Filter config for current level
   const filterConfig = getFilterOptions(level, children);

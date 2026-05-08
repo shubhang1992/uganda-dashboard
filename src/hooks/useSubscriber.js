@@ -1,5 +1,13 @@
 // React Query hooks for the Subscriber dashboard.
 // Components consume these; never import from mockData directly.
+//
+// ── Optimistic-update pattern (used by user-facing mutations below) ──
+// onMutate snapshots affected caches and applies an optimistic patch so the
+// UI reflects the change immediately. onError restores from the snapshot
+// so a backend rejection doesn't leave the UI desynchronised. onSettled
+// invalidates the caches so the server's truth wins on the next refetch.
+// New mutations should follow the same shape — see `useUpdateProfile` and
+// `useUpdateNominees` as templates.
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
@@ -83,11 +91,37 @@ export function useUpdateSchedule(id) {
   });
 }
 
+/**
+ * Optimistically updates the cached subscriber's nominees so the UI reflects
+ * the change before the backend confirms. Rolls back on error.
+ */
 export function useUpdateNominees(id) {
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateSubscriber(id);
   return useMutation({
     mutationFn: (payload) => subscriberService.updateNominees(id, payload),
-    onSuccess: invalidate,
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: ['subscriberNominees', id] });
+      await queryClient.cancelQueries({ queryKey: ['currentSubscriber'] });
+      const previousNominees = queryClient.getQueryData(['subscriberNominees', id]);
+      const previousCurrent = queryClient.getQueriesData({ queryKey: ['currentSubscriber'] });
+      queryClient.setQueryData(['subscriberNominees', id], (old) =>
+        old ? { ...old, ...payload } : old,
+      );
+      queryClient.setQueriesData({ queryKey: ['currentSubscriber'] }, (old) =>
+        old ? { ...old, nominees: { ...(old.nominees || {}), ...payload } } : old,
+      );
+      return { previousNominees, previousCurrent };
+    },
+    onError: (_err, _payload, ctx) => {
+      if (ctx?.previousNominees !== undefined) {
+        queryClient.setQueryData(['subscriberNominees', id], ctx.previousNominees);
+      }
+      if (ctx?.previousCurrent) {
+        ctx.previousCurrent.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      }
+    },
+    onSettled: invalidate,
   });
 }
 
@@ -107,10 +141,28 @@ export function useUpdateInsuranceCover(id) {
   });
 }
 
+/**
+ * Optimistic profile update — the changed fields appear immediately across
+ * every cached `currentSubscriber` query and roll back if the backend rejects.
+ */
 export function useUpdateProfile(id) {
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateSubscriber(id);
   return useMutation({
     mutationFn: (updates) => subscriberService.updateProfile(id, updates),
-    onSuccess: invalidate,
+    onMutate: async (updates) => {
+      await queryClient.cancelQueries({ queryKey: ['currentSubscriber'] });
+      const previous = queryClient.getQueriesData({ queryKey: ['currentSubscriber'] });
+      queryClient.setQueriesData({ queryKey: ['currentSubscriber'] }, (old) =>
+        old ? { ...old, ...updates } : old,
+      );
+      return { previous };
+    },
+    onError: (_err, _updates, ctx) => {
+      if (ctx?.previous) {
+        ctx.previous.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      }
+    },
+    onSettled: invalidate,
   });
 }

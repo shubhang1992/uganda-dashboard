@@ -8,6 +8,8 @@
 // correlate the OCR result, NIRA verification, OTP check, face-match, and
 // AML/PEP screen across a single onboarding job.
 
+import { IS_DEV } from '../config/env';
+
 /* ──────────────────────────────────────────────────────────────────────── */
 /*  Image quality + OCR                                                     */
 /* ──────────────────────────────────────────────────────────────────────── */
@@ -68,6 +70,7 @@ export async function extractIdFields(payload) {
   // Future: const form = new FormData();
   //         form.append('front', payload.front);
   //         form.append('back', payload.back);
+  //         form.append('session_id', payload.sessionId);
   //         return api.post('/kyc/id-ocr', form);
   await delay(2200);
   if (!payload?.front || !payload?.back) {
@@ -99,11 +102,12 @@ export async function extractIdFields(payload) {
 
 /**
  * @endpoint POST /api/kyc/nira-verify
- * @param {{ nin: string, cardNumber: string, dob: string, fullName: string }} payload
+ * @param {{ nin: string, cardNumber: string, dob: string, fullName: string, sessionId?: string }} payload
  * @returns {Promise<NiraResult>}
  */
 export async function verifyNira(payload) {
   // Future: return api.post('/kyc/nira-verify', payload)
+  //   payload includes sessionId for stage correlation.
   void payload;
   await delay(2400);
   const forced = readForced('upensions_nira_force');
@@ -175,15 +179,20 @@ export async function verifyOtp(payload) {
 
 /**
  * @endpoint POST /api/kyc/face-match
- * @param {{ selfieFile: File|Blob, nin: string }} payload
+ * @param {{ selfieFile: File|Blob, nin: string, sessionId?: string }} payload
  * @returns {Promise<FaceMatchResult>}
  */
 export async function faceMatch(payload) {
   // Future: const form = new FormData();
   //         form.append('selfie', payload.selfieFile);
   //         form.append('nin', payload.nin);
+  //         form.append('session_id', payload.sessionId);
   //         return api.post('/kyc/face-match', form);
-  void payload;
+  // Defensive: a missing selfie blob means localStorage rehydration dropped the
+  // file. Surface a clear error rather than calling the backend with null.
+  if (!payload?.selfieFile) {
+    throw new Error('Selfie image is missing — please retake.');
+  }
   await delay(2200);
   const forced = readForced('upensions_face_force');
   const outcome = forced || 'ok';
@@ -208,7 +217,7 @@ export async function faceMatch(payload) {
 
 /**
  * @endpoint POST /api/kyc/aml-screen
- * @param {{ fullName: string, dob: string, nin: string }} payload
+ * @param {{ fullName: string, dob: string, nin: string, sessionId?: string }} payload
  * @returns {Promise<AmlResult>}
  * @description AML sanction-list + PEP screening via Smile ID's compliance API.
  *   Flagged users are routed to back-office review; they do not see the reason.
@@ -216,6 +225,7 @@ export async function faceMatch(payload) {
  */
 export async function screenAml(payload) {
   // Future: return api.post('/kyc/aml-screen', payload)
+  //   payload includes sessionId for stage correlation.
   void payload;
   await delay(1700);
   const forced = readForced('upensions_aml_force'); // 'flagged' to force review
@@ -231,11 +241,12 @@ export async function screenAml(payload) {
 
 /**
  * @endpoint POST /api/kyc/agent-referral
- * @param {{ phone: string, reason: string, stage?: string, trackingId?: string }} payload
+ * @param {{ phone: string, reason: string, stage?: string, trackingId?: string, sessionId?: string }} payload
  * @returns {Promise<{ ticketId: string, eta: string }>}
  */
 export async function referToAgent(payload) {
   // Future: return api.post('/kyc/agent-referral', payload)
+  //   payload includes sessionId so back-office can find the related KYC job.
   void payload;
   await delay(600);
   return {
@@ -257,6 +268,9 @@ function mockTrackingId() {
 }
 
 function readForced(key) {
+  // QA force-overrides only apply in development. In production these keys are
+  // ignored so a user with devtools cannot bypass any KYC stage.
+  if (!IS_DEV) return null;
   if (typeof window === 'undefined') return null;
   try {
     return window.localStorage.getItem(key);

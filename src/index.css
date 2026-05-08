@@ -182,6 +182,26 @@ a:focus-visible {
   padding: 0 var(--space-8);
 }
 
+/* Utility: tabular numbers — used wherever numeric values are listed in a
+   column (balance, amount, count) so digits align column-wise. Replaces the
+   per-component `font-variant-numeric: tabular-nums` inline style. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Utility: centered inline-text — replaces `style={{ textAlign: 'center' }}`.
+   Used by signup-step h2 / p elements where the heading sits above a centered
+   illustration. */
+.textCenter {
+  text-align: center;
+}
+
+/* Utility: capitalize first letter of each word — replaces
+   `style={{ textTransform: 'capitalize' }}`. */
+.capitalize {
+  text-transform: capitalize;
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 0 var(--space-6);

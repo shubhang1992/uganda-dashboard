@@ -163,15 +163,14 @@ function computeAlerts(metrics, commissionSummary) {
   const dormant = totalSubs - activeSubs;
   const kycIssues = (metrics.kycPending || 0) + (metrics.kycIncomplete || 0);
   const settlementRate = commissionSummary?.settlementRate || 0;
-  const mc = metrics.monthlyContributions || [];
-  const declining = mc.length >= 2 && mc[11] < mc[10]
-    ? Math.round(((mc[10] - mc[11]) / (mc[10] || 1)) * totalSubs * 0.3)
-    : 0;
+  // The previous "Declining" alert derived a count from MoM contribution
+  // change × totalSubs × 0.3 — a fabrication with no real grounding. Removed
+  // until the backend can supply a real "subscribers whose last contribution
+  // is N+ days old" count. Reintroduce as a 4th alert when that field exists.
   return [
     { value: dormant, label: 'Dormant', sub: 'Not contributing', severity: dormant > 0 ? 'warning' : 'ok', action: 'report', reportId: 'all-subscribers' },
     { value: kycIssues, label: 'KYC Issues', sub: 'Pending or incomplete', severity: kycIssues > 0 ? 'alert' : 'ok', action: 'report', reportId: 'kyc-compliance' },
     { value: `${Math.round(settlementRate)}%`, label: 'Settled', sub: 'Commission rate', severity: 'neutral', action: 'commissions' },
-    { value: declining, label: 'Declining', sub: 'Contribution dropping', severity: declining > 0 ? 'warning' : 'ok', action: 'report', reportId: 'contributions-collections' },
   ];
 }
 

@@ -1,5 +1,10 @@
 // React Query hooks for entity data — components import these, never mockData directly.
 // When backend is ready, only the service layer changes. These hooks stay the same.
+//
+// Mutations follow the optimistic-update pattern: onMutate snapshots, applies a
+// patch, and returns the snapshot; onError restores it; onSettled invalidates
+// for the server's truth. See `useUpdateBranch` and `useSetBranchStatus` for
+// templates new mutations should follow.
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as entities from '../services/entities';
@@ -162,13 +167,28 @@ export function useCreateAgent() {
 
 /**
  * Mutation to apply partial updates to a branch (admin info, name, etc).
+ * Optimistically patches the cached entity so the detail panel reflects the
+ * change immediately; rolls back on error.
  * @returns {import('@tanstack/react-query').UseMutationResult}
  */
 export function useUpdateBranch() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, updates }) => entities.updateBranch(id, updates),
-    onSuccess: (_data, { id }) => {
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['entity', 'branch', id] });
+      const previous = queryClient.getQueryData(['entity', 'branch', id]);
+      queryClient.setQueryData(['entity', 'branch', id], (old) =>
+        old ? { ...old, ...updates } : old,
+      );
+      return { previous };
+    },
+    onError: (_err, { id }, ctx) => {
+      if (ctx?.previous !== undefined) {
+        queryClient.setQueryData(['entity', 'branch', id], ctx.previous);
+      }
+    },
+    onSettled: (_data, _err, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['entity', 'branch', id] });
       queryClient.invalidateQueries({ queryKey: ['entities', 'branch'] });
       queryClient.invalidateQueries({ queryKey: ['children'] });
@@ -177,14 +197,29 @@ export function useUpdateBranch() {
 }
 
 /**
- * Mutation to flip a branch between active and inactive.
+ * Mutation to flip a branch between active and inactive. Optimistically
+ * updates the cached entity so the status pill flips instantly; rolls back
+ * on error.
  * @returns {import('@tanstack/react-query').UseMutationResult}
  */
 export function useSetBranchStatus() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, status }) => entities.setBranchStatus(id, status),
-    onSuccess: (_data, { id }) => {
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['entity', 'branch', id] });
+      const previous = queryClient.getQueryData(['entity', 'branch', id]);
+      queryClient.setQueryData(['entity', 'branch', id], (old) =>
+        old ? { ...old, status } : old,
+      );
+      return { previous };
+    },
+    onError: (_err, { id }, ctx) => {
+      if (ctx?.previous !== undefined) {
+        queryClient.setQueryData(['entity', 'branch', id], ctx.previous);
+      }
+    },
+    onSettled: (_data, _err, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['entity', 'branch', id] });
       queryClient.invalidateQueries({ queryKey: ['entities', 'branch'] });
       queryClient.invalidateQueries({ queryKey: ['children'] });

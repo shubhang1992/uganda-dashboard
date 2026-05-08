@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { isValidUGPhone } from '../../utils/phone';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useCreateAgent } from '../../hooks/useEntity';
@@ -73,7 +74,7 @@ export default function CreateAgent({ splitMode = false }) {
   function validateDetails() {
     const e = {};
     if (!fullName.trim()) e.fullName = 'Full name is required';
-    if (phone.length < 9) e.phone = 'Enter a valid 9-digit phone number';
+    if (!isValidUGPhone(phone)) e.phone = 'Enter a valid Ugandan mobile number';
     if (!gender) e.gender = 'Select a gender';
     setErrors(e);
     return Object.keys(e).length === 0;

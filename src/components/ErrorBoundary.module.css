@@ -1,0 +1,50 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-family: var(--font-body);
+  color: var(--color-slate);
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.title {
+  font-family: var(--font-display);
+  color: var(--color-indigo);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  margin: 0;
+}
+
+.message {
+  color: var(--color-gray);
+  max-width: 400px;
+  margin: 0;
+}
+
+.refreshBtn {
+  background: var(--color-indigo);
+  color: var(--color-white);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 0.75rem 2rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.refreshBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(41, 40, 103, 0.3);
+}
+
+.refreshBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}

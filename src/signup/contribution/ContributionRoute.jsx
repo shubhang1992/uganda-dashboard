@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 import { useSignup } from '../SignupContext';
 import ContributionSettings from './ContributionSettings';
 
@@ -15,11 +16,20 @@ export default function ContributionRoute() {
   const navigate = useNavigate();
   const { contributionSchedule, dob, phone, fullName, patch } = useSignup();
   const { login } = useAuth();
+  const { addToast } = useToast();
 
-  function handleConfirm(schedule) {
+  async function handleConfirm(schedule) {
     patch({ contributionSchedule: schedule });
-    login({ role: 'subscriber', phone, name: fullName || 'Subscriber' });
-    navigate('/dashboard', { replace: true });
+    try {
+      // login() is sync today but may become async with a real backend.
+      // Promise.resolve makes the try/catch correct in either case.
+      await Promise.resolve(
+        login({ role: 'subscriber', phone, name: fullName || 'Subscriber' })
+      );
+      navigate('/dashboard', { replace: true });
+    } catch {
+      addToast('error', 'Could not finish signup. Please try again.');
+    }
   }
 
   function handleCancel() {

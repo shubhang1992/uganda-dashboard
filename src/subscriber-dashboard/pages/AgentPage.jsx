@@ -8,6 +8,9 @@ import PageHeader from '../shell/PageHeader';
 import styles from './AgentPage.module.css';
 
 const STORAGE_KEY = 'up-sub-agent-messages';
+// Cap stored history so the localStorage quota can't be exhausted by a long-
+// running thread. We keep the most recent N messages.
+const MAX_PERSISTED_MESSAGES = 100;
 
 function loadMessages(subId) {
   if (typeof window === 'undefined' || !subId) return null;
@@ -20,7 +23,10 @@ function loadMessages(subId) {
 function persistMessages(subId, messages) {
   if (typeof window === 'undefined' || !subId) return;
   try {
-    window.localStorage.setItem(`${STORAGE_KEY}-${subId}`, JSON.stringify(messages));
+    const trimmed = messages.length > MAX_PERSISTED_MESSAGES
+      ? messages.slice(-MAX_PERSISTED_MESSAGES)
+      : messages;
+    window.localStorage.setItem(`${STORAGE_KEY}-${subId}`, JSON.stringify(trimmed));
   } catch { /* ignore */ }
 }
 

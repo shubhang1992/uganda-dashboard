@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO, formatUGX, monthlyEquivalent } from '../../../utils/finance';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useEntity } from '../../../hooks/useEntity';
 import { useAgentSubscribers } from '../../../hooks/useAgent';
-import { useAgentCommissionDetail } from '../../../hooks/useCommission';
-import { cycleWindow, getCadencePref } from '../../../utils/settlementCycle';
+import { useAgentCommissionDetail, useNetworkCadence } from '../../../hooks/useCommission';
+import { useCountUp } from '../../../hooks/useCountUp';
+import { cycleWindow, CADENCES } from '../../../utils/settlementCycle';
 import styles from './PortfolioPulseCard.module.css';
 
 function hourGreeting() {
@@ -16,31 +17,14 @@ function hourGreeting() {
   return 'evening';
 }
 
-function useCountUp(target, duration = 1100, run = true) {
-  const [v, setV] = useState(0);
-  const active = run && Number.isFinite(target) && target > 0;
-  useEffect(() => {
-    if (!active) return undefined;
-    let raf;
-    const start = performance.now();
-    function step(now) {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
-      setV(target * eased);
-      if (t < 1) raf = requestAnimationFrame(step);
-    }
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration, active]);
-  return active ? v : 0;
-}
-
 export default function PortfolioPulseCard({ agentId }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: agent } = useEntity('agent', agentId);
   const { data: subscribers = [] } = useAgentSubscribers(agentId);
   const { data: commissionDetail } = useAgentCommissionDetail(agentId);
+  const { data: cadenceCfg } = useNetworkCadence();
+  const cadence = cadenceCfg?.cadence || CADENCES.MONTHLY_FIRST;
 
   const firstName = (user?.name || agent?.name || 'there').split(' ')[0];
 
@@ -85,13 +69,15 @@ export default function PortfolioPulseCard({ agentId }) {
 
   const commissions = useMemo(() => {
     const all = commissionDetail?.commissions || [];
-    const win = cycleWindow(getCadencePref());
+    const win = cycleWindow(cadence);
 
     let totalPaid = 0;
     let nextPayout = 0;
     for (const c of all) {
-      if (c.status === 'paid') totalPaid += c.amount || 0;
-      if (c.status === 'due') {
+      if (c.status === 'released' || c.status === 'confirmed') totalPaid += c.amount || 0;
+      if (c.status === 'in_run') {
+        nextPayout += c.amount || 0;
+      } else if (c.status === 'due') {
         const d = c.dueDate ? new Date(c.dueDate).getTime() : null;
         if (d != null && !Number.isNaN(d) && d <= win.end.getTime()) {
           nextPayout += c.amount || 0;
@@ -99,7 +85,7 @@ export default function PortfolioPulseCard({ agentId }) {
       }
     }
     return { totalPaid, nextPayout };
-  }, [commissionDetail]);
+  }, [commissionDetail, cadence]);
 
   const counted = useCountUp(portfolio.monthly);
   const splitTotal = portfolio.active + portfolio.dormant;

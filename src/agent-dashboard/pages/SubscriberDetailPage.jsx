@@ -1,8 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { formatUGX, formatUGXExact, normalizeFrequency } from '../../utils/finance';
+import { formatUGX, formatUGXExact, normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
 import { getInitials } from '../../utils/dashboard';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
+import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../shell/PageHeader';
 import styles from './SubscriberDetailPage.module.css';
 
@@ -33,9 +34,13 @@ function KycBadge() {
 }
 
 function SparkBars({ values }) {
+  // Values are derived deterministically from a sin curve over the subscriber's
+  // contribution total (`sparkValues` in the parent) — they're an estimated
+  // trend, not real per-month history. Replace once the backend supplies a
+  // real `contributionHistory` array.
   const max = Math.max(...values, 1);
   return (
-    <div className={styles.spark}>
+    <div className={styles.spark} aria-label="Estimated 12-month contribution trend">
       {values.map((v, i) => (
         <div key={i} className={styles.sparkBar} style={{ height: `${Math.max((v / max) * 100, 4)}%` }} />
       ))}
@@ -43,19 +48,11 @@ function SparkBars({ values }) {
   );
 }
 
-const FREQUENCY_LABEL = {
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  'half-yearly': 'Half-yearly',
-  annually: 'Annually',
-};
-
 export default function SubscriberDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { agentId } = useAgentScope();
-  const { data: subscribers = [], isLoading } = useAgentSubscribers(agentId);
+  const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
 
   const subscriber = subscribers.find((s) => s.id === id);
 
@@ -64,6 +61,21 @@ export default function SubscriberDetailPage() {
       <div className={styles.page}>
         <PageHeader title="Loading…" fallback="/dashboard/subscribers" />
         <div className={styles.empty}><div className={styles.spinner} /></div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className={styles.page}>
+        <PageHeader title="Subscriber" fallback="/dashboard/subscribers" />
+        <div className={styles.empty}>
+          <ErrorCard
+            title="We couldn't load this subscriber"
+            message={error}
+            onRetry={refetch}
+          />
+        </div>
       </div>
     );
   }
@@ -181,7 +193,7 @@ export default function SubscriberDetailPage() {
         <section className={styles.section}>
           <header className={styles.sectionHead}>
             <h2 className={styles.sectionTitle}>Contribution rhythm</h2>
-            <span className={styles.sectionHint}>last 12 months</span>
+            <span className={styles.sectionHint}>estimated trend · 12 months</span>
           </header>
           <div className={styles.trendCard}>
             <SparkBars values={sparkValues} />

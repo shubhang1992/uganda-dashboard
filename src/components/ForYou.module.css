@@ -72,8 +72,14 @@
   border-color: var(--color-indigo);
 }
 
-.tabEmoji {
-  font-size: 1.1em;
+.tabIcon {
+  display: inline-flex;
+  align-items: center;
+  color: currentColor;
+}
+
+.tabIcon svg {
+  display: block;
 }
 
 .panel {

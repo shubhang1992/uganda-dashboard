@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { EASE_OUT_EXPO } from '../utils/finance';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import styles from './FAQ.module.css';
-
-const EASE_OUT_EXPO = [0.16, 1, 0.3, 1];
 
 const FAQ_ITEMS = [
   {

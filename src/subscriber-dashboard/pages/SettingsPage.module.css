@@ -155,6 +155,18 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* "Coming soon" rows are non-interactive and visually muted so users don't
+   navigate to a stub page. */
+.sectionRow[data-soon] {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.sectionRow[data-soon]:hover {
+  border-color: var(--color-lavender);
+  box-shadow: none;
+}
+
 .sectionIcon {
   flex: 0 0 auto;
   width: 36px;

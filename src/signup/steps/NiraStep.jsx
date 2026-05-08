@@ -7,9 +7,21 @@ import EducationalLoader from '../EducationalLoader';
 import styles from './Step.module.css';
 import own from './NiraStep.module.css';
 
+const FIELD_LABELS = {
+  dob: 'Date of birth',
+  fullName: 'Full name',
+  nin: 'National ID number',
+  cardNumber: 'Card number',
+};
+
 export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
   const signup = useSignup();
-  const [state, setState] = useState(signup.niraResult ? 'done' : 'running');
+  const [state, setState] = useState(() => {
+    if (!signup.niraResult) return 'running';
+    if (signup.niraResult === 'partial') return 'partial';
+    if (signup.niraResult === 'match') return 'done';
+    return 'done';
+  });
 
   useEffect(() => {
     if (signup.niraResult) return;
@@ -21,6 +33,7 @@ export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
           nin: signup.nin,
           cardNumber: signup.cardNumber,
           dob: signup.dob,
+          sessionId: signup.onboardingSessionId,
         });
         if (cancelled) return;
         signup.patch({
@@ -28,12 +41,16 @@ export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
           niraMismatchedFields: res.mismatchedFields || [],
           niraTrackingId: res.trackingId,
         });
-        if (res.result === 'match' || res.result === 'partial') {
+        if (res.result === 'match') {
           // Show a confirmation beat so the user sees the verdict before
           // the flow advances — prevents the "did something just happen?"
           // confusion of a silent auto-advance.
           setState('verified');
           setTimeout(() => { if (!cancelled) onNext(); }, 1100);
+        } else if (res.result === 'partial') {
+          // Don't auto-advance on a partial match — surface the mismatch so
+          // the user can decide to fix it or proceed flagged-for-review.
+          setState('partial');
         } else {
           setState('done');
         }
@@ -75,8 +92,8 @@ export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
             />
           </svg>
         </motion.div>
-        <h2 className={styles.heading} style={{ textAlign: 'center' }}>Identity verified</h2>
-        <p className={styles.subtext} style={{ textAlign: 'center' }} role="status">
+        <h2 className={`${styles.heading} textCenter`}>Identity verified</h2>
+        <p className={`${styles.subtext} textCenter`} role="status">
           Your details match NIRA records. Taking you to the next step…
         </p>
       </div>
@@ -97,7 +114,61 @@ export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
     );
   }
 
-  /* ── Partial: handled silently — orchestrator auto-advances. Shouldn't render this branch. ── */
+  /* ── Partial: surface mismatched fields, let user choose next step ───── */
+  if (state === 'partial') {
+    const mismatched = signup.niraMismatchedFields || [];
+    return (
+      <div className={styles.card}>
+        <motion.div
+          className={own.resultIcon}
+          data-kind="warn"
+          initial={{ scale: 0.5, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
+        >
+          <svg viewBox="0 0 56 56" width="56" height="56" fill="none" aria-hidden="true">
+            <circle cx="28" cy="28" r="26" stroke="currentColor" strokeWidth="2.5"/>
+            <path d="M28 16v14M28 38v2" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+          </svg>
+        </motion.div>
+
+        <h2 className={`${styles.heading} textCenter`}>
+          We need to double-check one thing
+        </h2>
+        <p className={`${styles.subtext} textCenter`}>
+          NIRA found your record but flagged a small difference:
+        </p>
+
+        {mismatched.length > 0 && (
+          <ul className={own.mismatchList}>
+            {mismatched.map((f) => (
+              <li key={f}>{FIELD_LABELS[f] || f}</li>
+            ))}
+          </ul>
+        )}
+
+        <p className={`${styles.subtext} textCenter`}>
+          You can correct the field and re-verify, or continue — your application will be flagged for a quick back-office review.
+        </p>
+
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.submit}
+            onClick={() => {
+              signup.patch({ niraResult: null, niraMismatchedFields: [] });
+              onEdit();
+            }}
+          >
+            Fix and re-verify
+          </button>
+          <button type="button" className={styles.secondaryBtn} onClick={onNext}>
+            Continue (flagged for review)
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   /* ── No match: block + retry + agent fallback ───────────────────────── */
   return (
@@ -115,8 +186,8 @@ export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
         </svg>
       </motion.div>
 
-      <h2 className={styles.heading} style={{ textAlign: 'center' }}>We couldn’t verify you</h2>
-      <p className={styles.subtext} style={{ textAlign: 'center' }}>
+      <h2 className={`${styles.heading} textCenter`}>We couldn’t verify you</h2>
+      <p className={`${styles.subtext} textCenter`}>
         Your details didn’t match an existing record. Check your NIN and date of birth, then try again. If the problem continues, an agent can help in person.
       </p>
 

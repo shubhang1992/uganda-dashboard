@@ -4,6 +4,7 @@ import { formatUGX } from '../../utils/finance';
 import { getInitials } from '../../utils/dashboard';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
+import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../shell/PageHeader';
 import styles from './SubscribersPage.module.css';
 
@@ -32,7 +33,7 @@ function StatusPill({ status }) {
 export default function SubscribersPage() {
   const navigate = useNavigate();
   const { agentId } = useAgentScope();
-  const { data: subscribers = [], isLoading } = useAgentSubscribers(agentId);
+  const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -118,7 +119,16 @@ export default function SubscribersPage() {
             <p>Loading your subscribers…</p>
           </div>
         )}
-        {!isLoading && filtered.length === 0 && (
+        {isError && !isLoading && (
+          <div className={styles.empty}>
+            <ErrorCard
+              title="We couldn't load your subscribers"
+              message={error}
+              onRetry={refetch}
+            />
+          </div>
+        )}
+        {!isLoading && !isError && filtered.length === 0 && (
           <div className={styles.empty}>
             <p className={styles.emptyTitle}>No subscribers match</p>
             <p>Try clearing the search or switching the filter.</p>

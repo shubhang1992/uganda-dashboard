@@ -2,7 +2,9 @@ import { useMemo } from 'react';
 import { useCurrentSubscriber } from '../../../hooks/useSubscriber';
 import { formatUGX, formatUGXExact } from '../../../utils/finance';
 import { downloadCSV } from '../../../utils/csv';
-import ReportTable from '../../../dashboard/reports/ReportTable';
+import ReportTable from '../../../components/reports/ReportTable';
+import ErrorCard from '../../../components/feedback/ErrorCard';
+import ExportButton from '../../../components/reports/ExportButton';
 import frameStyles from './ReportFrame.module.css';
 
 function formatDate(iso) {
@@ -25,7 +27,7 @@ function statusTone(s) {
 }
 
 export default function InsuranceStatement() {
-  const { data: sub } = useCurrentSubscriber();
+  const { data: sub, isError, error, refetch } = useCurrentSubscriber();
   const insurance = sub?.insurance || {};
   const claims = useMemo(() => sub?.claims || [], [sub?.claims]);
   const premiumTx = useMemo(
@@ -92,6 +94,16 @@ export default function InsuranceStatement() {
     downloadCSV(`insurance-statement-${stamp}.csv`, headers, rows);
   }
 
+  if (isError) {
+    return (
+      <ErrorCard
+        title="We couldn't load your insurance statement"
+        message={error}
+        onRetry={refetch}
+      />
+    );
+  }
+
   return (
     <div className={frameStyles.frame}>
       <div className={frameStyles.headerRow}>
@@ -99,13 +111,7 @@ export default function InsuranceStatement() {
           <span className={frameStyles.eyebrow}>Your coverage at a glance</span>
           <span className={frameStyles.headerDesc}>Premiums, claims, and your current policy.</span>
         </div>
-        <button type="button" className={frameStyles.exportBtn} onClick={handleExport}>
-          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="14" height="14">
-            <path d="M10 3v10M10 13l-3-3M10 13l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M3 15v2h14v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          <span>Export CSV</span>
-        </button>
+        <ExportButton onExport={handleExport} />
       </div>
 
       <div className={frameStyles.kpiStrip}>

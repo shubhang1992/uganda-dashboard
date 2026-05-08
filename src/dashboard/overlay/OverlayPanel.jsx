@@ -377,15 +377,18 @@ export default function OverlayPanel() {
   const metrics = isInactive ? null : currentEntity.metrics;
   const aum = metrics ? (metrics.aum || metrics.totalContributions) : 0;
 
+  // Slide is driven by CSS `transform: translateX(...)` (GPU-accelerated) on
+  // the `.panel` class via a `data-offset` attribute; previously this animated
+  // the `left` property, which forced layout repaints over the heavy map.
+  // Framer handles only the entrance fade — `x: 0` in `animate` ensures the
+  // CSS-controlled transform is not overridden by Framer's inline styles.
+  const isOffset = !isMobile && (branchMenuOpen || agentMenuOpen || subscriberMenuOpen);
   return (
     <motion.div
       className={styles.panel}
-      initial={{ opacity: 0, x: -20 }}
-      animate={{
-        opacity: 1,
-        x: 0,
-        left: isMobile ? 'auto' : (branchMenuOpen || agentMenuOpen || subscriberMenuOpen) ? 'calc(100% - 310px - var(--space-6))' : 'var(--space-6)',
-      }}
+      data-offset={isOffset || undefined}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ duration: 0.45, ease: EASE }}
     >
       {/* Panel header: title/back + search */}

@@ -47,6 +47,9 @@ const FAQS = [
 ];
 
 const STORAGE_KEY = 'up-sub-help-messages';
+// Cap stored history so a heavy chatter (or bot loop) can't exhaust the
+// localStorage quota. Keep the most recent N messages.
+const MAX_PERSISTED_MESSAGES = 100;
 
 function loadMessages(subId) {
   if (typeof window === 'undefined' || !subId) return null;
@@ -59,7 +62,10 @@ function loadMessages(subId) {
 function persistMessages(subId, messages) {
   if (typeof window === 'undefined' || !subId) return;
   try {
-    window.localStorage.setItem(`${STORAGE_KEY}-${subId}`, JSON.stringify(messages));
+    const trimmed = messages.length > MAX_PERSISTED_MESSAGES
+      ? messages.slice(-MAX_PERSISTED_MESSAGES)
+      : messages;
+    window.localStorage.setItem(`${STORAGE_KEY}-${subId}`, JSON.stringify(trimmed));
   } catch { /* ignore */ }
 }
 

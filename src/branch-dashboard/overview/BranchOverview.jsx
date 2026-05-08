@@ -6,6 +6,7 @@ import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import BranchHealthScore from './BranchHealthScore';
 import OperationsSection from './OperationsSection';
+import BranchSettlementBanner from './BranchSettlementBanner';
 import styles from './BranchOverview.module.css';
 
 // Panel widths in split mode → used to compute the overview's right padding
@@ -79,6 +80,8 @@ export default function BranchOverview() {
       <div className={styles.opsWrap}>
         <OperationsSection agents={agents} commissionSummary={commissionSummary} metrics={metrics} />
       </div>
+
+      <BranchSettlementBanner />
     </div>
   );
 }

@@ -1,0 +1,88 @@
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
+  color: var(--color-white);
+  box-shadow: 0 12px 32px rgba(27, 26, 74, 0.18);
+  margin-top: var(--space-4);
+}
+
+.banner[data-state='approved'] {
+  background: linear-gradient(135deg, var(--color-status-good) 0%, #1f6d44 100%);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(217, 220, 242, 0.85);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.sub {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: rgba(217, 220, 242, 0.78);
+}
+
+.cta {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-full);
+  background: var(--color-white);
+  color: var(--color-indigo);
+  border: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.cta:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.banner[data-state='approved'] .cta {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--color-white);
+}
+
+.banner[data-state='approved'] .cta:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+@media (max-width: 600px) {
+  .banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cta {
+    width: 100%;
+  }
+}

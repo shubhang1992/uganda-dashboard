@@ -1,8 +1,9 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO, formatUGXExact, formatUGX, calcFV, monthlyEquivalent } from '../../../utils/finance';
 import { RETIREMENT_AGE, START_AGE } from '../../../constants/savings';
+import { useCountUp } from '../../../hooks/useCountUp';
 import styles from './PulseCard.module.css';
 
 function hourGreeting() {
@@ -10,25 +11,6 @@ function hourGreeting() {
   if (h < 12) return 'morning';
   if (h < 17) return 'afternoon';
   return 'evening';
-}
-
-function useCountUp(target, duration = 1100, run = true) {
-  const [v, setV] = useState(0);
-  const active = run && Number.isFinite(target) && target > 0;
-  useEffect(() => {
-    if (!active) return;
-    let raf;
-    const start = performance.now();
-    function step(now) {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
-      setV(target * eased);
-      if (t < 1) raf = requestAnimationFrame(step);
-    }
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration, active]);
-  return active ? v : 0;
 }
 
 export default function PulseCard({ subscriber, user }) {

@@ -1,0 +1,16 @@
+.fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+  min-height: 40vh;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid var(--color-lavender);
+  border-top-color: var(--color-indigo);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
