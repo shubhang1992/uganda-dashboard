@@ -1,31 +1,76 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { isValidUGPhone } from '../../utils/phone';
 import { useCurrentSubscriber, useUpdateProfile } from '../../hooks/useSubscriber';
+import { useAllEntities } from '../../hooks/useEntity';
 import { useToast } from '../../contexts/ToastContext';
 import PageHeader from '../shell/PageHeader';
 import styles from './ProfilePage.module.css';
 
 const UG_PREFIX = '+256';
 
+const OCCUPATION_LABEL = {
+  farmer: 'Farmer',
+  trader: 'Trader / shopkeeper',
+  'boda-boda': 'Boda-boda rider',
+  artisan: 'Artisan / craftsperson',
+  'market-vendor': 'Market vendor',
+  other: 'Other',
+};
+
 function digitsOnly(s) {
   return String(s || '').replace(/\D/g, '');
+}
+
+function formatDob(dob) {
+  if (!dob) return '—';
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function titleCase(s) {
+  if (!s) return '—';
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { data: sub } = useCurrentSubscriber();
+  const { data: districts = [] } = useAllEntities('district');
   const { addToast } = useToast();
   const updateProfile = useUpdateProfile(sub?.id);
 
-  const [name, setName] = useState(sub?.name || '');
-  const [email, setEmail] = useState(sub?.email || '');
-  const [phoneDigits, setPhoneDigits] = useState(
-    sub?.phone ? sub.phone.replace(/^\+256/, '').replace(/\D/g, '') : ''
-  );
+  const districtName = useMemo(() => {
+    if (!sub?.districtId) return null;
+    return districts.find((d) => d.id === sub.districtId)?.name ?? null;
+  }, [sub?.districtId, districts]);
+
+  const occupationLabel = sub?.occupation
+    ? OCCUPATION_LABEL[sub.occupation] ?? titleCase(sub.occupation)
+    : '—';
+
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phoneDigits, setPhoneDigits] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Hydrate the form once `sub` arrives from React Query — useState's
+  // initializer runs once on first render when `sub` is undefined, so without
+  // this effect the form stays blank for the user. Same pattern as the agent
+  // SettingsPage hydration fix.
+  useEffect(() => {
+    if (!sub) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- hydrate form from query result */
+    setName(sub.name ?? '');
+    setEmail(sub.email ?? '');
+    setPhoneDigits(
+      sub.phone ? sub.phone.replace(/^\+256/, '').replace(/\D/g, '') : ''
+    );
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [sub]);
 
   const dirty =
     name !== (sub?.name || '') ||
@@ -34,7 +79,7 @@ export default function ProfilePage() {
 
   const validName = name.trim().length >= 2;
   const validPhone = isValidUGPhone(phoneDigits);
-  const validEmail = !email || /^\S+@\S+\.\S+$/.test(email);
+  const validEmail = !email || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
   const canSave = dirty && validName && validPhone && validEmail;
 
   async function handleSave() {
@@ -122,8 +167,20 @@ export default function ProfilePage() {
                 <span className={styles.readonlyValue}>{sub?.nin || '—'}</span>
               </li>
               <li>
+                <span className={styles.readonlyLabel}>Date of birth</span>
+                <span className={styles.readonlyValue}>{formatDob(sub?.dob)}</span>
+              </li>
+              <li>
+                <span className={styles.readonlyLabel}>Gender</span>
+                <span className={styles.readonlyValue}>{titleCase(sub?.gender)}</span>
+              </li>
+              <li>
+                <span className={styles.readonlyLabel}>Occupation</span>
+                <span className={styles.readonlyValue}>{occupationLabel}</span>
+              </li>
+              <li>
                 <span className={styles.readonlyLabel}>District</span>
-                <span className={styles.readonlyValue}>{sub?.district || '—'}</span>
+                <span className={styles.readonlyValue}>{districtName || '—'}</span>
               </li>
               <li>
                 <span className={styles.readonlyLabel}>Member ID</span>

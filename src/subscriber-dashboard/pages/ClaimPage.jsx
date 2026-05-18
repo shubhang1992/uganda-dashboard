@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO, formatUGXExact, formatUGX, parseAmount } from '../../utils/finance';
-import { useCurrentSubscriber, useSubmitClaim } from '../../hooks/useSubscriber';
+import { useCurrentSubscriber, useSubmitClaim, useSubscriberClaims } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import PageHeader from '../shell/PageHeader';
 import { goBackOrFallback } from '../shell/navigation';
@@ -14,6 +14,8 @@ const CLAIM_TYPES = [
   { id: 'hospitalization',  label: 'Hospitalisation' },
   { id: 'critical_illness', label: 'Critical illness' },
 ];
+
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -48,7 +50,7 @@ export default function ClaimPage() {
   const [resultClaim, setResultClaim] = useState(null);
 
   const insurance = sub?.insurance;
-  const claims = sub?.claims || [];
+  const { data: claims = [] } = useSubscriberClaims(sub?.id);
   const noPolicy = !insurance || insurance.status !== 'active';
 
   const claimAmtNum = parseAmount(claimAmount) ?? 0;
@@ -64,8 +66,16 @@ export default function ClaimPage() {
     // Keep the actual File objects, not just metadata, so they can be uploaded
     // when the backend lands. Display fields (.name, .size) read straight off
     // each File. Cap at 4 to mirror the dropzone copy.
-    const files = Array.from(e.target.files || []).slice(0, 4);
-    setClaimFiles(files);
+    const picked = Array.from(e.target.files || []).slice(0, 4);
+    const tooLarge = picked.find((f) => f.size > MAX_FILE_BYTES);
+    if (tooLarge) {
+      addToast('error', `${tooLarge.name} is over 5MB — please upload a smaller file.`);
+      // Reset the input so the same oversized file can be re-selected after
+      // the user picks a smaller replacement.
+      e.target.value = '';
+      return;
+    }
+    setClaimFiles(picked);
   }
 
   function removeFileAt(index) {
@@ -90,6 +100,8 @@ export default function ClaimPage() {
       setResultClaim(claim);
       setView('success');
       addToast('success', 'Claim submitted. We’ll be in touch shortly.');
+    } catch (err) {
+      addToast('error', err?.message || 'Could not submit claim.');
     } finally {
       setSubmitting(false);
     }

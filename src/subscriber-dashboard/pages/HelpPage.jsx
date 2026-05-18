@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
+import { useToast } from '../../contexts/ToastContext';
 import { getSubscriberChatResponse } from '../../services/chat';
 import {
   SUPPORT_WHATSAPP_URL,
@@ -72,6 +73,7 @@ function persistMessages(subId, messages) {
 export default function HelpPage() {
   const navigate = useNavigate();
   const { data: sub } = useCurrentSubscriber();
+  const { addToast } = useToast();
   const subId = sub?.id;
 
   const [view, setView] = useState('home'); // home | chat
@@ -110,12 +112,17 @@ export default function HelpPage() {
     setMessages((prev) => [...prev, { role: 'user', text: msg, at: Date.now() }]);
     setInput('');
     setIsTyping(true);
-    getSubscriberChatResponse(msg).then((response) => {
-      setTimeout(() => {
+    getSubscriberChatResponse(msg)
+      .then((response) => {
+        setTimeout(() => {
+          setIsTyping(false);
+          setMessages((prev) => [...prev, { role: 'assistant', text: response, at: Date.now() }]);
+        }, 900);
+      })
+      .catch((err) => {
         setIsTyping(false);
-        setMessages((prev) => [...prev, { role: 'assistant', text: response, at: Date.now() }]);
-      }, 900);
-    });
+        addToast('error', err?.message || 'Could not reach support — please try again.');
+      });
   }
 
   const filteredFaqs = useMemo(() => {

@@ -23,6 +23,8 @@ export default function SchedulePage() {
       await updateSchedule.mutateAsync(schedule);
       addToast('success', isNew ? 'Schedule set up.' : 'Contribution schedule updated.');
       navigate('/dashboard');
+    } catch (err) {
+      addToast('error', err?.message || 'Could not save schedule.');
     } finally {
       setSubmitting(false);
     }

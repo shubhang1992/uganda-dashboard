@@ -82,6 +82,8 @@ export default function WithdrawPage() {
       setResultWd(wd);
       setView('success');
       addToast('success', `Withdrawal of ${formatUGXExact(amount)} requested.`);
+    } catch (err) {
+      addToast('error', err?.message || 'Could not request withdrawal.');
     } finally {
       setSubmitting(false);
     }

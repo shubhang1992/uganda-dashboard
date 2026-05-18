@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useCurrentSubscriber, useSubscriberAgent } from '../../hooks/useSubscriber';
+import { useToast } from '../../contexts/ToastContext';
 import { getAgentReply } from '../../services/chat';
 import { getInitials } from '../../utils/dashboard';
 import PageHeader from '../shell/PageHeader';
@@ -54,6 +55,7 @@ export default function AgentPage() {
   const { data: sub } = useCurrentSubscriber();
   const subId = sub?.id;
   const { data: agent } = useSubscriberAgent(subId);
+  const { addToast } = useToast();
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -96,13 +98,18 @@ export default function AgentPage() {
     setMessages((prev) => [...prev, { role: 'user', text: msg, at: Date.now() }]);
     setInput('');
     setIsTyping(true);
-    getAgentReply(msg, agent).then((response) => {
-      setTimeout(() => {
+    getAgentReply(msg, agent)
+      .then((response) => {
+        setTimeout(() => {
+          setIsTyping(false);
+          setMessages((prev) => [...prev, { role: 'agent', text: response, at: Date.now() }]);
+        }, 1100);
+      })
+      .catch((err) => {
         setIsTyping(false);
-        setMessages((prev) => [...prev, { role: 'agent', text: response, at: Date.now() }]);
-      }, 1100);
-    });
-  }, [agent, input]);
+        addToast('error', err?.message || 'Could not reach your agent — please try again.');
+      });
+  }, [agent, input, addToast]);
 
   const initials = getInitials(agent?.name || '');
   const ratingLabel = agent?.rating ? `${agent.rating.toFixed(1)} ★` : null;

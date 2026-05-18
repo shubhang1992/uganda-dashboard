@@ -27,7 +27,7 @@ export default function SavePage() {
   const prefillAmount = location.state?.prefillAmount;
 
   const [view, setView] = useState('form'); // form | confirm | success
-  const [amountStr, setAmountStr] = useState(prefillAmount ? String(prefillAmount) : '10000');
+  const [amountStr, setAmountStr] = useState(prefillAmount ? String(prefillAmount) : '');
   const [customSplit, setCustomSplit] = useState(false);
   const [retirementPct, setRetirementPct] = useState(defaultRetPct);
   const [method, setMethod] = useState('mtn');
@@ -70,6 +70,8 @@ export default function SavePage() {
       setResultTx(tx);
       setView('success');
       addToast('success', `${formatUGXExact(amount)} added to your savings.`);
+    } catch (err) {
+      addToast('error', err?.message || 'Could not add contribution.');
     } finally {
       setSubmitting(false);
     }

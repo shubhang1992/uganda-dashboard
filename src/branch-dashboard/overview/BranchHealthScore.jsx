@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { formatUGX, EASE_OUT_EXPO } from '../../utils/finance';
 import { getChatResponse } from '../../services/chat';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useToast } from '../../contexts/ToastContext';
 import styles from './BranchHealthScore.module.css';
 
 /* ── Derived metrics ── */
@@ -207,6 +208,7 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
   }
 
   const alerts = useMemo(() => computeAlerts(metrics, commissionSummary), [metrics, commissionSummary]);
+  const { addToast } = useToast();
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [copilotUserToggled, setCopilotUserToggled] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -244,9 +246,14 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
     setMessages((prev) => [...prev, { role: 'user', text: msg }]);
     setChatInput('');
     setIsTyping(true);
-    getChatResponse(msg).then((response) => {
-      setTimeout(() => { setIsTyping(false); setMessages((prev) => [...prev, { role: 'assistant', text: response }]); }, 900);
-    });
+    getChatResponse(msg)
+      .then((response) => {
+        setTimeout(() => { setIsTyping(false); setMessages((prev) => [...prev, { role: 'assistant', text: response }]); }, 900);
+      })
+      .catch((err) => {
+        setIsTyping(false);
+        addToast('error', err?.message || 'Copilot is unavailable — please try again.');
+      });
   }
 
   return (

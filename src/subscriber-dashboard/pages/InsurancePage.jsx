@@ -75,6 +75,8 @@ export default function InsurancePage() {
         ? `Cover upgraded to ${formatUGX(selectedTier.cover)}.`
         : `Cover lowered to ${formatUGX(selectedTier.cover)}. New premium starts next cycle.`);
       setConfirmingDowngrade(false);
+    } catch (err) {
+      addToast('error', err?.message || 'Could not update cover.');
     } finally {
       setSubmitting(false);
     }
