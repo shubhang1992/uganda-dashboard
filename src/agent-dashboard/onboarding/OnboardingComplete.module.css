@@ -95,6 +95,89 @@
   letter-spacing: 0.06em;
 }
 
+.statusPending,
+.statusSaved,
+.statusError {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.statusPending {
+  background: rgba(41, 40, 103, 0.08);
+  color: var(--color-indigo-soft);
+}
+
+.statusSaved {
+  background: rgba(46, 139, 87, 0.12);
+  color: var(--color-green);
+}
+
+.statusError {
+  background: rgba(220, 53, 69, 0.1);
+  color: #dc3545;
+}
+
+.errorBox {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid rgba(220, 53, 69, 0.25);
+  background: rgba(220, 53, 69, 0.06);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-2);
+  text-align: left;
+}
+
+.errorMessage {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.retryBtn {
+  align-self: flex-end;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-white);
+  background: var(--color-indigo);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 0.5rem 1.1rem;
+  cursor: pointer;
+  min-height: 36px;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.retryBtn:hover { background: var(--color-indigo-deep); transform: translateY(-1px); }
+.retryBtn:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; }
+
+.primaryBtn:disabled,
+.secondaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.primaryBtn:disabled:hover,
+.secondaryBtn:disabled:hover {
+  transform: none;
+  background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
+}
+
 .actions {
   display: flex;
   flex-direction: column;

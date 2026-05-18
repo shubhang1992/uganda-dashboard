@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { isValidUGPhone } from '../../utils/phone';
@@ -7,61 +7,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
+import { useEntity } from '../../hooks/useEntity';
 import styles from './Settings.module.css';
-
-/* ─── Password strength helper ────────────────────────────────────────────── */
-function getStrength(pw) {
-  if (!pw) return { score: 0, label: '' };
-  let score = 0;
-  if (pw.length >= 8) score++;
-  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
-  if (/\d/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
-  const labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
-  const levels = ['', 'weak', 'fair', 'good', 'strong'];
-  return { score, label: labels[score], level: levels[score] };
-}
-
-/* ─── Password field with show/hide toggle ────────────────────────────────── */
-function PasswordInput({ value, onChange, placeholder, error, ariaLabel }) {
-  const [visible, setVisible] = useState(false);
-  return (
-    <div className={styles.passwordWrap}>
-      <input
-        className={styles.input}
-        type={visible ? 'text' : 'password'}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        data-error={!!error}
-        aria-label={ariaLabel}
-        autoComplete="off"
-        spellCheck={false}
-      />
-      <button
-        type="button"
-        className={styles.toggleBtn}
-        onClick={() => setVisible((v) => !v)}
-        aria-label={visible ? 'Hide password' : 'Show password'}
-        tabIndex={-1}
-      >
-        {visible ? (
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
-            <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M14.12 14.12a3 3 0 11-4.24-4.24" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-            <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-          </svg>
-        ) : (
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-            <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75"/>
-          </svg>
-        )}
-      </button>
-    </div>
-  );
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Settings panel                                                           */
@@ -76,6 +23,9 @@ export default function Settings({ splitMode = false }) {
   const { user, updateUser } = useAuth();
   const { addToast } = useToast();
   const isSubscriber = user?.role === 'subscriber';
+  const isBranch = user?.role === 'branch';
+  const isDistributor = user?.role === 'distributor';
+  const { data: branch } = useEntity('branch', isBranch ? user?.branchId : null);
   const { data: subscriber } = useCurrentSubscriber();
   const pensionCount = subscriber?.nominees?.pension?.length ?? 0;
   const insuranceCount = subscriber?.nominees?.insurance?.length ?? 0;
@@ -91,28 +41,45 @@ export default function Settings({ splitMode = false }) {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
 
-  /* ── Password form state ────────────────────────────────────────────────── */
-  const [currentPw, setCurrentPw] = useState('');
-  const [newPw, setNewPw] = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
-
   const [errors, setErrors] = useState({});
 
-  /* Populate form from user session when panel opens. Adjusting state during
-     render (instead of in an effect) avoids a cascading render — the form
-     mounts already filled. */
+  const identity = useMemo(() => {
+    if (isBranch && branch) {
+      return {
+        name: branch.managerName || branch.name || user?.name || '',
+        phone: branch.managerPhone || user?.phone || '',
+        email: branch.managerEmail || '',
+        title: branch.name || 'Branch admin',
+      };
+    }
+    if (isDistributor) {
+      return {
+        name: user?.name || 'Distributor',
+        phone: user?.phone || '',
+        email: '',
+        title: 'Distributor',
+      };
+    }
+    return {
+      name: user?.name || '',
+      phone: user?.phone || '',
+      email: user?.email || '',
+      title: '',
+    };
+  }, [isBranch, isDistributor, branch, user?.name, user?.phone, user?.email]);
+
+  useEffect(() => {
+    setName(identity.name);
+    setEmail(identity.email);
+    setPhone(identity.phone);
+  }, [identity]);
+
+  /* Reset error state whenever the panel re-opens. */
   const [lastOpenedFor, setLastOpenedFor] = useState(null);
   if (settingsOpen && user && lastOpenedFor !== user) {
     setLastOpenedFor(user);
-    setName(user.name || '');
-    setEmail(user.email || '');
-    setPhone(user.phone || '');
-    setCurrentPw('');
-    setNewPw('');
-    setConfirmPw('');
     setErrors({});
   } else if (!settingsOpen && lastOpenedFor !== null) {
-    // Allow re-init the next time the panel opens.
     setLastOpenedFor(null);
   }
 
@@ -132,25 +99,16 @@ export default function Settings({ splitMode = false }) {
     if (!name.trim()) e.name = 'Full name is required';
     if (!isValidUGPhone(phone)) e.phone = 'Enter a valid Ugandan mobile number';
 
-    /* Password fields — only validate if any are filled */
-    const hasPassword = currentPw || newPw || confirmPw;
-    if (hasPassword) {
-      if (!currentPw) e.currentPw = 'Enter your current password';
-      if (!newPw) {
-        e.newPw = 'Enter a new password';
-      } else if (newPw.length < 8) {
-        e.newPw = 'Minimum 8 characters';
-      }
-      if (!confirmPw) {
-        e.confirmPw = 'Confirm your new password';
-      } else if (newPw !== confirmPw) {
-        e.confirmPw = 'Passwords do not match';
-      }
-    }
-
     setErrors(e);
     return Object.keys(e).length === 0;
-  }, [name, phone, currentPw, newPw, confirmPw]);
+  }, [name, phone]);
+
+  /* ── Dirty check (enable save only if something changed) ────────────────── */
+  const hasProfileChanges =
+    name !== identity.name ||
+    email !== identity.email ||
+    phone !== identity.phone;
+  const isDirty = hasProfileChanges;
 
   /* ── Submit ─────────────────────────────────────────────────────────────── */
   function handleSave(e) {
@@ -158,37 +116,19 @@ export default function Settings({ splitMode = false }) {
     if (!validate()) return;
 
     // Profile changes flow through updateUser so the avatar / phone shown in
-    // header chips updates immediately. Password change still needs the
-    // backend — surfaced as a more honest pending notice for now.
+    // header chips updates immediately. The password section is intentionally
+    // disabled with a "Coming soon" affordance — see the section below for
+    // why we don't ship a toast for it.
     if (hasProfileChanges) {
       updateUser({ name: name.trim(), email: email.trim(), phone });
     }
-    if (hasPasswordEntry) {
-      addToast('info', 'Password change will activate once the backend lands.');
-    } else {
-      addToast('success', 'Profile updated.');
-    }
-    setCurrentPw('');
-    setNewPw('');
-    setConfirmPw('');
+    addToast('success', 'Profile updated.');
   }
-
-  /* ── Dirty check (enable save only if something changed) ────────────────── */
-  const hasProfileChanges = user && (
-    name !== (user.name || '') ||
-    email !== (user.email || '') ||
-    phone !== (user.phone || '')
-  );
-  const hasPasswordEntry = !!(currentPw || newPw || confirmPw);
-  const isDirty = hasProfileChanges || hasPasswordEntry;
 
   /* ── Helpers ────────────────────────────────────────────────────────────── */
   function clearFieldError(field) {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
   }
-
-
-  const strength = getStrength(newPw);
 
   function formatPhone(raw) {
     if (!raw) return '';
@@ -260,17 +200,17 @@ export default function Settings({ splitMode = false }) {
                   transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
                 >
                   <div className={styles.avatar}>
-                    <span className={styles.avatarInitials}>{getInitials(name || user?.name)}</span>
+                    <span className={styles.avatarInitials}>{getInitials(name || identity.name)}</span>
                   </div>
                   <div className={styles.profileInfo}>
-                    <span className={styles.profileName}>{name || user?.name || 'Distributor Admin'}</span>
-                    <span className={styles.profilePhone}>+256 {formatPhone(phone || user?.phone)}</span>
+                    <span className={styles.profileName}>{name || identity.name || (isDistributor ? 'Distributor' : 'Branch admin')}</span>
+                    <span className={styles.profilePhone}>+256 {formatPhone(phone || identity.phone)}</span>
                     <span className={styles.roleBadge}>
                       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="12" height="12">
                         <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
                         <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
-                      {user?.role || 'Distributor Admin'}
+                      {identity.title || user?.role || 'Distributor Admin'}
                     </span>
                   </div>
                 </motion.div>
@@ -354,9 +294,10 @@ export default function Settings({ splitMode = false }) {
 
                 <div className={styles.sectionDivider} />
 
-                {/* ── Change password ───────────────────────────────────── */}
+                {/* ── Change password (disabled, awaiting auth backend) ──── */}
                 <motion.div
                   className={styles.section}
+                  aria-labelledby="settings-password-heading"
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.35, delay: 0.12, ease: EASE_OUT_EXPO }}
@@ -369,64 +310,64 @@ export default function Settings({ splitMode = false }) {
                         <circle cx="12" cy="16.5" r="1.5" fill="currentColor"/>
                       </svg>
                     </span>
-                    <h3 className={styles.sectionTitle}>Change Password</h3>
+                    <h3 id="settings-password-heading" className={styles.sectionTitle}>Change Password</h3>
+                    <span className={styles.comingSoonBadge} aria-hidden="true">Coming soon</span>
                   </div>
 
-                  <div className={styles.field}>
+                  <p className={styles.comingSoonHelp}>
+                    Password updates land alongside the production auth backend.
+                    The fields below will activate as soon as it&rsquo;s wired up.
+                  </p>
+
+                  <div className={styles.field} aria-disabled="true">
                     <label className={styles.label} htmlFor="settings-current-pw">
                       Current Password
                     </label>
-                    <PasswordInput
-                      value={currentPw}
-                      onChange={(e) => { setCurrentPw(e.target.value); clearFieldError('currentPw'); }}
-                      placeholder="Enter current password"
-                      error={errors.currentPw}
-                      ariaLabel="Current password"
+                    <input
+                      id="settings-current-pw"
+                      className={styles.input}
+                      type="password"
+                      value=""
+                      disabled
+                      readOnly
+                      aria-readonly="true"
+                      autoComplete="off"
+                      tabIndex={-1}
                     />
-                    {errors.currentPw && <p className={styles.error} role="alert">{errors.currentPw}</p>}
                   </div>
 
-                  <div className={styles.field}>
+                  <div className={styles.field} aria-disabled="true">
                     <label className={styles.label} htmlFor="settings-new-pw">
                       New Password
                     </label>
-                    <PasswordInput
-                      value={newPw}
-                      onChange={(e) => { setNewPw(e.target.value); clearFieldError('newPw'); }}
-                      placeholder="Minimum 8 characters"
-                      error={errors.newPw}
-                      ariaLabel="New password"
+                    <input
+                      id="settings-new-pw"
+                      className={styles.input}
+                      type="password"
+                      value=""
+                      disabled
+                      readOnly
+                      aria-readonly="true"
+                      autoComplete="off"
+                      tabIndex={-1}
                     />
-                    {newPw && (
-                      <>
-                        <div className={styles.strengthBar}>
-                          {[1, 2, 3, 4].map((i) => (
-                            <div
-                              key={i}
-                              className={styles.strengthSegment}
-                              data-active={i <= strength.score}
-                              data-level={strength.level}
-                            />
-                          ))}
-                        </div>
-                        <span className={styles.strengthLabel}>{strength.label}</span>
-                      </>
-                    )}
-                    {errors.newPw && <p className={styles.error} role="alert">{errors.newPw}</p>}
                   </div>
 
-                  <div className={styles.field}>
+                  <div className={styles.field} aria-disabled="true">
                     <label className={styles.label} htmlFor="settings-confirm-pw">
                       Confirm New Password
                     </label>
-                    <PasswordInput
-                      value={confirmPw}
-                      onChange={(e) => { setConfirmPw(e.target.value); clearFieldError('confirmPw'); }}
-                      placeholder="Re-enter new password"
-                      error={errors.confirmPw}
-                      ariaLabel="Confirm new password"
+                    <input
+                      id="settings-confirm-pw"
+                      className={styles.input}
+                      type="password"
+                      value=""
+                      disabled
+                      readOnly
+                      aria-readonly="true"
+                      autoComplete="off"
+                      tabIndex={-1}
                     />
-                    {errors.confirmPw && <p className={styles.error} role="alert">{errors.confirmPw}</p>}
                   </div>
                 </motion.div>
 

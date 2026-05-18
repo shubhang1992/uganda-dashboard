@@ -6,7 +6,9 @@ import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
-import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
+import { formatDate } from '../../utils/date';
 import { cadenceLabel, CADENCES } from '../../utils/settlementCycle';
 import { downloadCsv } from '../../utils/csvDownload';
 import {
@@ -27,12 +29,6 @@ import { getInitials } from '../../utils/dashboard';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
 import styles from './CommissionPanel.module.css';
-
-function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 function formatRunRange(start, end) {
   if (!start || !end) return '—';
@@ -480,7 +476,7 @@ export default function CommissionPanel({ splitMode = false }) {
         onCapNotice: ({ capped, total }) => {
           addToast(
             'warning',
-            `Showing first ${capped.toLocaleString()} rows in export — refine your filter for full data (${total.toLocaleString()} total).`,
+            `Showing first ${formatNumber(capped)} rows in export — refine your filter for full data (${formatNumber(total)} total).`,
           );
         },
       });
@@ -657,7 +653,7 @@ export default function CommissionPanel({ splitMode = false }) {
                               </div>
                               <div className={styles.runMetric}>
                                 <span className={styles.runMetricLabel}>Agents</span>
-                                <span className={styles.runMetricValue}>{(currentRun.agentCount || 0).toLocaleString()}</span>
+                                <span className={styles.runMetricValue}>{formatNumber(currentRun.agentCount || 0)}</span>
                               </div>
                               <div className={styles.runMetric}>
                                 <span className={styles.runMetricLabel}>Branch sign-off</span>
@@ -789,18 +785,18 @@ export default function CommissionPanel({ splitMode = false }) {
                     <div className={styles.summaryStrip}>
                       <button className={styles.summaryItem} onClick={() => goAgents(null)}>
                         <span className={styles.summaryItemLabel}>Total</span>
-                        <span className={styles.summaryItemValue}>{fmtShort(summary?.totalCommissions || 0)}</span>
-                        <span className={styles.summaryItemCount}>{(summary?.countTotal || 0).toLocaleString()} records</span>
+                        <span className={styles.summaryItemValue}>{formatUGXShort(summary?.totalCommissions || 0)}</span>
+                        <span className={styles.summaryItemCount}>{formatNumber(summary?.countTotal || 0)} records</span>
                       </button>
                       <button className={styles.summaryItem} onClick={() => goAgents('paid')}>
                         <span className={styles.summaryItemLabel}>Settled</span>
-                        <span className={styles.summaryItemValue}>{fmtShort(summary?.totalPaid || 0)}</span>
-                        <span className={styles.summaryItemCount}>{(summary?.countPaid || 0).toLocaleString()} paid</span>
+                        <span className={styles.summaryItemValue}>{formatUGXShort(summary?.totalPaid || 0)}</span>
+                        <span className={styles.summaryItemCount}>{formatNumber(summary?.countPaid || 0)} paid</span>
                       </button>
                       <button className={styles.summaryItem} onClick={() => goAgents('due')}>
                         <span className={styles.summaryItemLabel}>Outstanding</span>
-                        <span className={styles.summaryItemValue}>{fmtShort(summary?.totalDue || 0)}</span>
-                        <span className={styles.summaryItemCount}>{(summary?.countDue || 0).toLocaleString()} owed</span>
+                        <span className={styles.summaryItemValue}>{formatUGXShort(summary?.totalDue || 0)}</span>
+                        <span className={styles.summaryItemCount}>{formatNumber(summary?.countDue || 0)} owed</span>
                       </button>
                     </div>
 
@@ -863,7 +859,7 @@ export default function CommissionPanel({ splitMode = false }) {
                         </div>
                         <div className={styles.runHeaderStat}>
                           <span className={styles.runMetricLabel}>Commissions</span>
-                          <span className={styles.runHeaderValue}>{currentRun.commissionCount.toLocaleString()}</span>
+                          <span className={styles.runHeaderValue}>{formatNumber(currentRun.commissionCount)}</span>
                         </div>
                         <div className={styles.runHeaderStat}>
                           <span className={styles.runMetricLabel}>Approved</span>
@@ -927,7 +923,7 @@ export default function CommissionPanel({ splitMode = false }) {
                           </div>
                           <div className={styles.runHeaderStat}>
                             <span className={styles.runMetricLabel}>Commissions</span>
-                            <span className={styles.runHeaderValue}>{branchRow.count.toLocaleString()}</span>
+                            <span className={styles.runHeaderValue}>{formatNumber(branchRow.count)}</span>
                           </div>
                           <div className={styles.runHeaderStat}>
                             <span className={styles.runMetricLabel}>State</span>
@@ -1088,7 +1084,7 @@ export default function CommissionPanel({ splitMode = false }) {
                             <div className={styles.runRowMain}>
                               <div className={styles.runRowTitle}>{formatRunRange(run.openedAt, run.closesAt)}</div>
                               <div className={styles.runRowSub}>
-                                {run.commissionCount.toLocaleString()} commission{run.commissionCount === 1 ? '' : 's'}
+                                {formatNumber(run.commissionCount)} commission{run.commissionCount === 1 ? '' : 's'}
                                 {run.releasedAt ? ` · released ${formatDate(run.releasedAt)}` : ''}
                               </div>
                             </div>
@@ -1163,9 +1159,9 @@ export default function CommissionPanel({ splitMode = false }) {
                           </div>
                           <div>
                             <div className={styles.agentAmount}>
-                              {statusFocus === 'paid' ? fmtShort(agent.totalPaid) :
-                               statusFocus === 'due' ? fmtShort(agent.totalDue) :
-                               fmtShort(agent.totalCommissions)}
+                              {statusFocus === 'paid' ? formatUGXShort(agent.totalPaid) :
+                               statusFocus === 'due' ? formatUGXShort(agent.totalDue) :
+                               formatUGXShort(agent.totalCommissions)}
                             </div>
                             <div className={styles.agentAmountLabel}>
                               {agent.subscribersOnboarded} subscribers
@@ -1318,12 +1314,25 @@ export default function CommissionPanel({ splitMode = false }) {
                       <div className={styles.selectBar}>
                         <button
                           className={styles.selectAllBtn}
+                          role="checkbox"
+                          aria-checked={
+                            selectedIds.size === 0
+                              ? 'false'
+                              : selectedIds.size === filteredDisputed.length
+                                ? 'true'
+                                : 'mixed'
+                          }
+                          aria-label={
+                            selectedIds.size === filteredDisputed.length
+                              ? `Deselect all ${filteredDisputed.length} disputed agents`
+                              : `Select all ${filteredDisputed.length} disputed agents`
+                          }
                           onClick={() => {
                             if (selectedIds.size === filteredDisputed.length) clearSelection();
                             else selectAll(filteredDisputed.map((a) => a.agentId));
                           }}
                         >
-                          <span className={styles.checkbox} data-checked={selectedIds.size === filteredDisputed.length && filteredDisputed.length > 0}>
+                          <span className={styles.checkbox} data-checked={selectedIds.size === filteredDisputed.length && filteredDisputed.length > 0} aria-hidden="true">
                             {selectedIds.size === filteredDisputed.length && filteredDisputed.length > 0 && Icons.approve}
                           </span>
                           {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
@@ -1445,7 +1454,7 @@ export default function CommissionPanel({ splitMode = false }) {
                       </div>
                       <div className={styles.detailStat}>
                         <div className={styles.detailStatLabel}>Amount</div>
-                        <div className={styles.detailStatValue}>{fmtShort(selectedDisputeAgent.disputedAmount)}</div>
+                        <div className={styles.detailStatValue}>{formatUGXShort(selectedDisputeAgent.disputedAmount)}</div>
                       </div>
                     </div>
 

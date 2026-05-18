@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAllEntities, useAllEntitiesMap, useChildren } from '../../../hooks/useEntity';
 import { useBranchScope } from '../../../contexts/BranchScopeContext';
+import { formatNumber } from '../../../utils/currency';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 import FilterSelect from '../FilterSelect';
@@ -56,7 +57,7 @@ export default function SubscriberGrowth({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalSubscribers || 0,
-      render: (row) => (row.metrics?.totalSubscribers || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalSubscribers || 0),
     },
     {
       key: 'newToday',
@@ -109,7 +110,7 @@ export default function SubscriberGrowth({ onBack }) {
       label: 'Inactive',
       align: 'right',
       sortable: true,
-      render: (row) => row.inactiveCount.toLocaleString(),
+      render: (row) => formatNumber(row.inactiveCount),
     },
   ].filter(Boolean);
 

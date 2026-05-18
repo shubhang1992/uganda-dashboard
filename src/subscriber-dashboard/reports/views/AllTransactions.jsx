@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useCurrentSubscriber } from '../../../hooks/useSubscriber';
 import { formatUGXExact, formatUGX } from '../../../utils/finance';
+import { formatDate } from '../../../utils/date';
 import { downloadCSV } from '../../../utils/csv';
 import ReportTable from '../../../components/reports/ReportTable';
 import FilterSelect from '../../../components/reports/FilterSelect';
@@ -23,12 +24,6 @@ const STATUS_OPTIONS = [
   { value: 'paid', label: 'Paid' },
   { value: 'processing', label: 'Processing' },
 ];
-
-function formatDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 function pillTone(status) {
   if (status === 'paid' || status === 'settled') return 'ok';

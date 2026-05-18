@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { formatUGX, EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatNumber } from '../../utils/currency';
 import { getChatResponse } from '../../services/chat';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -315,7 +316,7 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
             <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openReport('all-subscribers')}>
               <span className={styles.metricLabel}>Subscribers</span>
               <div className={styles.metricRow}>
-                <span className={styles.metricValueMd}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
+                <span className={styles.metricValueMd}>{formatNumber(metrics.totalSubscribers || 0)}</span>
                 <span className={styles.metricSub}>{metrics.activeSubscribers || 0} active</span>
               </div>
             </button>

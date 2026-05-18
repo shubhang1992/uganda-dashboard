@@ -3,7 +3,8 @@ import { useOutsideClick } from '../../hooks/useOutsideClick';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAllEntities, useUpdateBranch, useSetBranchStatus } from '../../hooks/useEntity';
-import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { useToast } from '../../contexts/ToastContext';
@@ -74,7 +75,7 @@ function AgentDetail({ agent }) {
 
       {/* KPIs */}
       <div className={styles.kpiRow}>
-        <KpiCard icon={Icons.subscribers} label="Subscribers" value={m.totalSubscribers.toLocaleString()} />
+        <KpiCard icon={Icons.subscribers} label="Subscribers" value={formatNumber(m.totalSubscribers)} />
         <KpiCard icon={Icons.activeRate} label="Active Rate" value={m.activeRate} suffix="%" />
         <KpiCard icon={Icons.contributions} label="Contributions" value={formatUGX(m.totalContributions)} />
         <KpiCard icon={Icons.aum} label="AUM" value={formatUGX(m.aum)} />
@@ -134,7 +135,7 @@ function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch }) {
 
       {/* KPIs */}
       <div className={styles.kpiRow}>
-        <KpiCard icon={Icons.subscribers} label="Subscribers" value={m.totalSubscribers.toLocaleString()} />
+        <KpiCard icon={Icons.subscribers} label="Subscribers" value={formatNumber(m.totalSubscribers)} />
         <KpiCard icon={Icons.agents} label="Agents" value={m.totalAgents} />
         <KpiCard icon={Icons.aum} label="AUM" value={formatUGX(m.aum)} />
         <KpiCard icon={Icons.activeRate} label="Active Rate" value={m.activeRate} suffix="%" />
@@ -664,6 +665,8 @@ export default function ViewBranches() {
                     <button
                       className={styles.filterBtn}
                       data-active={!!regionFilter}
+                      aria-haspopup="listbox"
+                      aria-expanded={regionDropOpen}
                       onClick={() => setRegionDropOpen((p) => !p)}
                     >
                       <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
@@ -674,6 +677,8 @@ export default function ViewBranches() {
                     <AnimatePresence>
                       {regionDropOpen && (
                         <motion.div
+                          role="listbox"
+                          aria-label="Filter by region"
                           className={styles.filterDropdown}
                           initial={{ opacity: 0, y: -4 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -681,6 +686,8 @@ export default function ViewBranches() {
                           transition={{ duration: 0.12 }}
                         >
                           <button
+                            role="option"
+                            aria-selected={!regionFilter}
                             className={styles.filterOption}
                             data-selected={!regionFilter}
                             onClick={() => { setRegionFilter(null); setRegionDropOpen(false); }}
@@ -691,6 +698,8 @@ export default function ViewBranches() {
                           {regionOptions.map((r) => (
                             <button
                               key={r.id}
+                              role="option"
+                              aria-selected={regionFilter === r.id}
                               className={styles.filterOption}
                               data-selected={regionFilter === r.id}
                               onClick={() => { setRegionFilter(r.id); setRegionDropOpen(false); }}
@@ -707,6 +716,8 @@ export default function ViewBranches() {
                     <button
                       className={styles.filterBtn}
                       data-active={sortKey !== 'subscribers'}
+                      aria-haspopup="listbox"
+                      aria-expanded={sortDropOpen}
                       onClick={() => setSortDropOpen((p) => !p)}
                     >
                       <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
@@ -717,6 +728,8 @@ export default function ViewBranches() {
                     <AnimatePresence>
                       {sortDropOpen && (
                         <motion.div
+                          role="listbox"
+                          aria-label="Sort branches"
                           className={styles.filterDropdown}
                           initial={{ opacity: 0, y: -4 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -726,6 +739,8 @@ export default function ViewBranches() {
                           {SORT_OPTIONS.map((opt) => (
                             <button
                               key={opt.key}
+                              role="option"
+                              aria-selected={sortKey === opt.key}
                               className={styles.filterOption}
                               data-selected={sortKey === opt.key}
                               onClick={() => { setSortKey(opt.key); setSortDropOpen(false); }}
@@ -740,12 +755,13 @@ export default function ViewBranches() {
                 </div>
 
                 {/* ── Status filter chips ────────────────────────── */}
-                <div className={styles.statusChips}>
+                <div className={styles.statusChips} role="group" aria-label="Filter branches by status">
                   {['all', 'active', 'inactive'].map((s) => (
                     <button
                       key={s}
                       className={styles.statusChip}
                       data-active={statusFilter === s}
+                      aria-pressed={statusFilter === s}
                       onClick={() => setStatusFilter(s)}
                     >
                       {s === 'all' ? 'All' : s === 'active' ? 'Active' : 'Inactive'}
@@ -757,17 +773,17 @@ export default function ViewBranches() {
                 <div className={styles.summaryStrip}>
                   <div className={styles.summaryChip}>
                     <span className={styles.summaryChipIcon}>{Icons.subscribers}</span>
-                    <span className={styles.summaryChipValue}>{totals.subs.toLocaleString()}</span>
+                    <span className={styles.summaryChipValue}>{formatNumber(totals.subs)}</span>
                     <span className={styles.summaryChipLabel}>Subscribers</span>
                   </div>
                   <div className={styles.summaryChip}>
                     <span className={styles.summaryChipIcon}>{Icons.agents}</span>
-                    <span className={styles.summaryChipValue}>{totals.agents.toLocaleString()}</span>
+                    <span className={styles.summaryChipValue}>{formatNumber(totals.agents)}</span>
                     <span className={styles.summaryChipLabel}>Agents</span>
                   </div>
                   <div className={styles.summaryChip}>
                     <span className={styles.summaryChipIcon}>{Icons.aum}</span>
-                    <span className={styles.summaryChipValue}>{fmtShort(totals.aum)}</span>
+                    <span className={styles.summaryChipValue}>{formatUGXShort(totals.aum)}</span>
                     <span className={styles.summaryChipLabel}>AUM</span>
                   </div>
                 </div>

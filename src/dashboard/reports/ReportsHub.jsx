@@ -1,7 +1,8 @@
 import { useMemo, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO, formatUGX, fmtShort } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useCountry, useEntity, useChildren, useAllEntities } from '../../hooks/useEntity';
@@ -205,7 +206,7 @@ function ReportsIndex({ panelMode, onSelectReport }) {
                   {regions.slice(0, 4).map((r) => (
                     <div key={r.id} className={styles.regionPill}>
                       <span className={styles.regionName}>{r.name}</span>
-                      <span className={styles.regionVal}>{fmtShort(r.metrics?.aum || 0)}</span>
+                      <span className={styles.regionVal}>{formatUGXShort(r.metrics?.aum || 0)}</span>
                     </div>
                   ))}
                 </div>
@@ -238,7 +239,7 @@ function ReportsIndex({ panelMode, onSelectReport }) {
                     </span>
                     <CardArrow />
                   </div>
-                  <span className={styles.dirCount}>{card.count?.toLocaleString()}</span>
+                  <span className={styles.dirCount}>{formatNumber(card.count)}</span>
                   <span className={styles.dirLabel}>{card.label}</span>
                   <span className={styles.dirDetail}>{card.detail}</span>
                 </motion.button>
@@ -364,7 +365,7 @@ function ReportsIndex({ panelMode, onSelectReport }) {
                   <CardArrow />
                 </div>
                 <div className={styles.insightMain}>
-                  <span className={styles.insightBig}>+{m.newSubscribersThisMonth?.toLocaleString()}</span>
+                  <span className={styles.insightBig}>+{formatNumber(m.newSubscribersThisMonth)}</span>
                   <span className={styles.insightUnit}>this month</span>
                 </div>
                 <div className={styles.insightFooter}>

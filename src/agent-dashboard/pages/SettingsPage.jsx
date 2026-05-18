@@ -1,22 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { isValidUGPhone } from '../../utils/phone';
 import { useAuth } from '../../contexts/AuthContext';
+import { useEntity } from '../../hooks/useEntity';
 import { useToast } from '../../contexts/ToastContext';
 import { getInitials } from '../../utils/dashboard';
 import PageHeader from '../shell/PageHeader';
 import styles from './SettingsPage.module.css';
-
-function getStrength(pw) {
-  if (!pw) return 0;
-  let score = 0;
-  if (pw.length >= 8) score += 1;
-  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score += 1;
-  if (/\d/.test(pw)) score += 1;
-  if (/[^A-Za-z0-9]/.test(pw)) score += 1;
-  return score;
-}
 
 function formatPhone(raw) {
   if (!raw) return '';
@@ -28,47 +19,40 @@ function formatPhone(raw) {
 
 export default function SettingsPage() {
   const { user, updateUser } = useAuth();
+  const { data: agent } = useEntity('agent', user?.agentId);
   const { addToast } = useToast();
 
-  const [name, setName] = useState(user?.name || '');
-  const [email, setEmail] = useState(user?.email || '');
-  const [phone, setPhone] = useState(user?.phone || '');
-  const [currentPw, setCurrentPw] = useState('');
-  const [newPw, setNewPw] = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [errors, setErrors] = useState({});
-  const [showPw, setShowPw] = useState(false);
 
-  const hasProfileChanges = user && (
-    name !== (user.name || '') ||
-    email !== (user.email || '') ||
-    phone !== (user.phone || '')
-  );
-  const hasPasswordEntry = !!(currentPw || newPw || confirmPw);
-  const isDirty = hasProfileChanges || hasPasswordEntry;
+  // Hydrate form once the agents row arrives from the query — equivalent to
+  // useCurrentSubscriber's pattern on the subscriber dashboard. The cascading-
+  // renders lint rule is overzealous for this one-shot population case.
+  useEffect(() => {
+    if (!agent) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- hydrate form from query result */
+    setName(agent.name ?? user?.name ?? '');
+    setEmail(agent.email ?? '');
+    setPhone(agent.phone ?? user?.phone ?? '');
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [agent, user?.name, user?.phone]);
+
+  const hasProfileChanges =
+    name !== (agent?.name || user?.name || '') ||
+    email !== (agent?.email || '') ||
+    phone !== (agent?.phone || user?.phone || '');
+  const isDirty = hasProfileChanges;
 
   const validate = useCallback(() => {
     const e = {};
     if (!name.trim()) e.name = 'Full name is required';
     if (!isValidUGPhone(phone)) e.phone = 'Enter a valid Ugandan mobile number';
 
-    if (hasPasswordEntry) {
-      if (!currentPw) e.currentPw = 'Enter your current password';
-      if (!newPw) {
-        e.newPw = 'Enter a new password';
-      } else if (newPw.length < 8) {
-        e.newPw = 'Minimum 8 characters';
-      }
-      if (!confirmPw) {
-        e.confirmPw = 'Confirm your new password';
-      } else if (newPw !== confirmPw) {
-        e.confirmPw = 'Passwords do not match';
-      }
-    }
-
     setErrors(e);
     return Object.keys(e).length === 0;
-  }, [name, phone, hasPasswordEntry, currentPw, newPw, confirmPw]);
+  }, [name, phone]);
 
   async function handleSave(e) {
     e.preventDefault();
@@ -82,14 +66,7 @@ export default function SettingsPage() {
           updateUser({ name: name.trim(), email: email.trim(), phone })
         );
       }
-      if (hasPasswordEntry) {
-        addToast('info', 'Password change will activate once the backend lands.');
-      } else {
-        addToast('success', 'Profile updated.');
-      }
-      setCurrentPw('');
-      setNewPw('');
-      setConfirmPw('');
+      addToast('success', 'Profile updated.');
     } catch (err) {
       addToast('error', err?.message || 'Could not update profile.');
     }
@@ -98,8 +75,6 @@ export default function SettingsPage() {
   function clearFieldError(field) {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
   }
-
-  const strength = getStrength(newPw);
 
   return (
     <div className={styles.page}>
@@ -113,11 +88,11 @@ export default function SettingsPage() {
           transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
         >
           <div className={styles.avatar}>
-            <span className={styles.avatarInitials}>{getInitials(name || user?.name)}</span>
+            <span className={styles.avatarInitials}>{getInitials(name || agent?.name || user?.name)}</span>
           </div>
           <div className={styles.profileInfo}>
-            <span className={styles.profileName}>{name || user?.name || 'Agent'}</span>
-            <span className={styles.profilePhone}>+256 {formatPhone(phone || user?.phone)}</span>
+            <span className={styles.profileName}>{name || agent?.name || user?.name || 'Agent'}</span>
+            <span className={styles.profilePhone}>+256 {formatPhone(phone || agent?.phone || user?.phone)}</span>
             <span className={styles.roleBadge}>Agent</span>
           </div>
         </motion.div>
@@ -167,61 +142,56 @@ export default function SettingsPage() {
           </label>
         </section>
 
-        <section className={styles.section}>
+        <section className={styles.section} aria-labelledby="agent-password-heading">
           <div className={styles.sectionHead}>
-            <h2 className={styles.sectionTitle}>Change password</h2>
-            <button
-              type="button"
-              className={styles.toggleBtn}
-              onClick={() => setShowPw((v) => !v)}
-              aria-label={showPw ? 'Hide passwords' : 'Show passwords'}
-            >
-              {showPw ? 'Hide' : 'Show'}
-            </button>
+            <h2 id="agent-password-heading" className={styles.sectionTitle}>Change password</h2>
+            <span className={styles.comingSoonBadge} aria-hidden="true">Coming soon</span>
           </div>
+          <p className={styles.comingSoonHelp}>
+            Password updates land alongside the production auth backend.
+            We&rsquo;ll surface this section as soon as it&rsquo;s wired up.
+          </p>
 
-          <label className={styles.field}>
+          <label className={styles.field} aria-disabled="true">
             <span className={styles.label}>Current password</span>
             <input
-              type={showPw ? 'text' : 'password'}
+              type="password"
               className={styles.input}
-              value={currentPw}
-              onChange={(e) => { setCurrentPw(e.target.value); clearFieldError('currentPw'); }}
-              autoComplete="current-password"
-              data-error={errors.currentPw || undefined}
+              value=""
+              disabled
+              readOnly
+              aria-readonly="true"
+              autoComplete="off"
+              tabIndex={-1}
             />
-            {errors.currentPw && <span className={styles.errorLine}>{errors.currentPw}</span>}
           </label>
 
-          <label className={styles.field}>
+          <label className={styles.field} aria-disabled="true">
             <span className={styles.label}>New password</span>
             <input
-              type={showPw ? 'text' : 'password'}
+              type="password"
               className={styles.input}
-              value={newPw}
-              onChange={(e) => { setNewPw(e.target.value); clearFieldError('newPw'); }}
-              autoComplete="new-password"
-              data-error={errors.newPw || undefined}
+              value=""
+              disabled
+              readOnly
+              aria-readonly="true"
+              autoComplete="off"
+              tabIndex={-1}
             />
-            {newPw && (
-              <div className={styles.strength} data-level={strength} aria-hidden="true">
-                <span /><span /><span /><span />
-              </div>
-            )}
-            {errors.newPw && <span className={styles.errorLine}>{errors.newPw}</span>}
           </label>
 
-          <label className={styles.field}>
+          <label className={styles.field} aria-disabled="true">
             <span className={styles.label}>Confirm new password</span>
             <input
-              type={showPw ? 'text' : 'password'}
+              type="password"
               className={styles.input}
-              value={confirmPw}
-              onChange={(e) => { setConfirmPw(e.target.value); clearFieldError('confirmPw'); }}
-              autoComplete="new-password"
-              data-error={errors.confirmPw || undefined}
+              value=""
+              disabled
+              readOnly
+              aria-readonly="true"
+              autoComplete="off"
+              tabIndex={-1}
             />
-            {errors.confirmPw && <span className={styles.errorLine}>{errors.confirmPw}</span>}
           </label>
         </section>
 
@@ -231,11 +201,7 @@ export default function SettingsPage() {
             className={styles.primaryBtn}
             disabled={!isDirty}
           >
-            {hasPasswordEntry && !hasProfileChanges
-              ? 'Update password'
-              : hasProfileChanges && !hasPasswordEntry
-                ? 'Save profile'
-                : 'Save changes'}
+            Save profile
           </button>
         </footer>
       </form>

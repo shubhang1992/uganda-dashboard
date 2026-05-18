@@ -4,6 +4,7 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useDistributorMetrics } from '../../hooks/useEntity';
 import { getChatResponse } from '../../services/chat';
 import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
 import styles from './MetricsRow.module.css';
 
 const SUGGESTIONS = ['Top agents?', 'Coverage by region?', 'Active subscribers?', 'Gender split?'];
@@ -340,19 +341,19 @@ export default function MetricsRow() {
                     <div className={styles.expandSubtitle}>Gender (count)</div>
                     <div className={styles.expandGrid}>
                       <div className={styles.expandItem}>
-                        <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.male || 0) / 100).toLocaleString()}</span>
+                        <span className={styles.expandNum}>{formatNumber(totalSubs * (metrics.genderRatio?.male || 0) / 100)}</span>
                         <span className={styles.expandLabel}>Male</span>
                       </div>
                       <div className={styles.expandItem}>
-                        <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.female || 0) / 100).toLocaleString()}</span>
+                        <span className={styles.expandNum}>{formatNumber(totalSubs * (metrics.genderRatio?.female || 0) / 100)}</span>
                         <span className={styles.expandLabel}>Female</span>
                       </div>
                       <div className={styles.expandItem}>
-                        <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.other || 0) / 100).toLocaleString()}</span>
+                        <span className={styles.expandNum}>{formatNumber(totalSubs * (metrics.genderRatio?.other || 0) / 100)}</span>
                         <span className={styles.expandLabel}>Other</span>
                       </div>
                       <div className={styles.expandItem}>
-                        <span className={styles.expandNum}>{totalSubs.toLocaleString()}</span>
+                        <span className={styles.expandNum}>{formatNumber(totalSubs)}</span>
                         <span className={styles.expandLabel}>Total</span>
                       </div>
                     </div>
@@ -360,7 +361,7 @@ export default function MetricsRow() {
                     <div className={styles.expandGrid}>
                       {Object.entries(metrics.ageDistribution || {}).map(([bracket, count]) => (
                         <div key={bracket} className={styles.expandItem}>
-                          <span className={styles.expandNum}>{count.toLocaleString()}</span>
+                          <span className={styles.expandNum}>{formatNumber(count)}</span>
                           <span className={styles.expandLabel}>{bracket}</span>
                         </div>
                       ))}

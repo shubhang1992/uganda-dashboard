@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { formatUGXExact } from '../../../utils/finance';
+import { formatDate } from '../../../utils/date';
 import { useSubscriberTransactions } from '../../../hooks/useSubscriber';
 import styles from './ActivityWidget.module.css';
 
@@ -11,8 +12,7 @@ const TX_META = {
 };
 
 function formatTxDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-UG', { day: 'numeric', month: 'short' });
+  return formatDate(iso, { variant: 'day-month' });
 }
 
 export default function ActivityWidget({ subscriber }) {

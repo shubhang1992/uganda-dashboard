@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGX, formatUGXExact, normalizeFrequency, FREQUENCY } from '../../../utils/finance';
+import { formatDate } from '../../../utils/date';
 import styles from './TopUpWidget.module.css';
 
 const FREQ_LABEL = {
@@ -15,7 +16,7 @@ const QUICK_AMOUNTS = [10000, 25000, 50000, 100000];
 
 function formatDueDate(d) {
   if (!d) return null;
-  return new Date(d).toLocaleDateString('en-UG', { day: 'numeric', month: 'short' });
+  return formatDate(d, { variant: 'day-month' });
 }
 
 export default function TopUpWidget({ subscriber }) {

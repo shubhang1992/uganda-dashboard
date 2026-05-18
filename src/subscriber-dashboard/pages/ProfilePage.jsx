@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatDate } from '../../utils/date';
 import { isValidUGPhone } from '../../utils/phone';
 import { useCurrentSubscriber, useUpdateProfile } from '../../hooks/useSubscriber';
 import { useAllEntities } from '../../hooks/useEntity';
@@ -25,10 +26,7 @@ function digitsOnly(s) {
 }
 
 function formatDob(dob) {
-  if (!dob) return '—';
-  const d = new Date(dob);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
+  return formatDate(dob, { variant: 'short' });
 }
 
 function titleCase(s) {

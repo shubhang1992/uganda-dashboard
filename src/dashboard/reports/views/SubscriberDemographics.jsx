@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useAllEntities, useAllEntitiesMap, useChildren } from '../../../hooks/useEntity';
 import { useBranchScope } from '../../../contexts/BranchScopeContext';
+import { formatNumber } from '../../../utils/currency';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 
@@ -57,7 +58,7 @@ export default function SubscriberDemographics({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalSubscribers || 0,
-      render: (row) => (row.metrics?.totalSubscribers || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalSubscribers || 0),
     },
     {
       key: 'gender',
@@ -78,35 +79,35 @@ export default function SubscriberDemographics({ onBack }) {
       label: '18-25',
       align: 'right',
       sortable: true,
-      render: (row) => row.age1825.toLocaleString(),
+      render: (row) => formatNumber(row.age1825),
     },
     {
       key: 'age2635',
       label: '26-35',
       align: 'right',
       sortable: true,
-      render: (row) => row.age2635.toLocaleString(),
+      render: (row) => formatNumber(row.age2635),
     },
     {
       key: 'age3645',
       label: '36-45',
       align: 'right',
       sortable: true,
-      render: (row) => row.age3645.toLocaleString(),
+      render: (row) => formatNumber(row.age3645),
     },
     {
       key: 'age4655',
       label: '46-55',
       align: 'right',
       sortable: true,
-      render: (row) => row.age4655.toLocaleString(),
+      render: (row) => formatNumber(row.age4655),
     },
     {
       key: 'age56plus',
       label: '56+',
       align: 'right',
       sortable: true,
-      render: (row) => row.age56plus.toLocaleString(),
+      render: (row) => formatNumber(row.age56plus),
     },
   ].filter(Boolean);
 

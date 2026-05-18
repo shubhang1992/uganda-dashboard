@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useCurrentSubscriber, useSubscriberClaims } from '../../../hooks/useSubscriber';
 import { formatUGX, formatUGXExact } from '../../../utils/finance';
+import { formatDate } from '../../../utils/date';
 import { downloadCSV } from '../../../utils/csv';
 import ReportTable from '../../../components/reports/ReportTable';
 import ErrorCard from '../../../components/feedback/ErrorCard';
@@ -8,12 +9,6 @@ import ExportButton from '../../../components/reports/ExportButton';
 import SkeletonRow from '../../../components/SkeletonRow';
 import EmptyState from '../../../components/EmptyState';
 import frameStyles from './ReportFrame.module.css';
-
-function formatDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 const CLAIM_TYPES = {
   medical: 'Medical',

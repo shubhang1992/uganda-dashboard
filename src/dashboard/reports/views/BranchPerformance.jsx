@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
 import { formatUGX } from '../../../utils/finance';
+import { formatNumber } from '../../../utils/currency';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 import FilterSelect from '../FilterSelect';
@@ -93,7 +94,7 @@ export default function BranchPerformance({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalSubscribers || 0,
-      render: (row) => (row.metrics?.totalSubscribers || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalSubscribers || 0),
     },
     {
       key: 'activeRate',

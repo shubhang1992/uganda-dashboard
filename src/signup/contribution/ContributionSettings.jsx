@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { calcFV, EASE_OUT_EXPO, formatUGXExact, parseAmount, FREQUENCY, periodsPerYear } from '../../utils/finance';
+import { calcFV, EASE_OUT_EXPO, parseAmount, FREQUENCY, periodsPerYear } from '../../utils/finance';
+import { formatUGX, formatNumber } from '../../utils/currency';
 import {
   RETIREMENT_AGE,
   MIN_CONTRIBUTION,
@@ -34,13 +35,21 @@ function getFreq(frequencyId) {
   return FREQUENCIES.find((f) => f.id === frequencyId) ?? FREQUENCIES[1];
 }
 
-function formatUGXShort(n) {
+/**
+ * Projection figures use a hybrid: compact ("UGX 1.2M") above 100K so the
+ * big retirement number isn't seven digits wide, but exact ("UGX 50,000")
+ * below so smaller projections stay readable. Distinct from the global
+ * `formatUGX` (always one or the other).
+ */
+function formatProjection(n) {
   if (!Number.isFinite(n) || n <= 0) return 'UGX 0';
-  if (n >= 1e9) return `UGX ${(n / 1e9).toFixed(2)}B`;
-  if (n >= 1e6) return `UGX ${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e5) return `UGX ${(n / 1e3).toFixed(0)}K`;
-  return `UGX ${Math.round(n).toLocaleString('en-UG')}`;
+  if (n >= 1e5) return formatUGX(n, { compact: true });
+  return formatUGX(n, { compact: false });
 }
+
+// Keep `formatUGXExact` referenced via the unified helper for the rest of
+// this file.
+const formatUGXExact = (n) => formatUGX(n, { compact: false });
 
 /** Years until age 60, floor 0. Returns null if dob is missing/invalid. */
 function yearsToRetirement(dob) {
@@ -138,6 +147,8 @@ export default function ContributionSettings({ initial, dob, phone, onClose, onC
       retirementPct,
       emergencyPct,
       includeInsurance,
+      insurancePremium: includeInsurance ? insurancePremium : 0,
+      insuranceCover:   includeInsurance ? INSURANCE_COVER  : 0,
       paymentMethod,
       paymentDetails,
     });
@@ -246,7 +257,7 @@ export default function ContributionSettings({ initial, dob, phone, onClose, onC
               aria-invalid={belowMin && touched}
               aria-describedby="amt-helper"
               className={styles.amountInput}
-              value={amountStr ? Number.parseInt(amountStr, 10).toLocaleString('en-UG') : ''}
+              value={amountStr ? formatNumber(Number.parseInt(amountStr, 10)) : ''}
               onChange={handleAmountChange}
               onBlur={() => setTouched(true)}
             />
@@ -452,7 +463,7 @@ export default function ContributionSettings({ initial, dob, phone, onClose, onC
                   )}
                 </div>
                 <div className={styles.projectionValue}>
-                  {hasAmount && retirementFV > 0 ? formatUGXShort(retirementFV) : 'UGX —'}
+                  {hasAmount && retirementFV > 0 ? formatProjection(retirementFV) : 'UGX —'}
                 </div>
                 {retirementYear && (
                   <p className={styles.projectionYear}>
@@ -502,7 +513,7 @@ export default function ContributionSettings({ initial, dob, phone, onClose, onC
                             </svg>
                           )}
                         </span>
-                        <span className={styles.milestoneCount}>{m.count.toLocaleString('en-UG')}</span>
+                        <span className={styles.milestoneCount}>{formatNumber(m.count)}</span>
                         <span className={styles.milestoneLabel}>
                           {m.count === 1 ? m.one : m.many}
                         </span>

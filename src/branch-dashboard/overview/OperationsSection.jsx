@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { getInitials } from '../../utils/dashboard';
 import { useDashboard } from '../../contexts/DashboardContext';
 import EmptyState from '../../components/EmptyState';
@@ -33,8 +34,8 @@ function getVal(agent, key) {
 }
 
 function fmtVal(v, key) {
-  if (key === 'contributions') return fmtShort(v);
-  if (key === 'subscribers') return v.toLocaleString();
+  if (key === 'contributions') return formatUGXShort(v);
+  if (key === 'subscribers') return formatNumber(v);
   return `${Math.round(v)}%`;
 }
 
@@ -233,7 +234,7 @@ export default function OperationsSection({ agents = [], commissionSummary }) {
             </button>
           )}
           {tab === 'demographics' && (
-            <span className={styles.cardBadge}>{gender.total.toLocaleString()} subscribers</span>
+            <span className={styles.cardBadge}>{formatNumber(gender.total)} subscribers</span>
           )}
         </div>
 

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAllEntities, useAllEntitiesMap, useChildren } from '../../../hooks/useEntity';
 import { useBranchScope } from '../../../contexts/BranchScopeContext';
+import { formatNumber } from '../../../utils/currency';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 import FilterSelect from '../FilterSelect';
@@ -116,7 +117,7 @@ export default function KycCompliance({ onBack }) {
       sortable: true,
       render: (row) => (
         <span style={{ color: 'var(--color-status-good)', fontWeight: 600, fontSize: 'var(--text-xs)' }}>
-          {row.complete.toLocaleString()}
+          {formatNumber(row.complete)}
         </span>
       ),
     },
@@ -127,7 +128,7 @@ export default function KycCompliance({ onBack }) {
       sortable: true,
       render: (row) => (
         <span style={{ color: 'var(--color-status-warning)', fontWeight: 600, fontSize: 'var(--text-xs)' }}>
-          {row.pending.toLocaleString()}
+          {formatNumber(row.pending)}
         </span>
       ),
     },
@@ -138,7 +139,7 @@ export default function KycCompliance({ onBack }) {
       sortable: true,
       render: (row) => (
         <span style={{ color: 'var(--color-status-poor)', fontWeight: 600, fontSize: 'var(--text-xs)' }}>
-          {row.incomplete.toLocaleString()}
+          {formatNumber(row.incomplete)}
         </span>
       ),
     },

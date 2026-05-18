@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useToast } from '../../contexts/ToastContext';
 import { downloadCsv } from '../../utils/csvDownload';
@@ -78,7 +79,7 @@ export default function ReportView({
               'warning',
               // Demo-scope copy per the brief — explicit row count so users
               // know what's missing rather than seeing a truncated CSV.
-              `Showing first ${capped.toLocaleString()} rows in export — refine your filter for full data (${total.toLocaleString()} total).`,
+              `Showing first ${formatNumber(capped)} rows in export — refine your filter for full data (${formatNumber(total)} total).`,
             );
           },
         });

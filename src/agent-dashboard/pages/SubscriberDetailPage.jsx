@@ -1,17 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { formatUGX, formatUGXExact, normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
+import { formatDate } from '../../utils/date';
 import { getInitials } from '../../utils/dashboard';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../shell/PageHeader';
 import styles from './SubscriberDetailPage.module.css';
-
-function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 function StatusPill({ status }) {
   return (

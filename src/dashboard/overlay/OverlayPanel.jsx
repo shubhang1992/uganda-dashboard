@@ -4,7 +4,8 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useChildren, useTopBranch, useSearch, useDistributorMetrics } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { CHILD_LEVEL } from '../../constants/levels';
-import { formatUGX, EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { formatUGX, formatNumber } from '../../utils/currency';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import styles from './OverlayPanel.module.css';
@@ -337,7 +338,7 @@ function TimePeriodCard({ metrics, level, parentId, onMetricClick }) {
         >
           <MetricRow
             variant="subscribers" icon={<SubsIcon />}
-            value={d.subs.toLocaleString()} label="New Subscribers"
+            value={formatNumber(d.subs)} label="New Subscribers"
             change={d.subsChange}
             onClick={onMetricClick ? () => onMetricClick('subscriber-growth') : undefined}
           />
@@ -522,7 +523,7 @@ export default function OverlayPanel() {
           <div className={styles.countsBlock}>
             <div className={styles.countRow}>
               <button className={styles.countItem} data-clickable onClick={() => openReport('all-subscribers')}>
-                <span className={styles.countNum}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
+                <span className={styles.countNum}>{formatNumber(metrics.totalSubscribers || 0)}</span>
                 <span className={styles.countLabel}>Subscribers</span>
               </button>
               <button className={styles.countItem} data-clickable onClick={() => openReport('all-agents')}>
@@ -544,10 +545,10 @@ export default function OverlayPanel() {
               </div>
               <div className={styles.activityLabels}>
                 <span className={styles.activityActive}>
-                  {Math.round((metrics.totalSubscribers || 0) * (metrics.activeRate / 100)).toLocaleString()} active
+                  {formatNumber((metrics.totalSubscribers || 0) * (metrics.activeRate / 100))} active
                 </span>
                 <span className={styles.activityInactive}>
-                  {Math.round((metrics.totalSubscribers || 0) * ((100 - metrics.activeRate) / 100)).toLocaleString()} inactive
+                  {formatNumber((metrics.totalSubscribers || 0) * ((100 - metrics.activeRate) / 100))} inactive
                 </span>
               </div>
             </div>
@@ -624,7 +625,7 @@ export default function OverlayPanel() {
                       <div className={styles.statusRow}>
                         <span className={styles.statusLabel}>{child.name}</span>
                         {isChildActive ? (
-                          <span className={styles.statusCount}>{subCount.toLocaleString()} subscribers</span>
+                          <span className={styles.statusCount}>{formatNumber(subCount)} subscribers</span>
                         ) : (
                           <span className={styles.inactiveTag}>No branches</span>
                         )}

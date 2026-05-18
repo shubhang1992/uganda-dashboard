@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { useSignIn } from '../contexts/SignInContext';
 import { useAuth } from '../contexts/AuthContext';
 import { hasDashboard, sendOtp, verifyOtp } from '../services/auth';
-import { isSignupComplete } from '../signup/signupState';
 import RoleSelect from './signin/RoleSelect';
 import DistributorSelect from './signin/DistributorSelect';
 import PhoneEntry from './signin/PhoneEntry';
@@ -146,15 +145,13 @@ export default function SignInModal() {
    * not the client.
    */
   async function handleVerify(code) {
-    const { user } = await verifyOtp(phone, code, role);
+    const { token, user } = await verifyOtp(phone, code, role);
+    await login({ token, user });
     close();
-    login(user);
-    // Subscribers with incomplete KYC resume the signup flow instead of landing
-    // on the dashboard with no profile data.
-    if (user.role === 'subscriber' && !isSignupComplete()) {
-      navigate('/signup');
-      return;
-    }
+    // Trust the API response: verify-otp resolves (or falls back to) a real
+    // server subscriber row and returns `user.subscriberId`. Routing to /signup
+    // based on localStorage made every fresh-browser sign-in detour through
+    // signup even for users whose row already existed.
     navigate(hasDashboard(user.role) ? '/dashboard' : '/coming-soon');
   }
 

@@ -26,7 +26,7 @@ const NO_BACK_STEPS = new Set(['id-upload', 'done', AGENT_STEP, PENDING_REVIEW_S
 function SignupFlow() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, logout } = useAuth();
+  const { logout } = useAuth();
   const signup = useSignup();
   const [stepId, setStepId] = useState('id-upload');
   const [pausedAt, setPausedAt] = useState(null);
@@ -71,14 +71,12 @@ function SignupFlow() {
   }
 
   function finishAndEnter() {
-    login({
-      role: 'subscriber',
-      phone: signup.phone,
-      name: signup.fullName || 'New Subscriber',
-      contributionSchedule: signup.contributionSchedule ?? null,
-    });
-    signup.reset();
-    navigate('/coming-soon');
+    // Persistence happens in ContributionRoute (via the atomic
+    // `create_subscriber_from_signup` RPC, which requires a schedule). The
+    // ActivatedStep "Continue" / "I'll do this later" buttons land here, so
+    // route everyone through the contribution page — that's the only path that
+    // creates the real subscriber row + mints the JWT.
+    navigate('/signup/contribution');
   }
 
   function exitToHome() {

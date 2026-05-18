@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO, formatUGXExact, formatUGX, parseAmount } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
+import { formatDate } from '../../utils/date';
 import { useCurrentSubscriber, useSubmitClaim, useSubscriberClaims } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import PageHeader from '../shell/PageHeader';
@@ -16,12 +18,6 @@ const CLAIM_TYPES = [
 ];
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
-
-function formatDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 function statusMeta(status) {
   switch (status) {
@@ -275,7 +271,7 @@ export default function ClaimPage() {
                       type="text"
                       inputMode="numeric"
                       className={styles.input}
-                      value={claimAmount ? (parseAmount(claimAmount) ?? 0).toLocaleString('en-UG') : ''}
+                      value={claimAmount ? formatNumber(parseAmount(claimAmount) ?? 0) : ''}
                       onChange={(e) => setClaimAmount(e.target.value.replace(/[^\d]/g, ''))}
                       placeholder="e.g. 350,000"
                     />

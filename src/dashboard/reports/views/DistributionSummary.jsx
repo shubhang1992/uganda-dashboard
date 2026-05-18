@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useCountry, useAllEntities } from '../../../hooks/useEntity';
 import { formatUGX } from '../../../utils/finance';
+import { formatNumber } from '../../../utils/currency';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 
@@ -16,7 +17,7 @@ export default function DistributionSummary({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalSubscribers || 0,
-      render: (row) => (row.metrics?.totalSubscribers || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalSubscribers || 0),
     },
     {
       key: 'totalBranches',
@@ -24,7 +25,7 @@ export default function DistributionSummary({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalBranches || 0,
-      render: (row) => (row.metrics?.totalBranches || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalBranches || 0),
     },
     {
       key: 'totalAgents',
@@ -32,7 +33,7 @@ export default function DistributionSummary({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalAgents || 0,
-      render: (row) => (row.metrics?.totalAgents || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalAgents || 0),
     },
     {
       key: 'aum',
@@ -79,7 +80,7 @@ export default function DistributionSummary({ onBack }) {
   const description = useMemo(() => {
     if (!country?.metrics) return 'Network summary across all regions';
     const m = country.metrics;
-    return `${m.totalSubscribers?.toLocaleString()} subscribers \u00B7 ${m.totalBranches?.toLocaleString()} branches \u00B7 ${formatUGX(m.aum)} AUM`;
+    return `${formatNumber(m.totalSubscribers)} subscribers \u00B7 ${formatNumber(m.totalBranches)} branches \u00B7 ${formatUGX(m.aum)} AUM`;
   }, [country]);
 
   return (

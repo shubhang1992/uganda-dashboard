@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useCurrentSubscriber } from '../../../hooks/useSubscriber';
 import { formatUGX, formatUGXExact } from '../../../utils/finance';
+import { formatDate } from '../../../utils/date';
 import { downloadCSV } from '../../../utils/csv';
 import ErrorCard from '../../../components/feedback/ErrorCard';
 import ExportButton from '../../../components/reports/ExportButton';
@@ -11,7 +12,7 @@ import frameStyles from './ReportFrame.module.css';
 function monthLabel(i, len) {
   const d = new Date();
   const target = new Date(d.getFullYear(), d.getMonth() - (len - 1 - i), 1);
-  return target.toLocaleDateString('en-UG', { month: 'short', year: 'numeric' });
+  return formatDate(target, { variant: 'short-month-year' });
 }
 
 export default function ContributionsSummary() {

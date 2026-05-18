@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGXExact, formatUGX } from '../../utils/finance';
-import { useCurrentSubscriber } from '../../hooks/useSubscriber';
+import { formatDate } from '../../utils/date';
+import { useCurrentSubscriber, useSubscriberTransactions } from '../../hooks/useSubscriber';
 import PageHeader from '../shell/PageHeader';
 import styles from './ActivityPage.module.css';
 
@@ -21,8 +22,7 @@ const FILTERS = [
 ];
 
 function formatTxDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
+  return formatDate(iso, { variant: 'short' });
 }
 
 function groupByMonth(transactions) {
@@ -30,7 +30,7 @@ function groupByMonth(transactions) {
   transactions.forEach((tx) => {
     const d = tx.date ? new Date(tx.date) : new Date();
     const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
-    const label = d.toLocaleDateString('en-UG', { month: 'long', year: 'numeric' });
+    const label = formatDate(d, { variant: 'month-year' });
     if (!groups.has(key)) groups.set(key, { label, items: [] });
     groups.get(key).items.push(tx);
   });
@@ -40,12 +40,13 @@ function groupByMonth(transactions) {
 export default function ActivityPage() {
   const { data: sub } = useCurrentSubscriber();
   const [filter, setFilter] = useState('all');
+  const { data: allTx = [] } = useSubscriberTransactions(sub?.id);
 
   const filtered = useMemo(() => {
-    const all = sub?.transactions || [];
+    const all = allTx;
     const filterFn = FILTERS.find((f) => f.id === filter)?.test ?? (() => true);
     return all.filter(filterFn);
-  }, [sub?.transactions, filter]);
+  }, [allTx, filter]);
 
   const totals = useMemo(() => {
     let inflow = 0, outflow = 0;

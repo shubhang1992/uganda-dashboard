@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
+import { formatDate } from '../../utils/date';
 import { useCurrentSubscriber, useSubscriberAgent } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import { getAgentReply } from '../../services/chat';
@@ -41,7 +43,7 @@ function formatTenure(months) {
 
 function formatMsgTime(ts) {
   if (!ts) return '';
-  return new Date(ts).toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' });
+  return formatDate(ts, { variant: 'time' });
 }
 
 const SUGGESTED_QUERIES = [
@@ -200,7 +202,7 @@ export default function AgentPage() {
                   {Number.isFinite(agent.subscribersManaged) && (
                     <div className={styles.metaRow}>
                       <dt>Looking after</dt>
-                      <dd>{agent.subscribersManaged.toLocaleString()} savers</dd>
+                      <dd>{formatNumber(agent.subscribersManaged)} savers</dd>
                     </div>
                   )}
                 </dl>

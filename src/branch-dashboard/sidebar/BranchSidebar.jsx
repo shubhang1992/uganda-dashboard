@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
@@ -125,6 +125,7 @@ export default function BranchSidebar({ mode = 'desktop', onNavigate }) {
   // toggle state so users can collapse it.
   const [agentExpanded, setAgentExpanded] = useState(false);
   const agentPopoverRef = useRef(null);
+  const moreWrapRef = useRef(null);
   const { logout } = useAuth();
   const navigate = useNavigate();
   const {
@@ -147,12 +148,11 @@ export default function BranchSidebar({ mode = 'desktop', onNavigate }) {
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
 
-  useEffect(() => {
-    if (!moreOpen) return;
-    const handler = () => closeMore();
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
-  }, [moreOpen, closeMore]);
+  // Close the "More" popover on outside click + Escape via the shared hook.
+  // Replaces a hand-rolled `document.addEventListener('click', ...)` effect
+  // that fired on any click (including the trigger itself) and skipped the
+  // Escape key entirely.
+  useOutsideClick(moreOpen, closeMore, [moreWrapRef]);
 
   // Close agent popover on outside click + Escape.
   useOutsideClick(agentPopover, () => setAgentPopover(false), [agentPopoverRef]);
@@ -505,11 +505,13 @@ export default function BranchSidebar({ mode = 'desktop', onNavigate }) {
             )}
           </div>
         ))}
-        <div className={styles.moreWrap}>
+        <div className={styles.moreWrap} ref={moreWrapRef}>
           <button
             className={styles.mobileBtn}
             data-active={moreOpen}
-            onClick={(e) => { e.stopPropagation(); setMoreOpen(!moreOpen); }}
+            onClick={() => setMoreOpen((prev) => !prev)}
+            aria-haspopup="menu"
+            aria-expanded={moreOpen}
             aria-label="More options"
           >
             <span className={styles.iconWrap}>
@@ -524,16 +526,17 @@ export default function BranchSidebar({ mode = 'desktop', onNavigate }) {
           <AnimatePresence>
             {moreOpen && (
               <motion.div
+                role="menu"
                 className={styles.moreMenu}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 8 }}
                 transition={{ duration: 0.2, ease: EASE_OUT_EXPO }}
-                onClick={(e) => e.stopPropagation()}
               >
                 {MORE_ITEMS.map((item) => (
                   <button
                     key={item.id}
+                    role="menuitem"
                     className={styles.moreItem}
                     onClick={() => handleClick(item.id)}
                   >

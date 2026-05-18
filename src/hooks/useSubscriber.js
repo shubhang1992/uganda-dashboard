@@ -40,6 +40,14 @@ export function useSubscriberClaims(id) {
   });
 }
 
+export function useSubscriberWithdrawals(id) {
+  return useQuery({
+    queryKey: ['subscriberWithdrawals', id],
+    queryFn: () => subscriberService.getSubscriberWithdrawals(id),
+    enabled: !!id,
+  });
+}
+
 export function useSubscriberNominees(id) {
   return useQuery({
     queryKey: ['subscriberNominees', id],
@@ -63,6 +71,7 @@ function useInvalidateSubscriber(id) {
     qc.invalidateQueries({ queryKey: ['currentSubscriber'] });
     qc.invalidateQueries({ queryKey: ['subscriberTransactions', id] });
     qc.invalidateQueries({ queryKey: ['subscriberClaims', id] });
+    qc.invalidateQueries({ queryKey: ['subscriberWithdrawals', id] });
     qc.invalidateQueries({ queryKey: ['subscriberNominees', id] });
   };
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useAllEntities } from '../../hooks/useEntity';
@@ -10,7 +11,7 @@ import styles from './Sidebar.module.css';
 function formatCount(n) {
   if (!Number.isFinite(n) || n <= 0) return '—';
   if (n >= 10_000) return `${Math.round(n / 1000)}K`;
-  return n.toLocaleString('en-UG');
+  return formatNumber(n);
 }
 
 const MOBILE_NAV = [

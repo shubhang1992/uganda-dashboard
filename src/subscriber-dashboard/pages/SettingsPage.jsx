@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGX, formatUGXExact } from '../../utils/finance';
+import { formatDate } from '../../utils/date';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import { getInitials } from '../../utils/dashboard';
@@ -93,8 +94,8 @@ export default function SettingsPage() {
 
   const initials = getInitials(sub?.name || '');
   const insurance = sub?.insurance;
-  const memberSince = sub?.memberSince
-    ? new Date(sub.memberSince).toLocaleDateString('en-UG', { month: 'long', year: 'numeric' })
+  const memberSince = sub?.registeredDate
+    ? formatDate(sub.registeredDate, { variant: 'month-year' })
     : null;
 
   function handleLogout() {

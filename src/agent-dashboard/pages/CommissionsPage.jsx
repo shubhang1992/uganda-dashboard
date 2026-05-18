@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '../../components/Modal';
-import { EASE_OUT_EXPO, formatUGX, fmtShort } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
+import { formatDate } from '../../utils/date';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import {
   useAgentCommissionDetail,
@@ -40,12 +42,6 @@ const DISPUTE_REASONS = [
   'Duplicate commission entry',
   'Other',
 ];
-
-function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 const Icons = {
   chev: (
@@ -490,7 +486,7 @@ export default function CommissionsPage() {
                 <span className={styles.summaryLabel}>Total commissions</span>
                 <span className={styles.summaryValue}>{formatUGX(totals.totalAll)}</span>
                 <span className={styles.summaryHint}>
-                  {all.length.toLocaleString()} record{all.length === 1 ? '' : 's'} from your subscribers
+                  {formatNumber(all.length)} record{all.length === 1 ? '' : 's'} from your subscribers
                 </span>
               </div>
               <div className={styles.summaryProgress}>
@@ -507,15 +503,15 @@ export default function CommissionsPage() {
             <div className={styles.primaryGrid}>
               <button className={styles.primaryCard} data-type="settled" onClick={() => navigate('/dashboard/commissions/earned')}>
                 <div className={styles.primaryIcon}>{Icons.check}</div>
-                <div className={styles.primaryAmount}>{fmtShort(totals.totalPaid)}</div>
+                <div className={styles.primaryAmount}>{formatUGXShort(totals.totalPaid)}</div>
                 <div className={styles.primaryLabel}>Earned</div>
-                <div className={styles.primaryCount}>{totals.paid.length.toLocaleString()} commissions paid</div>
+                <div className={styles.primaryCount}>{formatNumber(totals.paid.length)} commissions paid</div>
               </button>
               <button className={styles.primaryCard} data-type="pending" onClick={() => navigate('/dashboard/commissions/owed')}>
                 <div className={styles.primaryIcon}>{Icons.clock}</div>
-                <div className={styles.primaryAmount}>{fmtShort(totals.totalDue)}</div>
+                <div className={styles.primaryAmount}>{formatUGXShort(totals.totalDue)}</div>
                 <div className={styles.primaryLabel}>Owed</div>
-                <div className={styles.primaryCount}>{totals.due.length.toLocaleString()} awaiting next cycle</div>
+                <div className={styles.primaryCount}>{formatNumber(totals.due.length)} awaiting next cycle</div>
               </button>
             </div>
 

@@ -45,12 +45,14 @@ export default function ReviewStep({ onNext }) {
           sessionId: signup.onboardingSessionId,
         });
         if (cancelled) return;
+        // districtId is intentionally not on the OCR result — Ugandan IDs
+        // don't carry a district. The user picks it manually below, so it
+        // must not be marked as "Auto-filled".
         signup.patch({
           fullName: result.fullName,
           nin: result.nin,
           cardNumber: result.cardNumber,
           dob: result.dob,
-          districtId: result.districtId,
           gender: result.gender,
           barcodeRaw: result.barcodeRaw,
           idConfidence: result.confidence,
@@ -67,13 +69,15 @@ export default function ReviewStep({ onNext }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* Snapshot of OCR-derived values — used to decide which fields still show "Auto-filled" */
+  /* Snapshot of OCR-derived values — used to decide which fields still show
+   * "Auto-filled". `districtId` is omitted: it isn't on a Ugandan National ID
+   * and is never returned by the OCR, so the field must never be flagged as
+   * auto-filled even if a stale session restored signup.districtId. */
   const [initialValues, setInitialValues] = useState(() => ({
     fullName: signup.fullName,
     nin: signup.nin,
     cardNumber: signup.cardNumber,
     dob: signup.dob,
-    districtId: signup.districtId,
     gender: signup.gender,
   }));
   const [edited, setEdited] = useState(() => new Set());
@@ -214,7 +218,7 @@ export default function ReviewStep({ onNext }) {
       <span className={styles.eyebrow}>Step 2 · Review</span>
       <h2 className={styles.heading}>Check your details</h2>
       <p className={styles.subtext}>
-        We read these from your ID. Fix anything we got wrong. Fill in your phone number and occupation below.
+        We read these from your ID. Fix anything we got wrong. Fill in your district, phone number and occupation below.
       </p>
 
       {confidencePct != null && (
@@ -298,7 +302,31 @@ export default function ReviewStep({ onNext }) {
           </ReviewField>
         </div>
 
-        <ReviewField id="district" label="District" autoFilled={isAutoFilled('districtId')} error={errors.districtId}>
+        <ReviewField id="gender" label="Gender" autoFilled={isAutoFilled('gender')} error={errors.gender}>
+          <div className={styles.segment} style={{ '--cols': 3 }} role="radiogroup" aria-labelledby="gender-label">
+            {GENDERS.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                role="radio"
+                aria-checked={signup.gender === g.id}
+                data-active={signup.gender === g.id}
+                className={styles.segmentBtn}
+                onClick={() => { signup.patch({ gender: g.id }); markEdited('gender'); }}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+        </ReviewField>
+
+        {/* Divider between OCR and manual fields */}
+        <div className={own.manualHeader}>
+          <span className={own.manualEyebrow}>Not on your ID</span>
+          <span className={own.manualHint}>We need a couple more details from you.</span>
+        </div>
+
+        <ReviewField id="district" label="District" error={errors.districtId}>
           <div className={own.comboWrap}>
             <input
               id="district"
@@ -341,32 +369,13 @@ export default function ReviewStep({ onNext }) {
                 No districts match “{districtQuery.trim()}”. Check the spelling and try again.
               </div>
             )}
+            {districts.length === 0 && !errors.districtId && (
+              <div className={own.comboEmpty} role="alert">
+                Couldn't load district list. Please refresh the page or contact support if this persists.
+              </div>
+            )}
           </div>
         </ReviewField>
-
-        <ReviewField id="gender" label="Gender" autoFilled={isAutoFilled('gender')} error={errors.gender}>
-          <div className={styles.segment} style={{ '--cols': 3 }} role="radiogroup" aria-labelledby="gender-label">
-            {GENDERS.map((g) => (
-              <button
-                key={g.id}
-                type="button"
-                role="radio"
-                aria-checked={signup.gender === g.id}
-                data-active={signup.gender === g.id}
-                className={styles.segmentBtn}
-                onClick={() => { signup.patch({ gender: g.id }); markEdited('gender'); }}
-              >
-                {g.label}
-              </button>
-            ))}
-          </div>
-        </ReviewField>
-
-        {/* Divider between OCR and manual fields */}
-        <div className={own.manualHeader}>
-          <span className={own.manualEyebrow}>Not on your ID</span>
-          <span className={own.manualHint}>We need a couple more details from you.</span>
-        </div>
 
         <ReviewField id="phone" label="Phone number" hint="used for your mobile-money wallet" error={errors.phone}>
           <div className={styles.phoneGroup} data-error={!!errors.phone}>

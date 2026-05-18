@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { EASE_OUT_EXPO, formatUGXExact, formatUGX, parseAmount } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
 import { useCurrentSubscriber, useMakeContribution } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import { MIN_CONTRIBUTION, QUICK_CONTRIBUTION_AMOUNTS } from '../../constants/savings';
@@ -118,7 +119,7 @@ export default function SavePage() {
                     inputMode="numeric"
                     autoComplete="off"
                     spellCheck={false}
-                    value={amountStr ? Number.parseInt(amountStr, 10).toLocaleString('en-UG') : ''}
+                    value={amountStr ? formatNumber(Number.parseInt(amountStr, 10)) : ''}
                     onChange={(e) => setAmountStr(e.target.value.replace(/[^\d]/g, ''))}
                     placeholder="Enter amount"
                     className={styles.amountInput}

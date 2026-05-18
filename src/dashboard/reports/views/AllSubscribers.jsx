@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
 import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import { formatUGX } from '../../../utils/finance';
+import { formatNumber } from '../../../utils/currency';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 import FilterSelect from '../FilterSelect';
@@ -120,8 +121,8 @@ export default function AllSubscribers({ onBack }) {
       onBack={onBack}
       title="All Subscribers"
       description={isBranch
-        ? `${filtered.length.toLocaleString()} subscribers in ${branchesMap[branchId]?.name || 'this branch'}`
-        : `${filtered.length.toLocaleString()} subscribers in the network`}
+        ? `${formatNumber(filtered.length)} subscribers in ${branchesMap[branchId]?.name || 'this branch'}`
+        : `${formatNumber(filtered.length)} subscribers in the network`}
       filters={
         <>
           <SearchFilter value={search} onChange={setSearch} placeholder="Search subscribers…" />
