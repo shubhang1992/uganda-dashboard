@@ -18,7 +18,7 @@ export { DISTRICTS };
 // consistent — "due in 5 days" should always mean 5 days from this same
 // reference, not from the wall clock. Replace with `new Date()` once real data
 // arrives from the backend.
-export const MOCK_NOW = new Date(2026, 3, 8); // 2026-04-08
+export const MOCK_NOW = new Date(2026, 4, 1); // 2026-05-01
 
 /**
  * Returns the "current time" as the rest of the codebase should treat it.
@@ -728,7 +728,7 @@ export const COMMISSION_CONFIG = {
 };
 
 // Sentinel run IDs: one already-released run for last cycle, one currently-open
-// run for the active cycle (relative to MOCK_NOW = 2026-04-08).
+// run for the active cycle (relative to MOCK_NOW = 2026-05-01).
 const RUN_RELEASED_ID = 'r-2026-03';
 const RUN_OPEN_ID = 'r-2026-04';
 
