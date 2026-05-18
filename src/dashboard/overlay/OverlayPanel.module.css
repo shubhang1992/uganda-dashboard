@@ -54,6 +54,113 @@
   color: var(--color-indigo);
 }
 
+/* ── Skeleton (loading state) ────────────────────────────────────────────────
+   Mirrors the panel chrome — header, hero rectangle, counts row, period card —
+   so when `useCurrentEntity` resolves the layout doesn't snap. The shimmer
+   tone matches `--color-lavender` and shares the `aumSheen` easing curve so
+   skeletons feel continuous with the real AUM hero animation. */
+.skeletonHero {
+  position: relative;
+  overflow: hidden;
+  height: 96px;
+  border-radius: var(--radius-md);
+  margin: -0.125rem -0.25rem 0;
+  background: linear-gradient(145deg, #1B1A4A 0%, #292867 60%, #2F3550 100%);
+  box-shadow:
+    0 12px 32px rgba(27, 26, 74, 0.25),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+.skeletonHero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse 220px 140px at 15% 40%, rgba(94, 99, 168, 0.32) 0%, transparent 70%),
+    radial-gradient(ellipse 180px 120px at 90% 20%, rgba(47, 143, 157, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.skeletonHero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-position: 100% 50%;
+  animation: panelShimmer 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.skeletonBlock {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: rgba(217, 220, 242, 0.4);
+}
+
+.skeletonBlock::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.7) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-position: 100% 50%;
+  animation: panelShimmer 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.skeletonRow {
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: rgba(217, 220, 242, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeletonRow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.8) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-position: 100% 50%;
+  animation: panelShimmer 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+@keyframes panelShimmer {
+  0%   { background-position: 100% 50%; }
+  60%  { background-position: 0% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonHero::after,
+  .skeletonBlock::after,
+  .skeletonRow::after {
+    animation: none;
+  }
+}
+
 .backBtn {
   display: flex;
   align-items: center;

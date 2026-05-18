@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAllEntities } from '../../hooks/useEntity';
@@ -241,10 +242,15 @@ export default function ViewSubscribers() {
     return t;
   }, [allSubscribersRaw]);
 
+  // Debounce the live search input — with ~30k subscribers, running the
+  // filter + sort on every keystroke drops frames. 150ms keeps the input
+  // visibly responsive while collapsing rapid typing into a single recompute.
+  const debouncedSearch = useDebouncedValue(search, 150);
+
   const filtered = useMemo(() => {
     let list = allSubscribersRaw;
-    if (search.trim()) {
-      const q = search.toLowerCase().trim();
+    const q = debouncedSearch.trim().toLowerCase();
+    if (q) {
       list = list.filter((s) =>
         s.name.toLowerCase().includes(q) ||
         s.phone.includes(q)
@@ -257,7 +263,7 @@ export default function ViewSubscribers() {
     }
     const sortOpt = SORT_OPTIONS.find((o) => o.key === sortKey);
     return [...list].sort(sortOpt ? sortOpt.fn : SORT_OPTIONS[0].fn);
-  }, [allSubscribersRaw, search, statusFilter, sortKey]);
+  }, [allSubscribersRaw, debouncedSearch, statusFilter, sortKey]);
 
   const estimateSize = useCallback(() => 72, []);
   const virtualizer = useVirtualizer({

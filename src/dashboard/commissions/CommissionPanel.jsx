@@ -1,10 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
 import { cadenceLabel, CADENCES } from '../../utils/settlementCycle';
+import { downloadCsv } from '../../utils/csvDownload';
 import {
   useCommissionRate, useSetCommissionRate,
   useCommissionSummary, useAgentCommissionList,
@@ -224,21 +227,28 @@ export default function CommissionPanel({ splitMode = false }) {
     [disputedAgents, branchId, isBranch]
   );
 
+  // Debounce the search input — the filter memos below run a full
+  // `.toLowerCase()` + `.includes()` pass over the agent list on every
+  // keystroke. With 2k+ agents that's enough work to drop a frame on every
+  // letter. 200ms aligns with the OverlayPanel debounce so the two search
+  // surfaces feel uniform.
+  const debouncedSearch = useDebouncedValue(search, 200);
+
   const filteredAgents = useMemo(() => {
-    if (!search.trim()) return scopedAgentList;
-    const q = search.toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) return scopedAgentList;
     return scopedAgentList.filter((a) =>
       a.agentName.toLowerCase().includes(q) || a.branchName.toLowerCase().includes(q)
     );
-  }, [scopedAgentList, search]);
+  }, [scopedAgentList, debouncedSearch]);
 
   const filteredDisputed = useMemo(() => {
-    if (!search.trim()) return scopedDisputedAgents;
-    const q = search.toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) return scopedDisputedAgents;
     return scopedDisputedAgents.filter((a) =>
       a.agentName.toLowerCase().includes(q) || a.branchName.toLowerCase().includes(q)
     );
-  }, [scopedDisputedAgents, search]);
+  }, [scopedDisputedAgents, debouncedSearch]);
 
   // Branch view of the open run
   const branchSliceTotal = branchReview?.lines?.reduce((s, c) => s + (c.amount || 0), 0) || 0;
@@ -416,6 +426,57 @@ export default function CommissionPanel({ splitMode = false }) {
       addToast('error', 'Could not submit sign-off.');
     }
   }
+
+  // ── Agent commission detail CSV download ──────────────────────────────────
+  // Wires the "Download" button at the bottom of the agent-detail view to a
+  // real CSV export. We flatten the paid + due transactions into one table so
+  // the export is a self-contained ledger of the agent's commission lines.
+  // Hidden when there's no agentDetail (e.g. while the detail query loads).
+  const isMobile = useIsMobile();
+  const handleAgentDetailDownload = useCallback(async () => {
+    if (!agentDetail) return;
+    const rows = [
+      ...(agentDetail.paidTransactions || []).map((tx) => ({
+        date: tx.transactionDate,
+        subscriber: tx.subscriberName,
+        amount: tx.amount,
+        status: tx.status === 'confirmed' ? 'Paid (confirmed)' : 'Paid (awaiting agent)',
+      })),
+      ...(agentDetail.dueTransactions || []).map((tx) => ({
+        date: tx.dueDate,
+        subscriber: tx.subscriberName,
+        amount: tx.amount,
+        status: tx.status === 'in_run'
+          ? 'Due (in current run)'
+          : tx.status === 'held'
+            ? 'Due (held)'
+            : 'Due',
+      })),
+    ];
+    const columns = [
+      { key: 'date', label: 'Date' },
+      { key: 'subscriber', label: 'Subscriber' },
+      { key: 'amount', label: 'Amount (UGX)' },
+      { key: 'status', label: 'Status' },
+    ];
+    try {
+      await downloadCsv({
+        rows,
+        columns,
+        // Filename slug — agent name + ID keep the file searchable on disk.
+        filename: `commissions-${agentDetail.agentName || 'agent'}-${agentDetail.agentId || ''}`,
+        isMobile,
+        onCapNotice: ({ capped, total }) => {
+          addToast(
+            'warning',
+            `Showing first ${capped.toLocaleString()} rows in export — refine your filter for full data (${total.toLocaleString()} total).`,
+          );
+        },
+      });
+    } catch (err) {
+      addToast('error', err?.message || 'Could not download commission ledger.');
+    }
+  }, [agentDetail, isMobile, addToast]);
 
   // Breadcrumb
   const breadcrumbItems = useMemo(() => {
@@ -1157,7 +1218,12 @@ export default function CommissionPanel({ splitMode = false }) {
                       )}
                     </div>
 
-                    <button className={styles.downloadBtn} aria-label="Download as Excel">
+                    <button
+                      className={styles.downloadBtn}
+                      onClick={handleAgentDetailDownload}
+                      aria-label="Download commission ledger as CSV"
+                      type="button"
+                    >
                       {Icons.download}
                       Download
                     </button>

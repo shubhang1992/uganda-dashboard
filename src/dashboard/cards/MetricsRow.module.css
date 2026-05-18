@@ -17,6 +17,110 @@
   flex-shrink: 0;
 }
 
+/* ── Skeleton card (loading state before metrics arrive) ─────────────────────
+   Matches the live `.card` outer geometry so the layout doesn't reflow on
+   data arrival. Inner shimmer rectangles use a slow lavender→white sweep
+   tied to `--ease-out-expo` so the motion is coherent with the rest of the
+   distributor dashboard's micro-interactions. */
+.skeletonCard {
+  min-height: 210px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.78) 0%, rgba(246,247,251,0.72) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.6);
+  border-top: 1px solid rgba(255,255,255,0.8);
+  border-left: 1px solid rgba(255,255,255,0.7);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 8px 32px rgba(41,40,103,0.07),
+    0 1px 0 rgba(255,255,255,0.5) inset,
+    0 -1px 0 rgba(41,40,103,0.03) inset;
+  padding: 1rem 1.125rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.skeletonLine {
+  height: 12px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(
+    100deg,
+    rgba(217, 220, 242, 0.55) 0%,
+    rgba(217, 220, 242, 0.55) 40%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(217, 220, 242, 0.55) 60%,
+    rgba(217, 220, 242, 0.55) 100%
+  );
+  background-size: 220% 100%;
+  background-position: 100% 50%;
+  animation: skeletonSweep 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.skeletonLine[data-tone='dim'] {
+  background: linear-gradient(
+    100deg,
+    rgba(217, 220, 242, 0.35) 0%,
+    rgba(217, 220, 242, 0.35) 40%,
+    rgba(255, 255, 255, 0.7) 50%,
+    rgba(217, 220, 242, 0.35) 60%,
+    rgba(217, 220, 242, 0.35) 100%
+  );
+  background-size: 220% 100%;
+  background-position: 100% 50%;
+  animation: skeletonSweep 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.skeletonHead {
+  height: 16px;
+  width: 50%;
+}
+
+.skeletonChartRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  height: 60px;
+}
+
+.skeletonBar {
+  flex: 1;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(
+    180deg,
+    rgba(94, 99, 168, 0.18) 0%,
+    rgba(217, 220, 242, 0.45) 100%
+  );
+  animation: skeletonBarRise 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
+}
+
+.skeletonBar:nth-child(1) { height: 35%; animation-delay: 0s; }
+.skeletonBar:nth-child(2) { height: 60%; animation-delay: 0.08s; }
+.skeletonBar:nth-child(3) { height: 45%; animation-delay: 0.16s; }
+.skeletonBar:nth-child(4) { height: 80%; animation-delay: 0.24s; }
+.skeletonBar:nth-child(5) { height: 50%; animation-delay: 0.32s; }
+
+@keyframes skeletonSweep {
+  0%   { background-position: 100% 50%; }
+  60%  { background-position: 0% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes skeletonBarRise {
+  from { opacity: 0.55; }
+  to   { opacity: 0.95; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonLine,
+  .skeletonBar {
+    animation: none;
+    background-position: 0% 50%;
+  }
+}
+
 
 .card {
   min-height: 210px;

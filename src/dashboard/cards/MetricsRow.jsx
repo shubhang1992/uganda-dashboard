@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { useCurrentEntity } from '../../hooks/useEntity';
+import { useCurrentEntity, useDistributorMetrics } from '../../hooks/useEntity';
 import { getChatResponse } from '../../services/chat';
 import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import styles from './MetricsRow.module.css';
@@ -166,6 +166,44 @@ function AgeBarChart({ distribution }) {
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 const item = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } } };
 
+// ── Skeleton row ───────────────────────────────────────────────────────────
+// Rendered while the entity query is still resolving (cold-load on a fresh
+// distributor session). Mirrors the live row's geometry — two cards, each
+// ~340px wide on desktop — so first-paint width is stable and nothing reflows
+// when metrics arrive. `aria-busy="true"` and `role="status"` make the state
+// announceable for screen readers without spamming the DOM with live-region
+// updates.
+function MetricsRowSkeleton() {
+  return (
+    <div
+      className={styles.rowWrap}
+      role="status"
+      aria-busy="true"
+      aria-label="Loading network metrics"
+    >
+      <div className={styles.row}>
+        {/* 4 grey cards per the brief — two visible at-a-glance on a wide
+            viewport, the other two left in the DOM for layout symmetry +
+            scrolling on narrower widths. */}
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className={styles.skeletonCard} aria-hidden="true">
+            <div className={`${styles.skeletonLine} ${styles.skeletonHead}`} />
+            <div className={styles.skeletonLine} style={{ width: '80%' }} />
+            <div className={styles.skeletonLine} data-tone="dim" style={{ width: '64%' }} />
+            <div className={styles.skeletonChartRow}>
+              <div className={styles.skeletonBar} />
+              <div className={styles.skeletonBar} />
+              <div className={styles.skeletonBar} />
+              <div className={styles.skeletonBar} />
+              <div className={styles.skeletonBar} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function MetricsRow() {
   const {
     level, selectedIds,
@@ -174,8 +212,34 @@ export default function MetricsRow() {
     commissionsOpen, settingsOpen, viewReportsOpen,
     createBranchOpen,
   } = useDashboard();
-  const { data: entity } = useCurrentEntity(level, selectedIds);
-  const metrics = entity?.metrics;
+  const { data: entity, isLoading: entityLoading } = useCurrentEntity(level, selectedIds);
+
+  // Distributor home (`level === 'country'`) needs the live Supabase roll-up
+  // counts so cards display real subscriber/agent/branch totals instead of
+  // the seeded `EMPTY_METRICS` zeros that `mapDistributor` returns. The hook
+  // is cheap when not enabled (it short-circuits at country-only). For deeper
+  // levels we keep the existing `entity.metrics` since region/district/branch
+  // rows carry their own roll-ups.
+  const { data: distMetrics } = useDistributorMetrics();
+
+  // Merge: distributor totals (subscribers / agents / branches / aum) win at
+  // country level, but we keep the demographic / time-period fields that the
+  // mockData country still provides. This is the "injection" pattern from the
+  // brief — when a missing field appears on the entity, the merged value is
+  // used; when both exist, distMetrics is authoritative for the live counts.
+  const metrics = useMemo(() => {
+    const base = entity?.metrics || null;
+    if (level !== 'country') return base;
+    if (!distMetrics) return base;
+    return {
+      ...(base || {}),
+      totalSubscribers: distMetrics.totalSubscribers ?? base?.totalSubscribers ?? 0,
+      totalAgents: distMetrics.totalAgents ?? base?.totalAgents ?? 0,
+      totalBranches: distMetrics.totalBranches ?? base?.totalBranches ?? 0,
+      aum: distMetrics.aum || base?.aum || 0,
+    };
+  }, [entity, distMetrics, level]);
+
   const [expanded, setExpanded] = useState(null);
 
   // Cards start collapsed — user opens explicitly via header toggle
@@ -186,21 +250,26 @@ export default function MetricsRow() {
     setExpanded((prev) => prev === card ? null : card);
   }
 
-  if (!metrics) return null;
-  const totalSubs = metrics.totalSubscribers || 0;
-
-  const hidden =
+  // Loading skeleton — shown while the entity query is still resolving.
+  // Previously the entire row was hidden via `return null`, which made the
+  // distributor dashboard feel "missing" rather than "loading" on cold load.
+  const hiddenForPanels =
     branchMenuOpen || agentMenuOpen || subscriberMenuOpen ||
     viewBranchesOpen || viewAgentsOpen || viewSubscribersOpen ||
     commissionsOpen || settingsOpen || viewReportsOpen ||
     createBranchOpen;
+  if (!metrics) {
+    if (entityLoading && !hiddenForPanels) return <MetricsRowSkeleton />;
+    return null;
+  }
+  const totalSubs = metrics.totalSubscribers || 0;
 
   return (
     <motion.div
       className={styles.rowWrap}
-      animate={{ y: hidden ? 'calc(100% + 2rem)' : 0, opacity: hidden ? 0 : 1 }}
+      animate={{ y: hiddenForPanels ? 'calc(100% + 2rem)' : 0, opacity: hiddenForPanels ? 0 : 1 }}
       transition={{ duration: 0.45, ease: EASE }}
-      style={{ pointerEvents: hidden ? 'none' : undefined }}
+      style={{ pointerEvents: hiddenForPanels ? 'none' : undefined }}
     >
     <motion.div
       className={styles.row}
