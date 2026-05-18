@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Modal from '../../components/Modal';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -204,18 +205,20 @@ export default function CommissionPanel({ splitMode = false }) {
     return () => clearTimeout(t);
   }, [commissionsOpen]);
 
-  // Escape to close
+  // Escape closes the panel. The shared <Modal> primitive stops propagation
+  // when a child modal is open, so this handler never fires while a modal
+  // is active — the modal closes first, then a second Escape closes the
+  // panel.
   useEffect(() => {
     if (!commissionsOpen) return;
     function onKey(e) {
       if (e.key === 'Escape') {
-        if (releaseModalOpen) setReleaseModalOpen(false);
-        else setCommissionsOpen(false);
+        setCommissionsOpen(false);
       }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [commissionsOpen, releaseModalOpen, setCommissionsOpen]);
+  }, [commissionsOpen, setCommissionsOpen]);
 
   // Branch-scoped lists
   const scopedAgentList = useMemo(
@@ -1473,276 +1476,261 @@ export default function CommissionPanel({ splitMode = false }) {
               </AnimatePresence>
             </div>
 
-            {/* Resolution Modal — single + bulk dispute approve/reject */}
-            <AnimatePresence>
-              {resolutionTarget && (() => {
-                const isApprove = resolutionTarget.action === 'approve';
-                const total = resolutionTarget.ids.length;
-                const pre = resolutionTarget.prePaymentCount || 0;
-                const post = resolutionTarget.postPaymentCount || 0;
-                const noun = total === 1 ? 'dispute' : `${total} disputes`;
-                const verb = isApprove ? 'Approve' : 'Reject';
-                const title = `${verb} ${noun}`;
-                const subtitle = isApprove
-                  ? `Side with the agent on ${resolutionTarget.contextLabel}.`
-                  : `Decline ${resolutionTarget.contextLabel}.`;
-
-                // Consequence sentences — only emit the ones that apply to this batch.
-                const sentences = [];
-                if (isApprove) {
-                  if (pre > 0) {
-                    sentences.push(
-                      <span key="pre">
-                        <strong>{pre === total ? 'These' : pre}</strong>
-                        {' '}{pre === 1 ? 'commission goes' : 'commissions go'} back to <em>Owed</em> and pay out in the next settlement run — approving here doesn&apos;t move money on its own.
-                      </span>
-                    );
-                  }
-                  if (post > 0) {
-                    sentences.push(
-                      <span key="post">
-                        <strong>{post === total ? 'These' : post}</strong>
-                        {' '}{post === 1 ? 'is a post-payment claim' : 'are post-payment claims'} — the original release record stands; record any off-ledger re-issue (e.g. MTN MM-XXXX) in the outcome reason.
-                      </span>
-                    );
-                  }
-                } else {
-                  if (pre > 0) {
-                    sentences.push(
-                      <span key="pre">
-                        <strong>{pre === total ? 'These' : pre}</strong>
-                        {' '}{pre === 1 ? 'commission will be voided' : 'commissions will be voided'} (status → <em>rejected</em>). The agent will not be paid for {pre === 1 ? 'it' : 'them'}.
-                      </span>
-                    );
-                  }
-                  if (post > 0) {
-                    sentences.push(
-                      <span key="post">
-                        <strong>{post === total ? 'These' : post}</strong>
-                        {' '}{post === 1 ? 'is a post-payment claim' : 'are post-payment claims'} — the release record stays on file; the outcome reason should explain why the dispute was denied.
-                      </span>
-                    );
-                  }
-                }
-
-                const placeholder = isApprove
-                  ? (post > 0
-                      ? 'e.g. Confirmed legitimate; commission re-issued via MTN MM-9931'
-                      : 'e.g. Confirmed; restored to Owed for next run')
-                  : (post > 0
-                      ? 'e.g. Payment proof on record (MM-7782); dispute denied'
-                      : 'e.g. Claim could not be substantiated; commission voided');
-
-                return (
-                  <motion.div
-                    className={styles.modalOverlay}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <motion.div
-                      className={styles.modal}
-                      initial={{ opacity: 0, scale: 0.95, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95, y: 12 }}
-                      transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
-                    >
-                      <div className={styles.modalHeader}>
-                        <div className={styles.modalTitle}>{title}</div>
-                        <div className={styles.modalSubtitle}>{subtitle}</div>
-                      </div>
-                      <div className={styles.modalBody}>
-                        <div className={styles.modalConsequence} data-action={resolutionTarget.action}>
-                          <div className={styles.modalConsequenceLabel}>What happens</div>
-                          {sentences.map((s, i) => (
-                            <p key={i} className={styles.modalConsequenceLine}>{s}</p>
-                          ))}
-                        </div>
-                        <label className={styles.modalLabel} htmlFor="resolution-reason">
-                          Outcome reason
-                        </label>
-                        <textarea
-                          id="resolution-reason"
-                          className={styles.modalTextarea}
-                          rows={3}
-                          value={resolutionReason}
-                          onChange={(e) => setResolutionReason(e.target.value)}
-                          placeholder={placeholder}
-                          maxLength={400}
-                          autoFocus
-                        />
-                        <div className={styles.modalHint}>
-                          Stored on every affected commission so the agent and audit trail can see why.
-                        </div>
-                      </div>
-                      <div className={styles.modalActions}>
-                        <button className={styles.modalBackBtn} onClick={() => setResolutionTarget(null)}>
-                          Cancel
-                        </button>
-                        <button
-                          className={styles.modalConfirmBtn}
-                          onClick={submitResolution}
-                          disabled={
-                            !resolutionReason.trim() ||
-                            approveDisputeMutation.isPending ||
-                            rejectDisputeMutation.isPending ||
-                            bulkApproveMutation.isPending ||
-                            bulkRejectMutation.isPending
-                          }
-                        >
-                          {isApprove ? `Confirm ${verb.toLowerCase()}` : `Confirm ${verb.toLowerCase()}`}
-                        </button>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                );
-              })()}
-            </AnimatePresence>
-
-            {/* Branch line action modal — Hold or Dispute with reason capture */}
-            <AnimatePresence>
-              {lineActionTarget && (
-                <motion.div
-                  className={styles.modalOverlay}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <motion.div
-                    className={styles.modal}
-                    initial={{ opacity: 0, scale: 0.95, y: 12 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 12 }}
-                    transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
-                  >
-                    <div className={styles.modalHeader}>
-                      <div className={styles.modalTitle}>
-                        {lineActionTarget.action === 'hold' ? 'Hold this line' : 'Flag a dispute'}
-                      </div>
-                      <div className={styles.modalSubtitle}>
-                        {lineActionTarget.action === 'hold'
-                          ? `It will roll into the next run. ${lineActionTarget.line.subscriberName} · ${formatUGX(lineActionTarget.line.amount)}`
-                          : `Distributor will review. ${lineActionTarget.line.subscriberName} · ${formatUGX(lineActionTarget.line.amount)}`}
-                      </div>
-                    </div>
-                    <div className={styles.modalBody}>
-                      <label className={styles.modalLabel} htmlFor="line-action-reason">
-                        Reason
-                      </label>
-                      <textarea
-                        id="line-action-reason"
-                        className={styles.modalTextarea}
-                        rows={3}
-                        value={lineActionReason}
-                        onChange={(e) => setLineActionReason(e.target.value)}
-                        placeholder={lineActionTarget.action === 'hold'
-                          ? 'e.g. Subscriber records being verified; should pay next cycle'
-                          : 'e.g. Suspect duplicate; agent ID does not match KYC'}
-                        maxLength={400}
-                        autoFocus
-                      />
-                    </div>
-                    <div className={styles.modalActions}>
-                      <button className={styles.modalBackBtn} onClick={() => setLineActionTarget(null)}>
-                        Cancel
-                      </button>
-                      <button
-                        className={styles.modalConfirmBtn}
-                        onClick={submitLineAction}
-                        disabled={
-                          !lineActionReason.trim() ||
-                          branchHoldLineMutation.isPending ||
-                          branchDisputeLineMutation.isPending
-                        }
-                      >
-                        {lineActionTarget.action === 'hold' ? 'Hold line' : 'File dispute'}
-                      </button>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Release Modal — handles both bulk-approved and per-branch */}
-            <AnimatePresence>
-              {releaseModalOpen && currentRun && (() => {
-                const branchRow = releaseScope === 'branch' && selectedRunBranchId
-                  ? runBranches.find((b) => b.branchId === selectedRunBranchId)
-                  : null;
-                const isBranchScope = releaseScope === 'branch' && branchRow;
-                const approvedRows = runBranches.filter((b) => b.state === 'approved');
-                const approvedTotal = approvedRows.reduce((s, r) => s + r.amount, 0);
-                const approvedCount = approvedRows.reduce((s, r) => s + r.count, 0);
-                const isBusy = releaseRunMutation.isPending || releaseBranchMutation.isPending;
-                return (
-                  <motion.div
-                    className={styles.modalOverlay}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <motion.div
-                      className={styles.modal}
-                      initial={{ opacity: 0, scale: 0.95, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95, y: 12 }}
-                      transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
-                    >
-                      <div className={styles.modalHeader}>
-                        <div className={styles.modalTitle}>
-                          {isBranchScope ? `Release ${branchRow.branchName}` : 'Release approved branches'}
-                        </div>
-                        <div className={styles.modalSubtitle}>
-                          {isBranchScope
-                            ? 'Confirm you have transferred funds for this branch only.'
-                            : 'Confirm you have transferred funds for every approved branch. Pending branches will stay open.'}
-                        </div>
-                      </div>
-                      <div className={styles.modalBody}>
-                        <div className={styles.modalSummary}>
-                          <div className={styles.modalSummaryLabel}>Total to release</div>
-                          <div className={styles.modalSummaryValue}>
-                            {formatUGX(isBranchScope ? branchRow.amount : approvedTotal)}
-                          </div>
-                        </div>
-                        <div className={styles.modalSummary}>
-                          <div className={styles.modalSummaryLabel}>Commissions</div>
-                          <div className={styles.modalSummaryValue}>
-                            {isBranchScope ? branchRow.count : approvedCount}
-                          </div>
-                        </div>
-                        <div className={styles.modalSummary}>
-                          <div className={styles.modalSummaryLabel}>
-                            {isBranchScope ? 'Branch' : 'Approved branches'}
-                          </div>
-                          <div className={styles.modalSummaryValue}>
-                            {isBranchScope ? branchRow.branchId : approvedRows.length}
-                          </div>
-                        </div>
-                      </div>
-                      <div className={styles.modalActions}>
-                        <button className={styles.modalBackBtn} onClick={() => setReleaseModalOpen(false)}>
-                          Back
-                        </button>
-                        <button
-                          className={styles.modalConfirmBtn}
-                          onClick={handleReleaseConfirm}
-                          disabled={isBusy}
-                        >
-                          {isBusy ? 'Releasing…' : 'Confirm release'}
-                        </button>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                );
-              })()}
-            </AnimatePresence>
           </motion.div>
         </>
       )}
+
+      {/* Resolution Modal — single + bulk dispute approve/reject.
+       * Rendered outside the slide-in panel so it portals to <body>; the
+       * shared <Modal> primitive owns focus trap, scroll-lock, ESC + backdrop
+       * dismissal, so ESC closes only the modal — not the parent panel. The
+       * `commissionsOpen` gate ensures modals unmount when the parent panel
+       * closes (panel state cleanup is delayed 400ms for its exit animation). */}
+      {commissionsOpen && (() => {
+        if (!resolutionTarget) return null;
+        const isApprove = resolutionTarget.action === 'approve';
+        const total = resolutionTarget.ids.length;
+        const pre = resolutionTarget.prePaymentCount || 0;
+        const post = resolutionTarget.postPaymentCount || 0;
+        const noun = total === 1 ? 'dispute' : `${total} disputes`;
+        const verb = isApprove ? 'Approve' : 'Reject';
+        const title = `${verb} ${noun}`;
+        const subtitle = isApprove
+          ? `Side with the agent on ${resolutionTarget.contextLabel}.`
+          : `Decline ${resolutionTarget.contextLabel}.`;
+
+        const sentences = [];
+        if (isApprove) {
+          if (pre > 0) {
+            sentences.push(
+              <span key="pre">
+                <strong>{pre === total ? 'These' : pre}</strong>
+                {' '}{pre === 1 ? 'commission goes' : 'commissions go'} back to <em>Owed</em> and pay out in the next settlement run — approving here doesn&apos;t move money on its own.
+              </span>
+            );
+          }
+          if (post > 0) {
+            sentences.push(
+              <span key="post">
+                <strong>{post === total ? 'These' : post}</strong>
+                {' '}{post === 1 ? 'is a post-payment claim' : 'are post-payment claims'} — the original release record stands; record any off-ledger re-issue (e.g. MTN MM-XXXX) in the outcome reason.
+              </span>
+            );
+          }
+        } else {
+          if (pre > 0) {
+            sentences.push(
+              <span key="pre">
+                <strong>{pre === total ? 'These' : pre}</strong>
+                {' '}{pre === 1 ? 'commission will be voided' : 'commissions will be voided'} (status → <em>rejected</em>). The agent will not be paid for {pre === 1 ? 'it' : 'them'}.
+              </span>
+            );
+          }
+          if (post > 0) {
+            sentences.push(
+              <span key="post">
+                <strong>{post === total ? 'These' : post}</strong>
+                {' '}{post === 1 ? 'is a post-payment claim' : 'are post-payment claims'} — the release record stays on file; the outcome reason should explain why the dispute was denied.
+              </span>
+            );
+          }
+        }
+
+        const placeholder = isApprove
+          ? (post > 0
+              ? 'e.g. Confirmed legitimate; commission re-issued via MTN MM-9931'
+              : 'e.g. Confirmed; restored to Owed for next run')
+          : (post > 0
+              ? 'e.g. Payment proof on record (MM-7782); dispute denied'
+              : 'e.g. Claim could not be substantiated; commission voided');
+
+        const isBusy =
+          approveDisputeMutation.isPending ||
+          rejectDisputeMutation.isPending ||
+          bulkApproveMutation.isPending ||
+          bulkRejectMutation.isPending;
+
+        return (
+          <Modal
+            open={Boolean(resolutionTarget)}
+            onClose={() => {
+              if (!isBusy) setResolutionTarget(null);
+            }}
+            title={title}
+            size="md"
+            dismissOnBackdrop={!isBusy}
+          >
+            <div className={styles.modal}>
+              <div className={styles.modalHeader}>
+                <div className={styles.modalTitle}>{title}</div>
+                <div className={styles.modalSubtitle}>{subtitle}</div>
+              </div>
+              <div className={styles.modalBody}>
+                <div className={styles.modalConsequence} data-action={resolutionTarget.action}>
+                  <div className={styles.modalConsequenceLabel}>What happens</div>
+                  {sentences.map((s, i) => (
+                    <p key={i} className={styles.modalConsequenceLine}>{s}</p>
+                  ))}
+                </div>
+                <label className={styles.modalLabel} htmlFor="resolution-reason">
+                  Outcome reason
+                </label>
+                <textarea
+                  id="resolution-reason"
+                  className={styles.modalTextarea}
+                  rows={3}
+                  value={resolutionReason}
+                  onChange={(e) => setResolutionReason(e.target.value)}
+                  placeholder={placeholder}
+                  maxLength={400}
+                />
+                <div className={styles.modalHint}>
+                  Stored on every affected commission so the agent and audit trail can see why.
+                </div>
+              </div>
+              <div className={styles.modalActions}>
+                <button className={styles.modalBackBtn} onClick={() => setResolutionTarget(null)}>
+                  Cancel
+                </button>
+                <button
+                  className={styles.modalConfirmBtn}
+                  onClick={submitResolution}
+                  disabled={!resolutionReason.trim() || isBusy}
+                >
+                  {`Confirm ${verb.toLowerCase()}`}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
+
+      {/* Branch line action modal — Hold or Dispute with reason capture */}
+      {commissionsOpen && lineActionTarget && (() => {
+        const isHold = lineActionTarget.action === 'hold';
+        const title = isHold ? 'Hold this line' : 'Flag a dispute';
+        const isBusy =
+          branchHoldLineMutation.isPending || branchDisputeLineMutation.isPending;
+        return (
+          <Modal
+            open={Boolean(lineActionTarget)}
+            onClose={() => {
+              if (!isBusy) setLineActionTarget(null);
+            }}
+            title={title}
+            size="md"
+            dismissOnBackdrop={!isBusy}
+          >
+            <div className={styles.modal}>
+              <div className={styles.modalHeader}>
+                <div className={styles.modalTitle}>{title}</div>
+                <div className={styles.modalSubtitle}>
+                  {isHold
+                    ? `It will roll into the next run. ${lineActionTarget.line.subscriberName} · ${formatUGX(lineActionTarget.line.amount)}`
+                    : `Distributor will review. ${lineActionTarget.line.subscriberName} · ${formatUGX(lineActionTarget.line.amount)}`}
+                </div>
+              </div>
+              <div className={styles.modalBody}>
+                <label className={styles.modalLabel} htmlFor="line-action-reason">
+                  Reason
+                </label>
+                <textarea
+                  id="line-action-reason"
+                  className={styles.modalTextarea}
+                  rows={3}
+                  value={lineActionReason}
+                  onChange={(e) => setLineActionReason(e.target.value)}
+                  placeholder={isHold
+                    ? 'e.g. Subscriber records being verified; should pay next cycle'
+                    : 'e.g. Suspect duplicate; agent ID does not match KYC'}
+                  maxLength={400}
+                />
+              </div>
+              <div className={styles.modalActions}>
+                <button className={styles.modalBackBtn} onClick={() => setLineActionTarget(null)}>
+                  Cancel
+                </button>
+                <button
+                  className={styles.modalConfirmBtn}
+                  onClick={submitLineAction}
+                  disabled={!lineActionReason.trim() || isBusy}
+                >
+                  {isHold ? 'Hold line' : 'File dispute'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
+
+      {/* Release Modal — handles both bulk-approved and per-branch */}
+      {commissionsOpen && releaseModalOpen && currentRun && (() => {
+        const branchRow = releaseScope === 'branch' && selectedRunBranchId
+          ? runBranches.find((b) => b.branchId === selectedRunBranchId)
+          : null;
+        const isBranchScope = releaseScope === 'branch' && branchRow;
+        const approvedRows = runBranches.filter((b) => b.state === 'approved');
+        const approvedTotal = approvedRows.reduce((s, r) => s + r.amount, 0);
+        const approvedCount = approvedRows.reduce((s, r) => s + r.count, 0);
+        const isBusy = releaseRunMutation.isPending || releaseBranchMutation.isPending;
+        const title = isBranchScope ? `Release ${branchRow.branchName}` : 'Release approved branches';
+        return (
+          <Modal
+            open={releaseModalOpen}
+            onClose={() => {
+              if (!isBusy) setReleaseModalOpen(false);
+            }}
+            title={title}
+            size="md"
+            dismissOnBackdrop={!isBusy}
+          >
+            <div className={styles.modal}>
+              <div className={styles.modalHeader}>
+                <div className={styles.modalTitle}>{title}</div>
+                <div className={styles.modalSubtitle}>
+                  {isBranchScope
+                    ? 'Confirm you have transferred funds for this branch only.'
+                    : 'Confirm you have transferred funds for every approved branch. Pending branches will stay open.'}
+                </div>
+              </div>
+              <div className={styles.modalBody}>
+                <div className={styles.modalSummary}>
+                  <div className={styles.modalSummaryLabel}>Total to release</div>
+                  <div className={styles.modalSummaryValue}>
+                    {formatUGX(isBranchScope ? branchRow.amount : approvedTotal)}
+                  </div>
+                </div>
+                <div className={styles.modalSummary}>
+                  <div className={styles.modalSummaryLabel}>Commissions</div>
+                  <div className={styles.modalSummaryValue}>
+                    {isBranchScope ? branchRow.count : approvedCount}
+                  </div>
+                </div>
+                <div className={styles.modalSummary}>
+                  <div className={styles.modalSummaryLabel}>
+                    {isBranchScope ? 'Branch' : 'Approved branches'}
+                  </div>
+                  <div className={styles.modalSummaryValue}>
+                    {isBranchScope ? branchRow.branchId : approvedRows.length}
+                  </div>
+                </div>
+              </div>
+              <div className={styles.modalActions}>
+                <button className={styles.modalBackBtn} onClick={() => setReleaseModalOpen(false)}>
+                  Back
+                </button>
+                <button
+                  className={styles.modalConfirmBtn}
+                  onClick={handleReleaseConfirm}
+                  disabled={isBusy}
+                >
+                  {isBusy ? 'Releasing…' : 'Confirm release'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
     </AnimatePresence>
   );
 }

@@ -1408,25 +1408,11 @@
 }
 
 /* ── Confirm modal (replaces window.confirm for branch status changes) ────── */
-.confirmBackdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(27, 26, 74, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 220;
-  padding: var(--space-6);
-}
-
+/* `.confirmDialog` is now the inner content layout — surface styling
+ * (background, border, radius, max-width, shadow) is supplied by the
+ * shared <Modal> primitive (src/components/Modal.jsx). */
 .confirmDialog {
-  background: var(--color-white);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-lavender);
   padding: var(--space-6);
-  max-width: 380px;
-  width: 100%;
-  box-shadow: 0 24px 60px rgba(41, 40, 103, 0.24);
 }
 
 .confirmTitle {

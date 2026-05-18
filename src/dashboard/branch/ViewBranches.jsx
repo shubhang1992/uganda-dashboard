@@ -14,6 +14,7 @@ import TrendArrow from '../shared/TrendArrow';
 import MiniChart from '../shared/MiniChart';
 import KpiCard from '../shared/KpiCard';
 import Demographics from '../shared/Demographics';
+import Modal from '../../components/Modal';
 import styles from './ViewBranches.module.css';
 
 function getStatus(activeRate) {
@@ -916,64 +917,55 @@ export default function ViewBranches() {
               </div>
             )}
 
-            {/* ── Confirm status-change modal ─────────────────────── */}
-            <AnimatePresence>
-              {confirmStatusOpen && selectedBranch && (
-                <motion.div
-                  className={styles.confirmBackdrop}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.18 }}
-                  onClick={() => !setBranchStatusMutation.isPending && setConfirmStatusOpen(false)}
-                >
-                  <motion.div
-                    className={styles.confirmDialog}
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="confirm-status-title"
-                    initial={{ opacity: 0, scale: 0.96, y: 8 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.96, y: 4 }}
-                    transition={{ duration: 0.22, ease: EASE_OUT_EXPO }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <h3 id="confirm-status-title" className={styles.confirmTitle}>
-                      {selectedBranch.status === 'active' ? 'Deactivate this branch?' : 'Activate this branch?'}
-                    </h3>
-                    <p className={styles.confirmBody}>
-                      {selectedBranch.status === 'active'
-                        ? `${selectedBranch.name} will stop accepting new subscribers and its agents won't be able to log in until it's reactivated.`
-                        : `${selectedBranch.name} will resume normal operation.`}
-                    </p>
-                    <div className={styles.confirmActions}>
-                      <button
-                        type="button"
-                        className={styles.cancelBtn}
-                        onClick={() => setConfirmStatusOpen(false)}
-                        disabled={setBranchStatusMutation.isPending}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        className={selectedBranch.status === 'active' ? styles.deactivateBtn : styles.activateBtn}
-                        onClick={handleToggleStatusConfirm}
-                        disabled={setBranchStatusMutation.isPending}
-                        autoFocus
-                      >
-                        {setBranchStatusMutation.isPending
-                          ? 'Working…'
-                          : selectedBranch.status === 'active' ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Confirm status-change modal ─────────────────────── */}
+      {selectedBranch && (() => {
+        const isActive = selectedBranch.status === 'active';
+        const title = isActive ? 'Deactivate this branch?' : 'Activate this branch?';
+        return (
+          <Modal
+            open={confirmStatusOpen}
+            onClose={() => {
+              if (!setBranchStatusMutation.isPending) setConfirmStatusOpen(false);
+            }}
+            title={title}
+            size="sm"
+            dismissOnBackdrop={!setBranchStatusMutation.isPending}
+          >
+            <div className={styles.confirmDialog}>
+              <h3 className={styles.confirmTitle}>{title}</h3>
+              <p className={styles.confirmBody}>
+                {isActive
+                  ? `${selectedBranch.name} will stop accepting new subscribers and its agents won't be able to log in until it's reactivated.`
+                  : `${selectedBranch.name} will resume normal operation.`}
+              </p>
+              <div className={styles.confirmActions}>
+                <button
+                  type="button"
+                  className={styles.cancelBtn}
+                  onClick={() => setConfirmStatusOpen(false)}
+                  disabled={setBranchStatusMutation.isPending}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={isActive ? styles.deactivateBtn : styles.activateBtn}
+                  onClick={handleToggleStatusConfirm}
+                  disabled={setBranchStatusMutation.isPending}
+                >
+                  {setBranchStatusMutation.isPending
+                    ? 'Working…'
+                    : isActive ? 'Deactivate' : 'Activate'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
     </>
   );
 }

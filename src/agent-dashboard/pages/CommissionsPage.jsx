@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import Modal from '../../components/Modal';
 import { EASE_OUT_EXPO, formatUGX, fmtShort } from '../../utils/finance';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import {
@@ -271,35 +272,24 @@ function PastCyclesSection({ cycles, onConfirm, onDispute, onWithdraw, isPending
   );
 }
 
-function DisputeModal({ commission, onClose, onConfirm, isPending }) {
+function DisputeModal({ commission, open, onClose, onConfirm, isPending }) {
+  // Internal form state. The parent re-mounts this component via `key` on each
+  // new commission, so state is fresh on every open — no reset effect needed.
   const [reason, setReason] = useState(DISPUTE_REASONS[0]);
   const [custom, setCustom] = useState('');
 
   const finalReason = reason === 'Other' ? custom.trim() : reason;
   const canSubmit = finalReason.length > 0 && !isPending;
 
+  // Bail when fully closed and no commission is set — saves Modal mount work
+  // for the never-opened case. The Modal primitive itself handles its own
+  // exit animation while still mounted.
+  if (!commission) return null;
+
   return (
-    <motion.div
-      key="dispute-backdrop"
-      className={styles.modalBackdrop}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-      onClick={onClose}
-    >
-      <motion.div
-        className={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="dispute-title"
-        initial={{ y: 24, opacity: 0, scale: 0.96 }}
-        animate={{ y: 0, opacity: 1, scale: 1 }}
-        exit={{ y: 24, opacity: 0, scale: 0.96 }}
-        transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 id="dispute-title" className={styles.modalTitle}>Raise a dispute</h3>
+    <Modal open={open} onClose={onClose} title="Raise a dispute" size="md">
+      <div className={styles.modal}>
+        <h3 className={styles.modalTitle}>Raise a dispute</h3>
         <p className={styles.modalSub}>
           Commission {commission.id} for <strong>{commission.subscriberName}</strong> · {formatUGX(commission.amount)}
         </p>
@@ -340,8 +330,8 @@ function DisputeModal({ commission, onClose, onConfirm, isPending }) {
             {isPending ? 'Submitting…' : 'Submit dispute'}
           </button>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </Modal>
   );
 }
 
@@ -616,16 +606,15 @@ export default function CommissionsPage() {
         )}
       </div>
 
-      <AnimatePresence>
-        {disputeTarget && (
-          <DisputeModal
-            commission={disputeTarget}
-            onClose={() => setDisputeTarget(null)}
-            onConfirm={handleDisputeSubmit}
-            isPending={dispute.isPending}
-          />
-        )}
-      </AnimatePresence>
+      <DisputeModal
+        // key ensures a fresh form instance per commission — opens reset state.
+        key={disputeTarget?.id || 'no-target'}
+        commission={disputeTarget}
+        open={Boolean(disputeTarget)}
+        onClose={() => setDisputeTarget(null)}
+        onConfirm={handleDisputeSubmit}
+        isPending={dispute.isPending}
+      />
     </div>
   );
 }
