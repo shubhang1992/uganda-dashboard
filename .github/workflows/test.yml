@@ -1,0 +1,142 @@
+# CI for the Universal Pensions Uganda demo platform.
+#
+# Runs on PRs targeting `main` and on pushes to `main`. Two jobs:
+#   1. lint-and-unit  → fast feedback (ESLint + vitest, ~30s).
+#   2. e2e            → Playwright smoke + flow specs (~3 min). Gated on
+#                       lint-and-unit so we don't burn browser time on a broken
+#                       PR.
+#
+# Required GitHub Actions secrets (Settings → Secrets and variables → Actions):
+#   • VITE_SUPABASE_URL          — public Supabase project URL
+#   • VITE_SUPABASE_ANON_KEY     — public anon key
+#   • SUPABASE_SERVICE_ROLE_KEY  — server-only key for DB verification fixtures
+#   • SUPABASE_JWT_SECRET        — HS256 secret for minting test JWTs
+#   • VERCEL_PROJECT_ID          — `vercel dev` project linkage
+#   • VERCEL_ORG_ID              — `vercel dev` org linkage
+#
+# Note on shared DB: e2e flow specs write to the shared Supabase project
+# (zengmiugieqjqzaccbqe) and clean up in `afterEach`. We run with --workers=1
+# below so concurrent runs in the same job don't race on the same rows; the
+# `concurrency` block at workflow level cancels in-flight runs on the same ref
+# so a follow-up push pre-empts the previous one.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-unit:
+    name: Lint + unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    needs: lint-and-unit
+    timeout-minutes: 20
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      VITE_USE_SUPABASE: 'true'
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browsers + system deps
+        # On PRs we run the chromium + mobile-chromium projects only — fast
+        # feedback. On pushes to `main` we run the full Chromium + WebKit
+        # matrix (smoke + flow + regression + db). The install step covers
+        # both so a single cache key serves both jobs.
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Write .env.local for vercel dev
+        run: |
+          cat > .env.local <<EOF
+          VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+          VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+          VITE_USE_SUPABASE=$VITE_USE_SUPABASE
+          SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
+          SUPABASE_JWT_SECRET=$SUPABASE_JWT_SECRET
+          EOF
+
+      - name: Run Playwright smoke + flow specs (PR — chromium + mobile-chromium)
+        if: github.event_name == 'pull_request'
+        # PR feedback path: smoke covers every dashboard route per role,
+        # flow specs exercise the write+DB chain. Two projects only so we
+        # stay under the 5-min-per-combo SLA from §6.H of the audit plan.
+        run: |
+          npx playwright test e2e/specs/smoke e2e/specs/flows \
+            --project=chromium --project=mobile-chromium \
+            --workers=1
+
+      - name: Run Playwright full matrix (main post-merge — chromium + webkit, smoke + flow + regression + db)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # Full matrix: every project × every spec. The DB invariants run
+        # against the live `zengmiugieqjqzaccbqe` project (service-role
+        # query), so this also guarantees the schema state is intact after
+        # each merge to main.
+        run: |
+          npx playwright test --workers=1
+
+      - name: Upload Playwright HTML report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright traces + screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 14
