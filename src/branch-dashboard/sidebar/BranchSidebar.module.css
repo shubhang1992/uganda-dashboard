@@ -164,30 +164,22 @@
 .moreWrap { display: none; }
 
 @media (max-width: 768px) {
+  /* Desktop rail is hidden on mobile — the BranchDashboardShell renders
+     a hamburger-driven drawer instead. The drawer reuses this component
+     in `mode="drawer"`. */
   .sidebar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: auto;
-    flex-direction: row;
-    padding: 0;
-    z-index: 50;
-    background: var(--color-white);
-    border-top: 1px solid var(--color-lavender);
+    display: none;
   }
 
   .logo { display: none; }
   .navItems { display: none; }
   .bottomItems { display: none; }
 
+  /* Mobile bottom-bar replaced by hamburger drawer (see drawer-mode
+     styles below). Keep these class selectors so any in-flight renders
+     don't crash, but hide their output. */
   .mobileBar {
-    display: flex;
-    align-items: stretch;
-    justify-content: space-around;
-    width: 100%;
-    padding: var(--space-1) 0;
-    padding-bottom: max(var(--space-1), env(safe-area-inset-bottom));
+    display: none;
   }
 
   .mobileBtn {
@@ -308,4 +300,185 @@
   .mobileLabel {
     font-size: 0.5625rem;
   }
+}
+
+/* ────────────────────────────────────────────────────────────────
+   Drawer mode — used inside the mobile slide-in drawer.
+   The host (`BranchDashboardShell`) provides the panel chrome
+   (positioning, backdrop, slide animation, body-scroll lock);
+   this just renders the menu contents.
+   ──────────────────────────────────────────────────────────────── */
+.drawer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: var(--space-4) var(--space-3) var(--space-3);
+  padding-top: max(var(--space-4), env(safe-area-inset-top));
+  padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  background: var(--color-indigo-deep);
+  color: var(--color-white);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-2) var(--space-5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: var(--space-3);
+}
+
+.drawerLogo {
+  width: auto;
+  height: 32px;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: left center;
+  filter: brightness(1.8);
+}
+
+.drawerSection {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drawerSpacer {
+  flex: 1;
+  min-height: var(--space-4);
+}
+
+.drawerRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-3) var(--space-3);
+  border: none;
+  background: transparent;
+  color: rgba(217, 220, 242, 0.78);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  letter-spacing: -0.005em;
+  text-align: left;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.drawerRow:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-white);
+}
+
+.drawerRow:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.drawerRow[data-active='true'] {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--color-white);
+}
+
+.drawerRow[data-variant='logout'] {
+  color: rgba(248, 113, 113, 0.85);
+}
+
+.drawerRow[data-variant='logout']:hover {
+  background: rgba(248, 113, 113, 0.1);
+  color: var(--color-alert);
+}
+
+.drawerRow:focus-visible {
+  outline: 2px solid rgba(217, 220, 242, 0.7);
+  outline-offset: -2px;
+}
+
+.drawerRowIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  color: inherit;
+}
+
+.drawerRowLabel {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drawerChevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(217, 220, 242, 0.55);
+  transition: transform 0.2s ease, color 0.18s ease;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.drawerChevron[data-open] {
+  transform: rotate(180deg);
+  color: var(--color-white);
+}
+
+.drawerGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.drawerSubmenu {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-left: var(--space-2);
+}
+
+.drawerSubItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-6);
+  border: none;
+  background: transparent;
+  color: rgba(217, 220, 242, 0.7);
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: var(--text-sm);
+  text-align: left;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.drawerSubItem:hover,
+.drawerSubItem:active {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-white);
+}
+
+.drawerSubItem:focus-visible {
+  outline: 2px solid rgba(217, 220, 242, 0.7);
+  outline-offset: -2px;
+}
+
+.drawerSubBullet {
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  opacity: 0.55;
+  flex: 0 0 auto;
 }
