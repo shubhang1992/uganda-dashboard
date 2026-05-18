@@ -15,6 +15,8 @@ import MiniChart from '../shared/MiniChart';
 import KpiCard from '../shared/KpiCard';
 import Demographics from '../shared/Demographics';
 import Modal from '../../components/Modal';
+import SkeletonRow from '../../components/SkeletonRow';
+import EmptyState from '../../components/EmptyState';
 import styles from './ViewBranches.module.css';
 
 function getStatus(activeRate) {
@@ -389,10 +391,16 @@ export default function ViewBranches() {
   const regionBtnRef = useRef(null);
   const sortBtnRef = useRef(null);
 
-  const { data: allBranchesRaw = [] } = useAllEntities('branch');
+  const { data: allBranchesRaw = [], isLoading: branchesLoading } = useAllEntities('branch');
   const { data: allAgentsRaw = [] } = useAllEntities('agent');
   const { data: allDistrictsRaw = [] } = useAllEntities('district');
   const { data: allRegionsRaw = [] } = useAllEntities('region');
+
+  // Treat the very first cold-load (no rows yet AND query is pending) as
+  // the skeleton case. Once cached branches exist we always render the
+  // live list — even during a background refetch — so we never bounce
+  // back into a skeleton after the user has already seen the data.
+  const isCold = branchesLoading && allBranchesRaw.length === 0;
 
   const DISTRICTS_MAP = useMemo(() => Object.fromEntries(allDistrictsRaw.map(d => [d.id, d])), [allDistrictsRaw]);
   const REGIONS_MAP = useMemo(() => Object.fromEntries(allRegionsRaw.map(r => [r.id, r])), [allRegionsRaw]);
@@ -779,20 +787,34 @@ export default function ViewBranches() {
                     transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
                   >
                     <div className={styles.listCount}>
-                      Showing {filtered.length} of {allBranches.length} branches
+                      {isCold
+                        ? 'Loading branches…'
+                        : `Showing ${filtered.length} of ${allBranches.length} branches`}
                     </div>
 
-                    {filtered.length === 0 ? (
-                      <div className={styles.emptyState}>
-                        <div className={styles.emptyIcon}>
-                          <svg aria-hidden="true" viewBox="0 0 48 48" fill="none" width="48" height="48">
-                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="1.5" />
-                            <path d="M16 20h16M16 28h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                        </div>
-                        <div className={styles.emptyTitle}>No branches found</div>
-                        <div className={styles.emptyDesc}>Try adjusting your search or filters</div>
-                      </div>
+                    {isCold ? (
+                      <SkeletonRow
+                        count={6}
+                        variant="card"
+                        label="Loading branches"
+                      />
+                    ) : filtered.length === 0 ? (
+                      // Differentiate genuinely-empty from filter-mismatch so the
+                      // user knows whether to invite the first branch or to widen
+                      // their search.
+                      search.trim() === '' && !regionFilter && statusFilter === 'all' ? (
+                        <EmptyState
+                          kind="no-data"
+                          title="No branches yet."
+                          body="When branches are added, they'll show up here for review."
+                        />
+                      ) : (
+                        <EmptyState
+                          kind="no-match"
+                          title="No branches match"
+                          body="Try adjusting your search or filters."
+                        />
+                      )
                     ) : (
                       <div
                         ref={virtualListRef}

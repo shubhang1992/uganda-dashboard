@@ -14,6 +14,8 @@ import TrendArrow from '../shared/TrendArrow';
 import MiniChart from '../shared/MiniChart';
 import KpiCard from '../shared/KpiCard';
 import Demographics from '../shared/Demographics';
+import SkeletonRow from '../../components/SkeletonRow';
+import EmptyState from '../../components/EmptyState';
 import styles from './ViewAgents.module.css';
 
 
@@ -200,10 +202,14 @@ export default function ViewAgents({ splitMode = false }) {
   const { viewAgentsOpen, setViewAgentsOpen, setCommissionsOpen, drillTargetAgentId, closeDrillPanel } = useDashboard();
   const { branchId } = useBranchScope();
 
-  const { data: allAgentsRaw = [] } = useAllEntities('agent');
+  const { data: allAgentsRaw = [], isLoading: agentsLoading } = useAllEntities('agent');
   const { data: allBranchesRaw = [] } = useAllEntities('branch');
   const { data: allDistrictsRaw = [] } = useAllEntities('district');
   const { data: allRegionsRaw = [] } = useAllEntities('region');
+
+  // Cold-load guard — skeleton only on a true first-fetch (pending AND
+  // no cached rows), never on background refetches once data has shown.
+  const isCold = agentsLoading && allAgentsRaw.length === 0;
 
   const BRANCHES_MAP = useMemo(() => Object.fromEntries(allBranchesRaw.map(b => [b.id, b])), [allBranchesRaw]);
   const DISTRICTS_MAP = useMemo(() => Object.fromEntries(allDistrictsRaw.map(d => [d.id, d])), [allDistrictsRaw]);
@@ -499,19 +505,31 @@ export default function ViewAgents({ splitMode = false }) {
               <AnimatePresence mode="wait">
                 {view === 'list' && (
                   <motion.div key="va-list" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}>
-                    <div className={styles.listCount}>Showing {filtered.length} of {allAgents.length} agents</div>
+                    <div className={styles.listCount}>
+                      {isCold
+                        ? 'Loading agents…'
+                        : `Showing ${filtered.length} of ${allAgents.length} agents`}
+                    </div>
 
-                    {filtered.length === 0 ? (
-                      <div className={styles.emptyState}>
-                        <div className={styles.emptyIcon}>
-                          <svg aria-hidden="true" viewBox="0 0 48 48" fill="none" width="48" height="48">
-                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="1.5" />
-                            <path d="M16 20h16M16 28h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                        </div>
-                        <div className={styles.emptyTitle}>No agents found</div>
-                        <div className={styles.emptyDesc}>Try adjusting your search or filters</div>
-                      </div>
+                    {isCold ? (
+                      <SkeletonRow count={8} label="Loading agents" />
+                    ) : filtered.length === 0 ? (
+                      // No filters active → "No agents yet" (CTA-free in a list-only
+                      // panel — agents are created from elsewhere in the flow).
+                      // Otherwise nudge the user to widen their filter.
+                      search.trim() === '' && !regionFilter && statusFilter === 'all' ? (
+                        <EmptyState
+                          kind="no-data"
+                          title="No agents yet."
+                          body="Agents added through the network will appear here."
+                        />
+                      ) : (
+                        <EmptyState
+                          kind="no-match"
+                          title="No agents match"
+                          body="Try adjusting your search or filters."
+                        />
+                      )
                     ) : (
                       <div
                         className={styles.virtualList}

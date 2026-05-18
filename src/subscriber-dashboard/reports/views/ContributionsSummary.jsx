@@ -4,6 +4,8 @@ import { formatUGX, formatUGXExact } from '../../../utils/finance';
 import { downloadCSV } from '../../../utils/csv';
 import ErrorCard from '../../../components/feedback/ErrorCard';
 import ExportButton from '../../../components/reports/ExportButton';
+import SkeletonRow from '../../../components/SkeletonRow';
+import EmptyState from '../../../components/EmptyState';
 import frameStyles from './ReportFrame.module.css';
 
 function monthLabel(i, len) {
@@ -13,7 +15,7 @@ function monthLabel(i, len) {
 }
 
 export default function ContributionsSummary() {
-  const { data: sub, isError, error, refetch } = useCurrentSubscriber();
+  const { data: sub, isLoading, isError, error, refetch } = useCurrentSubscriber();
   const history = useMemo(() => sub?.contributionHistory || [], [sub?.contributionHistory]);
   const schedule = sub?.contributionSchedule;
   const retPct = (schedule?.retirementPct ?? 80) / 100;
@@ -59,6 +61,22 @@ export default function ContributionsSummary() {
     );
   }
 
+  // Cold-load skeleton — keep the report frame feeling responsive
+  // before history is hydrated.
+  if (isLoading && !sub) {
+    return (
+      <div className={frameStyles.frame}>
+        <div className={frameStyles.headerRow}>
+          <div className={frameStyles.headerText}>
+            <span className={frameStyles.eyebrow}>Month-by-month view</span>
+            <span className={frameStyles.headerDesc}>Loading…</span>
+          </div>
+        </div>
+        <SkeletonRow count={6} label="Loading contributions summary" />
+      </div>
+    );
+  }
+
   return (
     <div className={frameStyles.frame}>
       <div className={frameStyles.headerRow}>
@@ -86,21 +104,26 @@ export default function ContributionsSummary() {
 
       <section className={frameStyles.statSection}>
         <div className={frameStyles.statSectionTitle}>Monthly breakdown</div>
-        <div className={frameStyles.monthGrid}>
-          {monthly.map((m) => (
-            <div key={m.id} className={frameStyles.monthCard}>
-              <span className={frameStyles.monthLabel}>{m.monthLabel}</span>
-              <span className={frameStyles.monthValue}>{formatUGXExact(m.total)}</span>
-              <span className={frameStyles.monthMeta}>
-                <span>R {formatUGX(m.retirement)}</span>
-                <span>E {formatUGX(m.emergency)}</span>
-              </span>
-            </div>
-          ))}
-          {monthly.length === 0 && (
-            <div className={frameStyles.emptyState}>No contributions yet.</div>
-          )}
-        </div>
+        {monthly.length === 0 ? (
+          <EmptyState
+            kind="no-data"
+            title="No contributions yet."
+            body="Your monthly contributions will appear here once the first one settles."
+          />
+        ) : (
+          <div className={frameStyles.monthGrid}>
+            {monthly.map((m) => (
+              <div key={m.id} className={frameStyles.monthCard}>
+                <span className={frameStyles.monthLabel}>{m.monthLabel}</span>
+                <span className={frameStyles.monthValue}>{formatUGXExact(m.total)}</span>
+                <span className={frameStyles.monthMeta}>
+                  <span>R {formatUGX(m.retirement)}</span>
+                  <span>E {formatUGX(m.emergency)}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

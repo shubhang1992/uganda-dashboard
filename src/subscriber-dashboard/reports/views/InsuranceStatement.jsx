@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
-import { useCurrentSubscriber } from '../../../hooks/useSubscriber';
+import { useCurrentSubscriber, useSubscriberClaims } from '../../../hooks/useSubscriber';
 import { formatUGX, formatUGXExact } from '../../../utils/finance';
 import { downloadCSV } from '../../../utils/csv';
 import ReportTable from '../../../components/reports/ReportTable';
 import ErrorCard from '../../../components/feedback/ErrorCard';
 import ExportButton from '../../../components/reports/ExportButton';
+import SkeletonRow from '../../../components/SkeletonRow';
+import EmptyState from '../../../components/EmptyState';
 import frameStyles from './ReportFrame.module.css';
 
 function formatDate(iso) {
@@ -27,9 +29,9 @@ function statusTone(s) {
 }
 
 export default function InsuranceStatement() {
-  const { data: sub, isError, error, refetch } = useCurrentSubscriber();
+  const { data: sub, isLoading, isError, error, refetch } = useCurrentSubscriber();
   const insurance = sub?.insurance || {};
-  const claims = useMemo(() => sub?.claims || [], [sub?.claims]);
+  const { data: claims = [] } = useSubscriberClaims(sub?.id);
   const premiumTx = useMemo(
     () => (sub?.transactions || []).filter((t) => t.type === 'premium'),
     [sub]
@@ -104,6 +106,22 @@ export default function InsuranceStatement() {
     );
   }
 
+  // Cold-load skeleton — avoids the "Inactive · 0 / mo" flash before
+  // policy data hydrates.
+  if (isLoading && !sub) {
+    return (
+      <div className={frameStyles.frame}>
+        <div className={frameStyles.headerRow}>
+          <div className={frameStyles.headerText}>
+            <span className={frameStyles.eyebrow}>Your coverage at a glance</span>
+            <span className={frameStyles.headerDesc}>Loading…</span>
+          </div>
+        </div>
+        <SkeletonRow count={5} label="Loading insurance statement" />
+      </div>
+    );
+  }
+
   return (
     <div className={frameStyles.frame}>
       <div className={frameStyles.headerRow}>
@@ -142,7 +160,11 @@ export default function InsuranceStatement() {
       <section className={frameStyles.statSection}>
         <div className={frameStyles.statSectionTitle}>Claims history</div>
         {claims.length === 0 ? (
-          <div className={frameStyles.emptyState}>No claims filed yet.</div>
+          <EmptyState
+            kind="no-data"
+            title="No claims filed yet."
+            body="Any insurance claims you file will appear here for review."
+          />
         ) : (
           <ReportTable
             columns={claimColumns}

@@ -24,6 +24,8 @@ import {
   useMarkBranchReviewed, useReleaseRun, useReleaseBranch,
 } from '../../hooks/useCommission';
 import { getInitials } from '../../utils/dashboard';
+import SkeletonRow from '../../components/SkeletonRow';
+import EmptyState from '../../components/EmptyState';
 import styles from './CommissionPanel.module.css';
 
 function formatDate(dateStr) {
@@ -160,10 +162,10 @@ export default function CommissionPanel({ splitMode = false }) {
     isBranch && currentRun ? currentRun.id : null,
     isBranch ? branchId : null
   );
-  const { data: agentList = [] } = useAgentCommissionList(statusFocus);
+  const { data: agentList = [], isLoading: agentListLoading } = useAgentCommissionList(statusFocus);
   const { data: agentDetail } = useAgentCommissionDetail(selectedAgentId);
   const { data: subscribers = [] } = useCommissionSubscribers(selectedAgentId, subFilter);
-  const { data: disputedAgents = [] } = useDisputedAgentList();
+  const { data: disputedAgents = [], isLoading: disputedLoading } = useDisputedAgentList();
   const approveDisputeMutation = useApproveDispute();
   const rejectDisputeMutation = useRejectDispute();
   const bulkApproveMutation = useBulkApproveDisputes();
@@ -252,6 +254,12 @@ export default function CommissionPanel({ splitMode = false }) {
       a.agentName.toLowerCase().includes(q) || a.branchName.toLowerCase().includes(q)
     );
   }, [scopedDisputedAgents, debouncedSearch]);
+
+  // Cold-load guards — skeleton only fires when the query is pending AND
+  // no rows have ever been seen yet. Background refetches keep the live
+  // list visible so we never bounce the user back into a loading state.
+  const agentsCold = agentListLoading && scopedAgentList.length === 0;
+  const disputedCold = disputedLoading && scopedDisputedAgents.length === 0;
 
   // Branch view of the open run
   const branchSliceTotal = branchReview?.lines?.reduce((s, c) => s + (c.amount || 0), 0) || 0;
@@ -1117,8 +1125,30 @@ export default function CommissionPanel({ splitMode = false }) {
                       </div>
                     </div>
 
-                    {filteredAgents.length === 0 ? (
-                      <div className={styles.empty}>No agents found</div>
+                    {agentsCold ? (
+                      <SkeletonRow count={6} label="Loading commission ledger" />
+                    ) : filteredAgents.length === 0 ? (
+                      // Differentiated empty: clean state ("no commissions
+                      // recorded yet") vs filter mismatch ("widen your search").
+                      debouncedSearch.trim() === '' ? (
+                        <EmptyState
+                          kind="no-data"
+                          title={
+                            statusFocus === 'paid'
+                              ? 'No commissions paid yet.'
+                              : statusFocus === 'due'
+                                ? 'No commissions due.'
+                                : 'No commissions yet.'
+                          }
+                          body="Commission activity will appear here as soon as it's recorded."
+                        />
+                      ) : (
+                        <EmptyState
+                          kind="no-match"
+                          title="No agents match"
+                          body="Try adjusting your search."
+                        />
+                      )
                     ) : (
                       filteredAgents.map((agent) => (
                         <button
@@ -1304,8 +1334,22 @@ export default function CommissionPanel({ splitMode = false }) {
                       </div>
                     )}
 
-                    {filteredDisputed.length === 0 ? (
-                      <div className={styles.empty}>No disputed settlements</div>
+                    {disputedCold ? (
+                      <SkeletonRow count={5} label="Loading disputes" />
+                    ) : filteredDisputed.length === 0 ? (
+                      debouncedSearch.trim() === '' ? (
+                        <EmptyState
+                          kind="no-data"
+                          title="No disputed settlements"
+                          body="Disputes raised by agents will appear here for review."
+                        />
+                      ) : (
+                        <EmptyState
+                          kind="no-match"
+                          title="No agents match"
+                          body="Try adjusting your search."
+                        />
+                      )
                     ) : (
                       filteredDisputed.map((agent) => (
                         <div key={agent.agentId} className={styles.selectableRow} data-selected={selectedIds.has(agent.agentId)}>

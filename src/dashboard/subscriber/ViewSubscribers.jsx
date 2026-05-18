@@ -10,6 +10,8 @@ import { getInitials } from '../../utils/dashboard';
 import { Icons } from '../shared/Icons';
 import MiniChart from '../shared/MiniChart';
 import KpiCard from '../shared/KpiCard';
+import SkeletonRow from '../../components/SkeletonRow';
+import EmptyState from '../../components/EmptyState';
 import styles from './ViewSubscribers.module.css';
 
 
@@ -209,9 +211,14 @@ function SubscriberDetail({ subscriber, agentsMap, branchesMap }) {
 export default function ViewSubscribers() {
   const { viewSubscribersOpen, setViewSubscribersOpen } = useDashboard();
 
-  const { data: allSubscribersRaw = [] } = useAllEntities('subscriber');
+  const { data: allSubscribersRaw = [], isLoading: subsLoading } = useAllEntities('subscriber');
   const { data: allAgentsRaw = [] } = useAllEntities('agent');
   const { data: allBranchesRaw = [] } = useAllEntities('branch');
+
+  // Skeleton only on a cold fetch (pending AND no cached rows). Once
+  // the ~30k subscriber list is in the cache we never bounce back to
+  // skeleton during a background refetch.
+  const isCold = subsLoading && allSubscribersRaw.length === 0;
 
   const AGENTS_MAP = useMemo(() => Object.fromEntries(allAgentsRaw.map(a => [a.id, a])), [allAgentsRaw]);
   const BRANCHES_MAP = useMemo(() => Object.fromEntries(allBranchesRaw.map(b => [b.id, b])), [allBranchesRaw]);
@@ -467,19 +474,29 @@ export default function ViewSubscribers() {
               <AnimatePresence mode="wait">
                 {view === 'list' && (
                   <motion.div key="vs-list" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}>
-                    <div className={styles.listCount}>Showing {filtered.length.toLocaleString()} of {allSubscribersRaw.length.toLocaleString()} subscribers</div>
+                    <div className={styles.listCount}>
+                      {isCold
+                        ? 'Loading subscribers…'
+                        : `Showing ${filtered.length.toLocaleString()} of ${allSubscribersRaw.length.toLocaleString()} subscribers`}
+                    </div>
 
-                    {filtered.length === 0 ? (
-                      <div className={styles.emptyState}>
-                        <div className={styles.emptyIcon}>
-                          <svg aria-hidden="true" viewBox="0 0 48 48" fill="none" width="48" height="48">
-                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="1.5" />
-                            <path d="M16 20h16M16 28h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                        </div>
-                        <div className={styles.emptyTitle}>No subscribers found</div>
-                        <div className={styles.emptyDesc}>Try adjusting your search or filters</div>
-                      </div>
+                    {isCold ? (
+                      <SkeletonRow count={10} label="Loading subscribers" />
+                    ) : filtered.length === 0 ? (
+                      // No filters → truly empty list; with filters → no match.
+                      debouncedSearch.trim() === '' && statusFilter === 'all' ? (
+                        <EmptyState
+                          kind="no-data"
+                          title="No subscribers yet."
+                          body="Subscribers onboarded by agents will appear here."
+                        />
+                      ) : (
+                        <EmptyState
+                          kind="no-match"
+                          title="No subscribers match"
+                          body="Try adjusting your search or filters."
+                        />
+                      )
                     ) : (
                       <div
                         className={styles.virtualList}

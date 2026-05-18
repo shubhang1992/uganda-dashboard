@@ -6,6 +6,8 @@ import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../shell/PageHeader';
+import SkeletonRow from '../../components/SkeletonRow';
+import EmptyState from '../../components/EmptyState';
 import styles from './SubscribersPage.module.css';
 
 const SORT_OPTIONS = [
@@ -113,11 +115,10 @@ export default function SubscribersPage() {
       </div>
 
       <div className={styles.list}>
-        {isLoading && (
-          <div className={styles.empty}>
-            <div className={styles.spinner} />
-            <p>Loading your subscribers…</p>
-          </div>
+        {isLoading && subscribers.length === 0 && (
+          // Cold-load skeleton — keeps the list area feeling responsive
+          // instead of a bare spinner that doesn't hint at row geometry.
+          <SkeletonRow count={6} label="Loading your subscribers" />
         )}
         {isError && !isLoading && (
           <div className={styles.empty}>
@@ -129,10 +130,22 @@ export default function SubscribersPage() {
           </div>
         )}
         {!isLoading && !isError && filtered.length === 0 && (
-          <div className={styles.empty}>
-            <p className={styles.emptyTitle}>No subscribers match</p>
-            <p>Try clearing the search or switching the filter.</p>
-          </div>
+          // Differentiate: clean state ("no subscribers onboarded yet") vs
+          // filter mismatch ("widen your filter"). The agent has no list-only
+          // way to add subscribers from here; onboarding is its own flow.
+          search.trim() === '' && filter === 'all' ? (
+            <EmptyState
+              kind="no-data"
+              title="No subscribers yet."
+              body="Once you onboard your first subscriber, they'll appear here."
+            />
+          ) : (
+            <EmptyState
+              kind="no-match"
+              title="No subscribers match"
+              body="Try clearing the search or switching the filter."
+            />
+          )
         )}
         {filtered.map((sub) => (
           <button

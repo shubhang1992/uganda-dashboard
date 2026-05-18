@@ -366,17 +366,49 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
             </span>
           </div>
           <div className={styles.activityFeed}>
-            {events.map((event, i) => (
-              <motion.div key={event.id} className={styles.activityItem}
-                initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: 0.6 + i * 0.05, ease: EASE_OUT_EXPO }}>
-                <span className={styles.activityDot} data-type={event.type} />
-                <div className={styles.activityContent}>
-                  <span className={styles.activityText}>{event.text}</span>
-                  <span className={styles.activityTime}>{timeAgo(event.time)}</span>
-                </div>
+            {events.length === 0 ? (
+              // Hero is on the dark/indigo gradient — render an inline empty
+              // state styled to match (rather than the lavender-on-cloud
+              // <EmptyState />) so it reads as part of the panel.
+              <motion.div
+                className={styles.activityEmpty}
+                role="status"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.5, ease: EASE_OUT_EXPO }}
+              >
+                <span className={styles.activityEmptyIllustration} aria-hidden="true">
+                  <svg viewBox="0 0 56 32" width="56" height="32" fill="none">
+                    <path
+                      d="M2 24 Q10 14 18 22 T34 18 T54 22"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      opacity="0.45"
+                    />
+                    <circle cx="14" cy="20" r="1.5" fill="currentColor" opacity="0.65" />
+                    <circle cx="28" cy="16" r="1.5" fill="currentColor" opacity="0.5" />
+                    <circle cx="44" cy="20" r="1.5" fill="currentColor" opacity="0.4" />
+                  </svg>
+                </span>
+                <span className={styles.activityEmptyTitle}>No activity yet today</span>
+                <span className={styles.activityEmptySub}>
+                  Onboarding events and collections will appear here as they happen.
+                </span>
               </motion.div>
-            ))}
+            ) : (
+              events.map((event, i) => (
+                <motion.div key={event.id} className={styles.activityItem}
+                  initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: 0.6 + i * 0.05, ease: EASE_OUT_EXPO }}>
+                  <span className={styles.activityDot} data-type={event.type} />
+                  <div className={styles.activityContent}>
+                    <span className={styles.activityText}>{event.text}</span>
+                    <span className={styles.activityTime}>{timeAgo(event.time)}</span>
+                  </div>
+                </motion.div>
+              ))
+            )}
           </div>
         </div>
       </div>

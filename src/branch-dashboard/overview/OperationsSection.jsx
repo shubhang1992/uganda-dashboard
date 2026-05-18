@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
 import { getInitials } from '../../utils/dashboard';
 import { useDashboard } from '../../contexts/DashboardContext';
+import EmptyState from '../../components/EmptyState';
 import styles from './OperationsSection.module.css';
 
 const SORT_OPTIONS = [
@@ -38,7 +39,13 @@ function fmtVal(v, key) {
 }
 
 export default function OperationsSection({ agents = [], commissionSummary }) {
-  const { setCommissionsOpen, setViewAgentsOpen, setDrillTargetAgentId, closeAllPanels } = useDashboard();
+  const {
+    setCommissionsOpen,
+    setViewAgentsOpen,
+    setDrillTargetAgentId,
+    setCreateAgentOpen,
+    closeAllPanels,
+  } = useDashboard();
   const [sortKey, setSortKey] = useState('contributions');
   const [tab, setTab] = useState('commissions');
 
@@ -88,6 +95,11 @@ export default function OperationsSection({ agents = [], commissionSummary }) {
     setCommissionsOpen(true);
   }
 
+  function openCreateAgent() {
+    closeAllPanels();
+    setCreateAgentOpen?.(true);
+  }
+
   return (
     <motion.div className={styles.grid}
       initial={{ opacity: 0, y: 16 }}
@@ -116,45 +128,76 @@ export default function OperationsSection({ agents = [], commissionSummary }) {
         </div>
 
         <div className={styles.agentList}>
-          {sorted.map((agent, i) => {
-            const val = getVal(agent, sortKey);
-            const pct = (val / maxVal) * 100;
-            const isTop3 = i < 3;
+          {sorted.length === 0 ? (
+            // Zero agents in branch → invite the user to add the first one.
+            // CTA wires straight into the existing CreateAgent slide-in
+            // panel rather than routing — keeps the action in-context.
+            <EmptyState
+              kind="no-data"
+              title="No agents in this branch yet."
+              body="Add your first agent to start onboarding subscribers."
+              cta={{
+                label: 'Add your first agent',
+                onClick: openCreateAgent,
+                icon: (
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 12 12"
+                    width="11"
+                    height="11"
+                    fill="none"
+                  >
+                    <path
+                      d="M6 1v10M1 6h10"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                ),
+              }}
+            />
+          ) : (
+            sorted.map((agent, i) => {
+              const val = getVal(agent, sortKey);
+              const pct = (val / maxVal) * 100;
+              const isTop3 = i < 3;
 
-            return (
-              <motion.button
-                type="button"
-                key={agent.id}
-                className={styles.agentRow}
-                onClick={() => openAgent(agent.id)}
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: 0.05 + 0.03 * i, ease: EASE_OUT_EXPO }}
-              >
-                <div className={styles.rankCol}>
-                  {isTop3 ? (
-                    <span className={styles.medal} style={{ background: MEDAL_COLORS[i] }}>{i + 1}</span>
-                  ) : (
-                    <span className={styles.rank}>{i + 1}</span>
-                  )}
-                </div>
-                <span className={styles.avatar} data-gender={agent.gender}>{getInitials(agent.name)}</span>
-                <div className={styles.agentInfo}>
-                  <span className={styles.agentName}>{agent.name}</span>
-                  <div className={styles.barRow}>
-                    <div className={styles.barTrack}>
-                      <motion.div className={styles.barFill} data-top={isTop3}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.max(pct, 3)}%` }}
-                        transition={{ duration: 0.6, delay: 0.1 + 0.04 * i, ease: EASE_OUT_EXPO }}
-                      />
-                    </div>
-                    <span className={styles.barLabel}>{fmtVal(val, sortKey)}</span>
+              return (
+                <motion.button
+                  type="button"
+                  key={agent.id}
+                  className={styles.agentRow}
+                  onClick={() => openAgent(agent.id)}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: 0.05 + 0.03 * i, ease: EASE_OUT_EXPO }}
+                >
+                  <div className={styles.rankCol}>
+                    {isTop3 ? (
+                      <span className={styles.medal} style={{ background: MEDAL_COLORS[i] }}>{i + 1}</span>
+                    ) : (
+                      <span className={styles.rank}>{i + 1}</span>
+                    )}
                   </div>
-                </div>
-              </motion.button>
-            );
-          })}
+                  <span className={styles.avatar} data-gender={agent.gender}>{getInitials(agent.name)}</span>
+                  <div className={styles.agentInfo}>
+                    <span className={styles.agentName}>{agent.name}</span>
+                    <div className={styles.barRow}>
+                      <div className={styles.barTrack}>
+                        <motion.div className={styles.barFill} data-top={isTop3}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.max(pct, 3)}%` }}
+                          transition={{ duration: 0.6, delay: 0.1 + 0.04 * i, ease: EASE_OUT_EXPO }}
+                        />
+                      </div>
+                      <span className={styles.barLabel}>{fmtVal(val, sortKey)}</span>
+                    </div>
+                  </div>
+                </motion.button>
+              );
+            })
+          )}
         </div>
       </div>
 
