@@ -82,6 +82,23 @@ export const REGIONS = {
   'r-western': { id: 'r-western', name: 'Western', parentId: 'ug', center: [30.27, -0.61], metrics: null },
 };
 
+// ─── DISTRIBUTORS ────────────────────────────────────────────────────────────
+// Singleton in the demo seed — `d-001` is the national operator. Mirrors the
+// `distributors` table seeded by Agent A. Kept as a Map for symmetry with the
+// other level dictionaries even though there is only one row today.
+export const DISTRIBUTORS = {
+  'd-001': {
+    id: 'd-001',
+    name: 'Universal Pensions Uganda — National',
+    parentId: 'ug',
+    managerName: 'Distributor Lead',
+    managerPhone: '+256700000021',
+    managerEmail: null,
+    status: 'active',
+    metrics: null,
+  },
+};
+
 
 
 export const BRANCHES = {};
@@ -970,7 +987,7 @@ Object.values(runsByBranch).forEach((arr) => {
 });
 
 // ─── LEVEL CONSTANTS & LOOKUP MAPS ───────────────────────────────────────────
-export const LEVELS = { COUNTRY: 'country', REGION: 'region', DISTRICT: 'district', BRANCH: 'branch', AGENT: 'agent', SUBSCRIBER: 'subscriber' };
+export const LEVELS = { COUNTRY: 'country', REGION: 'region', DISTRICT: 'district', BRANCH: 'branch', AGENT: 'agent', SUBSCRIBER: 'subscriber', DISTRIBUTOR: 'distributor' };
 
 const LEVEL_MAP = {
   [LEVELS.COUNTRY]: { ug: COUNTRY },
@@ -979,8 +996,13 @@ const LEVEL_MAP = {
   [LEVELS.BRANCH]: BRANCHES,
   [LEVELS.AGENT]: AGENTS,
   [LEVELS.SUBSCRIBER]: SUBSCRIBERS,
+  [LEVELS.DISTRIBUTOR]: DISTRIBUTORS,
 };
 
+// Note: distributors sit *outside* the geographic hierarchy
+// (country → region → district → branch → agent → subscriber). The single
+// distributor row is keyed off the country sentinel `ug`, but does NOT
+// participate in the drill-down child-walk used by Distributor/Branch dashboards.
 const CHILD_LEVEL = {
   [LEVELS.COUNTRY]: LEVELS.REGION,
   [LEVELS.REGION]: LEVELS.DISTRICT,
@@ -1029,6 +1051,9 @@ export function getAllEntities(level) {
 export function getParentEntity(level, id) {
   const entity = getEntityById(level, id);
   if (!entity?.parentId) return null;
+  // Distributors live off the country sentinel and have no children in the
+  // geographic tree — short-circuit so the country roll-up is the parent.
+  if (level === LEVELS.DISTRIBUTOR) return COUNTRY;
   const order = [LEVELS.COUNTRY, LEVELS.REGION, LEVELS.DISTRICT, LEVELS.BRANCH, LEVELS.AGENT];
   const idx = order.indexOf(level);
   return idx > 0 ? getEntityById(order[idx - 1], entity.parentId) : COUNTRY;

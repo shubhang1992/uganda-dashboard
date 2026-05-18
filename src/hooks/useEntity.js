@@ -197,6 +197,29 @@ export function useUpdateBranch() {
 }
 
 /**
+ * Fetch national roll-up metrics for the Distributor dashboard
+ * (subscriber / agent / branch totals plus AUM).
+ *
+ * Long staleTime — these are dashboard-level totals that change slowly and
+ * are expensive to recompute. The four underlying tables each have their
+ * own React Query keys so per-entity invalidation downstream doesn't
+ * require us to invalidate here.
+ * @returns {import('@tanstack/react-query').UseQueryResult<{
+ *   totalSubscribers: number,
+ *   totalAgents: number,
+ *   totalBranches: number,
+ *   aum: number,
+ * }>}
+ */
+export function useDistributorMetrics() {
+  return useQuery({
+    queryKey: ['distributor-metrics'],
+    queryFn: entities.getDistributorMetrics,
+    staleTime: 5 * 60 * 1000, // 5 minutes — cold-load aggregate
+  });
+}
+
+/**
  * Mutation to flip a branch between active and inactive. Optimistically
  * updates the cached entity so the status pill flips instantly; rolls back
  * on error.
