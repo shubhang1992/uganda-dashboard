@@ -77,8 +77,16 @@ export default function PaymentStep({
         ? { provider: momoProvider, phone: `+256${digitsOnly(momoPhone)}` }
         : { gateway: 'pesapal', redirected: true };
 
-    window.setTimeout(() => {
-      onComplete({ paymentMethod: method, paymentDetails: details });
+    // Await onComplete so we can reset `processing` if downstream creation
+    // (RPC, JWT mint, login) fails — otherwise the user is stuck on the
+    // "Processing…" button with no way to retry. On success the parent
+    // unmounts us, so the `setProcessing(false)` in catch is irrelevant.
+    window.setTimeout(async () => {
+      try {
+        await onComplete({ paymentMethod: method, paymentDetails: details });
+      } catch {
+        setProcessing(false);
+      }
     }, 1200);
   }
 

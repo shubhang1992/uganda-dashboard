@@ -56,7 +56,7 @@ export default function ConsentStep({ onActivate }) {
   return (
     <div className={styles.card}>
       <span className={styles.eyebrow}>Step 8 · Consent</span>
-      <h2 className={styles.heading}>Before we activate your account</h2>
+      <h2 className={styles.heading}>One last thing before payment</h2>
       <p className={styles.subtext}>
         Please read this and give your consent. This is required under Uganda’s Data Protection and Privacy Act, 2019.
       </p>
@@ -165,10 +165,10 @@ export default function ConsentStep({ onActivate }) {
           {submitting ? (
             <>
               <span className={own.btnSpinner} aria-hidden="true" />
-              Activating…
+              Continuing…
             </>
           ) : (
-            'Activate my account'
+            'I consent — continue'
           )}
         </button>
       </div>

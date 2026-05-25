@@ -2,12 +2,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 96px;
-  height: 96px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   background: rgba(46, 139, 87, 0.1);
   color: var(--color-green);
-  margin: 0 auto var(--space-5);
+  margin: 0 auto var(--space-4);
 }
 
 /* ── Member card ─────────────────────────────────────────────────────
@@ -346,6 +346,83 @@
 
 .scheduleDot[data-tone="emergency"] {
   background: linear-gradient(135deg, #6EC9C4 0%, var(--color-teal) 100%);
+}
+
+/* ── Insurance policy bar — compact single-row "download" affordance ─
+   Replaces the older big insurance card. Whole row is one button, so the
+   user just taps to get the certificate. Designed to sit between the
+   contribution-plan summary and the Continue CTA without eating fold space. */
+.policyBar {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(135deg, rgba(94, 99, 168, 0.12) 0%, rgba(41, 40, 103, 0.08) 100%);
+  border: 1px solid rgba(41, 40, 103, 0.18);
+  color: var(--color-indigo);
+  cursor: pointer;
+  font-family: var(--font-display);
+  text-align: left;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.15s ease;
+}
+
+.policyBar:hover {
+  background:
+    linear-gradient(135deg, rgba(94, 99, 168, 0.18) 0%, rgba(41, 40, 103, 0.12) 100%);
+  border-color: rgba(41, 40, 103, 0.3);
+  transform: translateY(-1px);
+}
+
+.policyBar:active {
+  transform: translateY(0);
+}
+
+.policyBar:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 2px;
+}
+
+.policyShield {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: rgba(41, 40, 103, 0.1);
+  color: var(--color-indigo);
+}
+
+.policyText {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-indigo);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.policyAction {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-white);
+  background: var(--color-indigo);
+  border-radius: var(--radius-full);
 }
 
 /* ── Mobile ──────────────────────────────────────────────────────── */

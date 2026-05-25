@@ -69,7 +69,10 @@ export default function ContributionSettings({ initial, dob, phone, onClose, onC
   const [frequency, setFrequency] = useState(initial?.frequency ?? 'monthly');
   const [amountStr, setAmountStr] = useState(initial?.amount ? String(initial.amount) : '');
   const [retirementPct, setRetirementPct] = useState(initial?.retirementPct ?? 80);
-  const [includeInsurance, setIncludeInsurance] = useState(initial?.includeInsurance ?? false);
+  // Default to ON so every demo signup naturally shows the post-payment
+  // "Download policy certificate" affordance. User can still toggle off
+  // to demo the no-insurance path.
+  const [includeInsurance, setIncludeInsurance] = useState(initial?.includeInsurance ?? true);
   const [touched, setTouched] = useState(Boolean(initial?.amount));
   const [view, setView] = useState('setup');
 
@@ -140,8 +143,11 @@ export default function ContributionSettings({ initial, dob, phone, onClose, onC
     setView('payment');
   }
 
-  function handlePaymentComplete({ paymentMethod, paymentDetails }) {
-    onConfirm({
+  async function handlePaymentComplete({ paymentMethod, paymentDetails }) {
+    // Awaiting + propagating any throw from `onConfirm` (handleConfirm in
+    // ContributionRoute) lets PaymentStep reset its `processing` state on
+    // error — without this, the Pay button stays stuck on "Processing…".
+    await onConfirm({
       frequency,
       amount,
       retirementPct,

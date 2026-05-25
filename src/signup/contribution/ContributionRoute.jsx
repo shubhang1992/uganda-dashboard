@@ -1,4 +1,5 @@
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useSignup } from '../SignupContext';
@@ -6,6 +7,8 @@ import * as subscriberService from '../../services/subscriber';
 import { verifyOtp } from '../../services/auth';
 import { toCanonicalUGPhone } from '../../utils/phone';
 import ContributionSettings from './ContributionSettings';
+import SignupShell from '../SignupShell';
+import ActivatedStep from '../steps/ActivatedStep';
 
 /**
  * Route wrapper for `/signup/contribution`.
@@ -14,15 +17,37 @@ import ContributionSettings from './ContributionSettings';
  * pre-fills. On payment confirm, calls the atomic
  * `create_subscriber_from_signup` RPC (via `subscriber.createFromSignup`) to
  * persist the subscriber + balance + schedule + nominees + first transaction
- * in one transaction, then mints the real JWT via `/api/auth/verify-otp` and
- * routes to the subscriber dashboard at `/dashboard`. Cancel returns to the
- * activation step without saving.
+ * in one transaction, then mints the real JWT via `/api/auth/verify-otp`.
+ * Once the JWT is set, the route captures a `completionSnapshot` of the
+ * fields the All-Set view needs and flips into the `'activated'` phase.
+ * `ActivatedStep` reads from the snapshot rather than the live signup
+ * context, so it stays renderable even after `signup.reset()` fires on
+ * Continue — that ordering matters because the activated branch is checked
+ * BEFORE the direct-entry consent guard, preventing a redirect race that
+ * would otherwise bounce the user back to ConsentStep.
  */
 export default function ContributionRoute() {
   const navigate = useNavigate();
   const signup = useSignup();
   const { login } = useAuth();
   const { addToast } = useToast();
+  const [phase, setPhase] = useState('setup');
+  const [completionSnapshot, setCompletionSnapshot] = useState(null);
+
+  // Activated branch runs FIRST — independent of signup context so the
+  // Continue click (which resets signup) can't trigger the guard below
+  // during the brief window before route unmount.
+  if (phase === 'activated' && completionSnapshot) {
+    return (
+      <SignupShell stepId="done" canBack={false}>
+        <ActivatedStep snapshot={completionSnapshot} onFinish={handleContinue} />
+      </SignupShell>
+    );
+  }
+
+  if (!signup.consent || !signup.consentTimestamp || !signup.fullName) {
+    return <Navigate to="/signup" replace />;
+  }
 
   /**
    * Build the payload the RPC expects from the SignupContext snapshot + the
@@ -74,11 +99,18 @@ export default function ContributionRoute() {
       const result = await subscriberService.createFromSignup(payload);
       subscriberId = result?.subscriberId;
     } catch (err) {
+      // Log so the actual RPC error is visible during demos — Supabase RPC
+      // errors often carry useful detail in `err.details` / `err.hint` /
+      // `err.code` that the toast's top-level message hides.
+      console.error('[signup] createFromSignup failed', err);
       addToast(
         'error',
         err?.message || "Couldn't create your account. Please try again.",
       );
-      return;
+      // Re-throw so PaymentStep's `await onComplete(...)` rejects and resets
+      // its `processing` state — otherwise the Pay button stays stuck on
+      // "Processing…" with no way to retry.
+      throw err;
     }
 
     // 2. Mint the real JWT via the dev-bypass verify-otp route. The subscriber
@@ -88,23 +120,37 @@ export default function ContributionRoute() {
       const { token, user } = await verifyOtp(canonicalPhone, '123456', 'subscriber');
       await login({ token, user });
     } catch (err) {
+      console.error('[signup] verifyOtp / login failed', err);
       addToast(
         'error',
         err?.message || 'Account created, but sign-in failed. Please sign in to continue.',
       );
-      return;
+      throw err;
     }
 
-    // 3. Clear the persisted signup state — the dashboard is now the source of
-    //    truth for this subscriber. Land on the live dashboard. `subscriberId`
-    //    is referenced for diagnostics; the auth-context JWT already carries it.
+    // 3. Capture a snapshot of the fields the All-Set view needs (so the view
+    //    survives `signup.reset()` on Continue), then flip into the
+    //    `'activated'` phase. `subscriberId` is referenced for diagnostics;
+    //    the auth-context JWT already carries it.
     void subscriberId;
-    signup.reset();
-    navigate('/dashboard', { replace: true });
+    setCompletionSnapshot({
+      fullName: signup.fullName,
+      phone: canonicalPhone,
+      dob: signup.dob,
+      gender: signup.gender,
+      contributionSchedule: schedule,
+      insuranceBeneficiaries: signup.insuranceBeneficiaries ?? [],
+    });
+    setPhase('activated');
   }
 
   function handleCancel() {
     navigate('/signup');
+  }
+
+  function handleContinue() {
+    signup.reset();
+    navigate('/dashboard', { replace: true });
   }
 
   return (

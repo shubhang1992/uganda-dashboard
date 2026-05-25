@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useSignup } from '../SignupContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { faceMatch } from '../../services/kyc';
 import styles from './Step.module.css';
 import own from './LivenessStep.module.css';
@@ -15,12 +16,116 @@ const PHASES = {
   faceFail: 'face-fail',
 };
 
+/**
+ * Subscriber self-onboarding (no auth role) → front camera.
+ * Agent onboarding a subscriber (auth role: 'agent') → rear camera.
+ * Desktop browsers collapse the front/rear distinction to whatever webcam exists.
+ */
+function pickFacingMode(role) {
+  return role === 'agent' ? 'environment' : 'user';
+}
+
 export default function LivenessStep({ onNext, onAgentFallback }) {
   const signup = useSignup();
+  const { role } = useAuth();
   const [phase, setPhase] = useState(PHASES.idle);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+
   const autoAdvanceTimer = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
 
   const livenessRetryUsed = signup.livenessRetryUsed;
+  const isMirrored = role !== 'agent';
+
+  async function startCamera() {
+    // Drop any prior stream first so we don't leak hardware handles.
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setCameraError(null);
+    setCameraReady(false);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: pickFacingMode(role) },
+          width: { ideal: 720 },
+          height: { ideal: 960 },
+        },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setCameraReady(true);
+    } catch (err) {
+      const message =
+        err?.name === 'NotAllowedError' || err?.name === 'SecurityError'
+          ? 'Camera access denied. Allow camera access in your browser to continue.'
+          : err?.name === 'NotFoundError' || err?.name === 'OverconstrainedError'
+          ? 'No camera found on this device.'
+          : "Couldn't start the camera. Please check your device and try again.";
+      setCameraError(message);
+      setCameraReady(false);
+    }
+  }
+
+  function stopCamera() {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraReady(false);
+  }
+
+  async function captureFrame() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+      throw new Error('Camera not ready');
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    // Capture the raw camera stream — no mirror transform. CSS-level mirroring
+    // is for display only; downstream face-match expects the camera-native
+    // orientation (raised right hand appears on the LEFT of the captured image
+    // for a front camera, which is the standard photographic convention).
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error('Canvas toBlob returned null'))),
+        'image/jpeg',
+        0.85,
+      );
+    });
+  }
+
+  // Start the camera whenever we (re-)enter the idle phase — initial mount,
+  // and after the user taps "Retake selfie" on the liveness-fail branch.
+  useEffect(() => {
+    if (phase !== PHASES.idle) return undefined;
+    startCamera();
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  // Final cleanup — stop the stream if the user navigates away mid-step.
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
 
   // Auto-advance once the face match succeeds — give the user ~1.1s to see
   // the checkmark + "All good" status before moving to the next step.
@@ -31,17 +136,29 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
   }, [phase, onNext]);
 
   async function startCapture() {
+    if (!cameraReady || cameraError) return;
     setPhase(PHASES.capturing);
-    await wait(700);
-    setPhase(PHASES.analyzing);
+
+    let blob;
     try {
-      // Prototype: real camera capture is not implemented; produce a placeholder
-      // Blob so faceMatch's defensive null-guard passes. Replace with a real
-      // camera-captured Blob (getUserMedia → ImageCapture / canvas.toBlob) when
-      // wiring the live KYC provider.
-      const placeholderSelfie = new Blob([new Uint8Array([0])], { type: 'image/jpeg' });
+      blob = await captureFrame();
+    } catch {
+      setCameraError("Couldn't capture the frame. Please try again.");
+      setPhase(PHASES.idle);
+      return;
+    }
+    signup.patch({ selfieFile: blob });
+
+    // Let the flash animation play before flipping into analyzing.
+    await wait(600);
+    // Stop the camera now we have the frame — releases the OS "camera in use"
+    // indicator and frees the device while the (mocked) face-match runs.
+    stopCamera();
+    setPhase(PHASES.analyzing);
+
+    try {
       const result = await faceMatch({
-        selfieFile: placeholderSelfie,
+        selfieFile: blob,
         nin: signup.nin,
         sessionId: signup.onboardingSessionId,
       });
@@ -65,9 +182,11 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
   function retry() {
     signup.patch({ livenessRetryUsed: true, faceMatchOutcome: null });
     setPhase(PHASES.idle);
+    // Camera auto-restarts via the useEffect on phase === 'idle'.
   }
 
   const busy = phase === PHASES.capturing || phase === PHASES.analyzing;
+  const canCapture = cameraReady && !cameraError && phase === PHASES.idle;
 
   /* ── Liveness failure: allow one retry, then block → agent ──────────── */
   if (phase === PHASES.livenessFail) {
@@ -123,10 +242,27 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
 
       <div className={own.frame} data-phase={phase}>
         <div className={own.frameInner}>
-          <svg aria-hidden="true" viewBox="0 0 200 200" className={own.silhouette}>
-            <circle cx="100" cy="78" r="32" fill="currentColor" opacity="0.35"/>
-            <path d="M40 180c0-33 27-54 60-54s60 21 60 54" fill="currentColor" opacity="0.35"/>
-          </svg>
+          {/* Live camera feed — sits behind the existing overlays. Mirrored
+              for front camera (subscriber path) so the user sees themselves
+              naturally; not mirrored for the agent rear-camera path. */}
+          <video
+            ref={videoRef}
+            className={own.cameraVideo}
+            data-mirror={isMirrored || undefined}
+            autoPlay
+            playsInline
+            muted
+          />
+          {/* Offscreen canvas — used by captureFrame() to extract the JPEG. */}
+          <canvas ref={canvasRef} className={own.cameraCanvas} aria-hidden="true" />
+
+          {/* Silhouette guide — fades out once the live feed is ready. */}
+          {!cameraReady && !cameraError && (
+            <svg aria-hidden="true" viewBox="0 0 200 200" className={own.silhouette}>
+              <circle cx="100" cy="78" r="32" fill="currentColor" opacity="0.35"/>
+              <path d="M40 180c0-33 27-54 60-54s60 21 60 54" fill="currentColor" opacity="0.35"/>
+            </svg>
+          )}
           <div className={own.oval} />
 
           <AnimatePresence>
@@ -175,6 +311,32 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Permission / device-error overlay */}
+          <AnimatePresence>
+            {cameraError && (
+              <motion.div
+                className={own.permissionOverlay}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+              >
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
+                  <path d="M3 7h4l1.5-2h7L17 7h4a2 2 0 012 2v9a2 2 0 01-2 2H3a2 2 0 01-2-2V9a2 2 0 012-2z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+                  <path d="M3 3l18 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+                <p>{cameraError}</p>
+                <button
+                  type="button"
+                  className={own.permissionRetryBtn}
+                  onClick={startCamera}
+                >
+                  Try again
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         <div className={own.cornerGuides} aria-hidden="true">
           <span /><span /><span /><span />
@@ -182,7 +344,9 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
       </div>
 
       <div className={own.statusLine} aria-live="polite">
-        {phase === PHASES.idle && 'Face the camera when you’re ready'}
+        {phase === PHASES.idle && cameraError && ' '}
+        {phase === PHASES.idle && !cameraError && !cameraReady && 'Starting camera…'}
+        {phase === PHASES.idle && !cameraError && cameraReady && 'Face the camera when you’re ready'}
         {phase === PHASES.capturing && 'Hold steady…'}
         {phase === PHASES.analyzing && 'Checking live-person match…'}
         {phase === PHASES.ok && 'All good — face matched. Taking you to the next step…'}
@@ -190,7 +354,12 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
 
       <div className={styles.actions}>
         {phase === PHASES.idle && (
-          <button type="button" className={styles.submit} onClick={startCapture}>
+          <button
+            type="button"
+            className={styles.submit}
+            onClick={startCapture}
+            disabled={!canCapture}
+          >
             <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none">
               <path d="M5 7h3l2-2h4l2 2h3a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
               <circle cx="12" cy="13" r="3.5" stroke="currentColor" strokeWidth="1.75"/>

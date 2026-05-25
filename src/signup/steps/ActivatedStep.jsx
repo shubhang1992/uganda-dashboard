@@ -1,7 +1,7 @@
-import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGXExact } from '../../utils/finance';
 import { useSignup } from '../SignupContext';
+import { openPolicyCertificate } from '../contribution/insurancePolicyCertificate';
 import logoWhite from '../../assets/logo-white.png';
 import styles from './Step.module.css';
 import own from './ActivatedStep.module.css';
@@ -25,25 +25,39 @@ function formatDate(iso) {
 }
 
 const GENDER_LABEL = { male: 'Male', female: 'Female', other: 'Other' };
-const FREQ_CADENCE = {
-  weekly: 'every week',
-  monthly: 'every month',
-  quarterly: 'every 3 months',
-  'half-yearly': 'every 6 months',
-  annually: 'every year',
-};
 
-export default function ActivatedStep({ onFinish }) {
-  const navigate = useNavigate();
-  const { fullName, phone, dob, gender, contributionSchedule } = useSignup();
+function addYears(date, n) {
+  const r = new Date(date);
+  r.setFullYear(r.getFullYear() + n);
+  return r;
+}
+
+export default function ActivatedStep({ onFinish, snapshot }) {
+  const ctx = useSignup();
+  const data = snapshot ?? ctx;
+  const { fullName, phone, dob, gender, contributionSchedule } = data;
 
   const firstName = fullName.trim().split(/\s+/)[0] || 'there';
   const memberId = formatMemberId(phone);
   const enrolmentDate = new Date();
-  const hasSchedule = Boolean(contributionSchedule);
+  const hasInsurance = Boolean(contributionSchedule?.includeInsurance);
 
-  function handleOpenSetup() {
-    navigate('/signup/contribution');
+  function handleDownloadPolicy() {
+    const ok = openPolicyCertificate({
+      holderName: fullName,
+      memberId,
+      dob,
+      cover: contributionSchedule.insuranceCover,
+      premiumPerPeriod: contributionSchedule.insurancePremium,
+      frequency: contributionSchedule.frequency,
+      policyStart: enrolmentDate,
+      renewalDate: addYears(enrolmentDate, 1),
+      beneficiaries: data.insuranceBeneficiaries ?? [],
+    });
+    if (!ok) {
+      // Pop-up blocked. Demo-level fallback — no toast context here.
+      window.alert('Please allow pop-ups for this site and try again to download your certificate.');
+    }
   }
 
   return (
@@ -54,18 +68,18 @@ export default function ActivatedStep({ onFinish }) {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.55, ease: EASE_OUT_EXPO }}
       >
-        <svg viewBox="0 0 72 72" width="72" height="72" fill="none" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="48" height="48" fill="none" aria-hidden="true">
           <motion.circle
-            cx="36" cy="36" r="34"
-            stroke="currentColor" strokeWidth="2.5"
+            cx="24" cy="24" r="22"
+            stroke="currentColor" strokeWidth="2"
             initial={{ pathLength: 0 }}
             animate={{ pathLength: 1 }}
             transition={{ duration: 0.7, ease: EASE_OUT_EXPO }}
             fill="none"
           />
           <motion.path
-            d="M22 37l10 10 19-21"
-            stroke="currentColor" strokeWidth="3.5"
+            d="M15 24.5l6.5 6.5L33 17.5"
+            stroke="currentColor" strokeWidth="2.5"
             strokeLinecap="round" strokeLinejoin="round"
             fill="none"
             initial={{ pathLength: 0 }}
@@ -133,59 +147,33 @@ export default function ActivatedStep({ onFinish }) {
         </footer>
       </motion.section>
 
-      {/* ── Next-up / summary swap ─────────────────────────────────────── */}
-      <AnimatePresence mode="wait" initial={false}>
-        {hasSchedule ? (
-          <motion.div
-            key="summary"
-            className={own.scheduleCard}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
-          >
-            <div className={own.scheduleHead}>
-              <span className={own.nextEyebrow}>Your contribution plan</span>
-              <button
-                type="button"
-                className={own.scheduleEdit}
-                onClick={handleOpenSetup}
-              >
-                Edit
-              </button>
-            </div>
-            <strong className={own.scheduleAmount}>
-              {formatUGXExact(contributionSchedule.amount)}
-              <span className={own.scheduleCadence}> {FREQ_CADENCE[contributionSchedule.frequency]}</span>
-            </strong>
-            <div className={own.scheduleSplit} aria-label={`${contributionSchedule.retirementPct} percent retirement, ${contributionSchedule.emergencyPct} percent emergency`}>
-              <span className={own.scheduleChip} data-tone="retirement">
-                <span className={own.scheduleDot} data-tone="retirement" aria-hidden="true" />
-                {contributionSchedule.retirementPct}% Retirement
-              </span>
-              <span className={own.scheduleChip} data-tone="emergency">
-                <span className={own.scheduleDot} data-tone="emergency" aria-hidden="true" />
-                {contributionSchedule.emergencyPct}% Emergency
-              </span>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="next-up"
-            className={own.nextBox}
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.5, delay: 1.05, ease: EASE_OUT_EXPO }}
-          >
-            <span className={own.nextEyebrow}>Next up</span>
-            <strong className={own.nextTitle}>Make your first contribution</strong>
-            <p className={own.nextBody}>
-              Set how often, how much, and how to split between retirement and emergency savings. Takes about a minute.
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* ── Insurance policy: compact single-row download affordance ────── */}
+      {hasInsurance && (
+        <motion.button
+          type="button"
+          className={own.policyBar}
+          onClick={handleDownloadPolicy}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.1, ease: EASE_OUT_EXPO }}
+        >
+          <span className={own.policyShield} aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+              <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+              <path d="M9 12l2.2 2 3.8-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </span>
+          <span className={own.policyText}>
+            Life insurance · {formatUGXExact(contributionSchedule.insuranceCover)} cover
+          </span>
+          <span className={own.policyAction}>
+            Download
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="13" height="13" fill="none">
+              <path d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </span>
+        </motion.button>
+      )}
 
       <motion.div
         className={styles.actions}
@@ -193,28 +181,12 @@ export default function ActivatedStep({ onFinish }) {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 1.2 }}
       >
-        {hasSchedule ? (
-          <button type="button" className={styles.submit} onClick={onFinish}>
-            Continue
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
-              <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-        ) : (
-          <>
-            <button type="button" className={styles.submit} onClick={handleOpenSetup}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
-                <rect x="2" y="6" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.75"/>
-                <path d="M2 10h20" stroke="currentColor" strokeWidth="1.75"/>
-                <circle cx="17" cy="15" r="1.5" fill="currentColor"/>
-              </svg>
-              Make your first contribution
-            </button>
-            <button type="button" className={styles.secondaryBtn} onClick={onFinish}>
-              I’ll do this later
-            </button>
-          </>
-        )}
+        <button type="button" className={styles.submit} onClick={onFinish}>
+          Continue
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+            <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
       </motion.div>
     </div>
   );

@@ -15,7 +15,6 @@ import LivenessStep from './steps/LivenessStep';
 import AmlStep from './steps/AmlStep';
 import BeneficiariesStep from './steps/BeneficiariesStep';
 import ConsentStep from './steps/ConsentStep';
-import ActivatedStep from './steps/ActivatedStep';
 import AgentFallbackStep from './steps/AgentFallbackStep';
 import PendingReviewStep from './steps/PendingReviewStep';
 
@@ -68,15 +67,6 @@ function SignupFlow() {
     setPausedAt('aml');
     setDirection(1);
     setStepId(PENDING_REVIEW_STEP);
-  }
-
-  function finishAndEnter() {
-    // Persistence happens in ContributionRoute (via the atomic
-    // `create_subscriber_from_signup` RPC, which requires a schedule). The
-    // ActivatedStep "Continue" / "I'll do this later" buttons land here, so
-    // route everyone through the contribution page — that's the only path that
-    // creates the real subscriber row + mints the JWT.
-    navigate('/signup/contribution');
   }
 
   function exitToHome() {
@@ -156,10 +146,7 @@ function SignupFlow() {
         return <BeneficiariesStep onNext={goNext} />;
 
       case 'consent':
-        return <ConsentStep onActivate={async () => goNext()} />;
-
-      case 'done':
-        return <ActivatedStep onFinish={finishAndEnter} />;
+        return <ConsentStep onActivate={async () => navigate('/signup/contribution')} />;
 
       case AGENT_STEP:
         return <AgentFallbackStep onExit={exitToHome} />;
