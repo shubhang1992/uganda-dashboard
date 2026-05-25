@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
+import { useAllEntities, useAllEntitiesMap, useAllEntitiesMetrics } from '../../../hooks/useEntity';
 import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import { formatUGX } from '../../../utils/finance';
 import { formatNumber } from '../../../utils/currency';
@@ -34,10 +34,15 @@ function PerfBar({ value }) {
 export default function AllAgents({ onBack }) {
   const { branchId } = useBranchScope();
   const isBranch = !!branchId;
-  const { data: agents = [], isLoading: loadingAgents } = useAllEntities('agent');
+  const { data: agentsRaw = [], isLoading: loadingAgents } = useAllEntities('agent');
   const { data: branchesMap = {}, isLoading: loadingBranches } = useAllEntitiesMap('branch');
   const { data: districtsMap = {} } = useAllEntitiesMap('district');
   const { data: regionsMap = {} } = useAllEntitiesMap('region');
+  const { data: agentMetricsMap = {} } = useAllEntitiesMetrics('agent');
+  const agents = useMemo(
+    () => agentsRaw.map(a => ({ ...a, metrics: agentMetricsMap[a.id] ?? a.metrics })),
+    [agentsRaw, agentMetricsMap],
+  );
 
   const [search, setSearch] = useState('');
   const [regionFilter, setRegionFilter] = useState('');
@@ -78,6 +83,14 @@ export default function AllAgents({ onBack }) {
   }, [enriched, search, regionFilter, statusFilter, isBranch]);
 
   const loading = loadingAgents || loadingBranches;
+
+  // CSV serialiser walks `row[col.key]` flatly, so project nested `metrics.*`
+  // values up to the top level for the export rows.
+  const exportRows = useMemo(() => filtered.map((a) => ({
+    ...a,
+    totalSubscribers: a.metrics?.totalSubscribers ?? 0,
+    totalContributions: a.metrics?.totalContributions ?? 0,
+  })), [filtered]);
 
   const columns = [
     { key: 'name', label: 'Agent', sortable: true, width: '160px' },
@@ -139,6 +152,9 @@ export default function AllAgents({ onBack }) {
       description={isBranch
         ? `${filtered.length} agents in ${branchesMap[branchId]?.name || 'this branch'}`
         : `${filtered.length} agents across the distribution network`}
+      exportRows={exportRows}
+      exportColumns={columns}
+      exportFilename="all-agents"
       filters={
         <>
           <SearchFilter value={search} onChange={setSearch} placeholder="Search agents…" />

@@ -6,9 +6,17 @@
 // for the server's truth. See `useUpdateBranch` and `useSetBranchStatus` for
 // templates new mutations should follow.
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import * as entities from '../services/entities';
 import * as searchService from '../services/search';
+
+const CHILD_LEVEL = {
+  country: 'region',
+  region: 'district',
+  district: 'branch',
+  branch: 'agent',
+};
 
 /**
  * Fetch the top-level country entity.
@@ -75,6 +83,49 @@ export function useAllEntities(level) {
   return useQuery({
     queryKey: ['entities', level],
     queryFn: () => entities.getAllAtLevel(level),
+    enabled: !!level,
+  });
+}
+
+/**
+ * Server-side paginated + filtered + sorted entity list. Used by
+ * ViewSubscribers to replace the 30-page subscriber fetch (AUDIT-1-7,
+ * AUDIT-2-1). One page = 1000 rows; the virtualizer's `onEndReached` calls
+ * `fetchNextPage`. Each page carries the full filtered `total` so the
+ * "Showing X of Y" header can render after the first page lands.
+ *
+ * Search / status / sort are passed through to the server via PostgREST
+ * `or=`, `eq=`, `order=`. The query key threads them so cache invalidates
+ * cleanly on filter change.
+ *
+ * @param {string} level - 'subscriber' (others coming follow-up)
+ * @param {Object} [opts]
+ * @param {string} [opts.search='']
+ * @param {string} [opts.statusFilter='all'] - 'all' | 'active' | 'inactive'
+ * @param {string} [opts.sortKey='balance'] - 'balance' | 'contributions' | 'name' | 'registration'
+ * @param {number} [opts.pageSize=1000]
+ * @returns {import('@tanstack/react-query').UseInfiniteQueryResult}
+ */
+export function useInfiniteEntityList(level, opts = {}) {
+  const { search = '', statusFilter = 'all', sortKey = 'balance', pageSize = 1000 } = opts;
+  return useInfiniteQuery({
+    queryKey: ['entity-page', level, { search, statusFilter, sortKey, pageSize }],
+    queryFn: ({ pageParam = 0, signal }) =>
+      entities.getEntityPage(level, {
+        offset: pageParam,
+        limit: pageSize,
+        search,
+        statusFilter,
+        sortKey,
+        signal,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage.hasMore) return undefined;
+      const loaded = allPages.reduce((acc, p) => acc + p.rows.length, 0);
+      return loaded;
+    },
+    staleTime: 5 * 60 * 1000,
     enabled: !!level,
   });
 }
@@ -197,25 +248,98 @@ export function useUpdateBranch() {
 }
 
 /**
- * Fetch national roll-up metrics for the Distributor dashboard
- * (subscriber / agent / branch totals plus AUM).
+ * Batch metrics for a parent's children — used by OverlayPanel child rows,
+ * the per-row "subscribers" counts in regions/districts/branches/agents lists,
+ * and any report view that maps over `useChildren` results.
  *
- * Long staleTime — these are dashboard-level totals that change slowly and
- * are expensive to recompute. The four underlying tables each have their
- * own React Query keys so per-entity invalidation downstream doesn't
- * require us to invalidate here.
- * @returns {import('@tanstack/react-query').UseQueryResult<{
- *   totalSubscribers: number,
- *   totalAgents: number,
- *   totalBranches: number,
- *   aum: number,
- * }>}
+ * Runs in parallel with `useChildren`; the children list paints first, then
+ * the metrics overlay arrives. queryKey threads `ids` so the cache invalidates
+ * cleanly when the parent's children set changes.
+ *
+ * @param {string} parentLevel - 'country' | 'region' | 'district' | 'branch'
+ * @param {string} parentId
+ * @returns {import('@tanstack/react-query').UseQueryResult<Record<string, Object>>}
  */
-export function useDistributorMetrics() {
+export function useChildrenMetrics(parentLevel, parentId) {
+  const childLevel = CHILD_LEVEL[parentLevel];
+  const { data: children = [] } = useChildren(parentLevel, parentId);
+  const ids = useMemo(() => children.map((c) => c.id), [children]);
   return useQuery({
-    queryKey: ['distributor-metrics'],
-    queryFn: entities.getDistributorMetrics,
-    staleTime: 5 * 60 * 1000, // 5 minutes — cold-load aggregate
+    queryKey: ['childrenMetrics', parentLevel, parentId, ids],
+    queryFn: () => entities.getEntityMetricsRollup(childLevel, ids),
+    enabled: !!childLevel && ids.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Metrics for one drilled-into entity — used by OverlayPanel hero card,
+ * MetricsRow, ViewBranches/ViewAgents detail panes. Returns the full 8-field
+ * rollup at any level (country/region/district/branch/agent).
+ *
+ * @param {string} level - 'region' | 'district' | 'branch' | 'agent' | 'country'
+ * @param {string} id
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object|null>}
+ */
+export function useEntityMetrics(level, id) {
+  return useQuery({
+    queryKey: ['entityMetrics', level, id],
+    queryFn: async () => {
+      const result = await entities.getEntityMetricsRollup(level, [id]);
+      return result[id] ?? null;
+    },
+    enabled: !!id && !!level,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Batch metrics for ALL entities at a level — used by report views
+ * (AllBranches, AllAgents, AgentPerformance, BranchPerformance,
+ * DistributionSummary, etc.) that today reach into `row.metrics` from a
+ * `useAllEntities(level)` list and would otherwise see zeros.
+ *
+ * @param {string} level
+ * @returns {import('@tanstack/react-query').UseQueryResult<Record<string, Object>>}
+ */
+export function useAllEntitiesMetrics(level) {
+  const { data: entityList = [] } = useAllEntities(level);
+  const ids = useMemo(() => entityList.map((e) => e.id), [entityList]);
+  return useQuery({
+    queryKey: ['allEntitiesMetrics', level, ids],
+    queryFn: () => entities.getEntityMetricsRollup(level, ids),
+    enabled: !!level && ids.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Mutation to apply partial updates to the distributor row (manager_name /
+ * phone / email). Optimistically patches the cached entity so header chips
+ * reflect the new value immediately; rolls back on error. RLS gates via
+ * `distributors_update_self` — caller must hold the distributor JWT.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useUpdateDistributor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, updates }) => entities.updateDistributor(id, updates),
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['entity', 'distributor', id] });
+      const previous = queryClient.getQueryData(['entity', 'distributor', id]);
+      queryClient.setQueryData(['entity', 'distributor', id], (old) =>
+        old ? { ...old, ...updates } : old,
+      );
+      return { previous };
+    },
+    onError: (_err, { id }, ctx) => {
+      if (ctx?.previous !== undefined) {
+        queryClient.setQueryData(['entity', 'distributor', id], ctx.previous);
+      }
+    },
+    onSettled: (_data, _err, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['entity', 'distributor', id] });
+    },
   });
 }
 

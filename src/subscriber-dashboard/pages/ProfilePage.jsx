@@ -61,13 +61,15 @@ export default function ProfilePage() {
   // SettingsPage hydration fix.
   useEffect(() => {
     if (!sub) return;
-    /* eslint-disable react-hooks/set-state-in-effect -- hydrate form from query result */
+    // Hydrate form from query result. The earlier `eslint-disable
+    // react-hooks/set-state-in-effect` block was removed in Phase 6 (PR-10)
+    // — that rule no longer flags this pattern, so the suppression was a
+    // dead directive.
     setName(sub.name ?? '');
     setEmail(sub.email ?? '');
     setPhoneDigits(
       sub.phone ? sub.phone.replace(/^\+256/, '').replace(/\D/g, '') : ''
     );
-    /* eslint-enable react-hooks/set-state-in-effect */
   }, [sub]);
 
   const dirty =

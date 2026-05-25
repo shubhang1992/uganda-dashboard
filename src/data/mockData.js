@@ -18,7 +18,10 @@ export { DISTRICTS };
 // consistent — "due in 5 days" should always mean 5 days from this same
 // reference, not from the wall clock. Replace with `new Date()` once real data
 // arrives from the backend.
-export const MOCK_NOW = new Date(2026, 4, 1); // 2026-05-01
+// Rolled forward 2026-05-22 (Phase 6 of audit remediation per ADR-006). Manual
+// roll-forward keeps "due in N days" math stable mid-session (vs `new Date()`
+// which would drift as the demo runs).
+export const MOCK_NOW = new Date(2026, 4, 22); // 2026-05-22
 
 /**
  * Returns the "current time" as the rest of the codebase should treat it.

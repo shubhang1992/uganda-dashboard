@@ -7,7 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
-import { useEntity } from '../../hooks/useEntity';
+import { useEntity, useUpdateDistributor } from '../../hooks/useEntity';
 import styles from './Settings.module.css';
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -26,6 +26,9 @@ export default function Settings({ splitMode = false }) {
   const isBranch = user?.role === 'branch';
   const isDistributor = user?.role === 'distributor';
   const { data: branch } = useEntity('branch', isBranch ? user?.branchId : null);
+  const distributorId = isDistributor ? (user?.distributorId ?? 'd-001') : null;
+  const { data: distributor } = useEntity('distributor', distributorId);
+  const updateDistributor = useUpdateDistributor();
   const { data: subscriber } = useCurrentSubscriber();
   const pensionCount = subscriber?.nominees?.pension?.length ?? 0;
   const insuranceCount = subscriber?.nominees?.insurance?.length ?? 0;
@@ -54,10 +57,10 @@ export default function Settings({ splitMode = false }) {
     }
     if (isDistributor) {
       return {
-        name: user?.name || 'Distributor',
-        phone: user?.phone || '',
-        email: '',
-        title: 'Distributor',
+        name: distributor?.managerName || user?.name || '',
+        phone: distributor?.managerPhone || user?.phone || '',
+        email: distributor?.managerEmail || '',
+        title: 'Distributor Admin',
       };
     }
     return {
@@ -66,7 +69,7 @@ export default function Settings({ splitMode = false }) {
       email: user?.email || '',
       title: '',
     };
-  }, [isBranch, isDistributor, branch, user?.name, user?.phone, user?.email]);
+  }, [isBranch, isDistributor, branch, distributor, user?.name, user?.phone, user?.email]);
 
   useEffect(() => {
     setName(identity.name);
@@ -111,17 +114,29 @@ export default function Settings({ splitMode = false }) {
   const isDirty = hasProfileChanges;
 
   /* ── Submit ─────────────────────────────────────────────────────────────── */
-  function handleSave(e) {
+  async function handleSave(e) {
     e.preventDefault();
     if (!validate()) return;
 
     // Profile changes flow through updateUser so the avatar / phone shown in
-    // header chips updates immediately. The password section is intentionally
-    // disabled with a "Coming soon" affordance — see the section below for
-    // why we don't ship a toast for it.
-    if (hasProfileChanges) {
-      updateUser({ name: name.trim(), email: email.trim(), phone });
+    // header chips updates immediately. Distributor profile additionally
+    // persists to the `distributors` table via the RLS-gated update RPC.
+    if (!hasProfileChanges) {
+      addToast('success', 'Profile updated.');
+      return;
     }
+    if (isDistributor && distributorId) {
+      try {
+        await updateDistributor.mutateAsync({
+          id: distributorId,
+          updates: { managerName: name.trim(), managerPhone: phone, managerEmail: email.trim() },
+        });
+      } catch (err) {
+        addToast('error', err?.message || 'Could not update profile.');
+        return;
+      }
+    }
+    updateUser({ name: name.trim(), email: email.trim(), phone });
     addToast('success', 'Profile updated.');
   }
 

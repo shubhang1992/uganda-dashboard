@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
+import { useAllEntities, useAllEntitiesMap, useAllEntitiesMetrics } from '../../../hooks/useEntity';
 import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import { formatUGX } from '../../../utils/finance';
 import { formatNumber } from '../../../utils/currency';
@@ -36,10 +36,15 @@ function Stars({ rating }) {
 export default function AgentPerformance({ onBack }) {
   const { branchId } = useBranchScope();
   const isBranch = !!branchId;
-  const { data: agents = [], isLoading: loadingAgents } = useAllEntities('agent');
+  const { data: agentsRaw = [], isLoading: loadingAgents } = useAllEntities('agent');
   const { data: branchesMap = {} } = useAllEntitiesMap('branch');
   const { data: districtsMap = {} } = useAllEntitiesMap('district');
   const { data: regionsMap = {} } = useAllEntitiesMap('region');
+  const { data: agentMetricsMap = {} } = useAllEntitiesMetrics('agent');
+  const agents = useMemo(
+    () => agentsRaw.map(a => ({ ...a, metrics: agentMetricsMap[a.id] ?? a.metrics })),
+    [agentsRaw, agentMetricsMap],
+  );
 
   const [search, setSearch] = useState('');
   const [regionFilter, setRegionFilter] = useState('');
@@ -79,6 +84,14 @@ export default function AgentPerformance({ onBack }) {
     if (!isBranch && regionFilter) data = data.filter((a) => a.regionId === regionFilter);
     return data;
   }, [enriched, search, regionFilter, isBranch]);
+
+  // CSV serialiser walks `row[col.key]` flatly — project nested metrics up.
+  const exportRows = useMemo(() => filtered.map((a) => ({
+    ...a,
+    totalSubscribers: a.metrics?.totalSubscribers ?? 0,
+    totalContributions: a.metrics?.totalContributions ?? 0,
+    activeRate: a.metrics?.activeRate ?? 0,
+  })), [filtered]);
 
   const columns = [
     {
@@ -143,6 +156,9 @@ export default function AgentPerformance({ onBack }) {
       description={isBranch
         ? `Agents in ${branchesMap[branchId]?.name || 'this branch'}, ranked by productivity, ratings, and contributions`
         : 'Agents ranked by productivity, ratings, and contribution collection'}
+      exportRows={exportRows}
+      exportColumns={columns}
+      exportFilename="agent-performance"
       filters={
         <>
           <SearchFilter value={search} onChange={setSearch} placeholder="Search agents…" />

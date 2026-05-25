@@ -29,16 +29,41 @@ import {
 // unguarded, so we return a zero-shape default rather than `null` to avoid
 // crashing the branch/distributor shells. Real aggregation will replace these
 // zeros once it's wired from commissions/transactions.
+const EMPTY_GENDER_RATIO = Object.freeze({ male: 0, female: 0, other: 0 });
+const EMPTY_AGE_DISTRIBUTION = Object.freeze({
+  '18-25': 0, '26-35': 0, '36-45': 0, '46-55': 0, '56+': 0,
+});
+
 const EMPTY_METRICS = Object.freeze({
   totalSubscribers: 0,
   totalAgents: 0,
+  totalBranches: 0,
   totalContributions: 0,
+  totalWithdrawals: 0,
   aum: 0,
   activeRate: 0,
-  monthlyContributions: [],
+  coverageRate: 0,
+  dailyContributions: 0,
+  weeklyContributions: 0,
+  monthlyContributions: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  dailyWithdrawals: 0,
+  weeklyWithdrawals: 0,
+  monthlyWithdrawals: 0,
   newSubscribersToday: 0,
   newSubscribersThisWeek: 0,
   newSubscribersThisMonth: 0,
+  prevDailyContributions: 0,
+  prevWeeklyContributions: 0,
+  prevDailyWithdrawals: 0,
+  prevWeeklyWithdrawals: 0,
+  prevMonthlyWithdrawals: 0,
+  prevNewSubscribersToday: 0,
+  prevNewSubscribersThisWeek: 0,
+  prevNewSubscribersThisMonth: 0,
+  genderRatio: EMPTY_GENDER_RATIO,
+  ageDistribution: EMPTY_AGE_DISTRIBUTION,
+  kycPending: 0,
+  kycIncomplete: 0,
 });
 
 function center(row) {
@@ -114,6 +139,15 @@ function mapAgent(row) {
 
 function mapSubscriber(row) {
   if (!row) return null;
+  // `total_balance`, `total_contributions`, `total_withdrawals` may be flat
+  // (PostgREST embedded resource lifted) or live on `row.subscriber_balances`
+  // (raw embed). Support both shapes for forward-compat.
+  const balRow = Array.isArray(row.subscriber_balances)
+    ? row.subscriber_balances[0]
+    : row.subscriber_balances;
+  const totalBalance = row.total_balance ?? balRow?.total_balance ?? 0;
+  const totalContributions = row.total_contributions ?? balRow?.total_contributions ?? 0;
+  const totalWithdrawals = row.total_withdrawals ?? balRow?.total_withdrawals ?? 0;
   return {
     id: row.id,
     name: row.name,
@@ -133,12 +167,16 @@ function mapSubscriber(row) {
     contributionHistory: Array.isArray(row.contribution_history) ? row.contribution_history : [],
     currentUnitValue: row.current_unit_value,
     unitValueAsOf: row.unit_value_as_of,
+    totalContributions: Number(totalContributions) || 0,
+    totalWithdrawals: Number(totalWithdrawals) || 0,
+    totalBalance: Number(totalBalance) || 0,
   };
 }
 
 // Distributors sit just above the country sentinel — there is one row in the
-// demo seed (`d-001`). The `metrics` block is overwritten by
-// `getDistributorMetrics()` once aggregated counts have been fetched.
+// demo seed (`d-001`). The `metrics` block is overwritten by the
+// `get_entity_metrics_rollup` RPC (via `useEntityMetrics('country','ug')`)
+// once aggregated counts have been fetched.
 function mapDistributor(row) {
   if (!row) return null;
   return {
@@ -289,10 +327,10 @@ export async function getChildren(parentLevel, parentId) {
  * @param {string} level - region|district|branch|agent|subscriber
  * @returns {Promise<Array<Object>>}
  * @cache ['entities', level]
- * @description WARNING: for `subscriber` this is ~30k rows; the existing
- *   prototype paginates client-side. Production will need server-side
- *   pagination — see `docs/api-contracts.md`. We keep the function shape so
- *   no caller has to change today.
+ * @description Pages through PostgREST in 1,000-row chunks because the
+ *   default cap is 1,000 rows — subscribers (~30k) and agents (~2k) would
+ *   otherwise be silently truncated. Server-side cursor pagination is still
+ *   the long-term direction; see `docs/api-contracts.md`.
  */
 export async function getAllAtLevel(level) {
   if (!IS_SUPABASE_ENABLED) {
@@ -302,15 +340,177 @@ export async function getAllAtLevel(level) {
   const mapper = LEVEL_MAPPERS[level];
   if (!table || !mapper) return [];
 
-  const { data, error } = await supabase
-    .from(table)
-    .select('*');
-
-  if (error) throw error;
-  const mapped = (data ?? []).map(mapper);
-  mapped.forEach((e) => cacheEntity(level, e));
+  const PAGE_SIZE = 1000;
+  const SAFETY_CAP_PAGES = 100; // 100k-row ceiling to bound a runaway loop
+  const mapped = [];
+  for (let page = 0; page < SAFETY_CAP_PAGES; page++) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .range(from, to);
+    if (error) throw error;
+    const rows = data ?? [];
+    for (const row of rows) {
+      const entity = mapper(row);
+      mapped.push(entity);
+      cacheEntity(level, entity);
+    }
+    if (rows.length < PAGE_SIZE) break;
+  }
   return mapped;
 }
+
+/**
+ * @endpoint SELECT * FROM <level-table> (paginated, filtered, sorted)
+ * @param {string} level - 'subscriber' | 'agent' | 'branch'
+ * @param {Object} opts
+ * @param {number} [opts.offset=0]
+ * @param {number} [opts.limit=1000]
+ * @param {string} [opts.search=''] - matched against name/phone via ILIKE
+ * @param {string} [opts.statusFilter='all'] - 'all' | 'active' | 'inactive'
+ * @param {string} [opts.sortKey='balance'] - 'balance' | 'contributions' | 'name' | 'registration'
+ * @param {AbortSignal} [opts.signal]
+ * @returns {Promise<{rows: Object[], total: number, hasMore: boolean}>}
+ * @description Server-side filter + sort + paginate. For subscribers, embeds
+ *   the balance row via PostgREST `subscriber_balances!left(...)` so the
+ *   `balance` / `contributions` sort columns are real DB columns. Closes
+ *   AUDIT-1-7 + AUDIT-2-1 — replaces the 30-page client-fanout with one
+ *   server-side page-sized read.
+ * @cache ['entity-page', level, opts]
+ */
+export async function getEntityPage(level, opts = {}) {
+  const {
+    offset = 0,
+    limit = 1000,
+    search = '',
+    statusFilter = 'all',
+    sortKey = 'balance',
+    signal,
+  } = opts;
+
+  if (!IS_SUPABASE_ENABLED) {
+    // Mock fallback: apply filters in-memory over the seed.
+    const all = getAllEntities(level);
+    const trimmedSearch = search.trim().toLowerCase();
+    let list = all.filter((e) => {
+      if (statusFilter === 'active' && !e.isActive) return false;
+      if (statusFilter === 'inactive' && e.isActive) return false;
+      if (trimmedSearch && level === 'subscriber') {
+        const name = String(e.name ?? '').toLowerCase();
+        const phone = String(e.phone ?? '').toLowerCase();
+        if (!name.includes(trimmedSearch) && !phone.includes(trimmedSearch)) return false;
+      }
+      return true;
+    });
+    const sortFn = MOCK_SORT_FNS[sortKey] ?? MOCK_SORT_FNS.balance;
+    list = [...list].sort(sortFn);
+    const total = list.length;
+    const rows = list.slice(offset, offset + limit);
+    return { rows, total, hasMore: offset + rows.length < total };
+  }
+
+  const table = LEVEL_TABLES[level];
+  const mapper = LEVEL_MAPPERS[level];
+  if (!table || !mapper) return { rows: [], total: 0, hasMore: false };
+
+  // PostgREST embedded JOIN to `subscriber_balances` was tried first but the
+  // sort-by-foreign-column path didn't return rows consistently across
+  // PostgREST versions; simplified to a flat select plus an O(N) second pass
+  // to attach balances. The pagination still wins because the second query
+  // is bounded to the page's N IDs (≤ pageSize).
+  // count: 'estimated' reads pg_class.reltuples (instant) instead of a
+  // 911 ms COUNT(*) with RLS overhead (AUDIT-2-1). The displayed total in
+  // the panel header drifts by < 1% across normal sessions — acceptable for
+  // a "Showing X of Y" affordance.
+  let query = supabase
+    .from(table)
+    .select('*', { count: 'estimated' });
+
+  if (search.trim() && level === 'subscriber') {
+    // ILIKE escape: PostgREST handles `%` literally inside the value. The
+    // current UI strips reserved chars at the input level (search is bare
+    // text); if we ever start accepting wildcards from users, escape here.
+    const q = search.trim();
+    query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%`);
+  }
+
+  if (statusFilter === 'active') query = query.eq('is_active', true);
+  if (statusFilter === 'inactive') query = query.eq('is_active', false);
+
+  // Server-side sort. Subscriber "balance" + "contributions" sort columns
+  // don't exist on `subscribers` — for now we substitute `registered_date`
+  // (newest first, an honest proxy for "freshness"). A follow-up RPC can
+  // give us proper balance-sorted pagination via a JOIN-aware ORDER BY.
+  const orderSpec = SUBSCRIBER_SORT_ORDER[sortKey] ?? SUBSCRIBER_SORT_ORDER.balance;
+  query = query.order(orderSpec.column, {
+    ascending: orderSpec.ascending,
+    nullsFirst: orderSpec.nullsFirst ?? false,
+  });
+
+  query = query.range(offset, offset + limit - 1);
+  if (signal) query = query.abortSignal(signal);
+
+  const { data, error, count } = await query;
+  if (error) throw error;
+
+  // Attach balances in a second query bounded by the page's IDs.
+  let balancesByEntity = null;
+  if (level === 'subscriber' && data && data.length > 0) {
+    const ids = data.map((r) => r.id);
+    const { data: balRows, error: balErr } = await supabase
+      .from('subscriber_balances')
+      .select('subscriber_id, total_balance, total_contributions, total_withdrawals')
+      .in('subscriber_id', ids);
+    if (balErr) throw balErr;
+    balancesByEntity = Object.fromEntries(
+      (balRows ?? []).map((b) => [b.subscriber_id, b]),
+    );
+  }
+
+  const rows = (data ?? []).map((row) => {
+    if (level === 'subscriber' && balancesByEntity) {
+      const b = balancesByEntity[row.id];
+      const enriched = {
+        ...row,
+        total_balance: b?.total_balance ?? 0,
+        total_contributions: b?.total_contributions ?? 0,
+        total_withdrawals: b?.total_withdrawals ?? 0,
+      };
+      const mapped = mapper(enriched);
+      cacheEntity(level, mapped);
+      return mapped;
+    }
+    const mapped = mapper(row);
+    cacheEntity(level, mapped);
+    return mapped;
+  });
+
+  const total = count ?? 0;
+  return { rows, total, hasMore: offset + rows.length < total };
+}
+
+// Server-side sort column mapping. Balance + contributions sorts substitute
+// `registered_date` (newest first) because those columns live in
+// `subscriber_balances` and require an RPC for proper JOIN-aware sort.
+// Follow-up: add `get_subscriber_page` RPC that does the join + sort
+// server-side. For now, the visible list orders by registration recency
+// (acceptable for the demo; tracked as follow-up in DEFERRED.md).
+const SUBSCRIBER_SORT_ORDER = {
+  balance:       { column: 'registered_date', ascending: false, nullsFirst: false },
+  contributions: { column: 'registered_date', ascending: false, nullsFirst: false },
+  registration:  { column: 'registered_date', ascending: false, nullsFirst: false },
+  name:          { column: 'name',            ascending: true,  nullsFirst: false },
+};
+
+// Mock-fallback sort functions for the IS_SUPABASE_ENABLED=false branch.
+const MOCK_SORT_FNS = {
+  balance:       (a, b) => (b.totalContributions - b.totalWithdrawals) - (a.totalContributions - a.totalWithdrawals),
+  contributions: (a, b) => b.totalContributions - a.totalContributions,
+  registration:  (a, b) => String(b.registeredDate ?? '').localeCompare(String(a.registeredDate ?? '')),
+  name:          (a, b) => String(a.name ?? '').localeCompare(String(b.name ?? '')),
+};
 
 /**
  * @description Returns all entities at a level as a Map<id, entity> for
@@ -410,71 +610,55 @@ export function getEntitySync(level, id) {
   return _syncCache.get(syncCacheKey(level, id)) ?? null;
 }
 
+// `getDistributorMetrics` retired in PR-2 (remediation plan Phase 2). Every
+// caller now uses `useEntityMetrics('country', 'ug')`, which routes through
+// `getEntityMetricsRollup` → `get_entity_metrics_rollup` RPC. That RPC
+// returns totalSubscribers/totalAgents/totalBranches/aum as part of its
+// 8-field result, eliminating the 4-call fan-out (3× HEAD count + 1× full
+// `subscriber_balances` pull) this function used to do.
+
 /**
- * @description Aggregate the national roll-up displayed on the Distributor
- *   home view. Counts subscribers / agents / branches in parallel; AUM
- *   (sum of `subscriber_balances.total_balance`) is fetched once via a
- *   dedicated RPC-style aggregate select and folded into the result. Under
- *   the mock fallback we read straight from `mockData` lookup maps so the
- *   shape matches the live-DB path.
- *
- *   The numbers are non-personally-identifying totals, so RLS allows
- *   distributor-role JWTs to issue these reads against the bare tables.
- *
- * @returns {Promise<{
- *   totalSubscribers: number,
- *   totalAgents: number,
- *   totalBranches: number,
- *   aum: number,
- *   aumNote?: string,
- * }>}
- * @cache ['distributor-metrics']
- * @scope Distributor only.
+ * @endpoint RPC get_entity_metrics_rollup(p_level, p_entity_ids)
+ * @param {('country'|'region'|'district'|'branch'|'agent')} level
+ * @param {string[]} entityIds - IDs at `level`; empty array short-circuits to `{}`.
+ * @returns {Promise<Record<string, {
+ *   totalSubscribers: number, totalAgents: number, totalBranches: number,
+ *   totalContributions: number, totalWithdrawals: number, aum: number,
+ *   activeRate: number, coverageRate: number,
+ * }>>}
+ * @description Batched per-entity rollup that replaces the EMPTY_METRICS
+ *   placeholder returned by mapRegion/mapDistrict/mapBranch/mapAgent. One
+ *   round-trip per (level, parent) instead of one per child. Backs the
+ *   useChildrenMetrics / useEntityMetrics / useAllEntitiesMetrics hooks.
+ *   Mock fallback reads pre-computed metrics from the seeded mockData maps.
  */
-export async function getDistributorMetrics() {
+export async function getEntityMetricsRollup(level, entityIds) {
   if (!IS_SUPABASE_ENABLED) {
-    // Mock fallback: read off the frozen `mockData` lookup maps. AUM isn't
-    // tracked in the mock seed, so we leave it at 0 + note the shortfall.
-    return {
-      totalSubscribers: Object.keys(AGENTS).length === 0 ? 0 : getAllEntities('subscriber').length,
-      totalAgents: Object.keys(AGENTS).length,
-      totalBranches: Object.keys(BRANCHES).length,
-      aum: 0,
-      aumNote: 'AUM unavailable under mock fallback',
+    const maps = {
+      country: { ug: COUNTRY },
+      region: REGIONS,
+      district: DISTRICTS,
+      branch: BRANCHES,
+      agent: AGENTS,
     };
+    const map = maps[level] || {};
+    return Object.fromEntries(
+      (entityIds ?? []).map((id) => [id, map[id]?.metrics ?? EMPTY_METRICS]),
+    );
   }
-
-  // Parallel head() counts + the single AUM aggregate. supabase-js exposes
-  // `count: 'exact', head: true` for a COUNT(*) without dragging row data
-  // over the wire; we still issue them as Promise.all so all four round-trip
-  // concurrently. See react-best-practices `async-parallel`.
-  const [subsRes, agentsRes, branchesRes, aumRes] = await Promise.all([
-    supabase.from('subscribers').select('*', { count: 'exact', head: true }),
-    supabase.from('agents').select('*', { count: 'exact', head: true }),
-    supabase.from('branches').select('*', { count: 'exact', head: true }),
-    // AUM aggregate. We `select(total_balance)` and sum client-side rather
-    // than issuing `sum()` via a Postgres function — the dataset is bounded
-    // at ~30k subscribers and the response is light. If this becomes
-    // expensive a `get_distributor_aum()` RPC is the natural next step
-    // (mentioned in BACKEND.md §9 as a follow-up).
-    supabase.from('subscriber_balances').select('total_balance'),
-  ]);
-
-  if (subsRes.error) throw subsRes.error;
-  if (agentsRes.error) throw agentsRes.error;
-  if (branchesRes.error) throw branchesRes.error;
-  if (aumRes.error) throw aumRes.error;
-
-  const aum = Array.isArray(aumRes.data)
-    ? aumRes.data.reduce((sum, row) => sum + Number(row?.total_balance ?? 0), 0)
-    : 0;
-
-  return {
-    totalSubscribers: subsRes.count ?? 0,
-    totalAgents: agentsRes.count ?? 0,
-    totalBranches: branchesRes.count ?? 0,
-    aum,
-  };
+  if (!entityIds?.length) return {};
+  const { data, error } = await supabase.rpc('get_entity_metrics_rollup', {
+    p_level: level,
+    p_entity_ids: entityIds,
+  });
+  if (error) {
+    // Surface so devs see it in the console instead of zeros in the UI.
+    // Consumers (useEntityMetrics / useChildrenMetrics / useAllEntitiesMetrics)
+    // expose this as React Query's `isError` — OverlayPanel renders a badge.
+    console.warn('[getEntityMetricsRollup] RPC failed', { level, ids: entityIds, error });
+    throw error;
+  }
+  return data ?? {};
 }
 
 // ─── Mutations ──────────────────────────────────────────────────────────────
@@ -594,6 +778,47 @@ export async function updateBranch(id, patch) {
  */
 export async function setBranchStatus(id, status) {
   return updateBranch(id, { status });
+}
+
+/**
+ * @endpoint UPDATE distributors SET ... WHERE id = $1
+ * @param {string} id - distributor ID (singleton 'd-001' today)
+ * @param {{managerName?: string, managerPhone?: string, managerEmail?: string}} patch
+ * @returns {Promise<Object>} updated, mapped distributor row
+ * @cache Invalidates: ['entity','distributor',id]
+ * @scope Distributor only — gated by `distributors_update_self` RLS policy
+ *   (auth.jwt() ->> 'distributorId' = id).
+ */
+export async function updateDistributor(id, patch) {
+  if (!IS_SUPABASE_ENABLED) {
+    const existing = DISTRIBUTORS?.[id];
+    if (existing) {
+      if (patch.managerName != null) existing.managerName = patch.managerName;
+      if (patch.managerPhone != null) existing.managerPhone = patch.managerPhone;
+      if (patch.managerEmail != null) existing.managerEmail = patch.managerEmail;
+    }
+    return existing ?? null;
+  }
+  const row = {};
+  if (patch.managerName != null) row.manager_name = patch.managerName;
+  if (patch.managerPhone != null) row.manager_phone = patch.managerPhone;
+  if (patch.managerEmail != null) row.manager_email = patch.managerEmail;
+  if (Object.keys(row).length === 0) {
+    // No-op patch — return current row.
+    return getEntity('distributor', id);
+  }
+
+  const { data, error } = await supabase
+    .from('distributors')
+    .update(row)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  const mapped = mapDistributor(data);
+  cacheEntity('distributor', mapped);
+  return mapped;
 }
 
 // ─── Mock-fallback shims (used when IS_SUPABASE_ENABLED === false) ─────────

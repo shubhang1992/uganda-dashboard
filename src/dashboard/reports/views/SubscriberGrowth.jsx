@@ -48,6 +48,28 @@ export default function SubscriberGrowth({ onBack }) {
     return enriched.filter((d) => d.regionId === regionFilter);
   }, [enriched, regionFilter, isBranch]);
 
+  // CSV serialiser walks `row[col.key]` flatly — project nested metrics up
+  // and stamp the trend columns (which have no row-level value, only render).
+  const exportRows = useMemo(() => filtered.map((r) => {
+    const m = r.metrics || {};
+    const todayTrend = m.prevNewSubscribersToday
+      ? `${Math.round(((m.newSubscribersToday - m.prevNewSubscribersToday) / m.prevNewSubscribersToday) * 100)}%`
+      : '';
+    const monthTrend = m.prevNewSubscribersThisMonth
+      ? `${Math.round(((m.newSubscribersThisMonth - m.prevNewSubscribersThisMonth) / m.prevNewSubscribersThisMonth) * 100)}%`
+      : '';
+    return {
+      ...r,
+      totalSubscribers: m.totalSubscribers ?? 0,
+      newToday: m.newSubscribersToday ?? 0,
+      newWeek: m.newSubscribersThisWeek ?? 0,
+      newMonth: m.newSubscribersThisMonth ?? 0,
+      activeRate: m.activeRate ?? 0,
+      todayTrend,
+      monthTrend,
+    };
+  }), [filtered]);
+
   const columns = [
     { key: 'name', label: isBranch ? 'Agent' : 'District', sortable: true, width: '160px' },
     !isBranch && { key: 'regionName', label: 'Region', sortable: true },
@@ -121,6 +143,9 @@ export default function SubscriberGrowth({ onBack }) {
       description={isBranch
         ? 'Enrollment trends and growth rates by agent'
         : 'Enrollment trends and growth rates by district'}
+      exportRows={exportRows}
+      exportColumns={columns}
+      exportFilename="subscriber-growth"
       filters={isBranch ? null : (
         <FilterSelect label="Region" value={regionFilter} onChange={setRegionFilter} options={regionOptions} />
       )}

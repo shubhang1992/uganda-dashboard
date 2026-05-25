@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { useCurrentEntity, useDistributorMetrics } from '../../hooks/useEntity';
+import { useCurrentEntity, useEntityMetrics } from '../../hooks/useEntity';
 import { getChatResponse } from '../../services/chat';
 import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
 import { formatNumber } from '../../utils/currency';
@@ -215,31 +215,19 @@ export default function MetricsRow() {
   } = useDashboard();
   const { data: entity, isLoading: entityLoading } = useCurrentEntity(level, selectedIds);
 
-  // Distributor home (`level === 'country'`) needs the live Supabase roll-up
-  // counts so cards display real subscriber/agent/branch totals instead of
-  // the seeded `EMPTY_METRICS` zeros that `mapDistributor` returns. The hook
-  // is cheap when not enabled (it short-circuits at country-only). For deeper
-  // levels we keep the existing `entity.metrics` since region/district/branch
-  // rows carry their own roll-ups.
-  const { data: distMetrics } = useDistributorMetrics();
+  // Per-level metrics rollup. At any level (country/region/district/branch/
+  // agent), useEntityMetrics returns the full 8-field rollup from
+  // get_entity_metrics_rollup. Replaces the EMPTY_METRICS zeros that the
+  // entity mappers return otherwise. useDistributorMetrics retired in PR-2;
+  // useEntityMetrics('country','ug') is the canonical country read.
+  const parentId = level === 'country' ? 'ug' : selectedIds[level];
+  const { data: entityMetrics } = useEntityMetrics(level, parentId);
 
-  // Merge: distributor totals (subscribers / agents / branches / aum) win at
-  // country level, but we keep the demographic / time-period fields that the
-  // mockData country still provides. This is the "injection" pattern from the
-  // brief — when a missing field appears on the entity, the merged value is
-  // used; when both exist, distMetrics is authoritative for the live counts.
   const metrics = useMemo(() => {
     const base = entity?.metrics || null;
-    if (level !== 'country') return base;
-    if (!distMetrics) return base;
-    return {
-      ...(base || {}),
-      totalSubscribers: distMetrics.totalSubscribers ?? base?.totalSubscribers ?? 0,
-      totalAgents: distMetrics.totalAgents ?? base?.totalAgents ?? 0,
-      totalBranches: distMetrics.totalBranches ?? base?.totalBranches ?? 0,
-      aum: distMetrics.aum || base?.aum || 0,
-    };
-  }, [entity, distMetrics, level]);
+    if (entityMetrics) return { ...(base || {}), ...entityMetrics };
+    return base;
+  }, [entity, entityMetrics]);
 
   const [expanded, setExpanded] = useState(null);
 

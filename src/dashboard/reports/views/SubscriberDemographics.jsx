@@ -34,6 +34,15 @@ export default function SubscriberDemographics({ onBack }) {
     };
   }), [rows, regionsMap, isBranch]);
 
+  // CSV serialiser walks `row[col.key]` flatly. `totalSubscribers` lives in
+  // `metrics.*` so project it up. The `gender` column has no row-level value
+  // (renderer uses malePct/femalePct) — synthesise an "M/F" string for export.
+  const exportRows = useMemo(() => enriched.map((r) => ({
+    ...r,
+    totalSubscribers: r.metrics?.totalSubscribers ?? 0,
+    gender: `${r.malePct}/${r.femalePct}`,
+  })), [enriched]);
+
   function GenderBar({ male, female }) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -118,6 +127,9 @@ export default function SubscriberDemographics({ onBack }) {
       description={isBranch
         ? 'Age distribution and gender breakdown by agent'
         : 'Age distribution and gender breakdown by district'}
+      exportRows={exportRows}
+      exportColumns={columns}
+      exportFilename="subscriber-demographics"
     >
       <ReportTable columns={columns} data={enriched} defaultSort="totalSubscribers" loading={isBranch ? loadingAgents : loadingDistricts} />
     </ReportView>

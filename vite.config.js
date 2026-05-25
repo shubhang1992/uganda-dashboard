@@ -10,6 +10,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.js',
     css: { modules: { classNameStrategy: 'non-scoped' } },
+    // The `e2e/` directory holds Playwright specs that import @playwright/test
+    // — they share the `.spec.ts` extension but are not vitest tests.
+    exclude: ['node_modules', 'dist', 'e2e/**'],
   },
   resolve: {
     alias: {
@@ -31,7 +34,12 @@ export default defineConfig({
         // landing page doesn't have to download recharts/leaflet/etc.
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
-          if (id.includes('/leaflet') || id.includes('/react-leaflet')) return 'vendor-leaflet';
+          // Match leaflet, react-leaflet, AND @react-leaflet/core. The earlier
+          // regex `id.includes('/react-leaflet')` missed `/@react-leaflet/core`
+          // (the `@` prefix has no preceding slash), which produced a circular
+          // `vendor-leaflet -> vendor -> vendor-leaflet` warning under PR-7's
+          // React.lazy split.
+          if (id.includes('/leaflet') || id.includes('react-leaflet')) return 'vendor-leaflet';
           if (id.includes('/recharts') || id.includes('/d3-')) return 'vendor-charts';
           if (id.includes('/framer-motion') || id.includes('/motion-utils') || id.includes('/motion-dom')) return 'vendor-motion';
           if (id.includes('/@tanstack/')) return 'vendor-tanstack';

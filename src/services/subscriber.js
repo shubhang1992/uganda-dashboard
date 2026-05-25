@@ -746,48 +746,40 @@ export async function updateNominees(id, { pension, insurance } = {}) {
 
   if (!id) throw new Error('Subscriber id required');
 
-  // Delete + reinsert atomically would need an RPC; for now we DELETE all
-  // then INSERT. If the second step fails the user should retry — RLS makes
-  // this safe (only their own rows are affected).
-  unwrap(
-    await supabase
-      .from('nominees')
-      .delete()
-      .eq('subscriber_id', id),
+  // PR-5 fix (AUDIT-2-3 + AUDIT-4-6): route through SECURITY DEFINER RPC
+  // that DELETE+INSERTs in one transaction AND enforces the sum-to-100
+  // invariant per category. Previously this was a direct .delete + .insert
+  // pair from the client, violating CLAUDE.md §5.6 ("don't write raw SQL from
+  // the frontend — every database write goes through a SECURITY DEFINER RPC")
+  // and silently allowing nominee shares to drift away from 100%.
+  const result = unwrap(
+    await supabase.rpc('upsert_nominees', {
+      p_subscriber_id: id,
+      p_pension: (pension ?? []).map((n) => ({
+        id: n.id ?? null,
+        name: n.name,
+        phone: n.phone ?? null,
+        relationship: n.relationship ?? null,
+        nin: n.nin ?? null,
+        share: Number(n.share ?? 0),
+      })),
+      p_insurance: (insurance ?? []).map((n) => ({
+        id: n.id ?? null,
+        name: n.name,
+        phone: n.phone ?? null,
+        relationship: n.relationship ?? null,
+        nin: n.nin ?? null,
+        share: Number(n.share ?? 0),
+      })),
+    }),
   );
 
-  const rows = [];
-  const baseTs = Date.now();
-  (pension ?? []).forEach((n, i) => {
-    rows.push({
-      id: n.id ?? `nom-${id}-p-${baseTs}-${i + 1}`,
-      subscriber_id: id,
-      type: 'pension',
-      name: n.name,
-      phone: n.phone ?? null,
-      relationship: n.relationship ?? null,
-      nin: n.nin ?? null,
-      share: Number(n.share ?? 0),
-    });
-  });
-  (insurance ?? []).forEach((n, i) => {
-    rows.push({
-      id: n.id ?? `nom-${id}-i-${baseTs}-${i + 1}`,
-      subscriber_id: id,
-      type: 'insurance',
-      name: n.name,
-      phone: n.phone ?? null,
-      relationship: n.relationship ?? null,
-      nin: n.nin ?? null,
-      share: Number(n.share ?? 0),
-    });
-  });
-
-  if (rows.length > 0) {
-    unwrap(await supabase.from('nominees').insert(rows));
+  // RPC returns { pension: [...], insurance: [...] } already in the canonical
+  // shape the UI consumes. Fall back to re-read if the result is unexpectedly
+  // null (shouldn't happen — RPC always returns jsonb).
+  if (result && typeof result === 'object' && ('pension' in result || 'insurance' in result)) {
+    return result;
   }
-
-  // Re-read for the canonical shape the UI expects (split by type).
   return getSubscriberNominees(id);
 }
 

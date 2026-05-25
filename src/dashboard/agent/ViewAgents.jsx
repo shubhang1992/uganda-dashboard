@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useAllEntities } from '../../hooks/useEntity';
+import { useAllEntities, useAllEntitiesMetrics } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
@@ -208,6 +208,10 @@ export default function ViewAgents({ splitMode = false }) {
   const { data: allDistrictsRaw = [] } = useAllEntities('district');
   const { data: allRegionsRaw = [] } = useAllEntities('region');
 
+  // Per-agent live rollup — without this overlay every `a.metrics.totalSubscribers`
+  // / `a.metrics.activeRate` / `a.metrics.aum` reads zero under Supabase.
+  const { data: agentMetricsMap = {} } = useAllEntitiesMetrics('agent');
+
   // Cold-load guard — skeleton only on a true first-fetch (pending AND
   // no cached rows), never on background refetches once data has shown.
   const isCold = agentsLoading && allAgentsRaw.length === 0;
@@ -230,18 +234,30 @@ export default function ViewAgents({ splitMode = false }) {
   const regionBtnRef = useRef(null);
   const sortBtnRef = useRef(null);
 
-  const allAgents = branchId ? allAgentsRaw.filter(a => a.parentId === branchId) : allAgentsRaw;
+  const allAgentsWithMetrics = useMemo(
+    () => allAgentsRaw.map(a => ({ ...a, metrics: agentMetricsMap[a.id] ?? a.metrics })),
+    [allAgentsRaw, agentMetricsMap],
+  );
+  const allAgents = branchId
+    ? allAgentsWithMetrics.filter(a => a.parentId === branchId)
+    : allAgentsWithMetrics;
 
-  // Auto-select agent when opened via map drill-down
+  // Auto-select agent when opened via map drill-down. Reads from the
+  // metrics-overlaid `allAgents`, not `allAgentsRaw` (which has
+  // EMPTY_METRICS), so the AgentDetail KPI cards bind to real numbers.
   useEffect(() => {
-    if (viewAgentsOpen && drillTargetAgentId && allAgentsRaw.length > 0) {
-      const agent = allAgentsRaw.find(a => a.id === drillTargetAgentId);
-      if (agent) {
-        setSelectedAgent(agent);
-        setView('detail');
-      }
+    if (!viewAgentsOpen || !drillTargetAgentId || allAgents.length === 0) return;
+    const agent = allAgents.find(a => a.id === drillTargetAgentId);
+    if (!agent) return;
+    setSelectedAgent(agent);
+    // Only snap to 'detail' on the first auto-select for this drill target;
+    // later metrics-overlay updates refresh selectedAgent in place without
+    // overwriting a user-initiated nav.
+    if (!selectedAgent || selectedAgent.id !== drillTargetAgentId) {
+      setView('detail');
     }
-  }, [viewAgentsOpen, drillTargetAgentId, allAgentsRaw]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedAgent intentionally excluded to avoid self-triggered loop
+  }, [viewAgentsOpen, drillTargetAgentId, allAgents]);
 
   const handleClose = useCallback(() => {
     if (drillTargetAgentId) closeDrillPanel();

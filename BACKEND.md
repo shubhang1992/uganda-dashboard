@@ -257,7 +257,24 @@ Breaking-change discipline: 0005 + 0006 each fix concrete runtime errors (infini
 
 ## §8. RLS model
 
-**Key principle.** RLS reads JWT claims via `auth.jwt() ->> '<key>'`, **never** `auth.uid()`. Custom-issued JWTs have no Supabase `auth.users` mapping, so `auth.uid()` is `NULL`. Every policy in `0003_rls_policies.sql` keys off `role` + the role-scoped ID claim.
+### Canonical JWT claim shape
+
+Every JWT signed by `api/_lib/jwt.ts#signJwt` carries exactly these claims (HS256 via `jose`):
+
+| Claim | Value | Purpose |
+|---|---|---|
+| `iss` | `'upensions'` (hardcoded) | Issuer |
+| `aud` | `'authenticated'` (hardcoded) | Audience PostgREST requires |
+| `role` | `'authenticated'` (hardcoded) | **Postgres role** for PostgREST `SET ROLE` — **NOT** the application role |
+| `app_role` | `'subscriber' \| 'agent' \| 'branch' \| 'distributor' \| 'admin'` | **Application role** — what RLS + RPCs gate on |
+| `sub` | role-scoped entity ID | RFC subject |
+| `subscriberId` / `agentId` / `branchId` / `distributorId` | TEXT | Set on whichever claim matches `app_role` |
+| `phone` | canonical `+256…` | Phone number used at OTP |
+| `iat` / `exp` | UNIX timestamps | 24h fixed TTL |
+
+**Critical**: reading `auth.jwt() ->> 'role'` returns `'authenticated'` for every request — it is the PostgREST `SET ROLE` mechanism, not the app role. RLS and RPCs that need the app role MUST read `auth.jwt() ->> 'app_role'`. Migrations 0018 and 0004 originally read the wrong claim and silently failed; 0020 + 0021 fixed them. The contract is enforced by the migration test in `src/tests/jwt-claim-contract.test.js`.
+
+**Key principle.** RLS reads JWT claims via `auth.jwt() ->> '<key>'`, **never** `auth.uid()`. Custom-issued JWTs have no Supabase `auth.users` mapping, so `auth.uid()` is `NULL`. Every policy (since `0007_rls_use_app_role.sql`) keys off `app_role` + the role-scoped ID claim.
 
 **Force-on.** Every table is both `ENABLE` and `FORCE` ROW LEVEL SECURITY — table owners are not exempt.
 
@@ -294,7 +311,7 @@ Legend: R = SELECT, I = INSERT, U = UPDATE, D = DELETE. Employer + admin roles h
 ### Notable policy details
 
 - `subscribers_update_self` (after 0005) is ownership-only; column immutability is enforced by `trg_subscribers_enforce_editable_cols` (BEFORE UPDATE). Editable: `name, email, phone, occupation, consent_at`.
-- Reference-table SELECT policies gate on `auth.jwt() ->> 'role' IS NOT NULL` — any authenticated role passes.
+- Reference-table SELECT policies gate on `auth.jwt() ->> 'app_role' IS NOT NULL` — any authenticated app role passes.
 - Subscribers + balances + transactions etc. share the same 4-policy pattern: self / agent (via `subscribers.agent_id`) / branch (via `agents.branch_id`) / distributor (unrestricted).
 - **`distributors` policies (`0016`):**
   - `distributors_select USING (true)` — every authenticated role can read the singleton row. Lets the distributor metrics widget render for branch/agent/subscriber pages that show "Operated by Universal Pensions Uganda" attribution without leaking other tables.
@@ -335,6 +352,7 @@ All `LANGUAGE plpgsql STABLE` (not SECURITY DEFINER — they run under the calle
 | `get_agent_commission_detail` | `(p_agent_id TEXT)` | `jsonb` (paid + due txn arrays, totals, breakdown) | `commissions.js#getAgentCommissionDetail` |
 | `get_commission_summary` | `(p_period TEXT DEFAULT NULL)` | `jsonb` of network-wide totals | `commissions.js#getCommissionSummary` |
 | `get_run_branch_breakdown` | `(p_run_id TEXT)` | `jsonb` of per-branch run rollups | `commissions.js#getRunBranchBreakdown` |
+| `get_entity_metrics_rollup` | `(p_level TEXT, p_entity_ids TEXT[])` | `jsonb` keyed by entity id; values carry 8 base counts + time-period buckets (`daily/weekly/monthlyContributions[12]/Withdrawals` + `prev*`), `newSubscribers*`, `genderRatio`, `ageDistribution`, `kycPending/Incomplete` | `entities.js#getEntityMetricsRollup` (powers `useEntityMetrics` / `useChildrenMetrics` / `useAllEntitiesMetrics`). `SECURITY DEFINER` with `app_role`-gated role check (`COALESCE(auth.jwt() ->> 'app_role', '')` — NULL-safe). Time buckets anchor on `_demo_now()` (see `0020_entity_metrics_rollup_v3.sql`, which supersedes 0018 and the abandoned 0019 hotfixes). |
 
 `search_entities` uses `pg_trgm`'s `%` operator + `similarity()` for fuzzy matching across regions / districts / branches / agents / subscribers. Hardcoded `LIMIT 8` (§14a).
 

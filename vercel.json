@@ -1,5 +1,6 @@
 {
-  "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
-  ]
+  "framework": "vite",
+  "functions": {
+    "api/**/*.ts": { "runtime": "@vercel/node@4.0.0" }
+  }
 }

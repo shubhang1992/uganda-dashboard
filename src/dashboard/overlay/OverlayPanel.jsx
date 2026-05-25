@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { useCurrentEntity, useChildren, useTopBranch, useSearch, useDistributorMetrics } from '../../hooks/useEntity';
+import { useCurrentEntity, useChildren, useTopBranch, useSearch, useEntityMetrics, useChildrenMetrics } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { CHILD_LEVEL } from '../../constants/levels';
 import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
@@ -382,11 +382,15 @@ export default function OverlayPanel() {
   const { data: children = [] } = useChildren(displayLevel, parentId);
   const { data: commissionSummary } = useEntityCommissionSummary(displayLevel, parentId);
 
-  // Distributor-only roll-up. Fetched whenever the panel is mounted; React
-  // Query will cache it across drill changes so deep nav doesn't re-fire it.
-  // Only consumed at country level — at deeper levels the entity row carries
-  // its own roll-up from the entity service.
-  const { data: distMetrics } = useDistributorMetrics();
+  // Per-level metrics rollup. Powers the hero card, MetricsRow tiles, and the
+  // per-child subscriber counts in the child list. Replaces the EMPTY_METRICS
+  // zeros that mapRegion/mapDistrict/mapBranch/mapAgent return otherwise.
+  const { data: entityMetrics, isError: entityMetricsError } = useEntityMetrics(displayLevel, parentId);
+  const { data: childrenMetrics = {} } = useChildrenMetrics(displayLevel, parentId);
+  const childrenWithMetrics = useMemo(
+    () => children.map((c) => ({ ...c, metrics: childrenMetrics[c.id] ?? c.metrics })),
+    [children, childrenMetrics],
+  );
 
   const openReport = useCallback((reportId) => {
     setReportContext(reportId);
@@ -433,20 +437,16 @@ export default function OverlayPanel() {
   }
 
   const isInactive = currentEntity.active === false;
-  // Merge the live distributor totals into the country-level metrics so the
-  // count tiles ("Subscribers / Agents / Branches") reflect real DB
-  // aggregates rather than the EMPTY_METRICS zeros that mapDistributor
-  // returns. At non-country levels we leave entity.metrics untouched — the
-  // region/district/branch rows carry their own roll-ups.
+  // Metrics priority:
+  //   1. entityMetrics — live RPC rollup from get_entity_metrics_rollup
+  //   2. currentEntity.metrics — mock seed (full) or EMPTY_METRICS (Supabase)
+  // useDistributorMetrics fallback retired in PR-2 — useEntityMetrics covers
+  // country level via the same RPC.
   const baseMetrics = isInactive ? null : currentEntity.metrics;
-  const metrics = displayLevel === 'country' && distMetrics && baseMetrics
-    ? {
-        ...baseMetrics,
-        totalSubscribers: distMetrics.totalSubscribers ?? baseMetrics.totalSubscribers,
-        totalAgents: distMetrics.totalAgents ?? baseMetrics.totalAgents,
-        totalBranches: distMetrics.totalBranches ?? baseMetrics.totalBranches,
-        aum: distMetrics.aum || baseMetrics.aum,
-      }
+  const metrics = isInactive
+    ? null
+    : entityMetrics
+    ? { ...baseMetrics, ...entityMetrics }
     : baseMetrics;
   const aum = metrics ? (metrics.aum || metrics.totalContributions) : 0;
 
@@ -505,6 +505,11 @@ export default function OverlayPanel() {
             <div className={styles.heroTop}>
               <span className={styles.aumValue}>{formatUGX(aum)}</span>
               <span className={styles.aumLabel}>Assets Under Management</span>
+              {entityMetricsError && (
+                <span className={styles.metricsErrorBadge} role="status">
+                  Metrics unavailable
+                </span>
+              )}
             </div>
             <div className={styles.heroStats}>
               <div className={styles.stat}>
@@ -606,10 +611,10 @@ export default function OverlayPanel() {
           </AnimatePresence>
 
           {/* Region/child list */}
-          {children.length > 0 && nextLevel && (
+          {childrenWithMetrics.length > 0 && nextLevel && (
             <CollapsibleSection
               title={LEVEL_LABELS[nextLevel] || 'Items'}
-              count={children.length}
+              count={childrenWithMetrics.length}
               defaultOpen={false}
               fill
               expanded={listExpanded}
@@ -617,7 +622,7 @@ export default function OverlayPanel() {
               key={`children-${displayLevel}-${parentId}`}
             >
               <div className={styles.entityList}>
-                {children.map((child) => {
+                {childrenWithMetrics.map((child) => {
                   const isChildActive = child.active !== false;
                   const subCount = child.metrics?.totalSubscribers || 0;
                   return (

@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useAllEntities, useUpdateBranch, useSetBranchStatus } from '../../hooks/useEntity';
+import { useAllEntities, useUpdateBranch, useSetBranchStatus, useAllEntitiesMetrics } from '../../hooks/useEntity';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { useDashboard } from '../../contexts/DashboardContext';
@@ -397,6 +397,13 @@ export default function ViewBranches() {
   const { data: allDistrictsRaw = [] } = useAllEntities('district');
   const { data: allRegionsRaw = [] } = useAllEntities('region');
 
+  // Per-branch and per-agent metrics — the entity mappers return EMPTY_METRICS
+  // under Supabase, so we overlay real rollups via the get_entity_metrics_rollup
+  // RPC. Without this merge every `branch.metrics.totalSubscribers` (and the
+  // same for agents) reads zero.
+  const { data: branchMetricsMap = {} } = useAllEntitiesMetrics('branch');
+  const { data: agentMetricsMap = {} } = useAllEntitiesMetrics('agent');
+
   // Treat the very first cold-load (no rows yet AND query is pending) as
   // the skeleton case. Once cached branches exist we always render the
   // live list — even during a background refetch — so we never bounce
@@ -405,27 +412,46 @@ export default function ViewBranches() {
 
   const DISTRICTS_MAP = useMemo(() => Object.fromEntries(allDistrictsRaw.map(d => [d.id, d])), [allDistrictsRaw]);
   const REGIONS_MAP = useMemo(() => Object.fromEntries(allRegionsRaw.map(r => [r.id, r])), [allRegionsRaw]);
+
+  // Overlay live rollup metrics into each agent so per-row "X subs" labels
+  // and the per-branch agent list pick up real counts.
+  const allAgents = useMemo(
+    () => allAgentsRaw.map(a => ({ ...a, metrics: agentMetricsMap[a.id] ?? a.metrics })),
+    [allAgentsRaw, agentMetricsMap],
+  );
+
   const AGENTS_BY_BRANCH = useMemo(() => {
     const map = {};
-    allAgentsRaw.forEach(a => {
+    allAgents.forEach(a => {
       if (!map[a.parentId]) map[a.parentId] = [];
       map[a.parentId].push(a);
     });
     return map;
-  }, [allAgentsRaw]);
+  }, [allAgents]);
 
-  const allBranches = allBranchesRaw;
+  // Overlay live rollup metrics into each branch so the totals/sort columns
+  // and per-row pills pick up real numbers.
+  const allBranches = useMemo(
+    () => allBranchesRaw.map(b => ({ ...b, metrics: branchMetricsMap[b.id] ?? b.metrics })),
+    [allBranchesRaw, branchMetricsMap],
+  );
 
-  // Auto-select branch when opened via map drill-down
+  // Auto-select branch when opened via map drill-down. Reads from the
+  // metrics-overlaid `allBranches`, not `allBranchesRaw` (which has
+  // EMPTY_METRICS), so the BranchDetail KPI cards bind to real numbers.
   useEffect(() => {
-    if (viewBranchesOpen && drillTargetBranchId && allBranchesRaw.length > 0) {
-      const branch = allBranchesRaw.find(b => b.id === drillTargetBranchId);
-      if (branch) {
-        setSelectedBranch(branch);
-        setView('detail');
-      }
+    if (!viewBranchesOpen || !drillTargetBranchId || allBranches.length === 0) return;
+    const branch = allBranches.find(b => b.id === drillTargetBranchId);
+    if (!branch) return;
+    setSelectedBranch(branch);
+    // Only snap to 'detail' on the first auto-select for this drill target;
+    // later metrics-overlay updates refresh selectedBranch in place without
+    // overwriting a user-initiated nav to an agent / edit pane.
+    if (!selectedBranch || selectedBranch.id !== drillTargetBranchId) {
+      setView('detail');
     }
-  }, [viewBranchesOpen, drillTargetBranchId, allBranchesRaw]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedBranch intentionally excluded to avoid self-triggered loop
+  }, [viewBranchesOpen, drillTargetBranchId, allBranches]);
 
   const handleClose = useCallback(() => {
     if (drillTargetBranchId) closeDrillPanel();

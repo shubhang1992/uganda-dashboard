@@ -5,7 +5,7 @@ import { EASE_OUT_EXPO } from '../../utils/finance';
 import { formatNumber } from '../../utils/currency';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { useAllEntities } from '../../hooks/useEntity';
+import { useEntityMetrics } from '../../hooks/useEntity';
 import styles from './Sidebar.module.css';
 
 function formatCount(n) {
@@ -208,13 +208,16 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, subscriberMenuOpen, setSubscriberMenuOpen, viewSubscribersOpen, setViewSubscribersOpen, setDrillTargetBranchId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen, setCommissionsOpen, settingsOpen, setSettingsOpen } = useDashboard();
 
-  // Real counts for the submenu headers — replaces previous hardcoded values.
-  const { data: branchesArr = [] } = useAllEntities('branch');
-  const { data: agentsArr = [] } = useAllEntities('agent');
-  const { data: subscribersArr = [] } = useAllEntities('subscriber');
-  const branchCount = formatCount(branchesArr.length);
-  const agentCount = formatCount(agentsArr.length);
-  const subscriberCount = formatCount(subscribersArr.length);
+  // Real counts for the submenu headers — sourced from the country-level
+  // rollup RPC (single call, 5-min staleTime). Replaces three earlier
+  // `useAllEntities` calls that paginated 30+ pages of subscribers just to
+  // display a count label (PR-2 / AUDIT-1-5). The RPC returns
+  // totalBranches / totalAgents / totalSubscribers as part of its 8-field
+  // result.
+  const { data: countryMetrics } = useEntityMetrics('country', 'ug');
+  const branchCount = formatCount(countryMetrics?.totalBranches ?? 0);
+  const agentCount = formatCount(countryMetrics?.totalAgents ?? 0);
+  const subscriberCount = formatCount(countryMetrics?.totalSubscribers ?? 0);
 
   // `active` is purely derived from which panel/menu is open.
   // No setState-in-effect needed — submenu open state itself is now derived

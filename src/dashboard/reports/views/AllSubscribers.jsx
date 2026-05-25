@@ -70,6 +70,14 @@ export default function AllSubscribers({ onBack }) {
     return data;
   }, [enriched, search, kycFilter, activeFilter, genderFilter]);
 
+  // CSV serialiser walks `row[col.key]` flatly — flatten array/boolean fields
+  // to readable strings so the export doesn't ship "true" / "[object Object]".
+  const exportRows = useMemo(() => filtered.map((s) => ({
+    ...s,
+    isActive: s.isActive ? 'Active' : 'Inactive',
+    productsHeld: (s.productsHeld || []).length,
+  })), [filtered]);
+
   const columns = [
     { key: 'name', label: 'Subscriber', sortable: true, width: '160px' },
     {
@@ -123,6 +131,9 @@ export default function AllSubscribers({ onBack }) {
       description={isBranch
         ? `${formatNumber(filtered.length)} subscribers in ${branchesMap[branchId]?.name || 'this branch'}`
         : `${formatNumber(filtered.length)} subscribers in the network`}
+      exportRows={exportRows}
+      exportColumns={columns}
+      exportFilename="all-subscribers"
       filters={
         <>
           <SearchFilter value={search} onChange={setSearch} placeholder="Search subscribers…" />

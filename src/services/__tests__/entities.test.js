@@ -34,6 +34,7 @@ const {
   getChildren,
   getAllAtLevel,
   createBranch,
+  getEntityMetricsRollup,
 } = await import('../entities');
 
 beforeEach(() => {
@@ -205,6 +206,52 @@ describe('entities service', () => {
       const result = await getAllAtLevel('nonexistent');
       expect(result).toEqual([]);
       expect(supabaseMock.__getFromCalls()).toHaveLength(0);
+    });
+  });
+
+  describe('getEntityMetricsRollup()', () => {
+    it('calls the RPC with snake_case args and returns the payload as-is', async () => {
+      const payload = {
+        'r-central': {
+          totalSubscribers: 6629, totalAgents: 440, totalBranches: 67,
+          totalContributions: 2084652550, totalWithdrawals: 70551422,
+          aum: 2421263298, activeRate: 78, coverageRate: 91,
+        },
+      };
+      supabaseMock.__queueRpc('get_entity_metrics_rollup', { data: payload, error: null });
+      const result = await getEntityMetricsRollup('region', ['r-central']);
+      expect(result).toEqual(payload);
+      const calls = supabaseMock.__getRpcCalls('get_entity_metrics_rollup');
+      expect(calls).toHaveLength(1);
+      expect(calls[0].args).toEqual({ p_level: 'region', p_entity_ids: ['r-central'] });
+    });
+
+    it('returns an empty object when entityIds is empty (no network)', async () => {
+      const result = await getEntityMetricsRollup('region', []);
+      expect(result).toEqual({});
+      expect(supabaseMock.__getRpcCalls('get_entity_metrics_rollup')).toHaveLength(0);
+    });
+
+    it('returns an empty object when entityIds is null (no network)', async () => {
+      const result = await getEntityMetricsRollup('region', null);
+      expect(result).toEqual({});
+      expect(supabaseMock.__getRpcCalls('get_entity_metrics_rollup')).toHaveLength(0);
+    });
+
+    it('returns an empty object when the RPC returns null data', async () => {
+      supabaseMock.__queueRpc('get_entity_metrics_rollup', { data: null, error: null });
+      const result = await getEntityMetricsRollup('agent', ['a-001']);
+      expect(result).toEqual({});
+    });
+
+    it('throws if the RPC returns an error', async () => {
+      supabaseMock.__queueRpc('get_entity_metrics_rollup', {
+        data: null,
+        error: { message: 'out_of_scope', code: 'P0003' },
+      });
+      await expect(getEntityMetricsRollup('country', ['ug'])).rejects.toMatchObject({
+        code: 'P0003',
+      });
     });
   });
 

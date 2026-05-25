@@ -169,6 +169,9 @@ export default function KycCompliance({ onBack }) {
       description={isBranch
         ? 'KYC completion rates and flagged accounts by agent'
         : 'KYC completion rates and flagged accounts by district'}
+      exportRows={filtered}
+      exportColumns={columns}
+      exportFilename="kyc-compliance"
       filters={isBranch ? null : (
         <FilterSelect label="Region" value={regionFilter} onChange={setRegionFilter} options={regionOptions} />
       )}
