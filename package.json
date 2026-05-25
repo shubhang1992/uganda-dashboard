@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "description": "Landing page and dashboard for Universal Pensions Uganda — a digital pension platform making retirement savings accessible for every Ugandan.",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
     "dev:api": "sh -c 'set -a; [ -f .env.local ] && . ./.env.local; set +a; exec vercel dev'",
