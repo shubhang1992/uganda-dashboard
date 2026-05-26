@@ -1203,32 +1203,8 @@
 }
 
 .input {
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  color: var(--color-slate);
-  padding: 0 var(--space-4);
-  height: 48px;
-  border: 1.5px solid rgba(217, 220, 242, 0.6);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(8px);
-  outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-}
-
-.input:focus-visible {
-  box-shadow: 0 0 0 2px rgba(41, 40, 103, 0.15);
-}
-
-.input:focus {
-  border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
-  background: var(--color-white);
-}
-
-.input::placeholder {
-  color: var(--color-gray);
-  opacity: 0.6;
+  /* Frosted 48px form primitive — see src/index.css `.input`. F16 */
+  composes: input from global;
 }
 
 /* ── Footer ──────────────────────────────────────────────────────────────── */

@@ -215,6 +215,45 @@ a:focus-visible {
   text-transform: capitalize;
 }
 
+/* Form primitive: `.input`
+   Canonical 48px frosted form-input — used by modal/panel forms across the
+   admin / branch / dashboard surfaces (CreateAgent, CreateBranch,
+   ViewBranches, ViewAgents, Settings, …). CSS Modules consume it via
+   `composes: input from global;` so each module can layer module-specific
+   overrides (width, error state, readonly look) without redefining the
+   shared shape. Other input variants (chat composer, sign-in 56px,
+   subscriber-card soft inputs) are intentionally distinct and not
+   composed from this primitive. F16. */
+.input {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  padding: 0 var(--space-4);
+  height: 48px;
+  border: 1.5px solid rgba(217, 220, 242, 0.6);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.input:focus-visible {
+  box-shadow: 0 0 0 2px rgba(41, 40, 103, 0.15);
+}
+
+.input:focus {
+  border-color: var(--color-indigo);
+  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  background: var(--color-white);
+}
+
+.input::placeholder {
+  color: var(--color-gray);
+  font-weight: 400;
+  opacity: 0.6;
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 0 var(--space-6);
