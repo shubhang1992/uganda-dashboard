@@ -19,6 +19,7 @@ export type VercelHandler = (
   res: VercelResponse
 ) => void | Promise<void>;
 
+/** Reserved for future Employer/Admin role rollouts. Subscriber and Agent dashboards currently use `withOptionalAuth`. */
 export function withAuth(handler: AuthedHandler): VercelHandler {
   return async (req, res) => {
     const token = extractBearer(req);
