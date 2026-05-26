@@ -227,6 +227,7 @@ const LEVEL_MAPPERS = {
 // then re-render once React Query resolves the data and the cache fills);
 // subsequent navigations are sync. This is the minimum-surface alternative
 // to refactoring DashboardNavContext to be async-aware.
+// F27: cache may be null on first-navigation until the first async read populates it; this is expected, not a bug — the URL effect re-renders once React Query resolves.
 const _syncCache = new Map();
 function syncCacheKey(level, id) { return `${level}:${id}`; }
 function cacheEntity(level, entity) {

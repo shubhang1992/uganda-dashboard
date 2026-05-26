@@ -1,3 +1,28 @@
+/**
+ * Agent Co-Pilot widget — keyword-anchored chat affordance on the agent home
+ * screen. Answers portfolio questions synchronously from already-fetched
+ * subscriber + commission data (no remote LLM call).
+ *
+ * INTENTIONAL DUPLICATION with `src/subscriber-dashboard/home/widgets/CoPilotWidget.jsx`.
+ * Audit F26 reviewed extracting a shared `CopilotShell`; we kept both files in
+ * place because the divergences are larger than the shared chrome:
+ *   - CSS modules diverge (this file uses `.eyebrowSpark`, `.suggestionBtn`,
+ *     `.suggestionDot`, `.suggestionItem`; subscriber uses `.avatar`,
+ *     `.avatarRing`, `.glowA/B`, `.composerIcon`, `.headText`, `.eyebrowDot`,
+ *     `.pills/.pill`, `.suggestionsLabel`) — different role-appropriate
+ *     aesthetics, not stylistic accidents.
+ *   - Header DOM differs (inline eyebrow + simpler structure here; avatar +
+ *     glow elements + headText wrapper on the subscriber side).
+ *   - Composer differs (no leading sparkle icon here; subscriber has one).
+ *   - Suggestions DOM differs (ul/li with dot separators here; pills-grid
+ *     on the subscriber side).
+ *   - Reply logic differs in shape — sync keyword matcher with no error path
+ *     here; async service call + try/catch + toast errors on the subscriber
+ *     side.
+ * A shared shell would have to standardise the CSS contract (visual change)
+ * or pass classNames/slot content through, adding more glue than it removes.
+ * Keep the two files in lockstep visually only where it makes design sense.
+ */
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGX } from '../../../utils/finance';
