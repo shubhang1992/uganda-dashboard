@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGXExact, formatUGX } from '../../utils/finance';
 import { formatDate } from '../../utils/date';
 import { useCurrentSubscriber, useSubscriberTransactions } from '../../hooks/useSubscriber';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './ActivityPage.module.css';
 
 const TX_META = {

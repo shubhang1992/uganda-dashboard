@@ -6,7 +6,7 @@ import { formatNumber } from '../../utils/currency';
 import { useCurrentSubscriber, useRequestWithdrawal } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import { MIN_WITHDRAW, RETIREMENT_AGE } from '../../constants/savings';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import { goBackOrFallback } from '../shell/navigation';
 import styles from './WithdrawPage.module.css';
 

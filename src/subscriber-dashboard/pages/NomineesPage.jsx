@@ -5,7 +5,7 @@ import { isValidUGPhone } from '../../utils/phone';
 import { getInitials } from '../../utils/dashboard';
 import { useCurrentSubscriber, useUpdateNominees, useSubscriberNominees } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './NomineesPage.module.css';
 
 const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'other'];

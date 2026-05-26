@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGX } from '../../utils/finance';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './WithdrawalsHubPage.module.css';
 
 const OPTIONS = [

@@ -7,7 +7,7 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { useEntity } from '../../hooks/useEntity';
 import { useToast } from '../../contexts/ToastContext';
 import { getInitials } from '../../utils/dashboard';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './SettingsPage.module.css';
 
 function formatPhone(raw) {

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './StubPage.module.css';
 
 export default function StubPage({ title, fallback = '/dashboard/settings' }) {

@@ -6,7 +6,7 @@ import { formatDate } from '../../utils/date';
 import { getInitials } from '../../utils/dashboard';
 import { useCurrentSubscriber, useUpdateInsuranceCover } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './InsurancePage.module.css';
 
 const COVER_TIERS = [

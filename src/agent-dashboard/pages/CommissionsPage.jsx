@@ -23,7 +23,7 @@ import {
   formatPayoutDate,
   groupCommissionsByPaidCycle,
 } from '../../utils/settlementCycle';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './CommissionsPage.module.css';
 
 const VALID_VIEWS = new Set(['earned', 'owed', 'confirm', 'disputes']);

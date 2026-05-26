@@ -7,7 +7,7 @@ import { useCurrentSubscriber, useSubscriberAgent } from '../../hooks/useSubscri
 import { useToast } from '../../contexts/ToastContext';
 import { getAgentReply } from '../../services/chat';
 import { getInitials } from '../../utils/dashboard';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './AgentPage.module.css';
 
 const STORAGE_KEY = 'up-sub-agent-messages';

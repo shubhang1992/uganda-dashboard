@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { SignupProvider, useSignup } from '../../signup/SignupContext';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import AwarenessCheck from '../onboarding/AwarenessCheck';
 import OnboardKycFlow from '../onboarding/OnboardKycFlow';
 import OnboardScheduleStep from '../onboarding/OnboardScheduleStep';

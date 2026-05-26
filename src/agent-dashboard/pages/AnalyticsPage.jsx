@@ -13,7 +13,7 @@ import { useAgentSubscribers } from '../../hooks/useAgent';
 import { normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
 import { formatUGX, formatNumber } from '../../utils/currency';
 import ErrorCard from '../../components/feedback/ErrorCard';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './AnalyticsPage.module.css';
 
 const PALETTE = {

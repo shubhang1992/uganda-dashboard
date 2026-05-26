@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentSubscriber, useUpdateSchedule } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import ContributionSettingsForm from '../../components/contribution/ContributionSettingsForm';
 import styles from './SchedulePage.module.css';
 

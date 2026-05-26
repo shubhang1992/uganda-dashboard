@@ -4,7 +4,7 @@ import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers, useUpdateSubscriberSchedule } from '../../hooks/useAgent';
 import { useToast } from '../../contexts/ToastContext';
 import ErrorCard from '../../components/feedback/ErrorCard';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import ContributionSettingsForm from '../../components/contribution/ContributionSettingsForm';
 import SkeletonRow from '../../components/SkeletonRow';
 import styles from './SubscriberSchedulePage.module.css';

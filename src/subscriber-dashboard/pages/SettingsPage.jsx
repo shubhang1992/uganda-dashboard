@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import { getInitials } from '../../utils/dashboard';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './SettingsPage.module.css';
 
 const SECTIONS = [

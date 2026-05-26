@@ -6,7 +6,7 @@ import { formatNumber } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 import { useCurrentSubscriber, useSubmitClaim, useSubscriberClaims } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import { goBackOrFallback } from '../shell/navigation';
 import styles from './ClaimPage.module.css';
 

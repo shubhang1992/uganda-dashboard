@@ -7,7 +7,7 @@ import { isValidUGPhone } from '../../utils/phone';
 import { useCurrentSubscriber, useUpdateProfile } from '../../hooks/useSubscriber';
 import { useAllEntities } from '../../hooks/useEntity';
 import { useToast } from '../../contexts/ToastContext';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './ProfilePage.module.css';
 
 const UG_PREFIX = '+256';

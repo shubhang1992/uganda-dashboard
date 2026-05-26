@@ -10,7 +10,7 @@ import {
   SUPPORT_WHATSAPP_DISPLAY,
   SUPPORT_EMAIL,
 } from '../../config/env';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import { goBackOrFallback } from '../shell/navigation';
 import styles from './HelpPage.module.css';
 
