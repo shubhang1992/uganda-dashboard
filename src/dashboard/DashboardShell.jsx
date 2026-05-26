@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../utils/finance';
@@ -250,12 +250,20 @@ function DashboardContent() {
 
 export default function DashboardShell() {
   const [menuOpen, setMenuOpen] = useState(false);
+  // Memoised handlers — inline arrows here recreated `onMenuToggle` and
+  // `onClose` on every parent render, defeating any memoisation in
+  // `MobileHeader`/`MobileDrawer` and re-running the drawer's keydown effect
+  // each tick (F23). `setMenuOpen` is a stable setter, so the callbacks are
+  // safe to memoise with an empty dep list — the toggle reads the latest
+  // value via the functional updater.
+  const handleMenuToggle = useCallback(() => setMenuOpen((open) => !open), []);
+  const handleMenuClose = useCallback(() => setMenuOpen(false), []);
   return (
     <DashboardProvider>
       <div className={styles.shell}>
         <Sidebar />
-        <MobileHeader onMenuToggle={() => setMenuOpen(!menuOpen)} menuOpen={menuOpen} />
-        <MobileDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
+        <MobileHeader onMenuToggle={handleMenuToggle} menuOpen={menuOpen} />
+        <MobileDrawer open={menuOpen} onClose={handleMenuClose} />
         <DashboardContent />
       </div>
     </DashboardProvider>

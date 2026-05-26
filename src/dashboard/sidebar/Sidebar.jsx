@@ -259,26 +259,29 @@ export default function Sidebar() {
     }
   }, [createBranchOpen, viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen]);
 
-  /* Close submenus on outside click — keep open when related panel is visible or just closed */
+  /* One delegated document-click listener handles both "close submenus" and
+   * "close More menu" outside-click dismissals. Previously each lived in its
+   * own `useEffect`/`addEventListener` pair — two listener attaches/detaches
+   * per render on top of the bubble path cost paid on every click in the
+   * document. Now a single listener dispatches to each purpose based on the
+   * current open state (F24). Skip attaching entirely when nothing is open. */
+  const anyMenuOpen = branchMenuOpen || agentMenuOpen || subscriberMenuOpen || moreOpen;
   useEffect(() => {
-    if (!branchMenuOpen && !agentMenuOpen && !subscriberMenuOpen) return;
+    if (!anyMenuOpen) return;
     const handler = () => {
-      // Grace period: don't close submenu within 500ms of a panel closing
-      if (Date.now() - panelClosedAt.current < 500) return;
-      if (branchMenuOpen && !createBranchOpen && !viewBranchesOpen) setBranchMenuOpen(false);
-      if (agentMenuOpen && !viewAgentsOpen) setAgentMenuOpen(false);
-      if (subscriberMenuOpen && !viewSubscribersOpen) setSubscriberMenuOpen(false);
+      // Purpose 1: dismiss the mobile "More" popover.
+      if (moreOpen) closeMore();
+      // Purpose 2: dismiss flyout submenus, respecting the 500ms grace period
+      // after a panel just closed so the submenu stays anchored to its source.
+      if (Date.now() - panelClosedAt.current >= 500) {
+        if (branchMenuOpen && !createBranchOpen && !viewBranchesOpen) setBranchMenuOpen(false);
+        if (agentMenuOpen && !viewAgentsOpen) setAgentMenuOpen(false);
+        if (subscriberMenuOpen && !viewSubscribersOpen) setSubscriberMenuOpen(false);
+      }
     };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
-  }, [branchMenuOpen, agentMenuOpen, subscriberMenuOpen, createBranchOpen, viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen, setBranchMenuOpen, setAgentMenuOpen, setSubscriberMenuOpen]);
-
-  useEffect(() => {
-    if (!moreOpen) return;
-    const handler = () => closeMore();
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
-  }, [moreOpen, closeMore]);
+  }, [anyMenuOpen, moreOpen, closeMore, branchMenuOpen, agentMenuOpen, subscriberMenuOpen, createBranchOpen, viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen, setBranchMenuOpen, setAgentMenuOpen, setSubscriberMenuOpen]);
 
   function handleClick(id) {
     setMoreOpen(false);

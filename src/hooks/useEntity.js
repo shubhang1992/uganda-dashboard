@@ -159,13 +159,22 @@ export function useTopBranch(level, parentId) {
 
 /**
  * Build breadcrumb trail from the current drill-down position.
+ *
+ * `selectedIds` is recreated on every parent render (it's the
+ * DashboardContext map), so feeding the object straight into the queryKey
+ * thrashed the cache — TanStack Query does referential equality on key
+ * elements. We serialise to a stable string so the key only changes when an
+ * actual ID changes. `JSON.stringify` here is the same pattern `MetricsRow`
+ * already uses to stabilise this object for keyed remounts (F13).
+ *
  * @param {string} currentLevel - Current hierarchy level
  * @param {Record<string, string>} selectedIds - Map of level to entity ID
  * @returns {import('@tanstack/react-query').UseQueryResult<Array<{level: string, name: string}>>}
  */
 export function useBreadcrumb(currentLevel, selectedIds) {
+  const selectedIdsKey = JSON.stringify(selectedIds ?? {});
   return useQuery({
-    queryKey: ['breadcrumb', currentLevel, selectedIds],
+    queryKey: ['breadcrumb', currentLevel, selectedIdsKey],
     queryFn: () => entities.getBreadcrumb(currentLevel, selectedIds),
     enabled: currentLevel !== 'country',
   });
