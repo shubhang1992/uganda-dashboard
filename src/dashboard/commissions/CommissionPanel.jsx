@@ -257,10 +257,23 @@ export default function CommissionPanel({ splitMode = false }) {
   const agentsCold = agentListLoading && scopedAgentList.length === 0;
   const disputedCold = disputedLoading && scopedDisputedAgents.length === 0;
 
-  // Branch view of the open run
-  const branchSliceTotal = branchReview?.lines?.reduce((s, c) => s + (c.amount || 0), 0) || 0;
-  const branchPendingLines = branchReview?.lines?.filter((c) => c.status === 'in_run') || [];
-  const branchHeldLines = branchReview?.lines?.filter((c) => c.status === 'held') || [];
+  // Branch view of the open run — memoize the three derivations off
+  // `branchReview.lines` so they only recompute when the underlying lines
+  // change. Without this, the parent re-renders triggered by any unrelated
+  // state setter (toolbar focus, search, modal open) would re-run all three
+  // O(n) passes even though the lines themselves haven't changed.
+  const branchSliceTotal = useMemo(
+    () => branchReview?.lines?.reduce((s, c) => s + (c.amount || 0), 0) || 0,
+    [branchReview?.lines]
+  );
+  const branchPendingLines = useMemo(
+    () => branchReview?.lines?.filter((c) => c.status === 'in_run') || [],
+    [branchReview?.lines]
+  );
+  const branchHeldLines = useMemo(
+    () => branchReview?.lines?.filter((c) => c.status === 'held') || [],
+    [branchReview?.lines]
+  );
 
   // Navigation
   function goHome() {

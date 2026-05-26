@@ -201,7 +201,28 @@ const SignupContext = createContext(null);
 export function SignupProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE, loadPersisted);
 
-  useEffect(() => { persist(state); }, [state]);
+  // Debounce localStorage persistence — every signup keystroke patches state,
+  // and persisting synchronously to localStorage on every patch is enough work
+  // (full JSON.stringify of the signup record) to drop frames on slower
+  // devices. 300ms is short enough that the user-perceived "save" feels
+  // immediate, but long enough to collapse a burst of typing into one write.
+  // The unload listener below flushes any pending debounce on tab close so
+  // the last keystroke can't get lost.
+  useEffect(() => {
+    const t = setTimeout(() => persist(state), 300);
+    return () => clearTimeout(t);
+  }, [state]);
+
+  // Force-flush the pending debounce on tab close / refresh so we don't drop
+  // the last keystroke. `beforeunload` is the broadest signal available; we
+  // skip Page Visibility because the user can return to the tab and continue
+  // editing without an unload.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const flush = () => persist(state);
+    window.addEventListener('beforeunload', flush);
+    return () => window.removeEventListener('beforeunload', flush);
+  }, [state]);
 
   const patch = useCallback((payload) => dispatch({ type: 'patch', payload }), []);
   const reset = useCallback(() => {
