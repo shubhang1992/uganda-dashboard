@@ -80,7 +80,13 @@ These keys are read by the frontend but **missing from `.env.local.example`** (a
 
 ## §3. API route inventory
 
-**14 routes** live under `api/`. Vercel maps each file to a route (`api/auth/send-otp.ts → POST /api/auth/send-otp`). All routes accept only `POST`; the 405 envelope differs by route (see "405 vocabulary drift" below).
+**14 routes** live under `api/`. Vercel maps each file to a route (`api/auth/send-otp.ts → POST /api/auth/send-otp`). All routes accept only `POST`. Breakdown:
+
+- **4 auth routes** — `send-otp`, `verify-otp`, `verify-password`, `change-password`
+- **8 KYC routes** — `otp-send`, `otp-verify`, `id-ocr`, `id-quality`, `face-match`, `aml-screen`, `nira-verify`, `agent-referral`
+- **2 misc routes** — `contact`, `chat`
+
+The count went from 12 → 14 with the Phase 1 password rollout (`verify-password` + `change-password` shipped as part of the `0026_users_password_hash.sql` work).
 
 | # | Method | Path | Auth | Body | 2xx response | Handler file |
 |---|---|---|---|---|---|---|
@@ -99,67 +105,78 @@ These keys are read by the frontend but **missing from `.env.local.example`** (a
 | 13 | POST | `/api/chat` | `withOptionalAuth` | `{ message, context? }` | `{ reply, suggestions? }` | `api/chat.ts` |
 | 14 | POST | `/api/contact` | Public | `{ name, email, message }` | `{ submitted: true, id }` | `api/contact.ts` |
 
-### Error envelope drift (audit B1, B2)
-
-The current code is **not** unified — documented honestly:
-
-- **`{ error: <code> }`** is used by auth routes (`send-otp`, `verify-otp`, KYC routes for legacy 4xx shape, `chat`, `contact`).
-- **`{ code: <code> }`** is used by `verify-password.ts` for 4xx (and by `verify-otp.ts` line 199 specifically for password-shape errors — the same route mixes both envelopes on different code paths).
-- **`change-password.ts`** uses `{ code: <code> }` for everything except the 405, which is `{ error: 'method_not_allowed' }`.
-
-**405 vocabulary drift** (audit B2):
-
-- Auth routes (`send-otp`, `verify-otp`, `verify-password`, `change-password`): `{ error: 'method_not_allowed' }` (snake_case). Do **not** set `Allow: POST` header.
-- KYC routes + `chat` + `contact`: `{ error: 'Method not allowed' }` (PascalCase). Set `Allow: POST` header — **except** `otp-send.ts` and `otp-verify.ts`, both of which DO set the header (the audit B19 note in the report is reversed for these two — verified: they both `res.setHeader('Allow', 'POST')`).
-
 ### Cross-cutting notes
 
 - `agent-referral.ts` and `contact.ts` write through `supabaseAdmin` (service-role) because the caller has no JWT — RLS would otherwise block the INSERT.
 - All KYC stubs simulate realistic latencies (600–2200 ms) so the live demo's animated checks remain visible.
-- KYC routes return **HTTP 200** with `{ verified: false }` / `{ result: 'no-match' }` instead of 4xx (audit B16) — clients inspect body fields, not status.
-- No `Cache-Control: no-store` headers are set on auth/contact/referral responses (audit B13).
 - Force-overrides via `x-qa-force` header are documented inline at each KYC file (e.g. `fail-blur`, `partial`, `flagged`, `liveness-fail`).
+- All 14 routes set `Cache-Control: no-store` on every response path (Phase 1G `1f0e2e1`). Auth tokens, KYC tracking IDs, and contact-form IDs must never be cached.
+- All 14 routes use a unified error envelope `{ code: '<snake>', message?: '<ops-detail>' }`. Full vocabulary in §5.
 
-### KYC phone-normalization gap (audit B3, B4)
+### KYC phone canonicalization (Phase 1E `d0b805d`)
 
-Six KYC routes accept `phone` in the body **without** calling `toCanonicalUGPhone()` (auth routes do; KYC does not):
+The 3 phone-accepting KYC routes (`otp-send`, `otp-verify`, `agent-referral`) now call `toCanonicalUGPhone()` on the body's `phone` field before any downstream use — same contract as the auth routes. `agent-referral` additionally persists the canonical `+256XXXXXXXXX` form into `agent_referrals.phone`, so support staff can cross-match referrals against the rest of the codebase's canonical phones. The other 5 KYC routes (`id-quality`, `id-ocr`, `nira-verify`, `face-match`, `aml-screen`) don't accept `phone` in their body.
 
-- `api/kyc/otp-send.ts`, `otp-verify.ts`, `nira-verify.ts`, `id-ocr.ts`, `face-match.ts`, `agent-referral.ts`.
+### KYC verification refusals stay 200 (demo scope)
 
-`agent-referral.ts` is the load-bearing offender (audit B4): line 51 captures `body.phone.trim()` and the INSERT at lines 62–72 persists that raw string into `agent_referrals.phone`. Support staff cannot cross-match that row against the canonical `+256…` form stored everywhere else.
-
-### DB error swallowing (audit B5)
-
-- `verify-otp.ts:84–88` returns `null` from `resolveSubscriber` on a real DB error, which the handler then surfaces as a `500 { error: 'invalid_otp' }` via the outer catch.
-- `verify-password.ts:153–158` returns `401 { code: 'password_not_set' }` on a DB lookup error to avoid leaking state — the audit notes this swallows a real failure mode as the same code as the "no password set" branch.
+The 3 verifier routes — `nira-verify`, `aml-screen`, `face-match` — return HTTP 200 with a body-field refusal (`result: 'partial' | 'no-match'`, `outcome: 'flagged'`, `match: false`) rather than 4xx. Each carries an inline `// B16 demo-scope intentional: …` comment confirming the intent. Clients inspect body fields, not status (Phase 1D `43f67e5`).
 
 ---
 
-## §4. `api/_lib/` helpers
+## §4. `api/_lib/` and per-domain `_lib/` helpers
 
-Five files in `api/_lib/`, all server-only.
+Server-only. Three layers: top-level `api/_lib/` for cross-domain helpers, `api/auth/_lib/` for auth-only helpers, `api/kyc/_lib/` for KYC-only helpers.
+
+### `api/_lib/` (6 files)
 
 | File | Purpose | Exports |
 |---|---|---|
 | `api/_lib/jwt.ts` | HS256 sign/verify via `jose`. UTF-8 secret interpretation (PGRST301-correct). | `signJwt(claims) → Promise<string>`, `verifyJwt(token) → Promise<JwtClaims>`, types |
 | `api/_lib/supabase-admin.ts` | Singleton service-role client (RLS-bypassing). Proxy-deferred init. | default `supabaseAdmin` |
-| `api/_lib/phone.ts` | UG-phone canonicalization (`+256XXXXXXXXX`) | `parseUGPhoneLocal`, `isValidUGPhone`, `toCanonicalUGPhone` |
-| `api/_lib/withAuth.ts` | Bearer-JWT middleware; 401 on missing/invalid. **Reserved-unused** (audit B11). | `withAuth(handler) → VercelHandler`, types `AuthedRequest`/`AuthedHandler` |
-| `api/_lib/withOptionalAuth.ts` | Bearer-JWT middleware; attaches `req.user: null` on miss. Used by `/api/chat`. | `withOptionalAuth(handler) → VercelHandler`, types `MaybeAuthedRequest`/`MaybeAuthedHandler` |
+| `api/_lib/bearer.ts` | `Bearer <token>` header extractor; canonical parse for the three callers below. Phase 1A `aab34e9`. | `extractBearer(req: VercelRequest) → string \| null` (default + named) |
+| `api/_lib/phone.ts` | UG-phone canonicalization to `+256XXXXXXXXX`. `parseUGPhoneLocal` and `isValidUGPhone` were removed in Phase 1H `b91f6eb` (dead exports). | `toCanonicalUGPhone(raw) → string` |
+| `api/_lib/withAuth.ts` | Bearer-JWT middleware; 401 `{ error: 'unauthorized' }` on missing/invalid. Reserved for future Employer/Admin role rollouts (commented inline at the export site, Phase 1H `b91f6eb`). | `withAuth(handler) → VercelHandler`, types `AuthedRequest` / `AuthedHandler` |
+| `api/_lib/withOptionalAuth.ts` | Bearer-JWT middleware; attaches `req.user: null` on miss. Used by `/api/chat`. | `withOptionalAuth(handler) → VercelHandler`, types `MaybeAuthedRequest` / `MaybeAuthedHandler` |
 
-### `api/auth/_lib/password.ts`
+Both middlewares delegate header parsing to `extractBearer` from `bearer.ts` — no inline duplication remains.
 
-Sole consumer of `bcryptjs` in the codebase. Centralises the shape rules + hash/verify so every password-touching route uses the same vocabulary. Never imported from `src/` — the frontend never hashes or compares.
+### `api/auth/_lib/` (3 modules)
+
+Auth-only helpers, owned by `verify-otp` / `verify-password` / `change-password`.
+
+| File | Purpose | Exports |
+|---|---|---|
+| `api/auth/_lib/password.ts` | Sole consumer of `bcryptjs`. Pre-existing (untouched by Phase 1). | `validatePasswordShape`, `hashPassword`, `verifyPassword` |
+| `api/auth/_lib/personas.ts` | Persona resolution shared between `verify-otp` and `verify-password`. Phase 1C `c3b54a3`. | `ROLE_DEFAULTS`, `resolveSubscriber`, `resolveDemoPersona`, `ResolvedIdentity` type |
+| `api/auth/_lib/claims.ts` | JWT-claim + response-DTO assembly. Phase 1C `c3b54a3`. | `buildJwtClaims`, `buildAuthResponseUser`, `buildAuthResponseDto`, `AuthResponse` / `AuthResponseUser` types |
+
+**`password.ts` API (unchanged from pre-Phase-1):**
 
 - `validatePasswordShape(plain)` — synchronous; returns `null` on pass, or one of: `password_required`, `password_too_short`, `password_too_long` (72-**byte** cap — bcrypt's hard limit), `password_too_weak` (must contain letter + digit).
 - `hashPassword(plain)` — bcrypt `COST = 10` (~80ms).
 - `verifyPassword(plain, hash)` — returns `false` (never throws) for any failure mode: missing hash, malformed hash, mismatch.
 
-### Helper duplication (audit B6, B7)
+**`personas.ts` API:**
 
-- **`extractBearer`** is defined **3× verbatim** (~7 lines each): `api/_lib/withAuth.ts:21–28`, `api/_lib/withOptionalAuth.ts:21–27`, `api/auth/change-password.ts:38–44`. No shared `api/_lib/bearer.ts` exists.
-- **`mockTrackingId`** (`smile_<base36-time>_<base36-rand>`) is defined **3× verbatim**: `api/kyc/face-match.ts:25–27`, `api/kyc/aml-screen.ts:22–24`, `api/kyc/nira-verify.ts:29–31`. No `api/kyc/_lib/` directory exists.
-- `api/_lib/phone.ts` exports `parseUGPhoneLocal` and `isValidUGPhone` that are **never imported** anywhere — `toCanonicalUGPhone` is the only consumed export (audit B10).
+- `ROLE_DEFAULTS: Record<JwtRole, string>` — the demo-stable fallback entity IDs (`subscriber → 's-0001'`, `agent → 'a-001'`, `branch → 'b-kam-015'`, `distributor → 'd-001'`). Mirrors the seed personas; sync is manual (audit D18).
+- `resolveSubscriber(supabaseAdmin, phone)` — newest-wins lookup on `subscribers (phone)`. Returns `null` when no match OR the lookup errored (the caller falls back to `ROLE_DEFAULTS.subscriber`). DB errors are logged with the `[auth/personas]` tag and treated as non-fatal at the helper layer; the route catches them via `DbError` for the upsert path only.
+- `resolveDemoPersona(supabaseAdmin, phone, role)` — `(phone, role)` lookup on `demo_personas`; always returns an identity (falls back to `ROLE_DEFAULTS[role]` when no row matches). Used for the 3 non-subscriber roles.
+
+**`claims.ts` API:**
+
+- `buildJwtClaims({ role, phone, entityId }) → JwtSignInput` — assembles `sub`, `role: 'authenticated'`, `app_role`, `phone`, and the role-scoped `subscriberId` / `agentId` / `branchId` / `distributorId` claim.
+- `buildAuthResponseUser({ role, phone, entityId, hasPassword, name? }) → AuthResponseUser` — assembles the `user` half of the response body.
+- `buildAuthResponseDto({ token, role, phone, entityId, hasPassword, name? }) → { token, user }` — convenience wrapper. Both `verify-otp` and `verify-password` call this exactly before `res.status(200).json(...)`, so the two routes mint byte-identical payloads.
+
+Phase 1C lifted these from verbatim duplicates inside `verify-otp.ts` and `verify-password.ts`. The OTP-vs-password parity (`AuthContext.login` consumes either) is now enforced by a shared module rather than by hand-syncing two files.
+
+### `api/kyc/_lib/` (1 module)
+
+| File | Purpose | Exports |
+|---|---|---|
+| `api/kyc/_lib/mocks.ts` | Smile ID v2 tracking-id shape generator. Phase 1B `92cada2`. | `mockTrackingId(prefix?: string) → string` (defaults to `'smile'`) |
+
+Returns `${prefix}_${ts36}_${rand36}` (e.g. `smile_lwxa3y2k_4f9q2z`). Consumed by `face-match.ts`, `aml-screen.ts`, `nira-verify.ts`. The separator (`_`, not `-`) and prefix default are deliberate — QA fixtures hard-code the shape. Keep stable.
 
 ### JWT claim shape (single source of truth)
 
@@ -193,8 +210,9 @@ type JwtClaims = {
 
 ### `withAuth` vs `withOptionalAuth`
 
-- `withAuth` rejects with `401 { error: 'unauthorized' }` if Bearer is missing or invalid. **Currently wraps no routes.** `change-password.ts` re-implements its own bearer-extract + JWT-verify inline rather than wrap with `withAuth`. The middleware is intentionally retained for future Employer/Admin endpoints.
+- `withAuth` rejects with `401 { error: 'unauthorized' }` if Bearer is missing or invalid. **Currently wraps no routes** — reserved for future Employer/Admin endpoints (commented inline at the export site, Phase 1H `b91f6eb`). `change-password.ts` still does inline `extractBearer` + `verifyJwt` because its 401 payload uses `{ code: 'unauthorized' }` (the rest of the route's vocabulary) and the unified error envelope post-Phase-1D would diverge from `withAuth`'s `{ error }` literal.
 - `withOptionalAuth` swallows invalid tokens and attaches `req.user = null`. Used by `/api/chat` so the landing-page chat works for unauthenticated visitors while signed-in users get role-aware replies.
+- Both middlewares delegate header parsing to `extractBearer` from `api/_lib/bearer.ts` — Phase 1A removed the previous 3× inline duplication.
 
 ---
 
@@ -202,47 +220,36 @@ type JwtClaims = {
 
 ### OTP path (legacy / fallback)
 
-1. **`POST /api/auth/send-otp`** — Normalises phone via `toCanonicalUGPhone`, validates role enum. No SMS provider is wired in (demo scope). Returns `{ success: true }` on a well-formed body.
-2. **User enters any 6-digit code** (demo OTP — see §14a).
-3. **`POST /api/auth/verify-otp`** — Validates `phone` + `otp` (`^\d{6}$`) + `role`; normalises phone; optionally validates a `password` shape if the caller is signing up with a fresh credential. Then:
-    - If `role === 'subscriber'`, looks up `subscribers` **newest-wins** by `phone` (`ORDER BY created_at DESC LIMIT 1` — see comment in `verify-otp.ts:68–82`). If no match → falls back to `ROLE_DEFAULTS.subscriber = 's-0001'` (every demo login succeeds; CLAUDE.md §8).
-    - For other roles, looks up `demo_personas` by `(phone, role)`. If no match → hardcoded fallback: `agent → 'a-001'`, `branch → 'b-kam-015'`, `distributor → 'd-001'`.
+1. **`POST /api/auth/send-otp`** — Validates `phone` and `role` shape, then canonicalises the phone via `toCanonicalUGPhone`. No SMS provider is wired in (demo scope). Returns `{ success: true }` on a well-formed body.
+2. **User enters any 6-digit code** (demo OTP — see §15a).
+3. **`POST /api/auth/verify-otp`** — Validates `phone` + `otp` (`^\d{6}$`) + `role`; canonicalises phone; optionally validates a `password` shape if the caller is signing up with a fresh credential. Then:
+    - If `role === 'subscriber'`, calls `resolveSubscriber` (newest-wins query on `subscribers (phone)` — see `api/auth/_lib/personas.ts`). If no match → falls back to `ROLE_DEFAULTS.subscriber = 's-0001'` (every demo login succeeds; CLAUDE.md §8).
+    - For other roles, calls `resolveDemoPersona`, which looks up `demo_personas` by `(phone, role)` and falls back to `ROLE_DEFAULTS[role]` (`agent → 'a-001'`, `branch → 'b-kam-015'`, `distributor → 'd-001'`).
     - Hashes the supplied password (if any) **after** the role lookup so a malformed phone/role short-circuits before the ~80ms bcrypt cost.
-    - Upserts `users(phone, role, last_login_at, password_hash?)` with deterministic PK `id = '<role>:<phone>'`, on-conflict target `(phone, role)`. Failure is non-fatal — login still succeeds.
-    - Builds the JWT claims, fills the role-specific `*Id` field, signs with `signJwt`.
+    - Upserts `users(phone, role, last_login_at, password_hash?)` with deterministic PK `id = '<role>:<phone>'`, on-conflict target `(phone, role)`. A Supabase `error` on the upsert path is wrapped in a local `DbError` and surfaced as `500 { code: 'db_error', message: '<supabase code or msg>' }` (Phase 1F `dbe12e2`). PGRST116 ("no row") is treated as non-fatal — the upsert reports `hasPassword: Boolean(passwordHash)` and login still succeeds.
+    - Builds the JWT claims via `buildJwtClaims` and the response body via `buildAuthResponseDto` (both from `api/auth/_lib/claims.ts`), signs the token with `signJwt`.
 4. **Response:** `{ token, user }` where `user = { role, phone, hasPassword, name?, subscriberId|agentId|branchId|distributorId }`. `AuthContext.login` writes the token to `localStorage.upensions_token` and the user payload to `localStorage.upensions_auth`.
 
 ### Password path (`/api/auth/verify-password`)
 
 Companion to `verify-otp` shipped with `0026_users_password_hash.sql`. Same response DTO — `AuthContext.login` consumes either.
 
-1. Looks up `users` by `(phone, role)` (UNIQUE) to fetch `password_hash`. DB lookup error → `401 { code: 'password_not_set' }` (audit B5 swallow).
-2. NULL or missing hash → `401 { code: 'password_not_set' }` (UI maps this to "use OTP instead").
-3. `bcrypt.compare` against `password_hash`. Mismatch → `401 { code: 'invalid_password' }`.
-4. Resolves role-scoped entity ID using the same `resolveSubscriber` / `resolveDemoPersona` helpers as `verify-otp` (see duplication note below).
-5. Best-effort `last_login_at` UPDATE (non-fatal on failure).
-6. Mints the JWT exactly like `verify-otp` (same claims, same DTO).
+1. Looks up `users` by `(phone, role)` (UNIQUE) to fetch `password_hash`. Real DB lookup error → `500 { code: 'db_error', message: '<supabase code or msg>' }` (Phase 1F `dbe12e2`) — distinct from the `password_not_set` auth-failure UX path.
+2. NULL hash or no row → `401 { code: 'password_not_set' }` (UI maps this to "use OTP instead").
+3. Defense-in-depth role re-check against the row's stored role → `401 { code: 'role_mismatch' }` if the stored role disagrees with the requested role (the SELECT already filters by role, so this is a belt-and-braces guard against future refactors / mid-flight role rewrites).
+4. `bcrypt.compare` against `password_hash`. Mismatch → `401 { code: 'invalid_password' }`.
+5. Resolves the role-scoped entity ID using the same shared `resolveSubscriber` / `resolveDemoPersona` helpers as `verify-otp` (Phase 1C `c3b54a3`).
+6. Best-effort `last_login_at` UPDATE (non-fatal on failure).
+7. Mints the JWT and response body via the same `buildJwtClaims` / `buildAuthResponseDto` helpers as `verify-otp` — payloads are byte-identical (`hasPassword` is always `true` on this path).
 
 ### `change-password` flow
 
-Authenticated. Body: `{ currentPassword?, newPassword }`. Reads JWT inline (`extractBearer` + `verifyJwt`). Two flows:
+Authenticated. Body: `{ currentPassword?, newPassword }`. Reads JWT inline via `extractBearer` (from `api/_lib/bearer.ts`, Phase 1A `aab34e9`) + `verifyJwt`. Two flows:
 
 - **Initial set** — row has `password_hash IS NULL`. Skip the currentPassword check; just stamp the new hash.
 - **Change** — row already has a hash. Require + bcrypt-verify `currentPassword` before update.
 
-Error vocabulary: `unauthorized`, `current_password_required`, `current_password_invalid`, `password_required`/`too_short`/`too_long`/`too_weak`, `user_not_found`, `unexpected_error`.
-
-### Auth helper duplication (audit B8, B9)
-
-`verify-otp.ts` and `verify-password.ts` carry **verbatim duplicates** of:
-
-- `ROLE_DEFAULTS` (4 hardcoded fallback IDs — `s-0001`, `a-001`, `b-kam-015`, `d-001`). Mirrors the seed personas; sync is manual (audit D18).
-- `resolveSubscriber(phone)` — newest-wins query on `subscribers`.
-- `resolveDemoPersona(phone, role)` — `(phone, role)` lookup with `ROLE_DEFAULTS` fallback.
-- The JWT-claims assembly block (~10 lines, conditional `*Id`).
-- The Response-DTO assembly block (~10 lines, conditional `*Id`).
-
-Roughly 50 lines duplicated across both files. No `api/auth/_lib/personas.ts` extraction has been done.
+Error vocabulary: `unauthorized`, `current_password_required`, `current_password_invalid`, `password_required` / `password_too_short` / `password_too_long` / `password_too_weak`, `user_not_found`, `db_error` (Phase 1F — for lookup or update failures, attaches Supabase `error.code` in `message`), `unexpected_error`.
 
 ### Subsequent requests
 
@@ -251,6 +258,27 @@ Frontend uses the JWT in `Authorization: Bearer <token>` and `apikey: <anon_key>
 ### Expiry
 
 24h fixed TTL, no refresh. On 401 from any service call, `services/api.js` dispatches an `onAuthExpired` event; `AuthContext` consumes it to logout + redirect (FRONTEND.md §5).
+
+### Unified error envelope across all 14 routes
+
+Every route returns `{ code: '<snake>', message?: '<ops-detail>' }` for non-200 responses (Phase 1D `43f67e5`). The vocabulary partitions cleanly into two classes:
+
+**Auth-failure codes (stable client UX).** Surface domain-level outcomes that the frontend branches on:
+
+- `invalid_otp` — bad OTP shape or unknown phone (verify-otp).
+- `invalid_password` — bcrypt compare failed (verify-password).
+- `password_not_set` — no `users` row OR `password_hash IS NULL` (verify-password). UI maps to "use OTP instead".
+- `wrong_old_password` / `current_password_invalid` — supplied `currentPassword` failed verify (change-password).
+- `current_password_required` — row has hash but body omitted `currentPassword` (change-password).
+- `role_mismatch` — defense-in-depth (verify-password).
+- `unauthorized` — missing / invalid / expired JWT (change-password).
+- `user_not_found` — JWT claims point at a `(phone, role)` pair with no row (change-password).
+
+**`db_error` (real DB failures, distinct from auth fails).** `500 { code: 'db_error', message: '<supabase error.code or message>' }` (Phase 1F `dbe12e2`). Ops can grep `db_error` in logs to triage actual Supabase failures without it being masked by the demo's `invalid_otp` / `password_not_set` UX codes.
+
+**405 envelope.** Every route returns `{ code: 'method_not_allowed' }` with an `Allow: POST` response header (Phase 1D `43f67e5`).
+
+**`Cache-Control: no-store`** — set unconditionally on every response path of every route, including 405s (Phase 1G `1f0e2e1`).
 
 ---
 
@@ -548,7 +576,7 @@ All `LANGUAGE plpgsql SECURITY DEFINER SET search_path = public`. Each validates
 | `branch_approve_line(p_commission_id)` | branch | Approves a single line. |
 | `branch_hold_line(p_commission_id, p_hold_reason)` | branch | `in_run → held`. Reason stored. |
 | `branch_dispute_line(p_commission_id, p_dispute_reason)` | branch | `previous_status` snapshot via BEFORE UPDATE; `disputed_by='branch'`, `disputed_at=now()`. |
-| `agent_dispute_line(p_commission_id, p_dispute_reason)` | agent | Mirrors branch dispute; `disputed_by='agent'`. Shipped in 0014, role-gate fixed in 0021. **The frontend `services/commissions.js#disputeCommission(by='agent')` wires to this RPC** (prior BACKEND.md claim that this was "not built" is stale per audit X3). |
+| `agent_dispute_line(p_commission_id, p_dispute_reason)` | agent | Mirrors branch dispute; `disputed_by='agent'`. Shipped in 0014, role-gate canonicalised in 0021. The frontend `services/commissions.js#disputeCommission(by='agent')` wires to this RPC. |
 | `approve_dispute(p_commission_id, p_outcome_reason?)` | distributor | Restores `previous_status` (fallback `due`); clears dispute fields. |
 | `reject_dispute(p_commission_id, p_outcome_reason)` | distributor | Terminal `rejected`. |
 | `withdraw_dispute(p_commission_id)` | agent | Restores `previous_status`; clears dispute fields. |
@@ -729,33 +757,12 @@ Every item below is intentional for a sales-rep demo. Never frame as a productio
 
 These affect the demo experience or future sessions — track but do NOT bundle with §15a, and do NOT propose production-hardening solutions.
 
-**API duplication / structural drift** (Theme A from the audit):
+**Closed in Phase 1 of the post-audit cleanup (2026-05-26).** Audit findings B1–B9, X2, X3 — API helper duplication, error-envelope drift, KYC phone normalization, DB-error swallowing, dead phone exports, the unused `withAuth` middleware classification, the route-count discrepancy, and the stale `disputeCommission` documentation drift — are all resolved. See §3, §4, §5 (and the Phase 1 commit SHAs cited there). The remaining items below are open or by-design.
 
-- `extractBearer` defined 3× verbatim across `api/_lib/withAuth.ts`, `api/_lib/withOptionalAuth.ts`, `api/auth/change-password.ts` (audit B6). No `api/_lib/bearer.ts` extraction.
-- `mockTrackingId` defined 3× verbatim across `api/kyc/face-match.ts`, `aml-screen.ts`, `nira-verify.ts` (audit B7). No `api/kyc/_lib/` directory.
-- `ROLE_DEFAULTS` + `resolveSubscriber` + `resolveDemoPersona` + JWT-claims block + Response-DTO block duplicated verbatim between `verify-otp.ts` and `verify-password.ts` (audit B8, B9, D18). ~50 lines across both files.
-- `api/_lib/phone.ts` exports `parseUGPhoneLocal` and `isValidUGPhone` neither of which is imported anywhere — dead code (audit B10).
-- `api/_lib/withAuth.ts` middleware exported but never wraps any route (audit B11). Reserved for future Employer/Admin endpoints — intentional, document.
+**Auth-route subtleties (open / by-design):**
 
-**Error envelope inconsistency:**
-
-- `verify-otp.ts` mixes `{ error }` (line 174 OTP shape errors) and `{ code }` (line 199 password shape errors) within the same handler (audit B1).
-- 405 vocabulary drift: auth routes use `'method_not_allowed'`, KYC + chat + contact use `'Method not allowed'` (audit B2).
-- KYC routes return `200` with `{ verified: false }` / `{ result: 'no-match' }` instead of 4xx (audit B16). Clients inspect body fields.
-- `contact.ts` uses prose error messages (`'name is required.'`) where auth routes use codes (`'invalid_request'`) (audit B18).
-
-**KYC phone & DB error swallowing:**
-
-- 6 KYC routes (`otp-send`, `otp-verify`, `nira-verify`, `id-ocr`, `face-match`, `agent-referral`) accept `phone` without `toCanonicalUGPhone()` normalization (audit B3).
-- `agent-referral.ts` lines 51–67 persist the raw `body.phone.trim()` to `agent_referrals.phone` — support staff cannot cross-match the row to the canonical `+256…` form stored everywhere else (audit B4). **Most consequential of these.**
-- `verify-otp.ts` / `verify-password.ts` swallow real DB errors as generic auth codes (`invalid_otp`, `password_not_set`) — ops cannot triage real DB drift from a misconfigured table (audit B5).
-
-**Auth-route subtleties:**
-
-- `verify-password.ts:100–102` doesn't re-validate the body-supplied role against the stored `users` row — if a phone is enrolled in two roles, the wrong row could match (audit B12, needs-verify).
-- `chat.ts:225–226` body `context` overrides role for unauthenticated callers; intentional but inconsistent with the strict role discipline elsewhere (audit B14).
-- `chat.ts:239` doesn't type-check `body.message` before `.trim()` — a non-string would crash the route (audit B15).
-- `change-password.ts` has three separate `console.error` + `res.status` blocks (lookup, update, outer-try) — no response-builder helper exists (audit B17).
+- `chat.ts` body `context` overrides role for unauthenticated callers; intentional but inconsistent with the strict role discipline elsewhere (audit B14). Documented at the call-site.
+- `chat.ts` type-checks `body.message` before `.trim()` (Phase 1G `1f0e2e1` — non-string bodies short-circuit to `invalid_message` instead of crashing).
 
 **Database invariants:**
 
@@ -780,7 +787,19 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 - `agent_referrals` row PK `ar-<epoch>-<rand>` and public `UAG-XXXX` ticket ID (~1.7M space) — collision-tolerant but not cryptographic.
 - No retry / idempotency keys on `/api/contact` or `/api/kyc/agent-referral`. A resubmit creates a second row.
 
-**Stale claim removed (audit X3).** Earlier versions of §15b stated agent-side `disputeCommission` is "not built" / "purely a frontend fix". That is now obsolete: the `agent_dispute_line` RPC shipped in `0014_signup_phone_and_agent_dispute.sql` and was canonicalised in `0021_commission_rpcs_app_role.sql`; the frontend service in `src/services/commissions.js#disputeCommission(by='agent')` calls it successfully.
+**Agent-side dispute flow exists.** The `agent_dispute_line` RPC ships in `0014_signup_phone_and_agent_dispute.sql` and was canonicalised in `0021_commission_rpcs_app_role.sql`; the frontend service `src/services/commissions.js#disputeCommission(by='agent')` calls it successfully (audit X3). Prior documentation drift around this is resolved.
+
+### §15c. Test coverage
+
+12 backend `.test.ts` files now cover every route under `api/auth/` and `api/kyc/` (Phase 2B `93c51f2` shipped the 4 auth route tests; Phase 2C `91f413e` shipped the 8 KYC route tests). Combined the two phases added ~138 backend tests on top of the pre-Phase-2 vitest baseline:
+
+| Layer | Files | Notes |
+|---|---|---|
+| `api/auth/*.test.ts` | 4 (`send-otp`, `verify-otp`, `verify-password`, `change-password`) | Phase 2B `93c51f2`. ~81 tests. Cover OTP-shape errors, password-shape errors, role enum, phone canonicalisation, password set vs change flows, JWT round-trip, DB-error → `db_error` envelope (Phase 1F). |
+| `api/kyc/*.test.ts` | 8 (one per route) | Phase 2C `91f413e`. ~57 tests. Cover phone canonicalisation on the 3 phone-accepting routes, every `x-qa-force` branch, `Cache-Control: no-store` + `Allow: POST` headers, the demo-scope 200-with-refusal contract on the 3 verifier routes. |
+| `api/auth/_lib/password.test.ts` | 1 | Pre-existing. Shape validation + bcrypt hash/verify round-trip. |
+
+`npm test` runs all vitest files (`api/**/*.test.ts` + `src/tests/**/*.test.{js,ts}`). For backend-only iteration: `npm test -- api/auth api/kyc`.
 
 ---
 
