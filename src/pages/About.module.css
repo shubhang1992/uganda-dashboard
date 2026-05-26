@@ -130,7 +130,7 @@
   width: 44px;
   height: 44px;
   border-radius: var(--radius-md);
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   border: 1px solid var(--color-lavender);
   display: flex;
   align-items: center;

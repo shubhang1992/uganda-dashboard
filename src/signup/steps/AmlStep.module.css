@@ -26,7 +26,7 @@
   border-radius: 50%;
   background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-soft) 100%);
   color: var(--color-white);
-  box-shadow: 0 12px 32px rgba(41, 40, 103, 0.28);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--color-indigo) 28%, transparent);
 }
 
 .resultIcon {

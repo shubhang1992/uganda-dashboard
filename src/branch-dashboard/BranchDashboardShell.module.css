@@ -119,7 +119,7 @@
   }
 
   .hamburger:active {
-    background: rgba(41, 40, 103, 0.06);
+    background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   }
 
   .hamburger:focus-visible {

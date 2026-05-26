@@ -283,7 +283,7 @@
   width: 64px;
   height: 64px;
   border-radius: var(--radius-full);
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   color: var(--color-indigo-soft);
   margin-bottom: var(--space-2);
 }

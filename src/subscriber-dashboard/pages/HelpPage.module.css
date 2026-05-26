@@ -53,7 +53,7 @@
 
 .searchInput:focus {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 /* ── Section ──────────────────────────────────────────── */
@@ -117,11 +117,11 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   color: var(--color-indigo);
 }
 
-.contactIcon[data-tone='indigo'] { background: rgba(41, 40, 103, 0.08); color: var(--color-indigo); }
+.contactIcon[data-tone='indigo'] { background: color-mix(in srgb, var(--color-indigo) 8%, transparent); color: var(--color-indigo); }
 .contactIcon[data-tone='green']  { background: rgba(46, 139, 87, 0.1); color: var(--color-status-good); }
 .contactIcon[data-tone='teal']   { background: rgba(47, 143, 157, 0.1); color: var(--color-teal); }
 .contactIcon[data-tone='amber']  { background: rgba(230, 168, 23, 0.1); color: var(--color-status-warning); }
@@ -236,7 +236,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
   border: 1px solid var(--color-lavender);
   color: var(--color-indigo);
   font-family: var(--font-display);
@@ -254,7 +254,7 @@
 }
 
 .agentLink:hover {
-  background: rgba(41, 40, 103, 0.08);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 /* ── Chat ─────────────────────────────────────────────── */
@@ -292,7 +292,7 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: rgba(41, 40, 103, 0.08);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
   color: var(--color-indigo);
   display: flex;
   align-items: center;
@@ -371,7 +371,7 @@
 
 .inputField:focus {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .sendBtn {

@@ -29,7 +29,7 @@
     background: var(--color-indigo);
     padding: 0.875rem 1.5rem;
     border-radius: var(--radius-full);
-    box-shadow: 0 4px 16px rgba(41, 40, 103, 0.2);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--color-indigo) 20%, transparent);
     transition: filter 0.15s ease;
   }
 
@@ -38,7 +38,7 @@
   }
 
   .cta:focus-visible {
-    outline: 2px solid #292867;
+    outline: 2px solid var(--color-indigo);
     outline-offset: 2px;
   }
 

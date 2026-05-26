@@ -13,7 +13,7 @@
 .header {
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(41, 40, 103, 0.06);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 6%, transparent);
   position: sticky;
   top: 0;
   z-index: 20;
@@ -124,12 +124,12 @@
   height: 36px;
   border-radius: var(--radius-full);
   color: var(--color-gray);
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
   transition: background 0.2s ease, color 0.2s ease;
 }
 
 .exit:hover {
-  background: rgba(41, 40, 103, 0.1);
+  background: color-mix(in srgb, var(--color-indigo) 10%, transparent);
   color: var(--color-indigo);
 }
 
@@ -171,7 +171,7 @@
 
 .back:hover {
   color: var(--color-indigo);
-  background: rgba(41, 40, 103, 0.05);
+  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
 }
 
 /* ── Footer ──────────────────────────────────────────────────────────── */
@@ -181,7 +181,7 @@
   font-size: var(--text-xs);
   color: var(--color-gray);
   text-align: center;
-  border-top: 1px solid rgba(41, 40, 103, 0.05);
+  border-top: 1px solid color-mix(in srgb, var(--color-indigo) 5%, transparent);
 }
 
 /* ── Mobile ──────────────────────────────────────────────────────────── */

@@ -24,7 +24,7 @@
   border: 1px solid rgba(255, 255, 255, 0.6);
   border-top-color: rgba(255, 255, 255, 0.75);
   box-shadow:
-    0 1px 4px rgba(41, 40, 103, 0.04),
+    0 1px 4px color-mix(in srgb, var(--color-indigo) 4%, transparent),
     0 1px 0 rgba(255, 255, 255, 0.5) inset;
   /* Subtle fade-in stagger — each row appears ~60ms after the previous,
      so the list assembles top-to-bottom rather than flashing in. */

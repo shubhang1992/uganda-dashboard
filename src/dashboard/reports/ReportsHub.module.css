@@ -232,7 +232,7 @@
 .perfCard:hover,
 .insightCard:hover {
   border-color: rgba(94, 99, 168, 0.3);
-  box-shadow: 0 6px 24px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .featuredCard:hover .cardArrow,

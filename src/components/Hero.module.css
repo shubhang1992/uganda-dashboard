@@ -42,8 +42,8 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(41,40,103,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(41,40,103,0.03) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--color-indigo) 3%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-indigo) 3%, transparent) 1px, transparent 1px);
   background-size: 60px 60px;
 }
 
@@ -97,8 +97,8 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-indigo-soft);
-  background: rgba(41,40,103,0.06);
-  border: 1px solid rgba(41,40,103,0.1);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-indigo) 10%, transparent);
   padding: 0.4rem 0.875rem;
   border-radius: var(--radius-full);
   margin-bottom: 1.75rem;
@@ -164,12 +164,12 @@
   padding: 0.875rem 2rem;
   border-radius: var(--radius-full);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 4px 16px rgba(41,40,103,0.2);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--color-indigo) 20%, transparent);
 }
 
 .primaryCta:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(41,40,103,0.25);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--color-indigo) 25%, transparent);
 }
 
 .secondaryCta {
@@ -341,7 +341,7 @@
     grid-template-columns: repeat(3, 1fr);
     gap: 0;
     width: 100%;
-    background: rgba(41,40,103,0.04);
+    background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
     border-radius: var(--radius-md);
     padding: 0.625rem 0;
     margin-bottom: 0.25rem;

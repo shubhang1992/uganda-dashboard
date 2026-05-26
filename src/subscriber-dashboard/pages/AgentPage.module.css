@@ -369,7 +369,7 @@
 
 .inputField:focus {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .sendBtn {

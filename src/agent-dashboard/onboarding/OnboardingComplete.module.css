@@ -110,7 +110,7 @@
 }
 
 .statusPending {
-  background: rgba(41, 40, 103, 0.08);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
   color: var(--color-indigo-soft);
 }
 
@@ -203,7 +203,7 @@
   min-height: 48px;
   box-shadow:
     0 1px 0 rgba(255,255,255,0.18) inset,
-    0 6px 16px rgba(41,40,103,0.22);
+    0 6px 16px color-mix(in srgb, var(--color-indigo) 22%, transparent);
   transition: transform 0.18s var(--ease-out-expo), box-shadow 0.18s var(--ease-out-expo);
 }
 
@@ -211,7 +211,7 @@
   transform: translateY(-1px);
   box-shadow:
     0 1px 0 rgba(255,255,255,0.2) inset,
-    0 10px 24px rgba(41,40,103,0.3);
+    0 10px 24px color-mix(in srgb, var(--color-indigo) 30%, transparent);
 }
 
 .primaryBtn:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; }
@@ -230,7 +230,7 @@
   min-height: 44px;
 }
 
-.secondaryBtn:hover { color: var(--color-indigo); background: rgba(41, 40, 103, 0.04); }
+.secondaryBtn:hover { color: var(--color-indigo); background: color-mix(in srgb, var(--color-indigo) 4%, transparent); }
 .secondaryBtn:focus-visible { outline: 2px solid var(--color-indigo); outline-offset: 2px; }
 
 /* ── Mobile ── */

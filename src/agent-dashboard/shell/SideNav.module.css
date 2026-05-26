@@ -164,7 +164,7 @@
 
 .subsMenuItemActive,
 .subsMenuItemActive:hover {
-  background: rgba(41, 40, 103, 0.08);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
   color: var(--color-indigo);
   font-weight: 700;
 }

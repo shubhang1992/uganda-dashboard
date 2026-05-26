@@ -77,11 +77,11 @@
   }
 
   .backBtn:active {
-    background: rgba(41, 40, 103, 0.06);
+    background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   }
 
   .backBtn:focus-visible {
-    outline: 2px solid #292867;
+    outline: 2px solid var(--color-indigo);
     outline-offset: 2px;
   }
 
@@ -98,11 +98,11 @@
   }
 
   .hamburger:active {
-    background: rgba(41, 40, 103, 0.06);
+    background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   }
 
   .hamburger:focus-visible {
-    outline: 2px solid #292867;
+    outline: 2px solid var(--color-indigo);
     outline-offset: 2px;
   }
 
@@ -146,7 +146,7 @@
     z-index: 100;
     padding: var(--space-8) var(--space-6);
     padding-top: max(var(--space-8), calc(env(safe-area-inset-top) + var(--space-4)));
-    box-shadow: -8px 0 40px rgba(41, 40, 103, 0.12);
+    box-shadow: -8px 0 40px color-mix(in srgb, var(--color-indigo) 12%, transparent);
     overscroll-behavior: contain;
   }
 
@@ -176,7 +176,7 @@
   }
 
   .drawerItem:focus-visible {
-    outline: 2px solid #292867;
+    outline: 2px solid var(--color-indigo);
     outline-offset: 2px;
   }
 
@@ -196,7 +196,7 @@
   }
 
   .drawerLogout:focus-visible {
-    outline: 2px solid #292867;
+    outline: 2px solid var(--color-indigo);
     outline-offset: 2px;
   }
 }

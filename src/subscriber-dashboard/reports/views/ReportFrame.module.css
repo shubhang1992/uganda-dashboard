@@ -154,7 +154,7 @@
   align-items: center;
   gap: 0.375rem;
   padding: 0.1875rem 0.5rem;
-  background: rgba(41, 40, 103, 0.05);
+  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
   border-radius: var(--radius-full);
   font-family: var(--font-body);
   font-size: 0.625rem;
@@ -179,7 +179,7 @@
 
 .typeBadge[data-type='claim'] {
   color: var(--color-indigo);
-  background: rgba(41, 40, 103, 0.08);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .amountPositive {

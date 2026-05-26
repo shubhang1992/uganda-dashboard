@@ -55,7 +55,7 @@
 }
 
 .icon[data-type='info'] {
-  background: rgba(41, 40, 103, 0.08);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
   color: var(--color-indigo);
 }
 
@@ -81,7 +81,7 @@
 
 .closeBtn:hover {
   color: var(--color-slate);
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
 }
 
 /* ── Mobile ─────────────────────────────────────────────────────────────── */

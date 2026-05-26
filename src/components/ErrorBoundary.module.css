@@ -41,7 +41,7 @@
 
 .refreshBtn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(41, 40, 103, 0.3);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--color-indigo) 30%, transparent);
 }
 
 .refreshBtn:focus-visible {
