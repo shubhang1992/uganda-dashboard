@@ -72,9 +72,31 @@ export async function getRow<T = Record<string, unknown>>(
 }
 
 /**
- * Deletes any subscriber rows matching `phone`, cleaning up child tables first
- * so FK constraints don't bite if cascades aren't in place. Use in afterEach
- * for signup flow specs that create real DB rows.
+ * Canonical list of subscriber-FK child tables in the schema. Sourced from
+ * `supabase/migrations/0001_initial_schema.sql` — every table with a
+ * `subscriber_id ... REFERENCES subscribers(id)` clause appears here.
+ *
+ * Order is deletion-safe (no inter-child FK dependencies among these), and
+ * the same list drives both `cleanupSubscriberByPhone` and
+ * `assertNoSubscriberOrphans` so the cleanup contract and the orphan probe
+ * stay in lockstep.
+ */
+export const SUBSCRIBER_CHILD_TABLES = [
+  'transactions',
+  'nominees',
+  'subscriber_balances',
+  'contribution_schedules',
+  'insurance_policies',
+  'claims',
+  'withdrawals',
+  'commissions',
+] as const;
+
+/**
+ * Deletes any subscriber rows matching `phone`, walking every subscriber-FK
+ * child table first so FK constraints don't bite and so no orphan rows are
+ * left behind even if `ON DELETE CASCADE` is dropped on a future migration.
+ * Use in afterEach for signup flow specs that create real DB rows.
  *
  * Returns the number of subscriber rows deleted.
  */
@@ -87,19 +109,122 @@ export async function cleanupSubscriberByPhone(phone: string): Promise<number> {
   if (!subs || subs.length === 0) return 0;
 
   const ids = subs.map((s) => (s as { id: string }).id);
-  // Delete child rows first to respect FK constraints. Tables confirmed via
-  // information_schema query — subscriber_insurance is NOT a separate table
-  // (insurance flag is stored on subscribers).
-  const children = [
-    'transactions',
-    'nominees',
-    'subscriber_balances',
-    'contribution_schedules',
-  ];
-  for (const table of children) {
-    await supabaseAdmin.from(table).delete().in('subscriber_id', ids);
+  // Delete child rows first to respect FK constraints AND to guarantee no
+  // orphans linger if cascades are removed on a future migration. Every
+  // subscriber-FK child table from the schema appears in
+  // SUBSCRIBER_CHILD_TABLES — keep that list authoritative.
+  for (const table of SUBSCRIBER_CHILD_TABLES) {
+    const { error: childErr } = await supabaseAdmin
+      .from(table)
+      .delete()
+      .in('subscriber_id', ids);
+    if (childErr) {
+      throw new Error(`cleanup: child delete on ${table}: ${childErr.message}`);
+    }
   }
   const { error: delErr } = await supabaseAdmin.from('subscribers').delete().in('id', ids);
   if (delErr) throw new Error(`cleanup: subscriber delete: ${delErr.message}`);
   return ids.length;
+}
+
+/**
+ * Post-suite probe: walks every subscriber-FK child table and asserts that
+ * no row references a `subscriber_id` that no longer exists in `subscribers`.
+ * Throws with a clear message naming each offending table + the orphan count
+ * if any orphans are found.
+ *
+ * Intended for use after the E2E suite (or per-spec, defensively) to catch
+ * cleanup regressions before they accumulate across runs.
+ *
+ * Each child table is queried explicitly (rather than via the
+ * SUBSCRIBER_CHILD_TABLES loop) so that grep audits + per-table error
+ * messages name the exact offending source without indirection.
+ */
+export async function assertNoSubscriberOrphans(): Promise<void> {
+  // Fetch the full set of live subscriber IDs once. The seeded demo table
+  // is ~30k rows so this is bounded and cheap relative to per-table joins.
+  const { data: subRows, error: subErr } = await supabaseAdmin
+    .from('subscribers')
+    .select('id');
+  if (subErr) {
+    throw new Error(`assertNoSubscriberOrphans: subscribers lookup: ${subErr.message}`);
+  }
+  const liveIds = new Set((subRows ?? []).map((r) => (r as { id: string }).id));
+
+  const offenders: { table: string; orphanCount: number; sampleIds: string[] }[] = [];
+
+  async function probe(table: string, rows: { subscriber_id: string }[] | null) {
+    const orphans = (rows ?? [])
+      .map((r) => r.subscriber_id)
+      .filter((id) => !liveIds.has(id));
+    if (orphans.length > 0) {
+      offenders.push({
+        table,
+        orphanCount: orphans.length,
+        sampleIds: Array.from(new Set(orphans)).slice(0, 5),
+      });
+    }
+  }
+
+  // Explicit per-table probes — each `from(...)` literal documents the
+  // child-table contract and keeps grep-based audits straightforward.
+  const transactionsRes = await supabaseAdmin.from('transactions').select('subscriber_id');
+  if (transactionsRes.error) {
+    throw new Error(`assertNoSubscriberOrphans: transactions scan: ${transactionsRes.error.message}`);
+  }
+  await probe('transactions', transactionsRes.data as { subscriber_id: string }[] | null);
+
+  const nomineesRes = await supabaseAdmin.from('nominees').select('subscriber_id');
+  if (nomineesRes.error) {
+    throw new Error(`assertNoSubscriberOrphans: nominees scan: ${nomineesRes.error.message}`);
+  }
+  await probe('nominees', nomineesRes.data as { subscriber_id: string }[] | null);
+
+  const balancesRes = await supabaseAdmin.from('subscriber_balances').select('subscriber_id');
+  if (balancesRes.error) {
+    throw new Error(`assertNoSubscriberOrphans: subscriber_balances scan: ${balancesRes.error.message}`);
+  }
+  await probe('subscriber_balances', balancesRes.data as { subscriber_id: string }[] | null);
+
+  const schedulesRes = await supabaseAdmin.from('contribution_schedules').select('subscriber_id');
+  if (schedulesRes.error) {
+    throw new Error(`assertNoSubscriberOrphans: contribution_schedules scan: ${schedulesRes.error.message}`);
+  }
+  await probe('contribution_schedules', schedulesRes.data as { subscriber_id: string }[] | null);
+
+  const insuranceRes = await supabaseAdmin.from('insurance_policies').select('subscriber_id');
+  if (insuranceRes.error) {
+    throw new Error(`assertNoSubscriberOrphans: insurance_policies scan: ${insuranceRes.error.message}`);
+  }
+  await probe('insurance_policies', insuranceRes.data as { subscriber_id: string }[] | null);
+
+  const claimsRes = await supabaseAdmin.from('claims').select('subscriber_id');
+  if (claimsRes.error) {
+    throw new Error(`assertNoSubscriberOrphans: claims scan: ${claimsRes.error.message}`);
+  }
+  await probe('claims', claimsRes.data as { subscriber_id: string }[] | null);
+
+  const withdrawalsRes = await supabaseAdmin.from('withdrawals').select('subscriber_id');
+  if (withdrawalsRes.error) {
+    throw new Error(`assertNoSubscriberOrphans: withdrawals scan: ${withdrawalsRes.error.message}`);
+  }
+  await probe('withdrawals', withdrawalsRes.data as { subscriber_id: string }[] | null);
+
+  const commissionsRes = await supabaseAdmin.from('commissions').select('subscriber_id');
+  if (commissionsRes.error) {
+    throw new Error(`assertNoSubscriberOrphans: commissions scan: ${commissionsRes.error.message}`);
+  }
+  await probe('commissions', commissionsRes.data as { subscriber_id: string }[] | null);
+
+  if (offenders.length > 0) {
+    const summary = offenders
+      .map(
+        (o) =>
+          `${o.table} (${o.orphanCount} orphan rows; sample subscriber_id=${o.sampleIds.join(', ')})`,
+      )
+      .join('; ');
+    throw new Error(
+      `assertNoSubscriberOrphans: found orphan rows in ${offenders.length} table(s): ${summary}`,
+    );
+  }
 }
