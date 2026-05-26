@@ -2,7 +2,9 @@
 
 System architecture for the Uganda Pensions demo platform: the patterns and boundaries that hold across the React app, the Vercel serverless API, and the Supabase database. This doc is **about how the pieces fit together** — not file-level detail. For file-level inventories, see [`FRONTEND.md`](./FRONTEND.md) and [`BACKEND.md`](./BACKEND.md); for the slim orientation index, see [`CLAUDE.md`](./CLAUDE.md).
 
-> **Scope note.** Uganda Pensions is a **sales-rep demo**, not a production fintech. Many decisions captured below (custom HS256 JWT with no refresh, demo-persona fallback IDs, hardcoded UGX 1,000 unit price, mocked KYC/SMS/chat, per-session mutation stores) are intentional demo affordances. This doc documents them honestly and pairs each with a hypothetical production-evolution successor (§10) — it does **not** treat them as roadmap items.
+> **Scope note.** Uganda Pensions is a **sales-rep demo**, not a production fintech. Many decisions captured below (custom HS256 JWT with no refresh, demo-persona fallback IDs, hardcoded UGX 1,000 unit price, mocked KYC/SMS/chat, per-session mutation stores) are intentional demo affordances. The demo silences and fallbacks called out in §4 are explicitly **by design** — proposing real SMS/payment/KYC/audit/compliance integrations is out of scope per [`CLAUDE.md §10a`](./CLAUDE.md).
+
+> **Post-cleanup state.** This document reflects the platform as of branch `cleanup/post-audit-2026-05-26` (May 2026). The cleanup sprint closed F1, F22, D10, D11 alongside Phases 1, 2, 4, and 7 structural changes — captured throughout below as inline references to the commit SHAs that landed each change.
 
 ---
 
@@ -14,23 +16,25 @@ The platform is a thin, three-tier stack with a deliberately narrow contract bet
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              Browser tab                                    │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │  React 19 SPA (Vite 6, CSS Modules)                                   │  │
+│  │  React 19 SPA (Vite 6.3.5, CSS Modules, alias `@` → `./src`)          │  │
 │  │  ─────────────────────────────────────────────────────────────────    │  │
-│  │  4 role-scoped dashboard shells:                                      │  │
-│  │     src/dashboard/             distributor                            │  │
-│  │     src/branch-dashboard/      branch                                 │  │
-│  │     src/agent-dashboard/       agent      (routed pages)              │  │
-│  │     src/subscriber-dashboard/  subscriber (routed pages)              │  │
-│  │  Shared shell: src/components/ + src/contexts/ + design tokens        │  │
-│  │  Signup flow:  src/signup/  (KYC steps + contribution sub-flow)       │  │
+│  │  4 role-scoped dashboard shells (subscriber, agent, branch,           │  │
+│  │  distributor) under `src/{subscriber,agent,branch}-dashboard/` +      │  │
+│  │  `src/dashboard/` for the distributor. Shared shell:                  │  │
+│  │  `src/components/` + `src/contexts/` + design tokens (`src/index.css`)│  │
+│  │  Signup flow: `src/signup/`  (KYC steps + contribution sub-flow)      │  │
 │  │                                                                       │  │
-│  │  Data layer:                                                          │  │
-│  │     components → hooks (src/hooks/, TanStack Query)                   │  │
+│  │  Data layer (top → bottom):                                           │  │
+│  │     components → hooks (`src/hooks/`, TanStack Query 5)               │  │
 │  │                   ↓                                                   │  │
-│  │                 services (src/services/, 11 files)                    │  │
+│  │                 services (`src/services/`, 11 files)                  │  │
 │  │                   ↓                                                   │  │
-│  │     ┌─── api.js (fetch wrapper, JWT injection, 401 → onAuthExpired)   │  │
-│  │     └─── supabaseClient.js (PostgREST + Realtime + RPC)               │  │
+│  │     ┌─── `api.js` (fetch wrapper, JWT injection, 401 → onAuthExpired) │  │
+│  │     └─── `supabaseClient.js` (PostgREST + Realtime + RPC)             │  │
+│  │                                                                       │  │
+│  │  Cross-cutting utils: `src/utils/navigation.js` (Phase 4B `bd5ea82`), │  │
+│  │  `finance.js`, `date.js`, `currency.js`, `csv.js`, `phone.js`,        │  │
+│  │  `settlementCycle.js`, `motion.js` (EASE_OUT_EXPO), `dashboard.js`.   │  │
 │  └───────────────┬───────────────────────────────┬───────────────────────┘  │
 │       Authorization: Bearer <jwt>     Authorization: Bearer <jwt>           │
 │                   │                       + apikey: <anon_key>              │
@@ -40,14 +44,27 @@ The platform is a thin, three-tier stack with a deliberately narrow contract bet
        ┌─────────────────────────────┐  ┌──────────────────────────────────┐
        │ Vercel serverless functions │  │   Supabase PostgREST + Realtime  │
        │ api/ (TypeScript, Node 22)  │  │   (rest/v1 + realtime channels)  │
-       │ • api/auth/*       — 4      │  │                                  │
-       │ • api/kyc/*        — 8      │  │   Reads: anon client via SDK     │
-       │ • api/chat.ts               │  │   Writes: never direct — every   │
-       │ • api/contact.ts            │  │     write goes through a         │
-       │ • api/_lib/                 │  │     SECURITY DEFINER RPC         │
-       │   (jwt, supabase-admin,     │  │                                  │
-       │    withAuth, withOptionalAuth)│ └──────────────┬───────────────────┘
-       └──────────┬──────────────────┘                  │
+       │                             │  │                                  │
+       │ Routes:                     │  │   Reads: anon client via SDK     │
+       │ • api/auth/* — 4            │  │   Writes: never direct — every   │
+       │   (send-otp, verify-otp,    │  │     write goes through a         │
+       │    verify-password,         │  │     SECURITY DEFINER RPC         │
+       │    change-password)         │  │                                  │
+       │ • api/kyc/*  — 8 (mocked)   │  │                                  │
+       │ • api/chat.ts               │  │                                  │
+       │ • api/contact.ts            │  │                                  │
+       │                             │  │                                  │
+       │ Shared helpers:             │  │                                  │
+       │ • api/_lib/      (jwt,      │  │                                  │
+       │   supabase-admin, bearer,   │  │                                  │
+       │   phone, withAuth,          │  │                                  │
+       │   withOptionalAuth)         │  │                                  │
+       │ • api/auth/_lib/            │  │                                  │
+       │   (personas, claims,        │  │                                  │
+       │    password)  [Phase 1C]    │  │                                  │
+       │ • api/kyc/_lib/             │  │                                  │
+       │   (mocks — Smile ID shape)  │  │                                  │
+       └──────────┬──────────────────┘  └──────────────┬───────────────────┘
                   │ supabase-admin                       │ enforces RLS via
                   │ (service-role key —                 │ auth.jwt() claims
                   │  bypasses RLS,                       │
@@ -56,10 +73,14 @@ The platform is a thin, three-tier stack with a deliberately narrow contract bet
                   ▼                                      ▼
          ┌─────────────────────────────────────────────────────────────────┐
          │                Supabase Postgres (single project)               │
-         │  21 tables · 4 ENUMs · pg_trgm · 5 triggers                    │
+         │  21 tables · 4 ENUMs · pg_trgm · 5 triggers                     │
          │  29 functions (22 public RPCs)                                  │
-         │  65 RLS policies (zero auth.uid() calls — all read app_role)   │
+         │  65 RLS policies (zero `auth.uid()` calls — all read app_role)  │
          │  supabase_realtime publication: 3 tables ON                     │
+         │                                                                 │
+         │  28 migrations after Phase 6A (`0d0776e`):                      │
+         │    0001 → 0028 inclusive, with 0019 retained as a captured      │
+         │    remote hotfix (no longer skipped). See §13.                  │
          └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -77,34 +98,50 @@ Everything else is a refinement of those three boundaries.
 
 Inside each tier, the work splits into layers with a single responsibility each. The full read/write path for "a subscriber sees their balance" is:
 
-```
-React component
-   │  (renders <Balance amount={...} />)
-   ▼
-Custom hook in src/hooks/                      ── TanStack Query: queryKey, cache, invalidation
-   │  useCurrentSubscriber() → useQuery(['subscriber', phone], …)
-   ▼
-Service in src/services/                       ── mock/real branch via IS_SUPABASE_ENABLED
-   │  subscriber.getCurrentSubscriber(phone)
-   ▼
-   ┌────────────────────────────┬─────────────────────────────────┐
-   │                            │                                 │
-   ▼                            ▼                                 ▼
-supabaseClient.js          api.js (fetch)                   src/data/mockData.js
-(PostgREST + RPC)          (only used by auth, chat,         (only services may import;
-                            contact, KYC, change-password)    components must not)
-   │                            │                                 │
-   ▼                            ▼                                 │
-Supabase PostgREST          Vercel function in api/               │
-   │ (RLS enforced)         (api/_lib/jwt verifies bearer)        │
-   ▼                            │                                 │
-SQL: SELECT through RLS      supabaseAdmin (service-role)         │
-or SECURITY DEFINER RPC         │                                 │
-                                ▼                                 │
-                              SQL ←──────────────────────────────┘
-                                                              (mock branch
-                                                               stops here;
-                                                               never reaches DB)
+```mermaid
+flowchart TB
+  subgraph Browser["Browser (React 19 SPA)"]
+    C[Component<br/><Balance amount=.../>]
+    H["Hook in src/hooks/<br/>useCurrentSubscriber()<br/>(TanStack Query: queryKey, cache, invalidation)"]
+    S["Service in src/services/<br/>subscriber.getCurrentSubscriber(phone)<br/>mock/real branch via IS_SUPABASE_ENABLED"]
+    SC["supabaseClient.js<br/>(PostgREST + RPC)"]
+    AJ["api.js (fetch wrapper)<br/>used by auth, chat,<br/>contact, KYC, change-password"]
+    MD["src/data/mockData.js<br/>(services only)"]
+    UTIL["src/utils/navigation.js<br/>(shared util, Phase 4B bd5ea82)"]
+  end
+
+  subgraph Server["Vercel serverless"]
+    AR["api/* route<br/>verifyJwt via api/_lib/jwt"]
+    SA["supabaseAdmin<br/>(service-role)"]
+    AL1["api/auth/_lib/personas.ts<br/>ROLE_DEFAULTS + resolveDemoPersona<br/>+ resolveSubscriber (Phase 1C)"]
+    AL2["api/auth/_lib/claims.ts<br/>buildJwtClaims + buildAuthResponseDto<br/>(Phase 1C)"]
+    BR["api/_lib/bearer.ts<br/>extractBearer (Phase 1A)"]
+    KM["api/kyc/_lib/mocks.ts<br/>mockTrackingId (Phase 1B)"]
+  end
+
+  subgraph DB["Supabase Postgres"]
+    PG["PostgREST<br/>(RLS enforced via app_role claim)"]
+    RPC["SECURITY DEFINER RPC<br/>(atomic multi-table writes)"]
+    T[Tables 21 + ENUMs 4]
+  end
+
+  C --> H
+  H --> S
+  S --> AJ
+  S --> SC
+  S -.->|fallback only| MD
+  C -. uses .-> UTIL
+  AJ --> AR
+  AR --> BR
+  AR --> AL1
+  AR --> AL2
+  AR --> KM
+  AR --> SA
+  SC --> PG
+  SA --> RPC
+  PG --> RPC
+  RPC --> T
+  PG --> T
 ```
 
 **Why each layer exists:**
@@ -115,131 +152,27 @@ or SECURITY DEFINER RPC         │                                 │
 | Hook (`src/hooks/`) | Cache shape + invalidation rules; mutation orchestration | TanStack Query keys; `onSuccess` invalidations | `fetch()`, Supabase client, mock data imports |
 | Service (`src/services/`) | Backend-shape translation + rollback flag (mock branch) | Backend rows ↔ camelCase UI shapes; `IS_SUPABASE_ENABLED` branch | Component refs, hook state, React context |
 | `api.js` / `supabaseClient.js` | Transport primitives | HTTP / PostgREST / RPC calls; auth header injection; 401 propagation | Domain knowledge, optimistic updates |
+| Shared util (`src/utils/`) | Pure helpers that any role may import | `goBackOrFallback`, `formatUGX`, `formatDate`, `EASE_OUT_EXPO`, frequency normalisation | Component refs, React state, hooks |
 | Vercel function (`api/`) | Server-side enforcement (signing, RLS bypass) | Validated body → `supabaseAdmin` → response envelope | Frontend state, React imports |
+| API helper (`api/_lib`, `api/auth/_lib`, `api/kyc/_lib`) | Cross-route logic with one home | JWT mint, persona resolution, bearer parsing, KYC mocks | Per-route handler-specific state |
 | RPC (SECURITY DEFINER) | Atomic multi-table writes; business invariants | Multiple table mutations in one transaction; role check via `auth.jwt() ->> 'app_role'` | Untrusted input without `_validate_signup_payload` |
 | Table | Storage + RLS check | Row data | Direct client writes (RLS blocks everything that isn't an RPC) |
 
-The layering is **not** decorative — each boundary blocks a class of mistake. Components can't accidentally hit `fetch`. Hooks can't accidentally hit `mockData`. The API can't accidentally write through the anon path. RLS can't accidentally trust the wrong JWT claim (see §6).
+The layering is **not** decorative — each boundary blocks a class of mistake. Components can't accidentally hit `fetch`. Hooks can't accidentally hit `mockData`. The API can't accidentally write through the anon path. RLS can't accidentally trust the wrong JWT claim (see §3 + §6).
+
+**Post-cleanup additions in this layer cake:**
+
+- `src/utils/navigation.js` — Promoted from `src/subscriber-dashboard/shell/navigation.js` so the agent dashboard's `PageHeader` can consume `goBackOrFallback` without reaching across role folders (Phase 4B `bd5ea82`, F1/F22). See §6.
+- `api/_lib/bearer.ts` — Single home for `Authorization: Bearer <token>` parsing; consumed by `withAuth`, `withOptionalAuth`, and `change-password.ts` (Phase 1A `aab34e9`, B6).
+- `api/auth/_lib/personas.ts` — `ROLE_DEFAULTS`, `resolveSubscriber`, `resolveDemoPersona` (Phase 1C `c3b54a3`, B8/B9/D18).
+- `api/auth/_lib/claims.ts` — `buildJwtClaims` + `buildAuthResponseDto` (Phase 1C `c3b54a3`, D18). Guarantees byte-identical JWT and DTO shape between OTP and password flows.
+- `api/kyc/_lib/mocks.ts` — `mockTrackingId` so KYC routes share one canonical Smile-ID-shaped tracking ID generator (Phase 1B `92cada2`, B7).
 
 ---
 
-## 3. Hook ↔ service boundary
+## 3. Auth & session model — post-password-rollout
 
-This is the one frontend rule that has the most bite, and it's the rule the audit most thoroughly verified (Phase 1E in [`report.md`](../report.md) §2.1 "Frontend wins worth preserving" + Theme E §4).
-
-**The rule, three parts:**
-
-1. **Components never call services directly.** They consume hooks. The hook owns the React Query key + the invalidation rules.
-2. **Hooks never call `fetch` (or `supabase.*`) directly.** They call a service function. The service owns the shape translation + the mock/real branch.
-3. **Services never reach back into hooks or React context.** Services are pure functions of `(args, IS_SUPABASE_ENABLED, localStorage)` → `Promise<data>`.
-
-**Canonical example — subscriber balance lookup:**
-
-```js
-// 1. Component
-function BalanceCard() {
-  const { data } = useCurrentSubscriber();  // hook
-  return <div>{formatUGX(data?.balance)}</div>;
-}
-
-// 2. Hook (src/hooks/useSubscriber.js)
-export function useCurrentSubscriber() {
-  const { user } = useAuth();
-  return useQuery({
-    queryKey: ['subscriber', user?.phone],
-    queryFn: () => subscriberService.getCurrentSubscriber(user.phone),
-    enabled: !!user?.phone,
-  });
-}
-
-// 3. Service (src/services/subscriber.js)
-export async function getCurrentSubscriber(phone) {
-  if (!IS_SUPABASE_ENABLED) return _legacy_mock_getCurrentSubscriber(phone);
-  const { data, error } = await supabase
-    .from('subscribers')
-    .select('id, phone, name, … subscriber_balances(*)')
-    .eq('phone', phone)
-    .maybeSingle();
-  if (error) throw error;
-  return mapSubscriber(data);
-}
-```
-
-**Verification probes** (from [`report.md`](../report.md) §8, regression-safe):
-
-```sh
-# Components MUST NOT import from services directly
-grep -rn "from '@/services" src --include='*.jsx'         # → 0 results
-
-# Hooks/components MUST NOT call /api/* directly (must route via services/api.js)
-grep -rn "fetch('/api" src --include='*.jsx' --include='*.js' \
-  | grep -v "src/services/api.js"                          # → 0 results
-
-# Components MUST NOT import from mockData (services only)
-grep -rn "from '@/data/mockData" src --include='*.jsx'    # → 0 results
-```
-
-The audit confirms all three hold today. The hook→service→`api.js`/`supabase` chain is the canonical shape; new code follows it.
-
-**Why this boundary exists.** It's the place where the rollback flag (`IS_SUPABASE_ENABLED`) lives. If components called Supabase directly, the mock branch would have to live in dozens of components. By concentrating the mock/real fork in services, the rest of the codebase ignores it — `useCurrentSubscriber()` works identically whether the data came from Postgres or `mockData.js`.
-
-See also: [`FRONTEND.md §4`](./FRONTEND.md) (three-layer data access), [`FRONTEND.md §5`](./FRONTEND.md) (service inventory), [`FRONTEND.md §6`](./FRONTEND.md) (hooks inventory).
-
----
-
-## 4. Feature modules vs shared code
-
-The frontend folder tree has two kinds of folders:
-
-| Kind | Location | Examples | Visibility |
-|---|---|---|---|
-| **Feature module** | `src/signup/`, `src/dashboard/`, `src/branch-dashboard/`, `src/agent-dashboard/`, `src/subscriber-dashboard/`, `src/pages/` | Onboarding shell, distributor map, branch overview, agent home widgets, subscriber settings | Internal-only; not imported across modules |
-| **Shared** | `src/components/`, `src/hooks/`, `src/services/`, `src/contexts/`, `src/utils/`, `src/constants/`, `src/config/` | `Modal`, `SkeletonRow`, `useAuth`, `formatUGX`, `EASE_OUT_EXPO` | Any feature module may import |
-
-**The promotion rule.** A piece of UI starts inside its first feature module. When a second module needs it, you choose: (a) **promote** it to `src/components/` (and align both call sites on the shared version), or (b) **fully duplicate** it (and accept future drift). What you don't do is import across feature modules.
-
-**The audit's one cross-role import incident (F1, F22).** `src/agent-dashboard/shell/PageHeader.jsx` imports `goBackOrFallback` from `../../subscriber-dashboard/shell/navigation` — the only cross-role import in the repo. The PageHeader files are also a near-mirror copy (~1-line diff) between the two role dashboards. The clean fix is to promote `goBackOrFallback` to `src/utils/navigation.js` and either share `PageHeader` from `src/components/PageHeader.jsx` or accept the duplication. Either way, the cross-role import goes. This is the **single architectural leak** the audit found — and it's documented here precisely because it's the canonical "don't do this" example.
-
-**Why feature modules?** The four role dashboards have different navigation models (routed vs panel-state), different visual densities (subscriber: mobile-first widget grid; distributor: map + drill-down), and different mutation patterns. Co-locating each role's code under its own folder lets the cognitive context shrink when you're working in one. The cost: the temptation to reach across folders. Hence the promotion rule and the verification probes (see [`report.md`](../report.md) §8 "Cross-role imports").
-
-See also: [`FRONTEND.md §8`](./FRONTEND.md) (per-shell breakdown), [`FRONTEND.md §12`](./FRONTEND.md) (shared utilities & components).
-
----
-
-## 5. Role boundaries (quasi micro-frontend posture)
-
-The four role dashboards are **logically independent surfaces** that happen to ship in one Vite bundle (with React.lazy + manual vendor chunks splitting their code). They are not formally separated — there is no per-role build, no per-role deploy, no per-role route, no cross-tab origin sandbox. But the **discipline is micro-frontend-shaped**, and the audit confirms the posture is healthy (Theme E in [`report.md`](../report.md) §4).
-
-**What the four dashboards share (legitimately):**
-
-- `AuthContext` (`src/contexts/AuthContext.jsx`) — identity, token, logout
-- `ToastContext` — global notification queue
-- `SignInContext` — sign-in modal open/close
-- Common components in `src/components/` (Modal, SkeletonRow, EmptyState, signin/, reports/, contribution/, feedback/)
-- Design tokens (`src/index.css`)
-- Services + hooks (where they're truly cross-cutting — auth, chat, contact, search)
-- Utils (`finance`, `date`, `currency`, `csv`, `phone`, `settlementCycle`)
-- `EASE_OUT_EXPO` + the Framer Motion easing convention
-
-**What the four dashboards do NOT share:**
-
-- Shell components — each role has its own `*DashboardShell.jsx`
-- Layout choices — distributor uses sidebar + map + state-based panels; agent + subscriber use routed pages + bottom tab bar
-- Navigation contexts — `DashboardNavContext` + `DashboardPanelContext` only mount inside the distributor + branch dashboards
-- Scope contexts — `BranchScopeContext` only wraps the branch tree; `AgentScopeContext` only wraps the agent tree
-- Page content — `HomePage`, `AgentPage`, etc. live under each role's folder
-
-**The role-leakage rule.** Anything in a role folder (`subscriber-dashboard/`, `agent-dashboard/`, `branch-dashboard/`, `dashboard/`) is **invisible to the other three**. The historical leak example: `DashboardNavContext` used to carry a subscriber-specific `reports` field that was technically visible to branch + distributor consumers. That was a context-design slip, not a code-import slip — context-shaped leaks are subtler than import-shaped leaks.
-
-The audit also flagged `DashboardPanelContext` (F5) for carrying subscriber-specific menu state (`subscriberMenuOpen`, `viewSubscribersOpen`) to non-subscriber dashboards that don't actually use panels. It's a low-severity slip; the audit recommends scoping panel state per-role rather than collapsing it onto the shared `DashboardPanelContext`.
-
-**NOT a recommendation to extract real micro-frontends.** The current bundle, single deploy, and shared design system are **right for a demo**. The micro-frontend posture documented here is a healthy starting point if the platform ever needs per-role independent deploys — but that decision is out of scope (see §17).
-
-See also: [`FRONTEND.md §3`](./FRONTEND.md) (routing model), [`FRONTEND.md §7`](./FRONTEND.md) (context inventory), [`FRONTEND.md §8`](./FRONTEND.md) (dashboard variants).
-
----
-
-## 6. Auth & session model
+The OTP-only flow was joined by a parallel password flow in early 2026. Both flows mint **byte-identical JWT claims and response DTOs** via the shared helpers in `api/auth/_lib/`, so the frontend (`AuthContext.login`) consumes either payload interchangeably.
 
 ```
 User enters phone + (OTP or password)
@@ -252,20 +185,28 @@ POST /api/auth/{send-otp | verify-otp | verify-password | change-password}
    │
    ▼
 api/auth/* (Vercel function)
-   │  ┌─ validate body
-   │  ├─ subscriber? look up subscribers.phone (RLS-bypassed via supabaseAdmin)
-   │  ├─ other role? look up demo_personas.(phone, role); fallback ROLE_DEFAULTS
-   │  ├─ password path? compare bcrypt(password, users.password_hash)
-   │  ├─ upsert users(phone, role, last_login_at)
-   │  └─ signJwt(claims, 24h)  ← HS256 via jose, SUPABASE_JWT_SECRET
+   │  ┌─ validate body (phone shape, OTP regex, role enum, password shape)
+   │  ├─ canonicalise UG phone via api/_lib/phone.ts
+   │  ├─ subscriber? `resolveSubscriber(supabaseAdmin, phone)` → newest row or null
+   │  ├─ other role? `resolveDemoPersona(supabaseAdmin, phone, role)` →
+   │  │              demo_personas hit OR ROLE_DEFAULTS fallback
+   │  ├─ password path?
+   │  │     ├─ `verify-password.ts` → bcrypt-compare body.password vs users.password_hash
+   │  │     └─ `change-password.ts` → extractBearer + verifyJwt + bcrypt-compare currentPassword
+   │  ├─ upsert users(phone, role, last_login_at, password_hash?)
+   │  │     id = `${role}:${phone}` for deterministic idempotency
+   │  └─ shared claim/DTO assembly:
+   │       claims = buildJwtClaims({ role, phone, entityId })
+   │       token  = signJwt(claims)   ← HS256 via jose, SUPABASE_JWT_SECRET
+   │       body   = buildAuthResponseDto({ token, role, phone, entityId, hasPassword, name })
    ▼
-Response: { token, user: { role, phone, name?, *Id? } }
+Response: { token, user: { role, phone, hasPassword, name?, *Id? } }
    │
    ▼
 AuthContext.login(token, user)
    │  writes localStorage:
    │     upensions_token   = <jwt>
-   │     upensions_auth    = { role, phone, name?, *Id? }
+   │     upensions_auth    = { role, phone, hasPassword, name?, *Id? }
    ▼
 Every subsequent request:
    • api.js              → Authorization: Bearer <token>
@@ -283,33 +224,343 @@ RLS policies read: auth.jwt() ->> 'app_role'
 AuthContext.logout + navigate('/')  (no hard reload — preserves Query state)
 ```
 
-**Why custom HS256, not Supabase Auth?** Supabase Auth ships `sub = auth.users.id` plus email/password / magic-link / OAuth. The platform needs role-scoped entity IDs (`subscriberId`, `agentId`, `branchId`, `distributorId`) directly on the JWT so RLS predicates resolve in a single column read (e.g. `WHERE agent_id = auth.jwt() ->> 'agentId'`). The custom JWT mints exactly those claims, signed with the same `SUPABASE_JWT_SECRET` PostgREST uses to verify — so PostgREST, RLS, and the Realtime channel all accept it natively. The audit (B8, [`report.md`](../report.md) §2.2) flags some duplication in the JWT-mint code between `verify-otp.ts` and `verify-password.ts` but confirms the JWT shape itself is **identical** across the two routes.
+**Why custom HS256, not Supabase Auth?** Supabase Auth ships `sub = auth.users.id` plus email/password / magic-link / OAuth. The platform needs role-scoped entity IDs (`subscriberId`, `agentId`, `branchId`, `distributorId`) directly on the JWT so RLS predicates resolve in a single column read (e.g. `WHERE agent_id = auth.jwt() ->> 'agentId'`). The custom JWT mints exactly those claims, signed with the same `SUPABASE_JWT_SECRET` PostgREST uses to verify — so PostgREST, RLS, and the Realtime channel all accept it natively.
+
+**OTP vs password parity (post-Phase 1C).** Before the rollout, `verify-otp.ts` and `verify-password.ts` each held verbatim copies of `ROLE_DEFAULTS`, `resolveSubscriber`, `resolveDemoPersona`, and the JWT-claim object literal. Drift between the two would silently break `AuthContext.login` consumption. The Phase 1C refactor (`c3b54a3`, B8/B9/D18) extracted four things into `api/auth/_lib/`:
+
+| Helper | Location | What it does |
+|---|---|---|
+| `ROLE_DEFAULTS` | `personas.ts` | Stable fallback entity IDs (`s-0001`, `a-001`, `b-kam-015`, `d-001`) — "every demo login succeeds" |
+| `resolveSubscriber` | `personas.ts` | Newest matching `subscribers` row by phone (`ORDER BY created_at DESC`) |
+| `resolveDemoPersona` | `personas.ts` | `demo_personas` row OR `ROLE_DEFAULTS[role]` fallback for non-subscriber roles |
+| `buildJwtClaims` | `claims.ts` | Canonical JWT payload — sets `app_role`, role-scoped `*Id`, hardcoded `role: 'authenticated'`. **Both routes mint identical claims now.** |
+| `buildAuthResponseDto` | `claims.ts` | Canonical `{ token, user }` response wrapper — **both routes ship identical DTOs now.** |
+
+`change-password.ts` joined the cleanup too (Phase 1A `aab34e9`): it now uses `extractBearer` from `api/_lib/bearer.ts` instead of its own inline `Authorization` header parser. Same one-source rule as the rest of the auth surface.
 
 **The `auth.uid()` consequence.** Because the JWT is custom and not minted by Supabase Auth, there is no `auth.users` row — so `auth.uid()` returns `NULL` inside every Postgres expression. Every RLS policy and every RPC must read JWT claims via `auth.jwt() ->> '<key>'`. The audit (D2) confirms **zero `auth.uid()` usage across all 29 RPCs and all 65 RLS policies** — the discipline holds.
 
-**The `'role'` vs `'app_role'` trap.** This is the highest-stakes correctness check in the platform, and the audit verifies it on every single policy (D1, [`report.md`](../report.md) §2.3).
+**The `'role'` vs `'app_role'` trap.** This is the highest-stakes correctness check in the platform, verified on every single policy (D1).
 
 | Claim | Value | What reads it |
 |---|---|---|
 | `auth.jwt() ->> 'role'` | `'authenticated'` (always) | **PostgREST `SET ROLE` mechanism** — has nothing to do with the application role |
 | `auth.jwt() ->> 'app_role'` | `'subscriber' \| 'agent' \| 'branch' \| 'distributor' \| 'admin'` | The application role — what RLS and RPCs MUST gate on |
 
-If a policy reads `'role'` and compares it to `'distributor'`, it silently fails for every request (because `'authenticated' !== 'distributor'`). This exact mistake produced two historical bugs that 0020 + 0021 fixed: the entity-metrics rollup returned zeros for every drill-down (0018 → 0020 superseded), and several commission RPCs in 0004 silently failed (0021 swept them).
+If a policy reads `'role'` and compares it to `'distributor'`, it silently fails for every request (because `'authenticated' !== 'distributor'`). This exact mistake produced two historical bugs that 0020 + 0021 fixed: the entity-metrics rollup returned zeros for every drill-down (0018 → 0019 hotfix → 0020 superseded), and several commission RPCs in 0004 silently failed (0021 swept them).
 
-**The audit confirms: all 65 RLS policies and all 29 RPCs in live state read `'app_role'`, not `'role'`.** ([`CLAUDE.md §5.7`](./CLAUDE.md), [`BACKEND.md §8`](./BACKEND.md), [`report.md`](../report.md) §2.3 D1.)
+`buildJwtClaims` enforces this rule at the source — the helper hardcodes `role: 'authenticated'` and passes the application role through `app_role`. The two auth routes can't drift apart on this.
 
-**JWT TTL.** Fixed 24 hours, no refresh path. On 401, the frontend dispatches `onAuthExpired` → graceful logout. This is intentional demo scope (§10) — a sales rep's session lasts a day or a demo, and a refresh-rotation path would only complicate the code. See [`BACKEND.md §5`](./BACKEND.md) for the route-by-route auth flow.
+**JWT TTL.** Fixed 24 hours, no refresh path. On 401, the frontend dispatches `onAuthExpired` → graceful logout. This is intentional demo scope (§4) — a sales rep's session lasts a day or a demo, and a refresh-rotation path would only complicate the code.
+
+See also: [`BACKEND.md §5`](./BACKEND.md) for the route-by-route auth flow; `api/auth/_lib/{claims.ts,personas.ts}` for the canonical helper bodies.
 
 ---
 
-## 7. Data write model
+## 4. Demo-mode silence — by design (X16 awareness)
+
+Phase 7's env hardening (`27b78a3`) closed the **broken-app** class of demo silence. What remains under the demo-mode umbrella is **deliberate** — sales rep affordances that must not be papered over with production-grade infrastructure. Documenting both halves explicitly so future contributors don't conflate them.
+
+### 4.1 Closed by Phase 7 (X5–X15)
+
+| Was | After Phase 7 (`27b78a3`) |
+|---|---|
+| `src/services/supabaseClient.js` silently fell back to `http://localhost:54321` + `'public-anon-key'` when `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` were unset, shipping a broken app to prod with no signal | In any non-dev build (production, preview, `vercel dev` with `NODE_ENV=production`) the resolver **throws** with a pointer to `.env.local.example`. Dev keeps the fallback but `console.warn`s loudly. |
+| `api/_lib/jwt.ts` would only fail on the first request that needed a signature | Module-load preflight check — `throw new Error('SUPABASE_JWT_SECRET env var is not set. Required by api/_lib/jwt.ts.')` runs at import time. |
+| `api/_lib/supabase-admin.ts` lazy-resolved the URL + service key at first call | Module-load preflight checks for both `VITE_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` before the Proxy is exported. |
+| `.env.local.example` was missing keys actually read by `src/` (`VITE_API_BASE_URL`, `VITE_LEGAL_*`, `VITE_SUPPORT_*`, `VITE_MAP_TILE_URL`) | Template updated; deleted the orphaned root `.env`. The example file is now the source of truth (X10). |
+| Five dead Vite aliases (`@components`, `@contexts`, `@dashboard`, `@data`, `@utils`) cluttered `vite.config.js` | Aliases reduced to **only `@` → `./src`** (X7). |
+
+These were silent broken-app risks. They were not by-design. Phase 7 made them loud.
+
+### 4.2 Remaining by design (NOT bugs)
+
+Three demo-mode silences remain **on purpose**. Each is an intentional feature of a sales-rep tool:
+
+| Silence | Why it stays | Frontend behaviour |
+|---|---|---|
+| **OTP wildcard.** `verify-otp.ts` accepts any 6-digit code (e.g. `123456`). | Sales reps demo without phones in hand. No SMS provider, no rate limit, no lockout. | `OTP_REGEX = /^\d{6}$/` is the only gate. Every well-formed OTP passes. |
+| **`demo_personas` fallback rows.** Unknown phones for agent/branch/distributor resolve to `a-001` / `b-kam-015` / `d-001`. | Every demo login succeeds even if the persona seed drifted (`CLAUDE.md §8`). | `resolveDemoPersona` returns `ROLE_DEFAULTS[role]` when no row matches. |
+| **`_sessionMutations` + `_entityOverrides` in-memory tables.** `src/services/subscriber.js` (`_sessionMutations`) and `src/services/entities.js` (`_entityOverrides`) layer demo writes over frozen `mockData.js`, reset on browser refresh. | Drives "what-if" demos: a sales rep flips a status, sees the dashboard reflect it, then refreshes to reset. | Only used in the `VITE_USE_SUPABASE=false` mock branch. Real branch hits Supabase and persists. |
+
+**These are not future cleanup items.** They are demo affordances — proposing real SMS/rate-limit/persona-required/persistence integrations is out of scope per [`CLAUDE.md §10a`](./CLAUDE.md).
+
+See also: [`BACKEND.md §14a`](./BACKEND.md) (demo-scope inventory).
+
+---
+
+## 5. Schema known-acceptable (D10 + D11)
+
+Several schema decisions look "wrong" at first read but were accepted during the audit as deliberate demo affordances. Documenting them here so they don't trigger a follow-up cleanup PR.
+
+| Decision | What it looks like | Why it stays | Reference |
+|---|---|---|---|
+| **`commissions.subscriber_name` denorm** | A `TEXT` column on `commissions` that duplicates `subscribers.name` | Run-detail listings render commission rows without joining `subscribers`. Backend computes the name **once** on insert via `trg_transactions_contribution`; demo speed beats normalisation here. | D10 |
+| **Seeded-but-unwritten columns on `agents`, `branches`, `subscribers`, `transactions`** | Columns the seed populates that the app never reads or rewrites | Seed-stage convenience for canned demo data; no live code path mutates them. Acceptable for demo. | D11 |
+| **`users.password_hash = null` for demo personas** | Seeded `users` rows have a `NULL` hash | Stamped on first sign-in via `verify-otp.ts` (when `password` is supplied) or `verify-password.ts`. Seeding pre-stamps would force a synthetic password into the demo data and break the OTP-only login path. | Phase 6B `b83ebc4` |
+| **Partial unique index on `nominees(subscriber_id, type, nin) WHERE nin IS NOT NULL`** | Diverges from the audit's literal `(subscriber_id, type)` shape | `upsert_nominees` legitimately inserts many rows per type (one per beneficiary in the JSONB array with `share` summing to 100). A unique constraint on just `(subscriber_id, type)` would break the RPC. Partial index on `nin` blocks dup-NIN entries while allowing pre-KYC NULL-NIN rows. | Phase 6A `0d0776e`, D9 |
+| **CHECK constraints on free-text + enum status columns** | Belt-and-suspenders CHECKs even on ENUM-typed columns | Self-documenting on `\d` output. Schema reality:<br/>• `subscribers.kyc_status` ∈ {`complete`, `pending`, `incomplete`}<br/>• `withdrawals.status` ∈ {`paid`, `processing`}<br/>• `claims.status` ∈ {`submitted`, `under_review`, `approved`, `paid`, `rejected`}<br/>• `commissions.status` (ENUM, defensive CHECK)<br/>• **`settlement_runs.state`** — note the column is `state`, **NOT `status`** ∈ {`draft`, `branch_review`, `released`, `cancelled`} | Phase 6A `0d0776e`, D8 |
+
+The `settlement_runs.state` vs `.status` confusion is the most-likely future bug: copy-paste from one of the other status tables would write `state = 'released'` against a `state` column that may or may not exist. The CHECK constraint enforces the allowed set and the column name is the single source of truth — never `settlement_runs.status`.
+
+See also: [`BACKEND.md §6`](./BACKEND.md) (schema), [`BACKEND.md §10`](./BACKEND.md) (commission state machine).
+
+---
+
+## 6. Boundaries — cross-role discipline (F1, F22)
+
+The frontend folder tree has two kinds of folders:
+
+| Kind | Location | Visibility |
+|---|---|---|
+| **Feature module** | `src/signup/`, `src/dashboard/`, `src/branch-dashboard/`, `src/agent-dashboard/`, `src/subscriber-dashboard/`, `src/pages/` | Internal-only; not imported across modules |
+| **Shared** | `src/components/`, `src/hooks/`, `src/services/`, `src/contexts/`, `src/utils/`, `src/constants/`, `src/config/` | Any feature module may import |
+
+**The promotion rule.** A piece of UI starts inside its first feature module. When a second module needs it, you either (a) **promote** to a shared folder, or (b) **fully duplicate** and accept future drift. You do not import across feature modules.
+
+### 6.1 F1 / F22 — cross-role import resolved
+
+Pre-cleanup state: `src/agent-dashboard/shell/PageHeader.jsx` imported `goBackOrFallback` from `src/subscriber-dashboard/shell/navigation.js`. That was the **only** cross-role import in the repo — a real architectural leak.
+
+Post-cleanup state (Phase 4B `bd5ea82`):
+
+- `goBackOrFallback` lives in `src/utils/navigation.js` — accessible to any feature module.
+- Both `src/agent-dashboard/shell/PageHeader.jsx` and `src/subscriber-dashboard/shell/PageHeader.jsx` now import directly from `../../utils/navigation`.
+- The original `src/subscriber-dashboard/shell/navigation.js` survives as a thin **re-export** (`export { goBackOrFallback } from '../../utils/navigation';`) so the four subscriber pages (`HelpPage`, `SavePage`, `WithdrawPage`, and one other) that already imported from the local file path keep working without churn.
+
+**Verification probe** (run in CI / on every cleanup pass):
+
+```sh
+# No cross-role imports between role folders
+grep -rEn "from '.*/(agent-dashboard|subscriber-dashboard|branch-dashboard|dashboard)/[^']*'" \
+  src/{agent-dashboard,subscriber-dashboard,branch-dashboard,dashboard} \
+  --include='*.jsx' --include='*.js' \
+  | grep -v "^.*shell/navigation:.*from '../../utils/navigation'"
+# → 0 results (the local re-export shim is the only known cross-folder reference today)
+```
+
+### 6.2 PageHeader.jsx — intentional duplication (acknowledged)
+
+`src/agent-dashboard/shell/PageHeader.jsx` and `src/subscriber-dashboard/shell/PageHeader.jsx` are near-mirror copies (~1-line diff). Phase 4I (`f60bed1`, F26/F27) documented the duplication as **intentional** rather than introducing premature consolidation: the two role shells have diverging trajectories (agent ships routed pages with bottom tab nav; subscriber has a mobile-first widget grid + drawer) and a shared `PageHeader` would have to fork on `role` immediately. Consolidation is a follow-up if the duplication ever drifts; today it is a stable, deliberate copy.
+
+### 6.3 Context memoization (Phase 4A `e43de1f`)
+
+Four contexts had their `value` objects reconstructed on every parent render, forcing every consumer to re-render even when the value was logically unchanged (F2, F3, F4). Post-cleanup state:
+
+| Context | What was memoized | File |
+|---|---|---|
+| `AuthContext` | `value = useMemo({ user, role, isAuthenticated, login, updateUser, logout }, [...])` | `src/contexts/AuthContext.jsx` |
+| `ToastContext` | `value = useMemo({ toasts, addToast, removeToast }, [...])`; `addToast` + `removeToast` are `useCallback` | `src/contexts/ToastContext.jsx` |
+| `SignInContext` | `value = useMemo({ isOpen, open, close }, [...])`; `open` + `close` are `useCallback` | `src/contexts/SignInContext.jsx` |
+| `DashboardNavContext` | `value = useMemo(...)` with derived `level`/`entityId`/`section`/`reportId`/`selectedIds` each memoized | `src/contexts/DashboardNavContext.jsx` |
+
+Combined with `dbb46e4` (Phase 4D — stable refs for `goToLevel` pathname + `onAuthExpired` callbacks) the dashboard re-render budget dropped noticeably for unrelated-consumer renders.
+
+### 6.4 Subscriber-specific panel state isolated (Phase 4C `1c46f91`, F5)
+
+Pre-cleanup state: `SubscriberDashboardShell` mounted `DashboardProvider`, which exposes a wide surface (branch/agent panel toggles, distributor drill-down nav, view-reports state) that subscribers never consume.
+
+Post-cleanup state:
+
+- New `src/subscriber-dashboard/SubscriberPanelContext.jsx` exports `SubscriberPanelProvider` (wraps `DashboardPanelProvider`) and `useSubscriberPanel()` (merges generic + subscriber-specific state).
+- `SubscriberDashboardShell` swaps `DashboardProvider` for `DashboardNavProvider + SubscriberPanelProvider`. Nav stays mounted because `DashboardPanelProvider` depends on it (drill-target refs).
+- Today the wrapper adds no extra keys (subscribers only need the shared `settingsOpen`). The seam exists so future subscriber-only state — claim wizard step, nominee panel drafts, withdraw drafts — has a properly scoped home that **won't leak into the other three dashboards**.
+
+The intent is symmetric to §6.1: shared things live in shared folders; role-specific things live in role folders; the cross-role boundary is enforced at the provider layer too, not just the import layer.
+
+See also: [`FRONTEND.md §7`](./FRONTEND.md) (context inventory), [`FRONTEND.md §8`](./FRONTEND.md) (per-shell breakdown).
+
+---
+
+## 7. Testing pyramid — post-cleanup
+
+Two layers, each catching a different class of regression. The cleanup sprint moved the unit layer from "thin" to "substantial" without changing the E2E posture.
+
+| Layer | Tooling | Where | What it catches |
+|---|---|---|---|
+| **Unit** | Vitest 4.1.4 + jsdom + `src/test/supabaseMock.js` | `src/**/__tests__/`, `src/**/*.test.{js,jsx}`, `api/**/*.test.ts` | Service shape contracts, util correctness, hook caching, component primitives, API route handlers, mock-branch parity |
+| **E2E** | Playwright; service-role fixtures in `e2e/fixtures/db.ts`; auth fixtures in `e2e/.auth/` | `e2e/specs/{smoke,flows,regression,db}/` | Real-browser flows: signup → contribute → withdraw; commission state machine end-to-end; cross-laptop demo loops |
+
+### 7.1 Unit layer — 707 tests across 40 files
+
+After the Phase 2 sprint:
+
+```
+$ npm test
+ Test Files  40 passed (40)
+      Tests  707 passed (707)
+```
+
+That is ~**491 new unit tests added across the cleanup**. Coverage delta is broken out per Phase-2 commit:
+
+| Commit | Files added | What | Finding |
+|---|---|---|---|
+| `27e661b` | `src/services/__tests__/auth.test.js` | Every `src/services/auth.js` export including password rollout | T2 |
+| `93c51f2` | `api/auth/*.test.ts` (4) + `api/auth/_lib/password.test.ts` | `send-otp`, `verify-otp`, `verify-password`, `change-password`, password helpers | T3 |
+| `91f413e` | `api/kyc/*.test.ts` (8) | All 8 KYC routes including phone canonicalization | T4 |
+| `9bf8914` | `src/services/__tests__/*.test.js` (7) | Service-layer parity (real + mock branch) | T5, X11 |
+| `ec72ffc` | `src/hooks/__tests__/*.test.js` (4) | `useAgent`, `useCommission`, `useEntity`, `useSubscriber` with optimistic-rollback paths | T6 |
+| `021570d` | `src/utils/__tests__/{csvDownload,settlementCycle}.test.js` | Branching utilities | T7 |
+
+Phase 2G (`3002c14`, T19/X9) added the Vitest **embedded coverage config**:
+
+```js
+// vite.config.js
+test: {
+  // ...
+  coverage: {
+    provider: 'v8',
+    reporter: ['text', 'html'],
+    include: ['src/**/*.{js,jsx,ts,tsx}', 'api/**/*.ts'],
+    exclude: ['**/*.test.*', '**/__tests__/**', 'src/test/**', 'src/data/**', 'node_modules/**', 'dist/**', 'coverage/**'],
+  },
+},
+```
+
+`npm run test:coverage` is wired in `package.json`. **It requires installing `@vitest/coverage-v8`** (not yet bundled — the dep was deferred to keep `npm install` light). When ops wants a coverage HTML report, the install step is:
+
+```sh
+npm install --save-dev @vitest/coverage-v8
+npm run test:coverage   # writes coverage/index.html
+```
+
+### 7.2 E2E layer — orphan-row probe now walks 8 child tables
+
+Pre-cleanup state (T1): `cleanupSubscriberByPhone` in `e2e/fixtures/db.ts` only cleaned `subscribers + transactions + subscriber_balances`. Long-running CI accumulated orphan rows from `claims`, `withdrawals`, `insurance_policies`, `nominees`, etc., producing eventual flake.
+
+Post-cleanup state (Phase 3A `ab2853a`): the cleanup walker now sweeps **all 8 subscriber child tables**:
+
+```
+subscribers
+  ├── subscriber_balances
+  ├── contribution_schedules
+  ├── transactions
+  ├── insurance_policies
+  ├── nominees
+  ├── claims
+  ├── withdrawals
+  └── commissions  (cascade via agent_id chain)
+```
+
+The companion `orphan-probe` helper (also `ab2853a`) verifies post-test that no orphan rows survived. Specs that exercise signup/withdraw/claim flows can opt in for additional safety.
+
+### 7.3 Suite status — fail/skip accounting
+
+The architecture rule for an opaque test suite: **no `test.fail()` count > 0** (that masks real bugs as expected-fail). Skip count must be **documented** per test.
+
+| Category | Count | Notes |
+|---|---|---|
+| `test.fail()` | **0** | T11 (`distributor-create-branch.spec.ts`) was un-failed in Phase 3B `3684dc9` after `useCreateBranch` was wired into the Distributor panel. |
+| Conditional `test.skip()` (seed-window guards, mobile-only/desktop-only, missing env, destructive) | Several, all documented inline | Includes destructive `empty-states` skip (requires `ALLOW_DESTRUCTIVE_E2E=true`), mobile/desktop projection skips, seed-window data skips. |
+| Unconditional `test.skip()` (FEATURE-GATED, **not** seed/data) | **1** | `e2e/specs/regression/modal-escape.spec.ts:84` — guards an upstream `BranchDetail` render crash on certain branches whose metrics shape diverges. Coverage of the Modal Escape primitive is preserved by two sibling tests in the same file. |
+
+The single FEATURE-GATED skip is documented in-line; an unconditional skip on a real bug should be either a `test.fail` or removed once the bug is fixed. See `e2e/specs/regression/modal-escape.spec.ts:75-88` for the rationale comment.
+
+See also: [`.claude/skills/qa.md`](./.claude/skills/qa.md) for the full E2E playbook.
+
+---
+
+## 8. Deployment env contract
+
+**Three environments**, each with the same code path and a different rollback flag posture:
+
+| Environment | Command | Origin | Backend |
+|---|---|---|---|
+| **Local frontend-only** | `npm run dev` | `localhost:5173` | Supabase project (via Vite env vars). `VITE_USE_SUPABASE=false` flips to mock fallback. |
+| **Local fullstack** | `npm run dev:api` (`vercel dev`) | `localhost:3000` | Supabase project + local `api/*` routes. The only way to exercise `/api/auth/*` + `/api/kyc/*` end-to-end locally. |
+| **Preview deploy** | Push to a branch → Vercel preview URL | `<branch>-<repo>-<org>.vercel.app` | Same Supabase project as prod (shared). Vercel env: Preview. |
+| **Production deploy** | Push to `main` | `uganda-dashboard.vercel.app` | Same Supabase project. Vercel env: Production. Auto-deploy on push. |
+
+### 8.1 `.env.local.example` is the source of truth (Phase 7 `27b78a3`)
+
+Pre-cleanup state: several env vars read by `src/` (`VITE_API_BASE_URL`, `VITE_LEGAL_*`, `VITE_SUPPORT_*`, `VITE_MAP_TILE_URL`) were missing from `.env.local.example`. New contributors onboarding from the template alone shipped a partial config. There was also an orphaned root `.env` (`VITE_API_BASE_URL=http://localhost:3000/api`) muddling the picture.
+
+Post-cleanup state:
+
+- `.env.local.example` is **the** template. Every key `src/` or `api/` reads is listed there with sensible defaults or `<placeholder>` markers.
+- The orphaned root `.env` was deleted (X10).
+- Public + frontend keys (`VITE_*`) and server-only keys (`SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`) and the local-only seed key (`SUPABASE_DB_URL`) are sectioned.
+
+### 8.2 Hard-fail on missing prod env vars
+
+Pre-cleanup state: `src/services/supabaseClient.js` silently fell back to `http://localhost:54321` / `'public-anon-key'` in any environment when env vars were missing. A misconfigured prod deploy shipped a broken app.
+
+Post-cleanup state:
+
+| Module | Behaviour when required env vars are missing |
+|---|---|
+| `src/services/supabaseClient.js` | `if (!IS_DEV) throw new Error(...)`; dev keeps the localhost fallback but `console.warn`s. |
+| `api/_lib/jwt.ts` | **Module-load throw** for `SUPABASE_JWT_SECRET`. |
+| `api/_lib/supabase-admin.ts` | **Module-load throw** for both `VITE_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. |
+
+`npm run build` succeeds; the throws only fire at function startup. A misconfigured Vercel preview/prod now fails loudly on the first cold-start invocation instead of silently shipping a 404-loop app.
+
+### 8.3 Vite aliases (X7)
+
+Pre-cleanup state: 6 aliases declared (`@`, `@components`, `@contexts`, `@dashboard`, `@data`, `@utils`); 5 of them unused.
+
+Post-cleanup state: **only `@` → `./src` remains**. Confirmed by `grep -rn "@components\|@contexts\|@dashboard\|@data\|@utils" src/` returning 0 hits.
+
+### 8.4 Env-var matrix
+
+| Variable | Frontend (public) | Server (Vercel function) | Local seed script |
+|---|---|---|---|
+| `VITE_SUPABASE_URL` | ✓ | ✓ (via `api/_lib/supabase-admin.ts`) | — |
+| `VITE_SUPABASE_ANON_KEY` | ✓ | — | — |
+| `VITE_USE_SUPABASE` | ✓ (rollback flag) | — | — |
+| `VITE_API_BASE_URL` | optional (defaults to `/api`) | — | — |
+| `VITE_LEGAL_*`, `VITE_SUPPORT_*`, `VITE_MAP_TILE_URL` | optional (with defaults in `src/config/env.js`) | — | — |
+| `SUPABASE_SERVICE_ROLE_KEY` | **NEVER** | ✓ | — |
+| `SUPABASE_JWT_SECRET` | **NEVER** | ✓ | — |
+| `SUPABASE_DB_URL` | — | — | ✓ (port 6543 pooler) |
+
+The `VITE_*` keys are inlined into the client bundle at build time — putting a service-role key behind a `VITE_` prefix would leak it to every browser session. The discipline holds today (no `VITE_*` prefix on server-only keys).
+
+**Do NOT run `vercel env pull`** — it overwrites `.env.local` and wipes the `SUPABASE_DB_URL` needed by the seed script (`CLAUDE.md §7`).
+
+---
+
+## 9. Frontend → backend contract (post-Phase 1D)
+
+Every `/api/*` call from the frontend goes through `src/services/api.js`. The wrapper:
+
+1. Reads `localStorage['upensions_token']` and injects `Authorization: Bearer <token>` if present.
+2. Sets `Content-Type: application/json` and serializes the body when present.
+3. Hits `/api${path}` (same-origin — Vercel rewrites `/api/*` to functions; everything else to `index.html`).
+4. On HTTP 401: clears `upensions_token` + `upensions_auth`, notifies all `onAuthExpired` listeners (consumed by `AuthContext` → graceful logout), and throws.
+5. On other non-OK: throws an `Error` carrying `code` (from response body's `error` or `code` field), `status`, and `body`.
+
+**Phase 1D (`43f67e5`, B1/B2/B16/B18/B19) unified the error envelope** across all 14 routes:
+
+| Route family | Pre-cleanup envelope drift | Post-cleanup canonical |
+|---|---|---|
+| Auth (`api/auth/*`) | `{ code: 'invalid_otp' }` and sometimes `{ error: 'invalid_otp' }` | `{ code: <snake_case>, message?: <string> }` |
+| KYC (`api/kyc/*`) | `{ verified: false }` returned with HTTP 200 on failure | HTTP 4xx with `{ code: <reason> }`; `Allow` header on 405 |
+| Contact / chat | `{ error: '...' }` (free prose) | `{ code: <snake_case>, message?: <string> }` |
+| 405 vocabulary | `'method_not_allowed'` (auth) vs `'Method not allowed'` (KYC, contact) | Always `{ code: 'method_not_allowed' }` + `Allow` header listing supported verbs |
+
+Phase 1G (`1f0e2e1`, B13/B15) added `Cache-Control: no-store` on every auth, contact, and referral response so a misconfigured downstream proxy can't cache a token-bearing response.
+
+Phase 1E (`d0b805d`, B3/B4) added `toCanonicalUGPhone` canonicalisation on every phone-accepting KYC route — so a route now accepts `777247884`, `0777 247 884`, and `+256777247884` identically.
+
+Phase 1F (`dbe12e2`, B5/B17) split `db_error` (true DB failure, surface to ops) from the demo's `invalid_otp`/`user_not_found` auth-failure UX codes. Look in logs for `db_error` to find infra issues; UX codes stay user-facing.
+
+Phase 1I (`e918866`, B12/B14) added a role-mismatch guard in `verify-password.ts` and documented the chat role policy.
+
+`VITE_API_BASE_URL` is read but unused (X15) — `api.js` hardcodes `/api`. The env var is harmless but documents legacy intent (the original spec expected a separate API host).
+
+See also: [`BACKEND.md §3`](./BACKEND.md) (route inventory).
+
+---
+
+## 10. Data write model
 
 **Every write goes through a SECURITY DEFINER RPC.** No direct table writes from the frontend (RLS would block most of them), and no direct table writes from the API (the RPCs enforce business invariants atomically).
 
 **Why this rule:**
 
 - **Atomicity.** Signup creates a `subscribers` row + `subscriber_balances` + `contribution_schedules` + `insurance_policies` + `nominees` + first `transactions` + first `commissions` row. If any insert fails, the whole signup must roll back. A single `create_subscriber_from_signup(payload jsonb)` RPC wraps all of that in one transaction.
-- **Business invariants.** `release_run`, `branch_dispute_line`, `agent_confirm_commission` etc. validate `auth.jwt() ->> 'app_role'`, the entity-ownership claim (`agent_id = auth.jwt() ->> 'agentId'`), AND the source state of the row before transitioning. None of that can be expressed as a plain RLS policy.
+- **Business invariants.** `release_run`, `branch_dispute_line`, `agent_confirm_commission`, `upsert_nominees` etc. validate `auth.jwt() ->> 'app_role'`, the entity-ownership claim (`agent_id = auth.jwt() ->> 'agentId'`), AND the source state of the row before transitioning. None of that can be expressed as a plain RLS policy.
 - **Defense in depth.** The frontend can't forge writes by going around the React Query mutation layer; the API can't forge writes by going around the role check; even a Supabase service-role caller has to invoke the RPC to maintain invariants (it just has to satisfy the role check, not the policy).
 
 **The atomic-write pattern** (`supabase/migrations/0002_rpc_functions.sql` + later):
@@ -326,8 +577,11 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.create_subscriber_from_signup(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_subscriber_from_signup(jsonb) TO anon, authenticated;
 ```
+
+Phase 6A (`0d0776e`, D3) extended the `REVOKE FROM PUBLIC` → `GRANT TO authenticated` pattern to `upsert_nominees`, which had been the lone holdout. The discipline is now uniform across all 22 public RPCs.
 
 **Tables with NO direct INSERT/UPDATE/DELETE policy** (writes flow ONLY through RPCs):
 
@@ -342,18 +596,18 @@ GRANT EXECUTE ON FUNCTION public.create_subscriber_from_signup(jsonb) TO anon, a
 - `transactions` (INSERT — subscriber-self, triggers handle balance updates)
 - `claims`, `withdrawals` (INSERT — subscriber-self)
 
-The pattern: state-machine tables (commission lifecycle) go through RPCs; self-owned tables (subscriber data) go through direct INSERT with RLS. See [`BACKEND.md §8`](./BACKEND.md) for the full per-role permission matrix and [`BACKEND.md §9`](./BACKEND.md) for the RPC catalog.
+See [`BACKEND.md §8`](./BACKEND.md) for the full per-role permission matrix and [`BACKEND.md §9`](./BACKEND.md) for the RPC catalog.
 
 ---
 
-## 8. State management
+## 11. State management
 
 Four state systems, each with a single responsibility:
 
 | System | When to use | Lifespan | Examples |
 |---|---|---|---|
 | **TanStack Query** | Server data — anything that lives in Postgres or behind `/api/*` | Cache (5min staleTime, 10min gcTime); refetch on invalidate | `useCurrentSubscriber`, `useEntity`, `useCommissionSummary`, every mutation |
-| **React Context** | Cross-tree shared UI state, identity, role-scope, modal opens | Provider mount lifetime | `AuthContext`, `ToastContext`, `SignInContext`, `DashboardNavContext`, `DashboardPanelContext`, `BranchScopeContext`, `AgentScopeContext`, `SignupContext` |
+| **React Context** | Cross-tree shared UI state, identity, role-scope, modal opens | Provider mount lifetime | `AuthContext`, `ToastContext`, `SignInContext`, `DashboardNavContext`, `DashboardPanelContext`, `SubscriberPanelContext`, `BranchScopeContext`, `AgentScopeContext`, `SignupContext` |
 | **`useState` / `useReducer`** | Local UI state; form values; transient toggles | Component lifetime | Form field values, expanded/collapsed flags, modal open booleans not promoted to context |
 | **`localStorage`** | Session persistence (token, user payload), signup persistence, per-session demo flags | Until browser-clear or app-clear | `upensions_token`, `upensions_auth`, `uganda-pensions-signup`, `upensions_agent_settlement_cadence`, `upensions_<stage>_force` (KYC QA force flags) |
 
@@ -361,92 +615,10 @@ Four state systems, each with a single responsibility:
 
 - **If the data lives in Postgres** → TanStack Query (with a hook in `src/hooks/` that wraps a service in `src/services/`). Never put server data in Context.
 - **If it's identity / role / token** → Context (`AuthContext`). Never put auth in `useState` at the page level.
-- **If it's a flag two siblings need to read** → lift to local state in the parent; promote to Context only when 3+ levels of prop drilling appear.
+- **If it's a subscriber-only flag** → put it in `SubscriberPanelContext` (post Phase 4C, §6.4), not the generic `DashboardPanelContext`.
 - **If it survives a refresh and isn't security-sensitive** → `localStorage` (signup state, settlement cadence). For security tokens → `localStorage` too (no refresh tokens; demo scope), but the value is treated as a bearer secret.
 
-**Known untested ground** (audit T5, T6 — [`report.md`](../report.md) §2.4): the four stateful hooks (`useEntity`, `useCommission`, `useSubscriber`, `useAgent`) and most service files have **zero unit tests**. The E2E suite covers happy-path flows but the unit layer is thin. This is a real coverage gap (not an architectural defect) — see [`report.md`](../report.md) §3 "high" T2–T6.
-
-**Cross-context handoff — the `onPanelActionRef` pattern.** The distributor + branch dashboards have a chicken-and-egg: the URL-derived nav state (in `DashboardNavContext`) needs to drive the slide-in panel state (in `DashboardPanelContext`), but they cannot directly depend on each other. `DashboardNavProvider` exposes a `ref`; `DashboardPanelProvider` writes panel setters into it on mount. Map drill-down effects then call `onPanelActionRef.current?.setViewBranchesOpen(true)` — no circular imports, no cyclic provider order. This is a deliberate pattern documented in [`FRONTEND.md §7`](./FRONTEND.md).
-
----
-
-## 9. Environment posture
-
-**Three environments**, each with the same code path and a different rollback flag posture:
-
-| Environment | Command | Origin | Backend | Notes |
-|---|---|---|---|---|
-| **Local frontend-only** | `npm run dev` | `localhost:5173` | Supabase project (via Vite env vars) | `VITE_USE_SUPABASE=false` to use mock fallback; `/api/*` proxied to remote or unavailable |
-| **Local fullstack** | `npm run dev:api` (`vercel dev`) | `localhost:3000` | Supabase project + local `api/*` routes | The only way to exercise `/api/auth/*` + `/api/kyc/*` end-to-end locally |
-| **Preview deploy** | Push to a branch → Vercel preview URL | `<branch>-<repo>-<org>.vercel.app` | Same Supabase project as prod (shared) | Vercel env: Preview |
-| **Production deploy** | Push to `main` | `uganda-dashboard.vercel.app` | Same Supabase project | Vercel env: Production. Auto-deploy |
-
-**Env-var matrix** ([`BACKEND.md §2`](./BACKEND.md)):
-
-| Variable | Frontend (public) | Server (Vercel function) | Local seed script |
-|---|---|---|---|
-| `VITE_SUPABASE_URL` | ✓ | ✓ (via `api/_lib/supabase-admin.ts`) | — |
-| `VITE_SUPABASE_ANON_KEY` | ✓ | — | — |
-| `VITE_USE_SUPABASE` | ✓ (rollback flag) | — | — |
-| `SUPABASE_SERVICE_ROLE_KEY` | **NEVER** | ✓ | — |
-| `SUPABASE_JWT_SECRET` | **NEVER** | ✓ | — |
-| `SUPABASE_DB_URL` | — | — | ✓ (port 6543 pooler) |
-
-The `VITE_*` keys are inlined into the client bundle at build time — putting a service-role key behind a `VITE_` prefix would leak it to every browser session. The discipline holds today (no `VITE_*` prefix on server-only keys).
-
-**The `VITE_USE_SUPABASE=false` rollback path.** Every service (`commissions`, `subscriber`, `entities`, `kyc`, `chat`, `agent`, `search`, `contact`) has a mock-fallback branch that reads from `src/data/mockData.js` (or returns canned strings, for `chat`). Both `entities.js` and `subscriber.js` keep an in-memory `_entityOverrides` / `_sessionMutations` Map so demo writes (status flips, contributions, schedule edits) layer on top of the frozen seed for the session. This is the "degraded-but-functional" path: a Vercel preview with no Supabase keys still runs the marketing site, the sign-in modal, and any role's dashboard from mock data.
-
-**The audit's two environment-posture findings:**
-
-- **X6 (high — silent fallback to `localhost:54321`).** `src/services/supabaseClient.js:67-74` falls back to `http://localhost:54321` and `'public-anon-key'` if the env vars are missing. A misconfigured Vercel preview/prod that forgets `VITE_SUPABASE_URL` ships a broken app with no loud error. The audit recommends a preflight assertion. This is an environment-hardening item, not a demo-scope issue.
-- **X11 (med — mock branches untested).** The `IS_SUPABASE_ENABLED=false` branches across 8 services contain ~600+ lines of legacy fallback code that **no test exercises**. Output-shape compatibility with the real branch is unverified. The branches exist for rollback safety; whether they should be retired or kept untested as cold-storage is an open question (see §17).
-
----
-
-## 10. Demo-scope architectural decisions
-
-Every demo behavior is paired with the hypothetical production-evolution successor it would become. **This is documentation, not a roadmap.** Per [`CLAUDE.md §10a`](./CLAUDE.md), these are by-design limits of a sales-rep tool — proposing real SMS/payment/KYC/compliance integrations is explicitly out of scope.
-
-| Demo decision | Why it exists | Hypothetical successor (not planned) |
-|---|---|---|
-| **OTP wildcard** — any 6-digit code passes `/api/auth/verify-otp` | Sales reps demo without phones in hand. No SMS provider, no lockout, no rate limit | Real SMS provider (Twilio/Africa's Talking); per-phone rate limit; account lockout after N fails |
-| **Mocked KYC** — all 8 `/api/kyc/*` routes return Smile ID v2-shaped fakes with realistic latency | Sales reps walk prospects through a realistic onboarding flow without burning real IDV calls | Real Smile ID integration; retry/poll for long-running verifications; NIRA federated lookup |
-| **`demo_personas` fallback** — unknown phones for agent/branch/distributor resolve to `a-001` / `b-kam-015` / `d-001` | Every demo login succeeds even if the persona seed drifted | "Enrollment required or bounce" — unknown phones rejected at `/api/auth/verify-otp` |
-| **Hardcoded UGX 1,000 unit price** in `trg_transactions_contribution` | No real fund NAV; demo balances stay readable | Fund NAV table keyed by period; unit price derived per-contribution from the period's NAV snapshot |
-| **24h JWT, no refresh** | Sales sessions don't outlast a day; refresh paths add code without demo value | 15-min access token + refresh token rotation; secure-cookie refresh flow |
-| **Mocked chat** — `/api/chat` returns keyword-matched canned strings flavored by role | Demo conversation works offline; no LLM cost; no provider integration | LLM-backed assistant (provider-agnostic); per-role system prompt; conversation history |
-| **Per-session mutation stores** — `entities._entityOverrides`, `subscriber._sessionMutations` | Mock-fallback writes layer over frozen `mockData.js`, reset on refresh — drives "what-if" demos | Persisted DB writes via the same RPCs the real path uses (already wired when `VITE_USE_SUPABASE=true`) |
-| **Hardcoded `ROLE_DEFAULTS` in `verify-otp.ts` + `verify-password.ts`** | Fallback IDs for non-subscriber roles when persona seed is missing | Persona seed is canonical; routes raise `403 no_persona` if phone has no row |
-| **No `Cache-Control: no-store`** on auth/contact/referral responses | Demo origin is single-tenant; no shared-proxy risk | Explicit `no-store` headers on every auth-tier response |
-| **Hardcoded UI copy in 30+ E2E `getByRole` assertions** | Copy stability is a demo guarantee; tests catch a copy drift fast | Test-ids on every load-bearing element; copy can drift without breaking the suite |
-
-The audit (Phase 5D, X16) notes that demo silences pile up — a sales rep mid-demo cannot always tell whether they are on real or mock data, whether their identity is real or fallback, whether their writes survived or evaporated. The plan correctly forbids adding a `DEMO_MODE` flag. See §17 for the open question.
-
----
-
-## 11. Frontend → backend contract
-
-**Every `/api/*` call from the frontend goes through `src/services/api.js`.** The wrapper:
-
-1. Reads `localStorage['upensions_token']` and injects `Authorization: Bearer <token>` if present.
-2. Sets `Content-Type: application/json` and serializes the body when present.
-3. Hits `/api${path}` (same-origin — Vercel rewrites `/api/*` to functions; everything else to `index.html`).
-4. On HTTP 401: clears `upensions_token` + `upensions_auth`, notifies all `onAuthExpired` listeners (consumed by `AuthContext` → graceful logout), and throws.
-5. On other non-OK: throws an `Error` carrying `code` (from response body's `error` or `code` field), `status`, and `body`.
-
-**`VITE_API_BASE_URL` is read but unused** (audit X15) — `api.js` hardcodes `/api` as the prefix. The env var is harmless but documents legacy intent.
-
-**Response envelope drift (audit B1, B2 — [`report.md`](../report.md) §2.2).** The current contract is **not** uniform across the 14 routes:
-
-| Drift dimension | Auth routes | KYC routes | Contact / chat routes |
-|---|---|---|---|
-| Error code field | `{ code: 'invalid_otp' }` (sometimes `{ error: 'invalid_otp' }` — `verify-otp.ts:174` vs `:199`) | `{ verified: false }` on failure with HTTP 200 | `{ error: '...' }` (prose) |
-| 405 message | `'method_not_allowed'` (snake_case) | `'Method not allowed'` (PascalCase) | `'Method not allowed'` |
-| Success shape | `{ token, user }` | `{ tracking_id, ... }` | `{ submitted: true, id }` / `{ reply, suggestions? }` |
-
-This drift is **documented honestly** — it's a real cleanup item (B1 + B2 in [`report.md`](../report.md) §3 "high"), not an intentional pattern. The cleanup roadmap pitch (C1 in [`report.md`](../report.md) §7) calls for unifying the error envelope + 405 vocabulary across all routes. The architectural ideal: a single `{ code: <snake_case>, message?: <human>, details?: <object> }` shape; KYC routes that today return HTTP 200 with `{verified:false}` should switch to 422 with `{ code: 'face_match_failed' }` (audit B16).
-
-See also: [`BACKEND.md §3`](./BACKEND.md) (route inventory), [`FRONTEND.md §5.1`](./FRONTEND.md) (`api.js` shape).
+**Cross-context handoff — the `onPanelActionRef` pattern.** The distributor + branch dashboards have a chicken-and-egg: the URL-derived nav state (in `DashboardNavContext`) needs to drive the slide-in panel state (in `DashboardPanelContext`), but they cannot directly depend on each other. `DashboardNavProvider` exposes a `ref`; `DashboardPanelProvider` writes panel setters into it on mount. Map drill-down effects then call `onPanelActionRef.current?.setViewBranchesOpen(true)` — no circular imports, no cyclic provider order. Phase 4A (`e43de1f`, F2/F3/F4) memoized both providers' `value` objects so the ref-handoff doesn't trigger unrelated-consumer re-renders.
 
 ---
 
@@ -463,99 +635,66 @@ Supabase Realtime is **selectively enabled** for exactly three tables:
 | `subscribers` | OFF | High write volume; React Query's 5-min staleTime + manual invalidation is sufficient |
 | `subscriber_balances` | OFF | Same — manual invalidation on contribution / withdrawal is fine |
 
-Set in `0003_rls_policies.sql` (the realtime publication tuning block) and verified by audit D19. The architectural rule: **realtime is opt-in per-table; default is off**. Reasons to flip a table on are concrete (commission UX demands liveness because multi-actor flow is the demo headline); reasons to keep it off are cost + consistency (React Query's invalidation paths are well-tested).
+The architectural rule: **realtime is opt-in per-table; default is off**. Phase 6A's `0028_replay_safety_guards.sql` wrapped the `ALTER PUBLICATION ... DROP TABLE` statements in `pg_publication_tables` existence checks so a forward replay doesn't abort the transaction (D12).
 
-A regression-safe SQL probe ([`report.md`](../report.md) §8):
+A regression-safe SQL probe:
 
 ```sql
 SELECT tablename
   FROM pg_publication_tables
  WHERE pubname = 'supabase_realtime'
  ORDER BY 1;
--- expected: commissions, settlement_runs, settlement_run_branch_reviews
+-- expected: commissions, settlement_run_branch_reviews, settlement_runs
 ```
-
-See also: [`BACKEND.md §8`](./BACKEND.md) "Realtime publication tuning".
 
 ---
 
 ## 13. Migration & schema-evolution discipline
 
-**Forward-only migrations** under `supabase/migrations/`. Sequential 4-digit prefix; never edit a shipped migration. The full list today runs `0001` → `0026` with one intentional gap.
+**Forward-only migrations** under `supabase/migrations/`. Sequential 4-digit prefix; never edit a shipped migration. The full list today runs `0001` → `0028`, **28 migrations after Phase 6A** (`0d0776e`).
 
 **Discipline rules:**
 
 | Rule | Enforced by |
 |---|---|
 | 4-digit zero-padded prefix | Filename convention; Supabase migration table records hashes |
-| `.down.sql` partner for every new migration (0016 onward) | Convention; `0016_distributors_table.down.sql`, `0022_audit_perf.down.sql`, etc. |
-| `IF EXISTS` / `IF NOT EXISTS` on schema-touching statements | Audit D12 flags 4 migrations (0003, 0006, 0010, 0025) that drop or create without guards — would fail on replay. Cleanup item |
-| `SET search_path = public` (or `public, pg_temp`) on every SECURITY DEFINER function | Audit D2 confirms: all 29 RPCs comply, all 5 trigger functions comply |
-| `REVOKE ALL FROM PUBLIC` then `GRANT EXECUTE TO <role>` on every RPC | Audit D3 flags one miss (`upsert_nominees` in 0024); every other RPC has the preamble |
+| `.down.sql` partner for new migrations (0016 onward) | Convention; `0016_distributors_table.down.sql`, `0022_audit_perf.down.sql`, etc. |
+| `IF EXISTS` / `IF NOT EXISTS` on schema-touching statements | Phase 6A `0028_replay_safety_guards.sql` retrofits the missing guards for 0003 / 0006 / 0010 / 0025 |
+| `SET search_path = public` on every SECURITY DEFINER function | All 29 RPCs comply, all 5 trigger functions comply (D2) |
+| `REVOKE ALL FROM PUBLIC` then `GRANT EXECUTE TO <role>` on every RPC | Phase 6A `0027_post_audit_polish.sql` closed the last gap (`upsert_nominees`, D3) |
 | Apply via Supabase MCP `apply_migration` (or `supabase db push`) | Workflow convention |
 
-**The 0018 → 0020 supersession (audit D4, D5).** `0018_entity_metrics_rollup.sql` originally read `auth.jwt() ->> 'role'` (the PostgREST `SET ROLE` mechanism, always `'authenticated'`) and silently returned zeros for every drill-down. The fix was applied as a remote-only hotfix (`fix_metrics_rollup_app_role`, timestamp `20260519165115`) — **not in the local git tree** — to unblock the demo. The proper fix landed as `0020_entity_metrics_rollup_v3.sql` (which supersedes 0018 + the hotfix in one shot). Migration `0019` is **intentionally skipped** (an abandoned raw-psql hotfix attempt).
+**The 0018 → 0019 → 0020 sequence.** `0018_entity_metrics_rollup.sql` originally read `auth.jwt() ->> 'role'` and silently returned zeros for every drill-down. The remote-only hotfix `fix_metrics_rollup_app_role` patched it; `0020_entity_metrics_rollup_v3.sql` superseded both. Pre-Phase 6A, the hotfix existed only on the remote DB (audit D5).
 
-Both 0018 and 0020 are replay-safe (running 0018 then 0020 in order produces correct state). The 0018 file is now operationally stale but tree-resident; the audit recommends either annotating it with a header comment or archiving it.
+Post-Phase 6A:
 
-**The remote-only hotfix is documented here as the architectural footnote** (D5): the live database has a function definition that exists nowhere in `supabase/migrations/`. Future contributors running `supabase db pull` to reconcile state must be aware. The 0020 migration is the canonical truth; the remote hotfix is functionally identical and superseded.
+- `0018` retains a header comment annotating it as superseded by 0020 (D4).
+- `0019_fix_metrics_rollup_app_role.sql` now captures the remote hotfix locally as defensive, idempotent ACL adjustments. Local + remote migration history converges (D5).
+- `0020` remains the canonical truth for the rollup body.
 
-See also: [`BACKEND.md §7`](./BACKEND.md) (migration history), [`BACKEND.md §15`](./BACKEND.md) "Migration discipline".
+**Phase 6A net deliverables** (`0d0776e`):
 
----
+| Migration | Closes | What |
+|---|---|---|
+| `0019_fix_metrics_rollup_app_role.sql` | D5 | Local capture of the previously remote-only hotfix |
+| `0027_post_audit_polish.sql` | D3, D8, D9 | `upsert_nominees` ACL; CHECK constraints on free-text + ENUM status columns; partial unique index on `nominees(subscriber_id, type, nin) WHERE nin IS NOT NULL` |
+| `0028_replay_safety_guards.sql` | D12 | Gated `DROP FROM PUBLICATION` for 0025; re-assertion of SECURITY DEFINER + `search_path` for 0006/0010; ENABLE/FORCE RLS re-assertion across the 20 tables from 0003 |
 
-## 14. Testing architecture
+**Phase 6B (`b83ebc4`, D13–D17)** complemented the schema work with seed-side polish: seed `users` rows with `password_hash = null`, idempotent phone dedup, `DISTRIBUTORS` export, and `MOCK_NOW` rollforward.
 
-Two test layers, each catching a different class of regression:
-
-| Layer | Tooling | Where | What it catches |
-|---|---|---|---|
-| **Unit** | Vitest 4 + jsdom + `src/test/supabaseMock.js` | `src/**/__tests__/`, `src/**/*.test.{js,jsx}` | Service shape contracts, util correctness, hook caching behavior, component primitives (`Modal`) |
-| **E2E** | Playwright; service-role fixtures in `e2e/fixtures/db.ts`; auth fixtures in `e2e/.auth/` | `e2e/specs/{smoke,flows,regression,db}/` | Real-browser flows: signup → contribute → withdraw; commission state machine end-to-end; cross-laptop demo loops |
-
-**Vitest setup** (`src/test/setup.js`, `src/test/supabaseMock.js`):
-
-- `globals: true`, `environment: 'jsdom'`, CSS modules use `classNameStrategy: 'non-scoped'` so tests can assert on class names.
-- `supabaseMock.js` is a fluent-builder mock matching the real client's API (`from().select().eq().maybeSingle()` etc.). Audit T18 confirms no drift.
-
-**Playwright setup** (`playwright.config.ts`):
-
-- Projects: `chromium`, `webkit`, `mobile-chromium` (iPhone 13).
-- Service-role fixtures mint JWTs via `SUPABASE_JWT_SECRET` and write directly to the shared `zengmiugieqjqzaccbqe` Supabase project.
-- `e2e/fixtures/db.ts` provides `cleanupSubscriberByPhone` (called in `afterEach` on signup flows).
-- CI runs `--workers=1` because the suite shares one Supabase project.
-- `forbidOnly: !!process.env.CI` guards against accidental `.only`.
-
-**Why both layers.** Unit tests catch shape regressions cheaply: change a service return shape, the hook test fails before you ship. E2E catches integration regressions: an RLS policy regression, a JWT-claim drift, a state-machine transition typo — none of which a unit test would notice. They're complements.
-
-**Known gaps** ([`report.md`](../report.md) §2.4, §3 high — T1 through T16):
-
-| Gap | Impact |
-|---|---|
-| **T1** — `cleanupSubscriberByPhone` misses `claims`, `withdrawals`, `insurance_policies` | Long-running CI accumulates orphan rows; eventual flake |
-| **T2** — `signInWithPassword`, `changePassword`, `AuthError`, extended `messageForCode` — **zero unit tests** | Any contract change in `auth.js` ripples to every login flow with no safety net |
-| **T3** — all 4 password-touching auth routes have **zero unit tests** | Same; the freshly-shipped password rollout is the **least tested** surface |
-| **T4** — all 8 KYC routes have **zero unit tests** | Acceptable while KYC is mocked, but mocks-of-mocks rot fast |
-| **T5** — 7+ services entirely untested (`api`, `subscriber`, `agent`, `chat`, `kyc`, `contact`, `search`, `supabaseClient`) | Public APIs, optimistic update rollbacks, 401 handling — all untested at unit level |
-| **T6** — 4 stateful hooks entirely untested (`useEntity`, `useCommission`, `useSubscriber`, `useAgent`) | Caching + optimistic mutations + error boundaries untested |
-| **T11** — `distributor-create-branch.spec.ts` permanently `test.fail()` (UI panel never wired up) | Real bug masked as expected-fail |
-| **T16** — Missing E2E coverage: password reset, OTP retry/lockout, KYC failure paths, settlement-run full lifecycle, agent confirm receipt | High-value flows untested at the integration layer |
-
-These gaps are real cleanup, not architectural defects. The architecture is sound; the test coverage is uneven.
-
-See also: [`FRONTEND.md §14`](./FRONTEND.md) (testing layout), [`.claude/skills/qa.md`](./.claude/skills/qa.md) (E2E suite + Playwright config).
+See also: [`BACKEND.md §7`](./BACKEND.md) (migration history).
 
 ---
 
-## 15. Build & deploy
+## 14. Build & deploy
 
 **Build:**
 
 - **Vite 6.3.5** with `@vitejs/plugin-react` (React 19 fast refresh).
-- **Manual vendor chunks** (`vite.config.js`): `vendor-leaflet`, `vendor-charts` (recharts + d3-*), `vendor-motion` (framer-motion + motion-utils + motion-dom), `vendor-tanstack`, `vendor-router`, `vendor-react` (react + scheduler + tightly-coupled runtime). React is chunked separately to prevent `forwardRef` undefined errors after hash shifts (real bug — pinned in code comment).
+- **Manual vendor chunks** (`vite.config.js`): `vendor-leaflet`, `vendor-charts` (recharts + d3-*), `vendor-motion` (framer-motion + motion-utils + motion-dom), `vendor-tanstack`, `vendor-router`, `vendor-react` (react + scheduler + tightly-coupled runtime). React is chunked separately to prevent `forwardRef` undefined errors after hash shifts.
 - `chunkSizeWarningLimit: 700` kB — headroom for recharts/leaflet routes.
 - Lazy-loaded dashboard shells under `React.lazy` so the marketing landing page doesn't carry dashboard code.
-- Path aliases: `@` → `./src` is used; `@components`, `@contexts`, `@dashboard`, `@data`, `@utils` are defined but unused (audit X7) — safe to remove.
+- Path aliases: **`@` → `./src` only** (5 aliases removed in Phase 7, §8.3).
 - CSS Modules only — no Tailwind, no component library, no preprocessor. Tokens live in `src/index.css`.
 
 **Deploy:**
@@ -566,17 +705,14 @@ See also: [`FRONTEND.md §14`](./FRONTEND.md) (testing layout), [`.claude/skills
 - **Preview deploys** on every branch push → `<branch>-<repo>-<org>.vercel.app`.
 - **CI gating** (`.github/workflows/test.yml`):
   - On every PR + push to `main`: lint + Vitest (~30s).
-  - E2E gated on lint+unit success: smoke + flows on chromium + mobile-chromium for PRs; full matrix (chromium + webkit, smoke + flows + regression + db) on push to `main`. `--workers=1` because the suite shares one Supabase project.
+  - E2E gated on lint+unit success: smoke + flows on chromium + mobile-chromium for PRs; full matrix on push to `main`. `--workers=1` because the suite shares one Supabase project.
   - Concurrency block cancels in-flight runs on the same ref.
-  - No deploy gate today — CI is informational.
 
-**No security headers in `vercel.json`** (audit X8) — no CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy. Logged as low-severity awareness only; full CSP migration is **out of scope** ([`report.md`](../report.md) §5).
-
-See also: [`FRONTEND.md §1`](./FRONTEND.md) (build & dev), [`BACKEND.md §15`](./BACKEND.md) (operational runbook).
+See also: [`BACKEND.md §15`](./BACKEND.md) (operational runbook).
 
 ---
 
-## 16. Where the docs live
+## 15. Where the docs live
 
 ```
 CLAUDE.md          ← orientation (slim index, hard rules, glossary, demo credentials)
@@ -586,7 +722,7 @@ BACKEND.md         ← specialist: env vars, routes, _lib, auth, schema, RLS, RP
 docs/
   role-permissions.md  ← role × capability matrix
   data-model.md        ← field-level entity model + aggregation rules
-  api-contracts.md     ← HTTP shapes + cache keys (audit X1: currently stale; archive or rewrite)
+  api-contracts.md     ← HTTP shapes + cache keys
   SPEC.md              ← product spec, personas, workflows
   DASHBOARD_AUDIT*.md  ← QA audit findings & fix log
   design/              ← Figma exports & design artifacts
@@ -601,58 +737,19 @@ docs/
 | "Where does service X live?" | `FRONTEND.md §5` |
 | "What's the RLS policy on table Y?" | `BACKEND.md §8` |
 | "How does the commission state machine work?" | `BACKEND.md §10` |
-| "What's the cache key for entity drill-down?" | `FRONTEND.md §6` |
 | "Which roles can see which data?" | `docs/role-permissions.md` |
-| "What HTTP shape does route Z return?" | `BACKEND.md §3` (route inventory) + `docs/api-contracts.md` (caveat: stale per audit X1) |
+| "What HTTP shape does route Z return?" | `BACKEND.md §3` + `docs/api-contracts.md` |
 
-The discipline (per [`CLAUDE.md §11`](./CLAUDE.md)): when you add a service, hook, table, RPC, migration, route, or context, update `FRONTEND.md` or `BACKEND.md` in the same commit. When you change **a pattern** (a boundary rule, a contract envelope, a write model), update **this doc** in the same commit.
-
----
-
-## 17. Open architectural questions
-
-These are real decisions the audit surfaced that are **not cleanup** — they're design questions worth flagging for future planning. Not commitments. Not roadmap items. Just the questions.
-
-### 17.1 Should role dashboards become real micro-frontends with independent deploys?
-
-**Today:** quasi micro-frontend posture (§5). Single Vite bundle, lazy-loaded shells, code colocated per-role, design tokens shared.
-
-**Audit signal:** Phase 1E confirmed the posture is healthy — one cross-role import (F1) and one cross-role context leak (F5), both small. No structural barriers to per-role extraction.
-
-**The question:** if the platform ever needs per-role independent deploys (e.g. agent dashboard ships on a faster cadence than distributor), the foundations are there. But independent deploys add CI complexity, version-skew risk (one role's deploy expects a schema migration the other role doesn't have yet), and shared-context coordination (where does `AuthContext` live?). **Answer for now: not now.** The question exists so future planning can revisit it without re-deriving the analysis.
-
-### 17.2 Should mock-branch services be retired or kept as rollback safety?
-
-**Today:** every service has an `IS_SUPABASE_ENABLED=false` branch that reads from `mockData.js`. ~600+ lines of mock fallback code. **Zero tests exercise the mock branch** (audit X11, X17).
-
-**Audit signal:** the mock branch is documented as "rollback safety" — if the real backend breaks, the demo still runs. But "rollback safety" with no tests is brittle: the mock branch may not even compile after a real-branch refactor.
-
-**The question:** keep + test (write Vitest cases that pin the mock branch's output shape), keep + accept the rot (cheaper but unstable), or retire (delete the mock branches; rely entirely on the real backend). The answer probably depends on whether sales reps actually demo offline — if not, retire. The question exists; the answer is open.
-
-### 17.3 Should the demo signal a "Demo mode" indicator to sales reps?
-
-**Today:** silent demo paths (audit X16, Theme B). A sales rep cannot tell whether they are on a fallback persona (`a-001`), whether their writes survived (`_sessionMutations`), or whether the backend is reachable (`VITE_USE_SUPABASE=false`).
-
-**Audit signal:** silences pile up. The plan correctly **forbids adding a `DEMO_MODE` flag** as a global gating mechanism — that would be production-grade infrastructure. But a small chrome-level indicator visible only when the current session is on a fallback persona OR `IS_SUPABASE_ENABLED=false` would surface the most surprising silences without becoming a feature flag.
-
-**The question:** a soft "Demo mode — persona fallback" badge in the user menu, conditional on detectable demo-fallback state. Yes? No? Out of scope? The question exists.
-
-### 17.4 Should we move toward a single error-envelope shape across all routes?
-
-**Today:** drift across the 14 routes (§11; audit B1, B2). `{ error }` vs `{ code }`; snake_case vs PascalCase 405; KYC routes return HTTP 200 with `{ verified: false }`.
-
-**Audit signal:** real cleanup, called out as B1 + B2 in [`report.md`](./report.md) §3 "high".
-
-**The question:** what is the canonical envelope? Candidates: `{ code: <snake>, message?: <human>, details?: <object> }` (most common in REST APIs) vs `{ error: { code, message } }` (JSON:API-ish). The decision is a one-day cleanup once made; the question exists because no one has made it yet. C1 in the cleanup roadmap pitch (per [`report.md`](./report.md) §7) covers it.
+The discipline (per `CLAUDE.md §11`): when you add a service, hook, table, RPC, migration, route, or context, update `FRONTEND.md` or `BACKEND.md` in the same commit. When you change **a pattern** (a boundary rule, a contract envelope, a write model, a shared util), update **this doc** in the same commit.
 
 ---
 
 ## See also
 
 - [`CLAUDE.md`](./CLAUDE.md) — slim orientation index, hard rules, anti-patterns, glossary, demo credentials, awareness items
-- [`FRONTEND.md`](./FRONTEND.md) — services, hooks, contexts, dashboard variants, signup flow, design tokens, accessibility, frontend findings
+- [`FRONTEND.md`](./FRONTEND.md) — services, hooks, contexts, dashboard variants, signup flow, design tokens, accessibility
 - [`BACKEND.md`](./BACKEND.md) — env vars, API routes, `_lib/` helpers, auth flow, schema, migrations, RLS, RPCs, commission state machine, triggers, seeding, runbook
 - [`docs/role-permissions.md`](./docs/role-permissions.md) — role × capability matrix
 - [`docs/data-model.md`](./docs/data-model.md) — field-level entity model + aggregation rules
-- [`docs/api-contracts.md`](./docs/api-contracts.md) — HTTP shapes + cache keys (caveat: per audit X1, currently stale; archive or rewrite pending)
+- [`docs/api-contracts.md`](./docs/api-contracts.md) — HTTP shapes + cache keys
 - [`docs/SPEC.md`](./docs/SPEC.md) — product spec, personas, workflows
