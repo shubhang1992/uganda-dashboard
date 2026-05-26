@@ -15,6 +15,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  // B13: every response path on this auth route must be uncacheable. Setting
+  // the header once at the top of the handler covers success + all 4xx paths.
+  res.setHeader('Cache-Control', 'no-store');
+
   // Vercel parses JSON bodies by default when the content-type is set.
   const body = (req.body ?? {}) as { phone?: unknown; role?: unknown };
   const { phone, role } = body;

@@ -42,6 +42,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  // B13: every response path on this auth route must be uncacheable. Setting
+  // the header once at the top of the handler covers success + all 4xx/5xx
+  // paths (unauthorized, current_password_*, password_*, user_not_found,
+  // db_error, unexpected_error).
+  res.setHeader('Cache-Control', 'no-store');
+
   const token = extractBearer(req);
   if (!token) {
     res.status(401).json({ code: 'unauthorized' });

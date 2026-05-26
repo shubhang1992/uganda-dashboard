@@ -244,12 +244,25 @@ function resolveFlavor(req: MaybeAuthedRequest, bodyContext: unknown): ChatConte
 async function chatHandler(req: MaybeAuthedRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
+    res.setHeader('Cache-Control', 'no-store');
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
 
+  // B13: every response path on this route must be uncacheable. Setting the
+  // header once at the top of the handler covers success + all 4xx paths.
+  res.setHeader('Cache-Control', 'no-store');
+
   const body = (req.body ?? {}) as ChatBody;
-  const message = typeof body.message === 'string' ? body.message : '';
+  // B15: explicit typeof guard before .trim() so a non-string `message`
+  // (e.g. `null`, an object, a number) fails fast with `invalid_message`
+  // instead of TypeError-ing into a 500. Matches the file's existing error
+  // pattern: `{ code: '<reason>' }` for shape errors.
+  if (typeof body.message !== 'string') {
+    res.status(400).json({ code: 'invalid_message' });
+    return;
+  }
+  const message = body.message;
   if (!message.trim()) {
     res.status(400).json({ error: 'message is required.' });
     return;

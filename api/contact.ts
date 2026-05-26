@@ -27,8 +27,13 @@ function generateId(): string {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
+    res.setHeader('Cache-Control', 'no-store');
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  // B13: every response path on this route must be uncacheable. Setting the
+  // header once at the top of the handler covers success + all 4xx/5xx paths.
+  res.setHeader('Cache-Control', 'no-store');
 
   const body = (req.body ?? {}) as ContactBody;
   const name = typeof body.name === 'string' ? body.name.trim() : '';
