@@ -22,8 +22,13 @@
 // (not just the primitive).
 
 import { test, expect } from '@playwright/test';
-import { storageStatePathFor } from '../../fixtures/auth';
+import { storageStatePathFor, PERSONA_FOR } from '../../fixtures/auth';
 import { disableAnimations } from '../../fixtures/motion';
+import {
+  seedReleasedCommissionForFixture,
+  seedDisputedCommissionForFixture,
+  type CommissionFixtureHandle,
+} from '../../fixtures/db';
 
 test.describe('Modal Escape regression', () => {
   test.describe('distributor → ViewBranches confirm-status modal', () => {
@@ -67,6 +72,15 @@ test.describe('Modal Escape regression', () => {
         statusToggle.first().waitFor({ state: 'visible', timeout: 12_000 }).then(() => 'toggle' as const).catch(() => null),
         errorBoundary.first().waitFor({ state: 'visible', timeout: 12_000 }).then(() => 'error' as const).catch(() => null),
       ]);
+      // FEATURE-GATED: BranchDetail can crash on certain branches whose
+      // `metrics` shape diverges from the component's expectations — a known
+      // upstream defect tracked separately (see Agent H follow-ups). The
+      // modal/escape contract being asserted here is shared with two other
+      // tests in this file (agent DisputeModal, distributor commission
+      // resolution) which DO seed their own state via fixtures (T12), so
+      // skipping when the panel itself crashes does not reduce coverage of
+      // the Modal.jsx Escape stop-propagation primitive. This is NOT a
+      // seed-window skip — keeping it requires a real fix to BranchDetail.
       test.skip(
         ready !== 'toggle',
         `BranchDetail did not reach the status-toggle state (race winner: ${ready ?? 'none'}). ` +
@@ -132,24 +146,34 @@ test.describe('Modal Escape regression', () => {
   test.describe('agent → DisputeModal', () => {
     test.use({ storageState: storageStatePathFor('agent') });
 
+    // T12: seed a released commission via explicit fixture so this spec is
+    // independent of the seed window. The helper short-circuits if a released
+    // row already exists for the agent; otherwise it flips a candidate row
+    // and the afterAll cleanup restores it. Replaces the prior
+    // `test.skip(!canDispute, 'no released commissions in this seed window')`.
+    let releasedHandle: CommissionFixtureHandle | null = null;
+    test.beforeAll(async () => {
+      releasedHandle = await seedReleasedCommissionForFixture(PERSONA_FOR.agent.entityId);
+    });
+    test.afterAll(async () => {
+      if (releasedHandle) await releasedHandle.cleanup();
+    });
+
     test.beforeEach(async ({ page }) => {
       await disableAnimations(page);
     });
 
     test('Escape closes the dispute modal without navigating away', async ({ page }) => {
       // The dispute modal opens from the agent's commission detail rows.
-      // /dashboard/commissions lists "Confirm receipts" / "My disputes"
-      // sections — disputable commissions live under /commissions/owed
-      // (released → confirm | dispute actions).
+      // /dashboard/commissions/earned lists 'released' + 'confirmed' lines —
+      // both render the "Dispute" CTA (CommissionsPage.jsx:155-158).
       await page.goto('/dashboard/commissions/earned');
       await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
 
-      // Look for the "Dispute" button on a commission row. If the seeded
-      // agent has none in the visible window, skip — the assertion only
-      // makes sense when the modal can be opened.
+      // The released row seeded in beforeAll guarantees at least one
+      // Dispute button — no conditional skip needed.
       const disputeBtn = page.getByRole('button', { name: /^dispute$/i }).first();
-      const canDispute = await disputeBtn.isVisible().catch(() => false);
-      test.skip(!canDispute, 'no released commissions in this seed window');
+      await expect(disputeBtn).toBeVisible({ timeout: 15_000 });
 
       await disputeBtn.click();
       const modal = page.getByRole('dialog');
@@ -169,6 +193,18 @@ test.describe('Modal Escape regression', () => {
   test.describe('distributor → Commission resolution modal', () => {
     test.use({ storageState: storageStatePathFor('distributor') });
 
+    // T12: seed a disputed commission via explicit fixture so the Approve
+    // CTA is guaranteed. Mirror of the agent block above — the helper is
+    // idempotent (short-circuits if a disputed row already exists for the
+    // default agent persona) and cleanup restores any flipped row.
+    let disputedHandle: CommissionFixtureHandle | null = null;
+    test.beforeAll(async () => {
+      disputedHandle = await seedDisputedCommissionForFixture(PERSONA_FOR.agent.entityId);
+    });
+    test.afterAll(async () => {
+      if (disputedHandle) await disputedHandle.cleanup();
+    });
+
     test.beforeEach(async ({ page }) => {
       await disableAnimations(page);
     });
@@ -180,12 +216,10 @@ test.describe('Modal Escape regression', () => {
       await expect(panel).toBeVisible();
 
       // The resolution modal opens from the Disputes section's Approve /
-      // Reject buttons. If the run/dispute UI isn't reachable in the
-      // default seed window, skip — the panel-level Escape stop is the same
-      // primitive exercised by ViewBranches above.
+      // Reject buttons. The disputed row seeded in beforeAll guarantees the
+      // Approve CTA is reachable — no conditional skip needed.
       const approveBtn = page.getByRole('button', { name: /^approve/i }).first();
-      const canApprove = await approveBtn.isVisible().catch(() => false);
-      test.skip(!canApprove, 'no disputed commissions to resolve in this seed window');
+      await expect(approveBtn).toBeVisible({ timeout: 15_000 });
 
       await approveBtn.click();
       // The resolution modal is portaled — we identify it by its inner title
