@@ -3,7 +3,12 @@
    ============================================ */
 
 :root {
-  /* Brand Colors */
+  /* Brand Colors.
+     For translucent indigo overlays (borders, soft backgrounds, ambient
+     shadows), modules use `color-mix(in srgb, var(--color-indigo) X%, transparent)`
+     rather than hard-coded `rgba(41, 40, 103, …)` — this keeps every alpha
+     anchored to the canonical indigo token (F17). Solid shadow tokens
+     `--shadow-sm/md/lg/xl` below cover the common ambient-shadow recipe. */
   --color-indigo:        #292867;
   --color-indigo-deep:   #1B1A4A;
   --color-indigo-soft:   #5E63A8;

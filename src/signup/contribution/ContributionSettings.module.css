@@ -57,8 +57,8 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(41, 40, 103, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(41, 40, 103, 0.055) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--color-indigo) 5.5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-indigo) 5.5%, transparent) 1px, transparent 1px);
   background-size: 60px 60px;
 }
 
@@ -103,7 +103,7 @@
   flex-direction: column;
   gap: 1.5rem;
   padding: 2rem 2.25rem 1.9rem;
-  background: linear-gradient(145deg, #1B1A4A 0%, #292867 60%, #2F3550 100%);
+  background: linear-gradient(145deg, #1B1A4A 0%, var(--color-indigo) 60%, #2F3550 100%);
   border-radius: var(--radius-xl);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.08) inset,
@@ -867,8 +867,8 @@
   border-radius: var(--radius-xl);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 10px 28px rgba(41, 40, 103, 0.08),
-    0 32px 64px -24px rgba(41, 40, 103, 0.14);
+    0 10px 28px color-mix(in srgb, var(--color-indigo) 8%, transparent),
+    0 32px 64px -24px color-mix(in srgb, var(--color-indigo) 14%, transparent);
   color: var(--color-slate);
 }
 
@@ -929,7 +929,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  border-top: 1px dashed rgba(41, 40, 103, 0.12);
+  border-top: 1px dashed color-mix(in srgb, var(--color-indigo) 12%, transparent);
 }
 
 .summaryRow {
@@ -992,7 +992,7 @@
 .projection {
   margin-top: 0.1rem;
   padding: 0.85rem 1rem 0.95rem;
-  background: linear-gradient(145deg, #1B1A4A 0%, #292867 100%);
+  background: linear-gradient(145deg, #1B1A4A 0%, var(--color-indigo) 100%);
   border-radius: var(--radius-md);
   color: var(--color-white);
   display: flex;
@@ -1131,7 +1131,7 @@
 }
 
 .milestone + .milestone {
-  border-top: 1px dashed rgba(41, 40, 103, 0.1);
+  border-top: 1px dashed color-mix(in srgb, var(--color-indigo) 10%, transparent);
 }
 
 .milestoneIcon {
@@ -1199,8 +1199,8 @@
   cursor: pointer;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.15) inset,
-    0 6px 18px rgba(41, 40, 103, 0.28),
-    0 16px 30px -14px rgba(41, 40, 103, 0.38);
+    0 6px 18px color-mix(in srgb, var(--color-indigo) 28%, transparent),
+    0 16px 30px -14px color-mix(in srgb, var(--color-indigo) 38%, transparent);
   transition: transform 0.2s var(--ease-out-expo), box-shadow 0.2s var(--ease-out-expo), background-color 0.2s ease;
   animation: payNowShimmer 4s linear infinite;
   will-change: background-position;
@@ -1216,12 +1216,12 @@
   background-color: var(--color-indigo-deep);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.15) inset,
-    0 10px 22px rgba(41, 40, 103, 0.32),
-    0 22px 42px -14px rgba(41, 40, 103, 0.44);
+    0 10px 22px color-mix(in srgb, var(--color-indigo) 32%, transparent),
+    0 22px 42px -14px color-mix(in srgb, var(--color-indigo) 44%, transparent);
 }
 
 .payNow:disabled {
-  background-color: rgba(41, 40, 103, 0.18);
+  background-color: color-mix(in srgb, var(--color-indigo) 18%, transparent);
   background-image: none;
   color: rgba(255, 255, 255, 0.55);
   cursor: not-allowed;
@@ -1338,7 +1338,7 @@
 
 .pmtBack:hover:not(:disabled) {
   color: var(--color-indigo);
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
 }
 
 .pmtBack:disabled {
@@ -1361,7 +1361,7 @@
 }
 
 .pmtMethodCard[data-active="true"] {
-  background: linear-gradient(145deg, #1B1A4A 0%, #292867 60%, #2F3550 100%);
+  background: linear-gradient(145deg, #1B1A4A 0%, var(--color-indigo) 60%, #2F3550 100%);
   border-color: var(--color-indigo-deep);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.06) inset,
@@ -1392,7 +1392,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 1.5px solid rgba(41, 40, 103, 0.28);
+  border: 1.5px solid color-mix(in srgb, var(--color-indigo) 28%, transparent);
   position: relative;
   transition: border-color 0.2s var(--ease-out-expo);
 }
@@ -1407,7 +1407,7 @@
   inset: 2.5px;
   background: var(--color-indigo);
   border-radius: 50%;
-  box-shadow: 0 0 6px rgba(41, 40, 103, 0.3);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-indigo) 30%, transparent);
 }
 
 .pmtMethodIcon {
@@ -1417,7 +1417,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   border: 1px solid var(--color-lavender);
   border-radius: var(--radius-md);
   color: var(--color-indigo);
@@ -1538,7 +1538,7 @@
   flex-direction: column;
   gap: 0.6rem;
   padding: 0.75rem 0.85rem 0.9rem;
-  border-top: 1px solid rgba(41, 40, 103, 0.08);
+  border-top: 1px solid color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .pmtProviderRow {
@@ -1563,15 +1563,15 @@
 }
 
 .pmtProviderBtn:hover:not([data-active="true"]) {
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
   border-color: rgba(94, 99, 168, 0.4);
 }
 
 .pmtProviderBtn[data-active="true"] {
   color: var(--color-indigo);
-  background: rgba(41, 40, 103, 0.08);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
   border-color: var(--color-indigo-soft);
-  box-shadow: 0 0 0 1px rgba(41, 40, 103, 0.1) inset;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-indigo) 10%, transparent) inset;
 }
 
 .pmtFieldRow {
@@ -1615,7 +1615,7 @@
 .pmtFieldInput:focus,
 .pmtFieldSelect:focus {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .pmtFieldSelect {
@@ -1641,7 +1641,7 @@
 
 .pmtPhoneField:focus-within {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .pmtPhonePrefix {
@@ -1653,7 +1653,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   color: var(--color-indigo-soft);
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
   border-right: 1px solid var(--color-lavender);
   white-space: nowrap;
 }
@@ -1689,8 +1689,8 @@
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--color-indigo-soft);
-  background: rgba(41, 40, 103, 0.04);
-  border: 1px solid rgba(41, 40, 103, 0.1);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-indigo) 10%, transparent);
   border-radius: var(--radius-md);
 }
 
@@ -1709,7 +1709,7 @@
   font-size: 11px;
   color: var(--color-gray);
   padding-top: 0.3rem;
-  border-top: 1px dashed rgba(41, 40, 103, 0.1);
+  border-top: 1px dashed color-mix(in srgb, var(--color-indigo) 10%, transparent);
 }
 
 .pmtSpinner {

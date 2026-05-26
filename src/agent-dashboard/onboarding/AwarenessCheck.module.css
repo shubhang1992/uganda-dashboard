@@ -91,11 +91,11 @@
 
 .card[data-open] {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.06), 0 6px 18px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 6%, transparent), 0 6px 18px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .card[data-answered]:not([data-open]) {
-  border-color: rgba(41, 40, 103, 0.16);
+  border-color: color-mix(in srgb, var(--color-indigo) 16%, transparent);
 }
 
 .cardHeader {
@@ -112,7 +112,7 @@
   min-height: 56px;
 }
 
-.cardHeader:hover { background: rgba(41, 40, 103, 0.02); }
+.cardHeader:hover { background: color-mix(in srgb, var(--color-indigo) 2%, transparent); }
 .cardHeader:focus-visible { outline: 2px solid var(--color-indigo); outline-offset: -2px; }
 
 .cardIndex {
@@ -122,7 +122,7 @@
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: rgba(41, 40, 103, 0.08);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
   color: var(--color-indigo);
   font-family: var(--font-display);
   font-weight: 800;
@@ -174,7 +174,7 @@
 .cardBody {
   overflow: hidden;
   background: rgba(217, 220, 242, 0.18);
-  border-top: 1px solid rgba(41, 40, 103, 0.06);
+  border-top: 1px solid color-mix(in srgb, var(--color-indigo) 6%, transparent);
 }
 
 .cardBodyInner {
@@ -207,7 +207,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
   padding: var(--space-3) var(--space-4);
-  border-top: 1px solid rgba(41, 40, 103, 0.06);
+  border-top: 1px solid color-mix(in srgb, var(--color-indigo) 6%, transparent);
   background: var(--color-white);
 }
 
@@ -302,7 +302,7 @@
   letter-spacing: 0.01em;
   box-shadow:
     0 1px 0 rgba(255,255,255,0.18) inset,
-    0 6px 16px rgba(41,40,103,0.22);
+    0 6px 16px color-mix(in srgb, var(--color-indigo) 22%, transparent);
   transition: transform 0.18s var(--ease-out-expo), box-shadow 0.18s var(--ease-out-expo);
 }
 
@@ -310,11 +310,11 @@
   transform: translateY(-1px);
   box-shadow:
     0 1px 0 rgba(255,255,255,0.2) inset,
-    0 10px 24px rgba(41,40,103,0.3);
+    0 10px 24px color-mix(in srgb, var(--color-indigo) 30%, transparent);
 }
 
 .primaryBtn:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; }
-.primaryBtn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: 0 2px 6px rgba(41, 40, 103, 0.14); }
+.primaryBtn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: 0 2px 6px color-mix(in srgb, var(--color-indigo) 14%, transparent); }
 
 .secondaryBtn {
   font-family: var(--font-body);
@@ -330,7 +330,7 @@
   min-height: 40px;
 }
 
-.secondaryBtn:hover { color: var(--color-indigo); background: rgba(41, 40, 103, 0.04); }
+.secondaryBtn:hover { color: var(--color-indigo); background: color-mix(in srgb, var(--color-indigo) 4%, transparent); }
 .secondaryBtn:focus-visible { outline: 2px solid var(--color-indigo); outline-offset: 2px; }
 
 /* ── Mobile ── */
