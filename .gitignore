@@ -47,6 +47,12 @@ e2e/.auth/
 e2e/.cache/
 e2e/screenshots/
 
+# Vitest coverage output (regenerated via `npm run test:coverage`)
+coverage/
+
+# Cleanup-branch baseline traces — captured locally for before/after diff
+scripts/.baseline/
+
 # Claude agent isolation worktrees — created automatically by the Agent tool
 # when isolation:"worktree" is used. They're not source we want to commit.
 .claude/worktrees/
