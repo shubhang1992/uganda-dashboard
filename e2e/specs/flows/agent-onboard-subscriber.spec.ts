@@ -41,6 +41,7 @@ import { test, expect } from '@playwright/test';
 import { storageStatePathFor, PERSONA_FOR } from '../../fixtures/auth';
 import { disableAnimations } from '../../fixtures/motion';
 import { cleanupSubscriberByPhone, getRow, rowExists } from '../../fixtures/db';
+import { PHONE_PREFIX } from '../../helpers/signup-constants';
 
 test.use({ storageState: storageStatePathFor('agent') });
 test.setTimeout(90_000);
@@ -58,15 +59,18 @@ type SubscriberRow = {
 
 test.describe('agent → onboard new subscriber (UI + RPC + DB)', () => {
   // Unique 9-digit local phone per run; canonical DB form prepends +256.
-  // Pin the 71 carrier prefix (valid per src/utils/phone.js VALID_PREFIXES)
-  // and fill the remaining 7 digits from epoch ms so reruns can't collide
-  // with the seeded +25671XXXXXXX demo range or each other.
+  // Pin the PHONE_PREFIX carrier prefix (valid per src/utils/phone.js
+  // VALID_PREFIXES) and fill the remaining 7 digits from epoch ms so reruns
+  // can't collide with the seeded +25671XXXXXXX demo range or each other.
+  // Append a 2-digit workerIndex %% 100 disambiguator so up to 100 parallel
+  // workers each carve their own phone-suffix pool.
   let uniquePhoneDigits = '';
   let uniquePhone = '';
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page }, testInfo) => {
     await disableAnimations(page);
-    uniquePhoneDigits = `71${String(Date.now()).slice(-7)}`;
+    const workerSuffix = String(testInfo.workerIndex % 100).padStart(2, '0');
+    uniquePhoneDigits = `${PHONE_PREFIX}${String(Date.now()).slice(-5)}${workerSuffix}`;
     uniquePhone = `+256${uniquePhoneDigits}`;
     // Defensive: if a previous run crashed mid-flow, scrub any rows holding
     // this phone so the unique partial index on subscribers(phone) doesn't

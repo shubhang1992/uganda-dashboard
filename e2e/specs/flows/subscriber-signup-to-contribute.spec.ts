@@ -55,6 +55,7 @@ import {
   rowExists,
   supabaseAdmin,
 } from '../../fixtures/db';
+import { PHONE_PREFIX } from '../../helpers/signup-constants';
 
 test.setTimeout(120_000);
 
@@ -82,15 +83,16 @@ test.describe('subscriber → signup wizard → first contribution (UI + DB)', (
 
     // 9-digit Uganda mobile (must start 7 per UG numbering plan; the
     // ReviewStep validator and the RPC regex both accept it). Pattern:
-    //   '7' + 7 trailing digits of Date.now() + 1-digit workerIndex
-    // = `+2567XXXXXXXY` (12 chars, intentionally outside the seeded
-    // `+25671XXXXXXX` range). The trailing workerIndex disambiguates parallel
-    // workers running this spec alongside subscriber-signin-with-password.spec.ts
-    // — both ultimately call create_subscriber_from_signup, whose partial
-    // unique index on subscribers.phone returned 409 in Phase 6 before the
-    // disambiguator was added.
-    const workerSuffix = String(testInfo.workerIndex % 10);
-    uniquePhoneDigits = `7${String(Date.now()).slice(-7)}${workerSuffix}`;
+    //   PHONE_PREFIX ('71') + 5 trailing digits of Date.now() + 2-digit
+    //   workerIndex %% 100 = `+25671XXXXXYY` (12 chars). The trailing
+    //   workerIndex disambiguates up to 100 parallel workers running this
+    //   spec alongside subscriber-signin-with-password.spec.ts — both
+    //   ultimately call create_subscriber_from_signup, whose partial
+    //   unique index on subscribers.phone returned 409 in Phase 6 before
+    //   the disambiguator was added. PHONE_PREFIX is unified across the
+    //   agent-onboard and signup flow specs (see signup-constants.ts).
+    const workerSuffix = String(testInfo.workerIndex % 100).padStart(2, '0');
+    uniquePhoneDigits = `${PHONE_PREFIX}${String(Date.now()).slice(-5)}${workerSuffix}`;
     uniquePhone = `+256${uniquePhoneDigits}`;
 
     // Defensive: in case a previous run crashed mid-flow, clean up first.

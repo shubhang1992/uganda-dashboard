@@ -3,6 +3,10 @@
 // inline walkthrough in `e2e/specs/flows/subscriber-signup-to-contribute.spec.ts`
 // so the password-sign-in spec can reuse the same path.
 //
+// Camera/liveness flows depend on the Chromium `--use-fake-ui-for-media-stream`
+// launch flag (configured in playwright.config.ts) so the getUserMedia prompt
+// auto-accepts instead of stalling the LivenessStep "Take selfie" click.
+//
 // The original spec (Phase 1 of the QA suite) inlined the walkthrough with
 // some DB-assertion-specific waits — the helper preserves those exact waits
 // so callers don't get flake from the mocked-KYC latency budget (~15-20s on

@@ -24,6 +24,17 @@
 export const SIGNUP_OTP_CODE = '1234';
 
 /**
+ * Uganda mobile-number carrier prefix prepended to the 9-digit local phone
+ * built by the flow specs. `'71'` is one of the valid carrier prefixes per
+ * `src/utils/phone.js` VALID_PREFIXES, and matches the seeded
+ * `+25671XXXXXXX` demo range — the generated phones use a Date.now() suffix
+ * + worker-index modulo so reruns and parallel workers never collide with
+ * the seed range or each other. Unified across both flow specs so the
+ * phone-pool calculus is single-sourced.
+ */
+export const PHONE_PREFIX = '71';
+
+/**
  * NIN prefix used to build a per-run unique National ID Number. The full
  * format is `^C[MF][A-Z0-9]{12}$` (14 chars total — see ReviewStep.jsx:10).
  * The helper composes `{PREFIX}{phoneDigits}{SUFFIX}` so parallel runs don't
