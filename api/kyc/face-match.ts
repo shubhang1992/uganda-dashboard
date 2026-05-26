@@ -11,6 +11,7 @@
 // ~1500ms simulated latency.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { mockTrackingId } from './_lib/mocks';
 
 const SIMULATED_LATENCY_MS = 1500;
 
@@ -21,10 +22,6 @@ type FaceMatchResult = {
   outcome: 'ok' | 'liveness-fail' | 'no-match';
   trackingId: string;
 };
-
-function mockTrackingId(): string {
-  return `smile_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

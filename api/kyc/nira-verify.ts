@@ -13,6 +13,7 @@
 // 1800ms figure listed in the agent brief.)
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { mockTrackingId } from './_lib/mocks';
 
 const SIMULATED_LATENCY_MS = 1800;
 
@@ -25,10 +26,6 @@ type NiraResult =
       trackingId: string;
     }
   | { result: 'no-match'; reason: string; trackingId: string };
-
-function mockTrackingId(): string {
-  return `smile_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
