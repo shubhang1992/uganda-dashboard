@@ -60,7 +60,7 @@
 .demoBarFill {
   height: 100%;
   border-radius: 3px;
-  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.5s var(--ease-out-expo);
 }
 
 .demoCard:first-child .demoBarFill {

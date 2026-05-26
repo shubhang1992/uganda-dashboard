@@ -152,7 +152,7 @@
 .balanceChevron {
   flex: 0 0 auto;
   color: rgba(217, 220, 242, 0.7);
-  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
+  transition: transform 0.32s var(--ease-out-expo), color 0.15s ease;
   transform: translateY(-2px);
 }
 

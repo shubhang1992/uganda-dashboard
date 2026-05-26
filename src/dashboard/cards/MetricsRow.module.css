@@ -54,7 +54,7 @@
   );
   background-size: 220% 100%;
   background-position: 100% 50%;
-  animation: skeletonSweep 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation: skeletonSweep 1.6s var(--ease-out-expo) infinite;
 }
 
 .skeletonLine[data-tone='dim'] {
@@ -68,7 +68,7 @@
   );
   background-size: 220% 100%;
   background-position: 100% 50%;
-  animation: skeletonSweep 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation: skeletonSweep 1.6s var(--ease-out-expo) infinite;
 }
 
 .skeletonHead {
@@ -93,7 +93,7 @@
     rgba(94, 99, 168, 0.18) 0%,
     rgba(217, 220, 242, 0.45) 100%
   );
-  animation: skeletonBarRise 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
+  animation: skeletonBarRise 1.6s var(--ease-out-expo) infinite alternate;
 }
 
 .skeletonBar:nth-child(1) { height: 35%; animation-delay: 0s; }
@@ -332,7 +332,7 @@
 .chatBody {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: grid-template-rows 0.3s var(--ease-out-expo);
 }
 
 .chatCard[data-open='true'] .chatBody {

@@ -10,7 +10,7 @@
     0 1px 0 rgba(255,255,255,0.06) inset;
   position: relative;
   overflow: hidden;
-  transition: flex-grow 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: flex-grow 0.55s var(--ease-out-expo);
 }
 
 /* In split mode, the hero grows to fill the freed space (since opsWrap's

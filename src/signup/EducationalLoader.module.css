@@ -36,7 +36,7 @@
   border-radius: 50%;
   background: var(--color-indigo);
   opacity: 0.3;
-  animation: el-pulse 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation: el-pulse 1.8s var(--ease-out-expo) infinite;
 }
 
 @keyframes el-pulse {

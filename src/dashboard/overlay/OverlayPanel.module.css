@@ -28,7 +28,7 @@
      equals (parent width) - 310px (panel width) - 2 * var(--space-6) (margins).
      Parent width = 100vw - var(--sidebar-width) (the dashboard's main column). */
   transform: translateX(0);
-  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.45s var(--ease-out-expo);
 }
 
 .panel[data-offset='true'] {
@@ -95,7 +95,7 @@
   );
   background-size: 220% 100%;
   background-position: 100% 50%;
-  animation: panelShimmer 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation: panelShimmer 1.8s var(--ease-out-expo) infinite;
 }
 
 .skeletonBlock {
@@ -119,7 +119,7 @@
   );
   background-size: 220% 100%;
   background-position: 100% 50%;
-  animation: panelShimmer 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation: panelShimmer 1.6s var(--ease-out-expo) infinite;
 }
 
 .skeletonRow {
@@ -144,7 +144,7 @@
   );
   background-size: 220% 100%;
   background-position: 100% 50%;
-  animation: panelShimmer 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation: panelShimmer 1.6s var(--ease-out-expo) infinite;
 }
 
 @keyframes panelShimmer {
@@ -277,7 +277,7 @@
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: aumSheen 9s cubic-bezier(0.16, 1, 0.3, 1) 0.6s infinite;
+  animation: aumSheen 9s var(--ease-out-expo) 0.6s infinite;
 }
 
 @keyframes aumSheen {
