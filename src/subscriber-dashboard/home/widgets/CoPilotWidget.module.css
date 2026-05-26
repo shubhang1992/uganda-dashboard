@@ -119,7 +119,7 @@
   text-wrap: balance;
 }
 
-@media (min-width: 600px) {
+@media (min-width: 768px) {
   .title { font-size: var(--text-lg); }
 }
 
@@ -239,7 +239,7 @@
 
 /* On phone, drop the "Ask" label and shrink to an icon-only button to
    save horizontal room — the arrow alone reads as Send. */
-@media (max-width: 599px) {
+@media (max-width: 768px) {
   .send {
     width: 38px;
     padding: 0;
@@ -296,7 +296,7 @@
   transform: translateY(0) scale(0.97);
 }
 
-@media (max-width: 599px) {
+@media (max-width: 768px) {
   .suggestions { display: none; }
 }
 
@@ -398,7 +398,7 @@
   color: var(--color-indigo-deep);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .userBubble,
   .aiBubble {
     max-width: 100%;

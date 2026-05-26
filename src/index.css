@@ -106,6 +106,29 @@
   /* Transitions */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out:   cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Breakpoints (F19, Phase 5C).
+     CSS custom properties cannot be referenced inside `@media (max-width: …)`
+     queries, so these tokens act as DOCUMENTATION for the canonical 4-breakpoint
+     scale. Module `@media` blocks use the literal pixel value that matches the
+     token (e.g. `@media (max-width: 768px)` corresponds to `--bp-md`). When a
+     future preprocessor or `@custom-media` lands, these tokens become the
+     single source of truth.
+
+     Scale:
+       --bp-sm  480px — small mobile (under-iPhone-15 portrait)
+       --bp-md  768px — large mobile / portrait tablet (iPad portrait boundary)
+       --bp-lg  1024px — landscape tablet / small desktop
+       --bp-xl  1280px — desktop / wide layouts
+
+     Migration (Phase 5C): values 360/374/380/400/420 → 480 (sm);
+     values 540/599/600/640/700/720 → 768 (md);
+     values 800/880/900/960 → 1024 (lg);
+     values 1100/1180 → 1280 (xl). */
+  --bp-sm: 480px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --bp-xl: 1280px;
 }
 
 /* Reset */

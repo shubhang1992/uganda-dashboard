@@ -391,7 +391,7 @@
 }
 
 /* ── Mobile ──────────────────────────────────────────────────────────── */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .card {
     padding: var(--space-5) var(--space-5);
     box-shadow:

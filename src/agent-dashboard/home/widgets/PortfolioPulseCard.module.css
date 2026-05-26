@@ -355,7 +355,7 @@
   transform: translateX(2px);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .statGrid {
     padding: var(--space-3);
     gap: var(--space-2);
@@ -375,7 +375,7 @@
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 480px) {
   .heroValue {
     font-size: clamp(1.75rem, 11vw, 2.5rem);
   }

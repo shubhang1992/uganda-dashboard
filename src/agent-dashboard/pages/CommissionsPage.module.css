@@ -207,7 +207,7 @@
   gap: 8px;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .payoutOptions {
     grid-template-columns: 1fr;
   }
@@ -285,7 +285,7 @@
   align-items: center;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .summaryStrip {
     grid-template-columns: 1fr;
     gap: var(--space-3);
@@ -363,7 +363,7 @@
   gap: var(--space-3);
 }
 
-@media (max-width: 599px) {
+@media (max-width: 768px) {
   .primaryGrid { grid-template-columns: 1fr; }
 }
 

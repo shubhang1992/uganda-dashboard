@@ -1239,7 +1239,7 @@
 }
 
 /* ── Responsive ──────────────────────────────────────────────────── */
-@media (max-width: 1180px) {
+@media (max-width: 1280px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
     max-width: 720px;
@@ -1250,7 +1250,7 @@
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   /* Hide the top-left logo on mobile — the card fills the viewport. */
   .pageHeader {
     display: none;

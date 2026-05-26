@@ -982,7 +982,7 @@
     color: var(--color-slate);
   }
 
-  @media (max-width: 374px) {
+  @media (max-width: 480px) {
     .demoBody {
       flex-direction: column;
       align-items: stretch;

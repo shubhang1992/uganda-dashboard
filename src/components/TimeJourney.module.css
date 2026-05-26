@@ -371,7 +371,7 @@
   .balance { font-size: 1.25rem; }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .section {
     padding: 2.5rem 1rem 3rem;
   }
@@ -473,7 +473,7 @@
   }
 }
 
-@media (max-width: 360px) {
+@media (max-width: 480px) {
   .card {
     padding: 0.75rem 0.75rem 2.5rem;
   }

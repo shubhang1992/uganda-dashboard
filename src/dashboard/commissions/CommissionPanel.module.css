@@ -1726,7 +1726,7 @@
 }
 
 /* ── Small phones ────────────────────────────────────────────────────────── */
-@media (max-width: 400px) {
+@media (max-width: 480px) {
   .primaryGrid {
     grid-template-columns: 1fr;
   }
@@ -1892,7 +1892,7 @@
   margin-bottom: var(--space-4);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .settingsGrid {
     grid-template-columns: 1fr;
   }
@@ -2125,7 +2125,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .runCardMetrics,
   .summaryStrip,
   .runHeaderRow {
@@ -2257,7 +2257,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .runBranchRow {
     grid-template-columns: 1fr auto;
     grid-template-rows: auto auto;
