@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useSignIn } from '../contexts/SignInContext';
 import { useAuth } from '../contexts/AuthContext';
-import { hasDashboard, sendOtp, verifyOtp } from '../services/auth';
+import { hasDashboard, sendOtp, verifyOtp, signInWithPassword, AuthError } from '../services/auth';
 import RoleSelect from './signin/RoleSelect';
 import DistributorSelect from './signin/DistributorSelect';
 import PhoneEntry from './signin/PhoneEntry';
 import OtpVerify from './signin/OtpVerify';
+import PasswordEntry from './signin/PasswordEntry';
 import logo from '../assets/logo-white.png';
 import { EASE_OUT_EXPO as EASE } from '../utils/finance';
 import styles from './SignInModal.module.css';
@@ -19,6 +20,17 @@ export default function SignInModal() {
   const [step, setStep] = useState('role');
   const [role, setRole] = useState(null);
   const [phone, setPhone] = useState('');
+  // Sign-in method: 'code' (OTP, default) | 'password'. Toggled from PhoneEntry's
+  // chip row. The phone-submit handler branches on this to either dispatch an
+  // OTP and goto 'otp', or skip the dispatch and goto 'password'.
+  const [method, setMethod] = useState('code');
+  // Inline error string surfaced inside PasswordEntry (invalid_password and
+  // other non-`password_not_set` codes). Cleared on every fresh password
+  // submission attempt.
+  const [passwordError, setPasswordError] = useState('');
+  // When the backend returns `password_not_set`, flip this on to render the
+  // prominent "Use a code instead" CTA panel inside PasswordEntry.
+  const [showSwitchCta, setShowSwitchCta] = useState(false);
   const prevStep = useRef('role');
 
   const modalRef = useRef(null);
@@ -102,6 +114,9 @@ export default function SignInModal() {
         setStep('role');
         setRole(null);
         setPhone('');
+        setMethod('code');
+        setPasswordError('');
+        setShowSwitchCta(false);
       }, 300);
       return () => clearTimeout(timer);
     }
@@ -128,7 +143,15 @@ export default function SignInModal() {
 
   async function handlePhoneSubmit(phoneNum) {
     setPhone(phoneNum);
-    // Fire-and-forget the send so the OTP step can render immediately.
+    // Reset password-step state — each new phone entry starts fresh.
+    setPasswordError('');
+    setShowSwitchCta(false);
+    if (method === 'password') {
+      // Skip OTP dispatch — jump straight to the password step.
+      goTo('password');
+      return;
+    }
+    // OTP path. Fire-and-forget the send so the OTP step can render immediately.
     // Any backend rejection surfaces on the verify step instead.
     sendOtp(phoneNum, role).catch(() => { /* ignore — verify will surface real errors */ });
     goTo('otp');
@@ -155,6 +178,53 @@ export default function SignInModal() {
     navigate(hasDashboard(user.role) ? '/dashboard' : '/coming-soon');
   }
 
+  /**
+   * Verify the password. On success, same AuthContext.login + navigate flow
+   * as `handleVerify`. On error, AuthError codes route to different UI:
+   *   - password_not_set → flip showSwitchCta so PasswordEntry renders the
+   *     prominent "Use a code instead" CTA panel (the user has no hash).
+   *   - invalid_password → surface as inline error.
+   *   - anything else (network, rate_limited, etc.) → surface as inline error
+   *     (no global toast scaffolding in the modal; keep it self-contained).
+   */
+  async function handlePasswordVerify(password) {
+    setPasswordError('');
+    setShowSwitchCta(false);
+    try {
+      const { token, user } = await signInWithPassword(phone, password, role);
+      await login({ token, user });
+      close();
+      navigate(hasDashboard(user.role) ? '/dashboard' : '/coming-soon');
+    } catch (err) {
+      const code = err instanceof AuthError ? err.code : 'network';
+      if (code === 'password_not_set') {
+        setShowSwitchCta(true);
+        setPasswordError('');
+        return;
+      }
+      if (code === 'invalid_password') {
+        setPasswordError('Incorrect password.');
+        return;
+      }
+      setPasswordError(err?.message || 'Could not sign you in. Please try again.');
+    }
+  }
+
+  /**
+   * Flip from the password path back to the OTP path. Phone is preserved
+   * (set by PhoneEntry, lives in modal state), so we re-issue sendOtp and
+   * advance to the OTP step. Triggered either by the tertiary link below the
+   * password submit OR by the prominent CTA panel when `password_not_set`.
+   */
+  async function handleSwitchToCode() {
+    setMethod('code');
+    setPasswordError('');
+    setShowSwitchCta(false);
+    // Fire-and-forget — same pattern as the original phone-submit OTP branch.
+    sendOtp(phone, role).catch(() => { /* ignore — verify will surface real errors */ });
+    goTo('otp');
+  }
+
   function handlePhoneBack() {
     if (role === 'distributor' || role === 'branch' || role === 'agent') {
       goTo('distributor');
@@ -163,11 +233,12 @@ export default function SignInModal() {
     }
   }
 
-  // Progress: 0 = role, 1 = distributor/phone, 2 = otp
+  // Progress: 0 = role, 1 = distributor/phone, 2 = otp/password
   function getProgress() {
     if (step === 'role') return 0;
     if (step === 'distributor') return 1;
     if (step === 'phone') return 1;
+    // otp & password both occupy index 2 — equivalent terminal sign-in step.
     return 2;
   }
 
@@ -300,6 +371,8 @@ export default function SignInModal() {
                           onSubmit={handlePhoneSubmit}
                           hideBadge
                           hideVisual
+                          method={method}
+                          onMethodChange={setMethod}
                         />
                         <button
                           type="button"
@@ -314,6 +387,8 @@ export default function SignInModal() {
                         role={role}
                         onSubmit={handlePhoneSubmit}
                         onBack={handlePhoneBack}
+                        method={method}
+                        onMethodChange={setMethod}
                       />
                     )}
                   </motion.div>
@@ -333,6 +408,27 @@ export default function SignInModal() {
                       onVerify={handleVerify}
                       onResend={handleResend}
                       onBack={() => goTo('phone')}
+                    />
+                  </motion.div>
+                )}
+
+                {step === 'password' && (
+                  <motion.div
+                    key="password"
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.2, ease: EASE }}
+                  >
+                    <PasswordEntry
+                      phone={phone}
+                      role={role}
+                      onSubmit={handlePasswordVerify}
+                      onSwitchToCode={handleSwitchToCode}
+                      onBack={() => goTo('phone')}
+                      error={passwordError}
+                      showSwitchToCodeCta={showSwitchCta}
                     />
                   </motion.div>
                 )}

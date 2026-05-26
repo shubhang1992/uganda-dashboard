@@ -8,6 +8,7 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import { useEntity, useUpdateDistributor } from '../../hooks/useEntity';
+import { changePassword, AuthError } from '../../services/auth';
 import styles from './Settings.module.css';
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -138,6 +139,92 @@ export default function Settings({ splitMode = false }) {
     }
     updateUser({ name: name.trim(), email: email.trim(), phone });
     addToast('success', 'Profile updated.');
+  }
+
+  /* ── Password form state ───────────────────────────────────────────────────
+     Separate from the profile form above so the Save Changes footer button
+     stays tied to profile dirtiness; the password card has its own Save below. */
+  const hasPassword = user?.hasPassword === true;
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pwErrors, setPwErrors] = useState({});
+  const [pwSubmitting, setPwSubmitting] = useState(false);
+
+  /* Reset password fields & errors whenever the panel re-opens / user changes. */
+  useEffect(() => {
+    if (!settingsOpen) {
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowCurrent(false);
+      setShowNew(false);
+      setShowConfirm(false);
+      setPwErrors({});
+    }
+  }, [settingsOpen]);
+
+  function clearPwError(field) {
+    if (pwErrors[field]) setPwErrors((prev) => ({ ...prev, [field]: '' }));
+  }
+
+  async function handlePasswordSubmit(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (pwSubmitting) return;
+
+    // Client-side shape check on newPassword (≥8 chars, ≥1 letter, ≥1 digit).
+    // The server is still authoritative — this is just a faster failure path.
+    const next = {};
+    if (newPassword.length < 8) {
+      next.newPassword = 'Password must be at least 8 characters.';
+    } else if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      next.newPassword = 'Password must include a letter and a number.';
+    }
+    if (newPassword !== confirmPassword) {
+      next.confirmPassword = 'Passwords do not match.';
+    }
+    if (Object.keys(next).length > 0) {
+      setPwErrors(next);
+      return;
+    }
+
+    setPwErrors({});
+    setPwSubmitting(true);
+    try {
+      await changePassword(hasPassword ? currentPassword : '', newPassword);
+      // Reflect the new state in AuthContext so the card re-renders into the
+      // "Change password" variant immediately after an initial set.
+      if (!hasPassword) {
+        updateUser({ hasPassword: true });
+      }
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      addToast('success', hasPassword ? 'Password updated.' : 'Password set.');
+    } catch (err) {
+      if (err instanceof AuthError) {
+        if (err.code === 'current_password_invalid' || err.code === 'current_password_required') {
+          setPwErrors({ currentPassword: err.message });
+        } else if (
+          err.code === 'password_too_short' ||
+          err.code === 'password_too_weak' ||
+          err.code === 'password_too_long' ||
+          err.code === 'password_required'
+        ) {
+          setPwErrors({ newPassword: err.message });
+        } else {
+          addToast('error', err.message || 'Could not update password.');
+        }
+      } else {
+        addToast('error', err?.message || 'Could not update password.');
+      }
+    } finally {
+      setPwSubmitting(false);
+    }
   }
 
   /* ── Helpers ────────────────────────────────────────────────────────────── */
@@ -309,7 +396,12 @@ export default function Settings({ splitMode = false }) {
 
                 <div className={styles.sectionDivider} />
 
-                {/* ── Change password (disabled, awaiting auth backend) ──── */}
+                {/* ── Change / Set password ─────────────────────────────────
+                   Conditional title + field set based on whether the user
+                   already has a `password_hash` on file (AuthContext.user.
+                   hasPassword, threaded through verify-otp / verify-password).
+                   Nested <form> would break the outer profile form, so the
+                   submit is wired via the Save button's onClick. */}
                 <motion.div
                   className={styles.section}
                   aria-labelledby="settings-password-heading"
@@ -325,64 +417,118 @@ export default function Settings({ splitMode = false }) {
                         <circle cx="12" cy="16.5" r="1.5" fill="currentColor"/>
                       </svg>
                     </span>
-                    <h3 id="settings-password-heading" className={styles.sectionTitle}>Change Password</h3>
-                    <span className={styles.comingSoonBadge} aria-hidden="true">Coming soon</span>
+                    <h3 id="settings-password-heading" className={styles.sectionTitle}>
+                      {hasPassword ? 'Change password' : 'Set password'}
+                    </h3>
                   </div>
 
-                  <p className={styles.comingSoonHelp}>
-                    Password updates land alongside the production auth backend.
-                    The fields below will activate as soon as it&rsquo;s wired up.
-                  </p>
+                  {hasPassword && (
+                    <div className={styles.field}>
+                      <label className={styles.label} htmlFor="settings-current-pw">
+                        Current password
+                      </label>
+                      <div className={styles.passwordWrap}>
+                        <input
+                          id="settings-current-pw"
+                          className={styles.input}
+                          type={showCurrent ? 'text' : 'password'}
+                          value={currentPassword}
+                          onChange={(e) => { setCurrentPassword(e.target.value); clearPwError('currentPassword'); }}
+                          autoComplete="current-password"
+                          spellCheck={false}
+                          data-error={!!pwErrors.currentPassword}
+                        />
+                        <button
+                          type="button"
+                          className={styles.toggleBtn}
+                          onClick={() => setShowCurrent((v) => !v)}
+                          aria-label={showCurrent ? 'Hide password' : 'Show password'}
+                          aria-pressed={showCurrent}
+                          tabIndex={0}
+                        >
+                          {showCurrent ? <EyeOffIcon /> : <EyeIcon />}
+                        </button>
+                      </div>
+                      {pwErrors.currentPassword && (
+                        <p className={styles.error} role="alert">{pwErrors.currentPassword}</p>
+                      )}
+                    </div>
+                  )}
 
-                  <div className={styles.field} aria-disabled="true">
-                    <label className={styles.label} htmlFor="settings-current-pw">
-                      Current Password
-                    </label>
-                    <input
-                      id="settings-current-pw"
-                      className={styles.input}
-                      type="password"
-                      value=""
-                      disabled
-                      readOnly
-                      aria-readonly="true"
-                      autoComplete="off"
-                      tabIndex={-1}
-                    />
-                  </div>
-
-                  <div className={styles.field} aria-disabled="true">
+                  <div className={styles.field}>
                     <label className={styles.label} htmlFor="settings-new-pw">
-                      New Password
+                      New password
                     </label>
-                    <input
-                      id="settings-new-pw"
-                      className={styles.input}
-                      type="password"
-                      value=""
-                      disabled
-                      readOnly
-                      aria-readonly="true"
-                      autoComplete="off"
-                      tabIndex={-1}
-                    />
+                    <div className={styles.passwordWrap}>
+                      <input
+                        id="settings-new-pw"
+                        className={styles.input}
+                        type={showNew ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={(e) => { setNewPassword(e.target.value); clearPwError('newPassword'); }}
+                        autoComplete="new-password"
+                        spellCheck={false}
+                        data-error={!!pwErrors.newPassword}
+                      />
+                      <button
+                        type="button"
+                        className={styles.toggleBtn}
+                        onClick={() => setShowNew((v) => !v)}
+                        aria-label={showNew ? 'Hide password' : 'Show password'}
+                        aria-pressed={showNew}
+                        tabIndex={0}
+                      >
+                        {showNew ? <EyeOffIcon /> : <EyeIcon />}
+                      </button>
+                    </div>
+                    <span className={styles.strengthLabel}>
+                      8+ characters with at least one letter and one number.
+                    </span>
+                    {pwErrors.newPassword && (
+                      <p className={styles.error} role="alert">{pwErrors.newPassword}</p>
+                    )}
                   </div>
 
-                  <div className={styles.field} aria-disabled="true">
+                  <div className={styles.field}>
                     <label className={styles.label} htmlFor="settings-confirm-pw">
-                      Confirm New Password
+                      Confirm new password
                     </label>
-                    <input
-                      id="settings-confirm-pw"
-                      className={styles.input}
-                      type="password"
-                      value=""
-                      disabled
-                      readOnly
-                      aria-readonly="true"
-                      autoComplete="off"
-                      tabIndex={-1}
-                    />
+                    <div className={styles.passwordWrap}>
+                      <input
+                        id="settings-confirm-pw"
+                        className={styles.input}
+                        type={showConfirm ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => { setConfirmPassword(e.target.value); clearPwError('confirmPassword'); }}
+                        autoComplete="new-password"
+                        spellCheck={false}
+                        data-error={!!pwErrors.confirmPassword}
+                      />
+                      <button
+                        type="button"
+                        className={styles.toggleBtn}
+                        onClick={() => setShowConfirm((v) => !v)}
+                        aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                        aria-pressed={showConfirm}
+                        tabIndex={0}
+                      >
+                        {showConfirm ? <EyeOffIcon /> : <EyeIcon />}
+                      </button>
+                    </div>
+                    {pwErrors.confirmPassword && (
+                      <p className={styles.error} role="alert">{pwErrors.confirmPassword}</p>
+                    )}
+                  </div>
+
+                  <div className={styles.passwordActions}>
+                    <button
+                      type="button"
+                      className={styles.saveBtn}
+                      onClick={handlePasswordSubmit}
+                      disabled={pwSubmitting}
+                    >
+                      {pwSubmitting ? 'Saving…' : 'Save'}
+                    </button>
                   </div>
                 </motion.div>
 
@@ -473,5 +619,26 @@ export default function Settings({ splitMode = false }) {
         </>
       )}
     </AnimatePresence>
+  );
+}
+
+/* Eye icons for password show/hide toggles — same shapes as the signup
+   ReviewStep so the visual language stays consistent across surfaces. */
+function EyeIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
+      <path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
+      <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M8.2 5.2A8.8 8.8 0 0 1 10 5c5 0 8 5 8 5a14.2 14.2 0 0 1-2.4 2.9M5.7 6.7C3.4 8.3 2 10 2 10s3 5 8 5a8.8 8.8 0 0 0 3.3-.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.6 8.6a2 2 0 0 0 2.8 2.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
   );
 }

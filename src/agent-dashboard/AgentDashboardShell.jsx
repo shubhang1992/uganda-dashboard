@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AgentScopeProvider } from '../contexts/AgentScopeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { DashboardProvider } from '../contexts/DashboardContext';
 import AgentShell from './shell/AgentShell';
 import HomePage from './home/HomePage';
 import styles from './AgentDashboardShell.module.css';
@@ -62,22 +63,28 @@ export default function AgentDashboardShell() {
   if (!agentId) {
     return <MissingAgentIdScreen onLogout={() => { logout(); navigate('/'); }} />;
   }
+  // DashboardProvider wraps the AgentScopeProvider so the shared
+  // <Settings /> slide-in panel (mounted inside AgentShell) can read
+  // settingsOpen / setSettingsOpen off useDashboard(). Same pattern as the
+  // distributor and branch shells.
   return (
-    <AgentScopeProvider agentId={agentId}>
-      <Routes>
-        <Route element={<AgentShell />}>
-          <Route index element={<HomePage />} />
-          <Route path="onboard" element={<Suspense fallback={<PageFallback />}><OnboardPage /></Suspense>} />
-          <Route path="subscribers" element={<Suspense fallback={<PageFallback />}><SubscribersPage /></Suspense>} />
-          <Route path="subscribers/:id" element={<Suspense fallback={<PageFallback />}><SubscriberDetailPage /></Suspense>} />
-          <Route path="subscribers/:id/schedule" element={<Suspense fallback={<PageFallback />}><SubscriberSchedulePage /></Suspense>} />
-          <Route path="analytics" element={<Suspense fallback={<PageFallback />}><AnalyticsPage /></Suspense>} />
-          <Route path="commissions" element={<Suspense fallback={<PageFallback />}><CommissionsPage /></Suspense>} />
-          <Route path="commissions/:view" element={<Suspense fallback={<PageFallback />}><CommissionsPage /></Suspense>} />
-          <Route path="settings" element={<Suspense fallback={<PageFallback />}><SettingsPage /></Suspense>} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Route>
-      </Routes>
-    </AgentScopeProvider>
+    <DashboardProvider>
+      <AgentScopeProvider agentId={agentId}>
+        <Routes>
+          <Route element={<AgentShell />}>
+            <Route index element={<HomePage />} />
+            <Route path="onboard" element={<Suspense fallback={<PageFallback />}><OnboardPage /></Suspense>} />
+            <Route path="subscribers" element={<Suspense fallback={<PageFallback />}><SubscribersPage /></Suspense>} />
+            <Route path="subscribers/:id" element={<Suspense fallback={<PageFallback />}><SubscriberDetailPage /></Suspense>} />
+            <Route path="subscribers/:id/schedule" element={<Suspense fallback={<PageFallback />}><SubscriberSchedulePage /></Suspense>} />
+            <Route path="analytics" element={<Suspense fallback={<PageFallback />}><AnalyticsPage /></Suspense>} />
+            <Route path="commissions" element={<Suspense fallback={<PageFallback />}><CommissionsPage /></Suspense>} />
+            <Route path="commissions/:view" element={<Suspense fallback={<PageFallback />}><CommissionsPage /></Suspense>} />
+            <Route path="settings" element={<Suspense fallback={<PageFallback />}><SettingsPage /></Suspense>} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Route>
+        </Routes>
+      </AgentScopeProvider>
+    </DashboardProvider>
   );
 }

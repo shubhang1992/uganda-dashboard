@@ -85,6 +85,16 @@ export default function ReviewStep({ onNext }) {
   const [districtOpen, setDistrictOpen] = useState(false);
   const [errors, setErrors] = useState({});
 
+  /* Password fields are intentionally NOT pre-filled from context on mount —
+   * raw passwords must never round-trip through the DOM via a back/forward
+   * navigation. If the user navigates back to Review, they re-enter the
+   * password. (The context still holds it in memory; we just don't surface it
+   * back into the input value.) */
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
   const districtMap = useMemo(
     () => new Map(districts.map((d) => [d.id, d])),
     [districts]
@@ -144,6 +154,22 @@ export default function ReviewStep({ onNext }) {
       }
     }
 
+    // Password: required, ≥8 chars, must contain a letter AND a digit. Confirm
+    // must match exactly. Mirrors the server-side validatePasswordShape so the
+    // user sees the error inline rather than after a round-trip.
+    if (!password) {
+      e.password = 'Please enter a password';
+    } else if (password.length < 8) {
+      e.password = 'Password must be at least 8 characters';
+    } else if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      e.password = 'Password must include a letter and a number';
+    }
+    if (!confirmPassword) {
+      e.confirmPassword = 'Confirm your password';
+    } else if (confirmPassword !== password) {
+      e.confirmPassword = 'Passwords don’t match';
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -154,6 +180,9 @@ export default function ReviewStep({ onNext }) {
       fullName: signup.fullName.trim(),
       nin: signup.nin.trim().toUpperCase(),
       cardNumber: signup.cardNumber.trim().toUpperCase(),
+      // Password lives in context only until the auth verify-otp call ships
+      // it to the server. EPHEMERAL_KEYS keeps it out of localStorage.
+      password,
       // Clear previous NIRA verdict so the next step re-runs with edited data
       niraResult: null,
       niraMismatchedFields: [],
@@ -437,11 +466,98 @@ export default function ReviewStep({ onNext }) {
           />
         </ReviewField>
 
+        {/* Divider before the password section — same visual language as the
+            OCR → manual divider above. */}
+        <div className={own.manualHeader}>
+          <span className={own.manualEyebrow}>Create your password</span>
+          <span className={own.manualHint}>You'll use this to sign in alongside your phone.</span>
+        </div>
+
+        <ReviewField id="password" label="Password" error={errors.password}>
+          <div className={styles.passwordWrap}>
+            <input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              className={styles.input}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errors.password) setErrors((p) => ({ ...p, password: '' }));
+              }}
+              autoComplete="new-password"
+              spellCheck={false}
+              data-error={!!errors.password}
+              style={{ paddingRight: '2.75rem' }}
+            />
+            <button
+              type="button"
+              className={styles.toggleBtn}
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-pressed={showPassword}
+              tabIndex={0}
+            >
+              {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+          </div>
+          <span className={styles.strengthHint}>
+            8+ characters with at least one letter and one number.
+          </span>
+        </ReviewField>
+
+        <ReviewField id="confirm-password" label="Confirm password" error={errors.confirmPassword}>
+          <div className={styles.passwordWrap}>
+            <input
+              id="confirm-password"
+              type={showConfirm ? 'text' : 'password'}
+              className={styles.input}
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                if (errors.confirmPassword) setErrors((p) => ({ ...p, confirmPassword: '' }));
+              }}
+              autoComplete="new-password"
+              spellCheck={false}
+              data-error={!!errors.confirmPassword}
+              style={{ paddingRight: '2.75rem' }}
+            />
+            <button
+              type="button"
+              className={styles.toggleBtn}
+              onClick={() => setShowConfirm((v) => !v)}
+              aria-label={showConfirm ? 'Hide password' : 'Show password'}
+              aria-pressed={showConfirm}
+              tabIndex={0}
+            >
+              {showConfirm ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+          </div>
+        </ReviewField>
+
         <div className={styles.actions}>
           <button type="submit" className={styles.submit}>Continue</button>
         </div>
       </form>
     </div>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
+      <path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
+      <path d="M3 3l14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M8.2 5.2A8.8 8.8 0 0 1 10 5c5 0 8 5 8 5a14.2 14.2 0 0 1-2.4 2.9M5.7 6.7C3.4 8.3 2 10 2 10s3 5 8 5a8.8 8.8 0 0 0 3.3-.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.6 8.6a2 2 0 0 0 2.8 2.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
   );
 }
 

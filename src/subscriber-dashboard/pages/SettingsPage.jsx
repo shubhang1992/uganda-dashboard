@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGX, formatUGXExact } from '../../utils/finance';
 import { formatDate } from '../../utils/date';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import { getInitials } from '../../utils/dashboard';
 import PageHeader from '../shell/PageHeader';
@@ -80,16 +81,19 @@ const SECTIONS = [
         <path d="M8 11V7a4 4 0 118 0v4" stroke="currentColor" strokeWidth="1.6"/>
       </svg>
     ),
-    label: 'Security',
-    helper: 'PIN, devices, sessions',
-    to: '/dashboard/settings/security',
-    soon: true,
+    label: 'Password & security',
+    helper: 'Set or change your password',
+    // Opens the shared <Settings /> slide-in panel (same component the
+    // distributor and branch shells use) — exposes the password card here
+    // since this routed page has no other surface for it.
+    panel: 'settings',
   },
 ];
 
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { setSettingsOpen } = useDashboard();
   const { data: sub } = useCurrentSubscriber();
 
   const initials = getInitials(sub?.name || '');
@@ -161,7 +165,14 @@ export default function SettingsPage() {
                   data-soon={s.soon || undefined}
                   aria-disabled={s.soon || undefined}
                   disabled={s.soon}
-                  onClick={() => { if (!s.soon) navigate(s.to); }}
+                  onClick={() => {
+                    if (s.soon) return;
+                    if (s.panel === 'settings') {
+                      setSettingsOpen(true);
+                      return;
+                    }
+                    navigate(s.to);
+                  }}
                 >
                   <span className={styles.sectionIcon} aria-hidden="true">{s.icon}</span>
                   <span className={styles.sectionText}>

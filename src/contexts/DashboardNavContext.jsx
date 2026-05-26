@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useMemo, useCallback, useEffect, u
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SEGMENT_TO_LEVEL, LEVEL_TO_SEGMENT, PARENT_LEVEL } from '../constants/levels';
 import { getEntitySync } from '../services/entities';
+import { useAuth } from './AuthContext';
 
 /**
  * @typedef {Object} DashboardNavContextValue
@@ -59,6 +60,16 @@ function buildSelectedIds(level, entityId) {
 export function DashboardNavProvider({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
+  // Role gates the panel-style "/dashboard/reports → slide-in" effect below.
+  // Distributor + branch dashboards render Reports as a slide-in panel, so
+  // visiting `/dashboard/reports` should pop the panel and rewrite the URL
+  // back to `/dashboard`. Subscriber + agent dashboards have *routed* report
+  // pages (`/dashboard/reports`, `/dashboard/reports/:reportId`) and must be
+  // allowed to render them — bouncing them back to `/dashboard` was the
+  // Phase 6.5 regression that made every report page unreachable for those
+  // two roles.
+  const { role } = useAuth();
+  const usesReportsPanel = role === 'distributor' || role === 'branch';
 
   // Derive drill-down state from URL
   const { level, entityId, section, reportId } = useMemo(() => parsePath(location.pathname), [location.pathname]);
@@ -74,13 +85,15 @@ export function DashboardNavProvider({ children }) {
   // This lets nav effects call panel setters without a direct dependency.
   const onPanelActionRef = useRef(null);
 
-  // Auto-open reports panel when URL is /dashboard/reports, then redirect to /dashboard
+  // Auto-open reports panel when URL is /dashboard/reports, then redirect to
+  // /dashboard. Distributor + branch only — see `usesReportsPanel` note above.
   useEffect(() => {
+    if (!usesReportsPanel) return;
     if (section === 'reports') {
       onPanelActionRef.current?.setViewReportsOpen(true);
       navigate('/dashboard', { replace: true });
     }
-  }, [section, navigate]);
+  }, [section, navigate, usesReportsPanel]);
 
   // Auto-open slide-in panels when URL reaches branch/agent level. The URL
   // is an external system (browser history), so syncing React state from it

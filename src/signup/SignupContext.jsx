@@ -49,6 +49,10 @@ function createOnboardingSessionId() {
  * @property {string} phone                 — manual entry, 9 digits
  * @property {string} email                 — optional, used for statements & notifications
  * @property {string} occupation            — manual entry
+ * @property {string} password              — chosen at Review; EPHEMERAL — never
+ *   persisted to localStorage. Lives in memory until the auth verify-otp call
+ *   ships it to the backend, then is dropped on signup.reset(). Re-entered if
+ *   the user navigates back to ReviewStep.
  *
  * Step 3 — NIRA (silent)
  * @property {'match'|'partial'|'no-match'|null} niraResult
@@ -107,6 +111,7 @@ const INITIAL_STATE = {
   phone: '',
   email: '',
   occupation: '',
+  password: '',
 
   niraResult: null,
   niraMismatchedFields: [],
@@ -149,7 +154,9 @@ function reducer(state, action) {
 // File/Blob + object URL fields can't be serialised to localStorage. They're
 // dropped on persist and re-nulled on rehydrate — the user re-uploads ID/selfie
 // after a refresh, but KYC data, OCR results, beneficiaries, consent, etc. survive.
-const EPHEMERAL_KEYS = ['idFrontFile', 'idBackFile', 'selfieFile', 'idFrontPreviewUrl', 'idBackPreviewUrl'];
+// `password` is also ephemeral: raw passwords MUST NOT touch localStorage, so it
+// lives in memory only and is re-entered on remount if the user navigates back.
+const EPHEMERAL_KEYS = ['idFrontFile', 'idBackFile', 'selfieFile', 'idFrontPreviewUrl', 'idBackPreviewUrl', 'password'];
 
 function loadPersisted() {
   // Always create a fresh session ID by default; if persisted state has one,
@@ -160,7 +167,12 @@ function loadPersisted() {
     const raw = window.localStorage.getItem(SIGNUP_STORAGE_KEY);
     if (!raw) return fresh;
     const parsed = JSON.parse(raw);
-    const ephemeral = Object.fromEntries(EPHEMERAL_KEYS.map((k) => [k, null]));
+    // Reset ephemeral keys to their INITIAL_STATE default (File/Blob/url fields
+    // are `null`; `password` is `''`). This keeps the password field a string
+    // on rehydrate so validators/inputs that assume `string` don't trip.
+    const ephemeral = Object.fromEntries(
+      EPHEMERAL_KEYS.map((k) => [k, INITIAL_STATE[k]]),
+    );
     return {
       ...fresh,
       ...parsed,

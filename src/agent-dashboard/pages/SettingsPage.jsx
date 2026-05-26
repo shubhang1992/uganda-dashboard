@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { isValidUGPhone } from '../../utils/phone';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDashboard } from '../../contexts/DashboardContext';
 import { useEntity } from '../../hooks/useEntity';
 import { useToast } from '../../contexts/ToastContext';
 import { getInitials } from '../../utils/dashboard';
@@ -19,8 +20,10 @@ function formatPhone(raw) {
 
 export default function SettingsPage() {
   const { user, updateUser } = useAuth();
+  const { setSettingsOpen } = useDashboard();
   const { data: agent } = useEntity('agent', user?.agentId);
   const { addToast } = useToast();
+  const hasPassword = user?.hasPassword === true;
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -144,55 +147,23 @@ export default function SettingsPage() {
 
         <section className={styles.section} aria-labelledby="agent-password-heading">
           <div className={styles.sectionHead}>
-            <h2 id="agent-password-heading" className={styles.sectionTitle}>Change password</h2>
-            <span className={styles.comingSoonBadge} aria-hidden="true">Coming soon</span>
+            <h2 id="agent-password-heading" className={styles.sectionTitle}>
+              {hasPassword ? 'Change password' : 'Set password'}
+            </h2>
           </div>
           <p className={styles.comingSoonHelp}>
-            Password updates land alongside the production auth backend.
-            We&rsquo;ll surface this section as soon as it&rsquo;s wired up.
+            {hasPassword
+              ? 'Rotate your password from the slide-in panel.'
+              : 'Add a password to your account so you can sign in without a one-time code.'}
           </p>
 
-          <label className={styles.field} aria-disabled="true">
-            <span className={styles.label}>Current password</span>
-            <input
-              type="password"
-              className={styles.input}
-              value=""
-              disabled
-              readOnly
-              aria-readonly="true"
-              autoComplete="off"
-              tabIndex={-1}
-            />
-          </label>
-
-          <label className={styles.field} aria-disabled="true">
-            <span className={styles.label}>New password</span>
-            <input
-              type="password"
-              className={styles.input}
-              value=""
-              disabled
-              readOnly
-              aria-readonly="true"
-              autoComplete="off"
-              tabIndex={-1}
-            />
-          </label>
-
-          <label className={styles.field} aria-disabled="true">
-            <span className={styles.label}>Confirm new password</span>
-            <input
-              type="password"
-              className={styles.input}
-              value=""
-              disabled
-              readOnly
-              aria-readonly="true"
-              autoComplete="off"
-              tabIndex={-1}
-            />
-          </label>
+          <button
+            type="button"
+            className={styles.primaryBtn}
+            onClick={() => setSettingsOpen(true)}
+          >
+            {hasPassword ? 'Change password' : 'Set password'}
+          </button>
         </section>
 
         <footer className={styles.footer}>

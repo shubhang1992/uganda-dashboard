@@ -348,6 +348,48 @@
   color: var(--color-indigo);
 }
 
+/* ── Password input + show/hide toggle ─────────────────────────────────
+   Used on ReviewStep for the "Create your password" subsection. The wrapper
+   stays relative so the eye-icon button can absolute-position over the input's
+   right padding. */
+.passwordWrap {
+  position: relative;
+}
+
+.toggleBtn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 6px;
+  color: var(--color-gray);
+  border-radius: var(--radius-sm);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.toggleBtn:hover {
+  color: var(--color-indigo);
+}
+
+.toggleBtn:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 2px;
+}
+
+.strengthHint {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  margin-top: 0.25rem;
+}
+
 /* ── Mobile ──────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .card {

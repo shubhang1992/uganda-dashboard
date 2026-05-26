@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { isValidUGPhone } from '../../utils/phone';
 import styles from './PhoneEntry.module.css';
+import modalStyles from '../SignInModal.module.css';
 
 const ROLE_LABELS = {
   subscriber: 'Subscriber',
@@ -12,7 +13,7 @@ const ROLE_LABELS = {
   admin: 'Admin',
 };
 
-export default function PhoneEntry({ role, onSubmit, onBack, hideBadge = false, hideVisual = false }) {
+export default function PhoneEntry({ role, onSubmit, onBack, hideBadge = false, hideVisual = false, method = 'code', onMethodChange }) {
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -62,7 +63,42 @@ export default function PhoneEntry({ role, onSubmit, onBack, hideBadge = false, 
       {!hideBadge && <span className={styles.badge}>{ROLE_LABELS[role]}</span>}
 
       <h2 className={styles.heading}>Enter your phone number</h2>
-      <p className={styles.subtext}>We'll send you a one-time verification code.</p>
+      <p className={styles.subtext}>
+        {method === 'password'
+          ? "We'll sign you in with your password."
+          : "We'll send you a one-time verification code."}
+      </p>
+
+      {/* Method toggle — visible for all roles. Tapping a chip flips parent
+          state; the phone submit handler branches on `method` to either
+          dispatch an OTP (sendOtp → goTo('otp')) or jump straight to the
+          password step (goTo('password')). */}
+      {onMethodChange && (
+        <div
+          className={modalStyles.methodToggle}
+          role="radiogroup"
+          aria-label="Sign-in method"
+        >
+          <button
+            type="button"
+            role="radio"
+            aria-checked={method === 'code'}
+            className={modalStyles.methodChip}
+            onClick={() => onMethodChange('code')}
+          >
+            One-time code
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={method === 'password'}
+            className={modalStyles.methodChip}
+            onClick={() => onMethodChange('password')}
+          >
+            Password
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.inputGroup} data-error={!!error}>
@@ -92,7 +128,7 @@ export default function PhoneEntry({ role, onSubmit, onBack, hideBadge = false, 
               <span className={styles.spinner} />
             </span>
           ) : (
-            'Send verification code'
+            method === 'password' ? 'Continue' : 'Send verification code'
           )}
         </button>
       </form>

@@ -20,6 +20,7 @@ If you're working on… | Open this
 --- | ---
 A React component, hook, service, dashboard variant, signup step, commission UI, design token, accessibility rule | `FRONTEND.md`
 An API route, SQL schema, RLS policy, RPC, migration, trigger, seed script, JWT/auth flow, commission state machine | `BACKEND.md`
+System architecture, layered patterns, role boundaries, auth model, write/realtime patterns | `ARCHITECTURE.md`
 Role × capability matrix (who can see/do what) | `docs/role-permissions.md`
 Field-level entity model / aggregation rules / health-score formula | `docs/data-model.md`
 HTTP request/response shapes + cache keys / invalidation table | `docs/api-contracts.md`
@@ -196,6 +197,7 @@ See `FRONTEND.md §16a` and `BACKEND.md §14a` for the role-specific demo-scope 
 
 - [`FRONTEND.md`](./FRONTEND.md) — services, hooks, contexts, dashboard variants, signup flow, design tokens, accessibility, frontend findings
 - [`BACKEND.md`](./BACKEND.md) — env vars, API routes, `_lib/` helpers, auth flow, schema, migrations, RLS, RPCs, commission state machine, triggers, seeding, runbook
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system architecture: layered patterns, role boundaries, auth model, write/realtime patterns
 - [`docs/role-permissions.md`](./docs/role-permissions.md) — role × capability matrix
 - [`docs/data-model.md`](./docs/data-model.md) — field-level entity model + aggregation rules
 - [`docs/api-contracts.md`](./docs/api-contracts.md) — HTTP shapes + cache keys + invalidation

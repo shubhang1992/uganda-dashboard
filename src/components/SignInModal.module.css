@@ -170,6 +170,57 @@
   color: var(--color-indigo);
 }
 
+/* ── Method toggle (One-time code / Password chips) ─────────────
+   Sits above the phone input on PhoneEntry. Visual cousin of .authTabs
+   above but a free-standing radiogroup of pills rather than the "Sign in
+   vs Create account" segmented tabs. Visible for every role. */
+.methodToggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.methodChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-slate);
+  background: rgba(41, 40, 103, 0.06);
+  border: 1px solid rgba(41, 40, 103, 0.1);
+  padding: 0.5rem 0.875rem;
+  border-radius: var(--radius-full);
+  min-height: 36px;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.methodChip:hover {
+  color: var(--color-indigo);
+  border-color: rgba(41, 40, 103, 0.25);
+}
+
+.methodChip[aria-checked='true'] {
+  background: var(--color-indigo);
+  color: var(--color-white);
+  border-color: var(--color-indigo);
+  box-shadow: 0 2px 8px rgba(41, 40, 103, 0.18);
+}
+
+.methodChip[aria-checked='true']:hover {
+  color: var(--color-white);
+  background: #1B1A4A;
+}
+
+.methodChip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.22);
+}
+
 .altRole {
   display: block;
   margin: 1.25rem auto 0;

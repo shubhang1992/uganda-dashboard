@@ -643,7 +643,19 @@
   }
 }
 
-/* ── "Coming soon" disabled state (password section) ───────────────────── */
+/* ── Password card actions ────────────────────────────────────────────────
+   Lives inside the section's own column, right-aligned. Keeps the password
+   form's Save out of the footer Save Changes button (which is profile-only). */
+.passwordActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}
+
+/* ── "Coming soon" disabled state — superseded by Phase 5 password form ──
+   No longer referenced from this Settings panel, but the rules are intentionally
+   left in place: pulling them now would conflict with other audit-tracked work
+   touching the same module. Safe to remove in a later cleanup pass. */
 .comingSoonBadge {
   display: inline-flex;
   align-items: center;

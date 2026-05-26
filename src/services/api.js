@@ -91,10 +91,25 @@ export async function apiFetch(path, options = {}) {
   const res = await fetch(url, { ...options, headers });
 
   if (res.status === 401) {
-    notifyAuthExpired();
-    const err = new Error('Session expired');
-    err.code = 'session_expired';
+    // Read the body once so we can distinguish "the token itself is bad"
+    // (no code, session_expired, or unauthorized — all server signals that
+    // the JWT is missing/expired/invalid) from a domain-level 401 like
+    // `password_not_set`, `invalid_password`, or `current_password_invalid`
+    // that the caller needs to handle without being logged out.
+    const body = await res.json().catch(() => ({}));
+    const code = body?.error || body?.code;
+    if (!code || code === 'session_expired' || code === 'unauthorized') {
+      notifyAuthExpired();
+      const err = new Error('Session expired');
+      err.code = 'session_expired';
+      err.status = 401;
+      throw err;
+    }
+    const message = body?.message || code || `API error: ${res.status}`;
+    const err = new Error(message);
+    err.code = code;
     err.status = 401;
+    err.body = body;
     throw err;
   }
 

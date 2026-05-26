@@ -49,9 +49,28 @@ export default defineConfig({
 
   projects: [
     // Desktop Chromium — the canonical project. Runs every spec.
+    //
+    // launchOptions.args: LivenessStep.jsx in signup uses
+    // `navigator.mediaDevices.getUserMedia` to start a real webcam stream
+    // (commit 9e585b7 swapped the placeholder Blob path for a real camera).
+    // Headless Chromium has no camera by default, so without these flags
+    // the "Take selfie" button stays disabled and the signup-to-contribute
+    // spec (and any other flow that walks through LivenessStep) gets stuck.
+    //
+    //   --use-fake-ui-for-media-stream — auto-accept the getUserMedia prompt
+    //   --use-fake-device-for-media-stream — provide a synthetic video device
+    //
+    // The combination unblocks LivenessStep without granting any real media
+    // access. Mirrored to the webkit + mobile projects below.
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+        launchOptions: {
+          args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
+        },
+      },
     },
     // Desktop WebKit (Safari) — same coverage as Chromium so we catch
     // engine-specific regressions (e.g. Safari iframe / Blob download quirks).

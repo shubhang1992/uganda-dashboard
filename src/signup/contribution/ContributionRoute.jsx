@@ -115,9 +115,17 @@ export default function ContributionRoute() {
 
     // 2. Mint the real JWT via the dev-bypass verify-otp route. The subscriber
     //    row now exists, so the route's phone lookup succeeds and the JWT
-    //    carries the correct subscriberId claim.
+    //    carries the correct subscriberId claim. We also ship the chosen
+    //    password (captured at ReviewStep, held in memory only) so the backend
+    //    stamps `users.password_hash` on the same upsert — the returned user
+    //    object carries `hasPassword: true` for the persisted auth state.
     try {
-      const { token, user } = await verifyOtp(canonicalPhone, '123456', 'subscriber');
+      const { token, user } = await verifyOtp(
+        canonicalPhone,
+        '123456',
+        'subscriber',
+        signup.password,
+      );
       await login({ token, user });
     } catch (err) {
       console.error('[signup] verifyOtp / login failed', err);

@@ -53,6 +53,7 @@ import {
   cleanupSubscriberByPhone,
   getRow,
   rowExists,
+  supabaseAdmin,
 } from '../../fixtures/db';
 
 test.setTimeout(120_000);
@@ -76,18 +77,25 @@ test.describe('subscriber → signup wizard → first contribution (UI + DB)', (
   // what we look up in DB assertions.
   let uniquePhoneDigits = '';
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page }, testInfo) => {
     await disableAnimations(page);
 
     // 9-digit Uganda mobile (must start 7 per UG numbering plan; the
-    // ReviewStep validator and the RPC regex both accept it). Slicing the
-    // last 8 digits of Date.now() and prefixing '7' guarantees a valid
-    // 9-digit mobile that's vanishingly unlikely to collide.
-    uniquePhoneDigits = `7${String(Date.now()).slice(-8)}`;
+    // ReviewStep validator and the RPC regex both accept it). Pattern:
+    //   '7' + 7 trailing digits of Date.now() + 1-digit workerIndex
+    // = `+2567XXXXXXXY` (12 chars, intentionally outside the seeded
+    // `+25671XXXXXXX` range). The trailing workerIndex disambiguates parallel
+    // workers running this spec alongside subscriber-signin-with-password.spec.ts
+    // — both ultimately call create_subscriber_from_signup, whose partial
+    // unique index on subscribers.phone returned 409 in Phase 6 before the
+    // disambiguator was added.
+    const workerSuffix = String(testInfo.workerIndex % 10);
+    uniquePhoneDigits = `7${String(Date.now()).slice(-7)}${workerSuffix}`;
     uniquePhone = `+256${uniquePhoneDigits}`;
 
     // Defensive: in case a previous run crashed mid-flow, clean up first.
     await cleanupSubscriberByPhone(uniquePhone);
+    await supabaseAdmin.from('users').delete().eq('phone', uniquePhone).eq('role', 'subscriber');
   });
 
   test.afterEach(async () => {
@@ -95,6 +103,11 @@ test.describe('subscriber → signup wizard → first contribution (UI + DB)', (
     // run it even on failure so the next worker isn't blocked by a stale
     // row holding the unique phone.
     await cleanupSubscriberByPhone(uniquePhone);
+    // The `users(phone, role)` row that verify-otp upserts (with the bcrypt
+    // password_hash) lives outside the subscriber FK chain and isn't covered
+    // by cleanupSubscriberByPhone. Delete it explicitly so reruns start with
+    // a fresh "no password yet" state.
+    await supabaseAdmin.from('users').delete().eq('phone', uniquePhone).eq('role', 'subscriber');
   });
 
   test('completes 9-step signup + contribution and writes the subscriber chain', async ({ page }) => {
@@ -138,6 +151,13 @@ test.describe('subscriber → signup wizard → first contribution (UI + DB)', (
     // The `name="phone"` input is unique on the page.
     await page.locator('input[name="phone"]').fill(uniquePhoneDigits);
 
+    // Override the OCR-provided NIN so parallel workers don't collide on the
+    // partial unique index `ux_subscribers_nin` (migration 0017). The mock
+    // returns a fixed `CF92018AB3CD45`; we derive a unique value from the
+    // unique phone. Format `^C[MF][A-Z0-9]{12}$` — 14 chars total
+    // (ReviewStep.jsx:10). 'CF' + 9-digit phone + 'ABC' = 14 chars.
+    await page.locator('#nin').fill(`CF${uniquePhoneDigits}ABC`);
+
     // District — combobox: focus opens the listbox, then we click the option.
     // Picking "Kampala" yields id `d-kampala`, which is seeded in the
     // `districts` table so the RPC's FK lookup succeeds.
@@ -147,6 +167,20 @@ test.describe('subscriber → signup wizard → first contribution (UI + DB)', (
 
     // Occupation — a plain <select>.
     await page.locator('#occupation').selectOption('farmer');
+
+    // Password fields (Phase 6 — see api/auth/verify-otp.ts password param).
+    // ReviewStep validates ≥8 chars with at least one letter + one digit; the
+    // raw value is stashed on SignupContext and shipped to verify-otp via
+    // ContributionRoute, which stamps `users.password_hash` (bcrypt).
+    //
+    // ReviewField appends a " *" required marker to non-optional labels, so
+    // the accessible name is "Password *" / "Confirm password *". Selecting by
+    // id (`#password` / `#confirm-password`) is the most stable anchor and
+    // matches how the file targets the other ReviewField inputs (#district,
+    // #occupation). The labels still resolve too — `await page.getByLabel(/^password/i)`
+    // would also work — but locator-by-id is what the rest of this spec uses.
+    await page.locator('#password').fill('Demo1234');
+    await page.locator('#confirm-password').fill('Demo1234');
 
     await page.getByRole('button', { name: /^continue$/i }).click();
 
@@ -212,26 +246,26 @@ test.describe('subscriber → signup wizard → first contribution (UI + DB)', (
     await benefContinue.click();
 
     // ── Step 8 · consent ─────────────────────────────────────────────────
-    // Tick the checkbox to enable "Activate my account".
+    // PRE-PHASE-6 DRIFT: commit 9e585b7 ("post-payment activation + real
+    // camera") renamed the consent heading from "Before we activate your
+    // account" → "One last thing before payment" and the CTA from
+    // "Activate my account" → "I consent — continue". Updated to match.
     await expect(
-      page.getByRole('heading', { name: /before we activate your account/i }),
+      page.getByRole('heading', { name: /one last thing before payment/i }),
     ).toBeVisible({ timeout: 15_000 });
 
     // The consent checkbox is the only checkbox on the page.
     await page.getByRole('checkbox').check();
-    await page.getByRole('button', { name: /activate my account/i }).click();
+    await page.getByRole('button', { name: /i consent.*continue/i }).click();
 
     // ── Step 9 · done (activated) ────────────────────────────────────────
-    // Click the primary CTA to open the contribution setup at
-    // /signup/contribution. The ActivatedStep renders two buttons when no
-    // schedule exists yet ("Make your first contribution" + "I'll do this
-    // later"); we want the former since "later" still routes through
-    // /signup/contribution (per finishAndEnter in SignupPage.jsx) but the
-    // user-flow CTA is more representative.
-    await expect(
-      page.getByRole('heading', { name: /you['’]re all set/i }),
-    ).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('button', { name: /make your first contribution/i }).click();
+    // PRE-PHASE-6 DRIFT: commit 9e585b7 moved activation post-payment, so
+    // the ActivatedStep is now reached *after* the contribution flow rather
+    // than before. The signup wizard now jumps directly into the contribution
+    // settings view; we keep the original heading wait below for safety but
+    // the "Make your first contribution" / "Continue" button no longer
+    // mediates between Consent and Contribution — Consent's submit now
+    // goes straight to /signup/contribution.
 
     // ── Contribution onboarding ─────────────────────────────────────────
     // Pick monthly (already the default), enter 10,000 UGX (above the
@@ -307,6 +341,19 @@ test.describe('subscriber → signup wizard → first contribution (UI + DB)', (
       await rowExists('nominees', { subscriber_id: sub!.id }),
       'at least one nominee row should be inserted',
     ).toBe(true);
+
+    // Password hash — the raw password we typed at ReviewStep travels through
+    // SignupContext → ContributionRoute → verify-otp, which bcrypts it onto
+    // users(phone, role). bcrypt prefixes are $2a$ / $2b$ / $2y$; assert one
+    // of those is present so a regression that drops the hash (e.g. password
+    // accidentally omitted from the verify-otp payload) fails loudly here.
+    const { data: userRow } = await supabaseAdmin
+      .from('users')
+      .select('password_hash')
+      .eq('phone', uniquePhone)
+      .eq('role', 'subscriber')
+      .single();
+    expect(userRow?.password_hash, 'users.password_hash should hold a bcrypt digest').toMatch(/^\$2[aby]\$/);
 
     // eslint-disable-next-line no-console
     console.log(

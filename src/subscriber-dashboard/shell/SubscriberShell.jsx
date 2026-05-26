@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import Settings from '../../dashboard/settings/Settings';
 import BottomTabBar from './BottomTabBar';
 import SideNav from './SideNav';
 import styles from './SubscriberShell.module.css';
@@ -34,6 +35,10 @@ export default function SubscriberShell() {
         </AnimatePresence>
       </main>
       <BottomTabBar />
+      {/* Shared slide-in Settings panel — same component as the distributor &
+          branch shells. Opens whenever settingsOpen flips true in
+          DashboardPanelContext (e.g. from the Security row in SettingsPage). */}
+      <Settings />
     </div>
   );
 }
