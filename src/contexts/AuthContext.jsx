@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { onAuthExpired } from '../services/api';
@@ -90,11 +90,21 @@ export function AuthProvider({ children }) {
   }, [queryClient]);
 
   // When the API client surfaces a 401, log out and route home via
-  // react-router rather than a full page reload.
+  // react-router rather than a full page reload. Use refs so the listener
+  // body stays identity-stable across renders while always reading the
+  // current `logout` + `navigate` callbacks — subscribing once on mount.
+  const logoutRef = useRef(logout);
+  const navigateRef = useRef(navigate);
+  useEffect(() => {
+    logoutRef.current = logout;
+  });
+  useEffect(() => {
+    navigateRef.current = navigate;
+  });
   useEffect(() => onAuthExpired(() => {
-    logout();
-    navigate('/');
-  }), [logout, navigate]);
+    logoutRef.current();
+    navigateRef.current('/');
+  }), []);
 
   const value = useMemo(
     () => ({ user, role: user?.role ?? null, isAuthenticated: !!user, login, logout, updateUser }),

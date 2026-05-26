@@ -60,6 +60,13 @@ function buildSelectedIds(level, entityId) {
 export function DashboardNavProvider({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
+  // Keep latest pathname accessible without re-creating callbacks on every
+  // route change — goToLevel reads `pathnameRef.current` instead of closing
+  // over `location.pathname`.
+  const pathnameRef = useRef(location.pathname);
+  useEffect(() => {
+    pathnameRef.current = location.pathname;
+  });
   // Role gates the panel-style "/dashboard/reports → slide-in" effect below.
   // Distributor + branch dashboards render Reports as a slide-in panel, so
   // visiting `/dashboard/reports` should pop the panel and rewrite the URL
@@ -172,15 +179,13 @@ export function DashboardNavProvider({ children }) {
     if (targetLevel === 'country') {
       navigate('/dashboard');
     } else {
-      const currentIds = buildSelectedIds(
-        parsePath(location.pathname).level,
-        parsePath(location.pathname).entityId,
-      );
+      const parsed = parsePath(pathnameRef.current);
+      const currentIds = buildSelectedIds(parsed.level, parsed.entityId);
       const id = currentIds[targetLevel];
       if (id) navigate(`/dashboard/${LEVEL_TO_SEGMENT[targetLevel]}/${id}`);
       else navigate('/dashboard');
     }
-  }, [navigate, location.pathname]);
+  }, [navigate]);
 
   const reset = useCallback(() => {
     navigate('/dashboard');
