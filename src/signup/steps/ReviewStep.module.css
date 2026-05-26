@@ -47,19 +47,19 @@
 .confidenceBadge[data-tone='high'] {
   background: rgba(46, 139, 87, 0.08);
   border-color: rgba(46, 139, 87, 0.25);
-  color: #1f6e44;
+  color: var(--color-kyc-success);
 }
 
 .confidenceBadge[data-tone='mid'] {
   background: rgba(230, 168, 23, 0.10);
   border-color: rgba(230, 168, 23, 0.30);
-  color: #876300;
+  color: var(--color-kyc-warning-dark);
 }
 
 .confidenceBadge[data-tone='low'] {
   background: rgba(220, 53, 69, 0.08);
   border-color: rgba(220, 53, 69, 0.30);
-  color: #b22834;
+  color: var(--color-kyc-error);
 }
 
 /* ── Source thumbnails ───────────────────────────────────────────────── */

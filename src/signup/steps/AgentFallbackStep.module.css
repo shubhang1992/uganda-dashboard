@@ -6,7 +6,7 @@
   height: 96px;
   border-radius: 50%;
   background: rgba(230, 168, 23, 0.12);
-  color: #B8860B;
+  color: var(--color-kyc-pending);
   margin: 0 auto var(--space-4);
 }
 

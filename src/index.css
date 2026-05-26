@@ -85,6 +85,19 @@
   --color-medal-silver:   #94A3B8;
   --color-medal-bronze:   #CD7F32;
 
+  /* KYC status tokens (signup steps: ReviewStep / NiraStep / PendingReviewStep
+     / AgentFallbackStep / LivenessStep / BeneficiariesStep). Accessible
+     contrast-checked shades of the existing status palette, used for
+     verification-success ticks, OCR confidence chips, NIRA mismatch warnings,
+     and pending-review goldenrod icons. */
+  --color-kyc-success:      #1f6e44;
+  --color-kyc-warning:      #8B5A00;
+  --color-kyc-warning-dark: #876300;
+  --color-kyc-warning-amber:#c47c00;
+  --color-kyc-pending:      #B8860B;
+  --color-kyc-error:        #b22834;
+  --color-kyc-error-soft:   #FB7185;
+
   /* Transitions */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out:   cubic-bezier(0.4, 0, 0.2, 1);

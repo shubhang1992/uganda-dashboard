@@ -54,7 +54,7 @@
 
 .resultIcon[data-kind="warn"] {
   background: rgba(230, 168, 23, 0.10);
-  color: #c47c00;
+  color: var(--color-kyc-warning-amber);
   box-shadow: 0 10px 28px rgba(230, 168, 23, 0.15);
 }
 
