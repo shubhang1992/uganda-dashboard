@@ -14,6 +14,20 @@
 // row stamped by verify-otp).
 
 import { expect, type Page } from '@playwright/test';
+import {
+  BENEFICIARY_NAME,
+  BENEFICIARY_PHONE,
+  BENEFICIARY_RELATIONSHIP,
+  ID_UPLOAD_BYTES,
+  ID_UPLOAD_FILENAME,
+  ID_UPLOAD_MIMETYPE,
+  NIN_PREFIX,
+  NIN_SUFFIX,
+  QUICK_CONTRIBUTION_LABEL,
+  SIGNUP_DISTRICT,
+  SIGNUP_OCCUPATION,
+  SIGNUP_OTP_CODE,
+} from './signup-constants';
 
 export type SignupConfig = {
   /** 9-digit local phone (no +256 prefix). Generate with Date.now() for parallel-safe uniqueness. */
@@ -43,10 +57,11 @@ export async function walkSignupToFirstContribution(
   ).toBeVisible();
 
   const sampleImage = {
-    name: 'id.jpg',
-    mimeType: 'image/jpeg',
-    // 32 KiB buffer > the 20 KiB client-side floor in mockAssessImageQuality
-    buffer: Buffer.alloc(32 * 1024, 0xff),
+    name: ID_UPLOAD_FILENAME,
+    mimeType: ID_UPLOAD_MIMETYPE,
+    // ID_UPLOAD_BYTES is 32 KiB > the 20 KiB client-side floor in
+    // mockAssessImageQuality (services/kyc.js:53).
+    buffer: Buffer.alloc(ID_UPLOAD_BYTES, 0xff),
   };
   await page.setInputFiles('#id-upload-front', sampleImage);
   await page.setInputFiles('#id-upload-back', sampleImage);
@@ -67,13 +82,13 @@ export async function walkSignupToFirstContribution(
   // returns a fixed `CF92018AB3CD45`; we replace it with a per-run unique
   // value derived from the unique phone digits. NIN format is
   // `^C[MF][A-Z0-9]{12}$` (14 chars total — ReviewStep.jsx:10).
-  await page.locator('#nin').fill(`CF${phoneDigits}ABC`);
+  await page.locator('#nin').fill(`${NIN_PREFIX}${phoneDigits}${NIN_SUFFIX}`);
 
   await page.locator('#district').click();
-  await page.locator('#district').fill('Kampala');
-  await page.getByRole('option', { name: 'Kampala', exact: true }).click();
+  await page.locator('#district').fill(SIGNUP_DISTRICT);
+  await page.getByRole('option', { name: SIGNUP_DISTRICT, exact: true }).click();
 
-  await page.locator('#occupation').selectOption('farmer');
+  await page.locator('#occupation').selectOption(SIGNUP_OCCUPATION);
 
   // Password + confirm — Phase 6 fields. ReviewField appends a " *" required
   // marker to non-optional labels, so we target by id (matches the rest of
@@ -93,11 +108,10 @@ export async function walkSignupToFirstContribution(
     page.getByRole('heading', { name: /enter the code we sent you/i }),
   ).toBeVisible({ timeout: 15_000 });
 
-  const otpCode = '1234';
-  for (let i = 0; i < otpCode.length; i++) {
+  for (let i = 0; i < SIGNUP_OTP_CODE.length; i++) {
     await page
       .getByRole('textbox', { name: new RegExp(`digit ${i + 1} of 4`, 'i') })
-      .fill(otpCode[i]!);
+      .fill(SIGNUP_OTP_CODE[i]!);
   }
 
   // ── Step 5 · liveness ────────────────────────────────────────────────────
@@ -116,9 +130,9 @@ export async function walkSignupToFirstContribution(
     page.getByRole('heading', { name: /who inherits your savings\?/i }),
   ).toBeVisible({ timeout: 15_000 });
 
-  await page.getByRole('textbox', { name: /full name/i }).fill('Test Nominee');
-  await page.getByPlaceholder('7XX XXX XXX').fill('700111222');
-  await page.getByRole('combobox').first().selectOption('spouse');
+  await page.getByRole('textbox', { name: /full name/i }).fill(BENEFICIARY_NAME);
+  await page.getByPlaceholder('7XX XXX XXX').fill(BENEFICIARY_PHONE);
+  await page.getByRole('combobox').first().selectOption(BENEFICIARY_RELATIONSHIP);
 
   const benefContinue = page.getByRole('button', { name: /^continue$/i });
   await expect(benefContinue).toBeEnabled({ timeout: 10_000 });
@@ -141,7 +155,9 @@ export async function walkSignupToFirstContribution(
     page.getByRole('heading', { name: /design your savings rhythm/i }),
   ).toBeVisible({ timeout: 15_000 });
 
-  await page.getByRole('button', { name: /^UGX 10,000$/ }).click();
+  await page
+    .getByRole('button', { name: new RegExp(`^${QUICK_CONTRIBUTION_LABEL}$`) })
+    .click();
   await page.getByRole('button', { name: /^pay now/i }).click();
 
   const payBtn = page.getByRole('button', { name: /^pay (ugx|\d)/i });

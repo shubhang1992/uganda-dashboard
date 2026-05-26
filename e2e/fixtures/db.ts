@@ -35,18 +35,12 @@ export function getAdminClient(): SupabaseClient {
 
 export const supabaseAdmin = getAdminClient();
 
-/** Returns true if at least one row matches `where`. */
-export async function rowExists(table: string, where: Record<string, unknown>): Promise<boolean> {
-  let query = supabaseAdmin.from(table).select('*', { count: 'exact', head: true });
-  for (const [k, v] of Object.entries(where)) {
-    query = query.eq(k, v as never);
-  }
-  const { count, error } = await query;
-  if (error) throw new Error(`rowExists ${table}: ${error.message}`);
-  return (count ?? 0) > 0;
-}
-
-/** Returns the count of rows matching `where`. */
+/**
+ * Returns the count of rows matching `where`. Canonical implementation —
+ * `rowExists` is a thin boolean wrapper over this. Uses PostgREST
+ * `count: 'exact', head: true` so no rows travel over the wire (the
+ * `Content-Range` header carries the count).
+ */
 export async function countWhere(table: string, where: Record<string, unknown>): Promise<number> {
   let query = supabaseAdmin.from(table).select('*', { count: 'exact', head: true });
   for (const [k, v] of Object.entries(where)) {
@@ -55,6 +49,11 @@ export async function countWhere(table: string, where: Record<string, unknown>):
   const { count, error } = await query;
   if (error) throw new Error(`countWhere ${table}: ${error.message}`);
   return count ?? 0;
+}
+
+/** Returns true if at least one row matches `where`. Wraps `countWhere`. */
+export async function rowExists(table: string, where: Record<string, unknown>): Promise<boolean> {
+  return (await countWhere(table, where)) > 0;
 }
 
 /** Returns the first row matching `where`, or null. */
