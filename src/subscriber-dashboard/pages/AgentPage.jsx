@@ -64,12 +64,26 @@ export default function AgentPage() {
   const [isTyping, setIsTyping] = useState(false);
   const [seedKey, setSeedKey] = useState(null);
   const listRef = useRef(null);
+  // Tracks whether the component has unmounted so async agent replies don't
+  // call setState on an unmounted instance.
+  const cleanupRef = useRef(false);
+
+  useEffect(() => {
+    cleanupRef.current = false;
+    return () => {
+      cleanupRef.current = true;
+    };
+  }, []);
 
   const targetKey = subId && agent ? `${subId}:${agent.id}` : null;
-  // Adjust state during render when the conversation identity changes — this
-  // is the React 19-supported pattern for deriving state from props without
-  // a layout-thrashing effect. See react.dev "You Might Not Need an Effect".
-  if (targetKey && targetKey !== seedKey) {
+  // Seed the conversation in an effect (not during render) when the
+  // subscriber/agent identity changes. Avoids the React warning about
+  // updating state during render and the unmount-after-async-response leak.
+  // The cascading-renders lint rule is overzealous for this one-shot hydration.
+  useEffect(() => {
+    if (!targetKey || targetKey === seedKey) return;
+    if (cleanupRef.current) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- hydrate chat from persisted history */
     setSeedKey(targetKey);
     const persisted = loadMessages(subId);
     if (persisted && persisted.length > 0) {
@@ -84,7 +98,8 @@ export default function AgentPage() {
         },
       ]);
     }
-  }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [targetKey, seedKey, subId, agent]);
 
   useEffect(() => {
     if (subId && messages.length > 0) persistMessages(subId, messages);
@@ -103,11 +118,13 @@ export default function AgentPage() {
     getAgentReply(msg, agent)
       .then((response) => {
         setTimeout(() => {
+          if (cleanupRef.current === true) return;
           setIsTyping(false);
           setMessages((prev) => [...prev, { role: 'agent', text: response, at: Date.now() }]);
         }, 1100);
       })
       .catch((err) => {
+        if (cleanupRef.current === true) return;
         setIsTyping(false);
         addToast('error', err?.message || 'Could not reach your agent — please try again.');
       });

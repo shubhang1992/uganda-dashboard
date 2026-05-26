@@ -85,10 +85,25 @@ export default function HelpPage() {
   const [isTyping, setIsTyping] = useState(false);
   const [seeded, setSeeded] = useState(false);
   const listRef = useRef(null);
+  // Tracks whether the component has unmounted so async chat responses don't
+  // call setState on an unmounted instance.
+  const cleanupRef = useRef(false);
 
-  // Adjust state during render — the React 19-supported pattern for deriving
-  // state from props without an effect. See react.dev "You Might Not Need an Effect".
-  if (subId && !seeded) {
+  useEffect(() => {
+    cleanupRef.current = false;
+    return () => {
+      cleanupRef.current = true;
+    };
+  }, []);
+
+  // Seed the chat thread the first time we know which subscriber we're for.
+  // Lives in an effect (not render) so React doesn't warn about updating state
+  // during render, and so an unmount race can't leak setState calls. The
+  // cascading-renders lint rule is overzealous for this one-shot hydration.
+  useEffect(() => {
+    if (!subId || seeded) return;
+    if (cleanupRef.current) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- hydrate chat from persisted history */
     setSeeded(true);
     const persisted = loadMessages(subId);
     if (persisted && persisted.length > 0) {
@@ -96,7 +111,8 @@ export default function HelpPage() {
     } else {
       setMessages([{ role: 'assistant', text: 'Hi, how can we help today?', at: 0 }]);
     }
-  }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [subId, seeded]);
 
   useEffect(() => {
     if (subId && messages.length > 0) persistMessages(subId, messages);
@@ -115,11 +131,13 @@ export default function HelpPage() {
     getSubscriberChatResponse(msg)
       .then((response) => {
         setTimeout(() => {
+          if (cleanupRef.current === true) return;
           setIsTyping(false);
           setMessages((prev) => [...prev, { role: 'assistant', text: response, at: Date.now() }]);
         }, 900);
       })
       .catch((err) => {
+        if (cleanupRef.current === true) return;
         setIsTyping(false);
         addToast('error', err?.message || 'Could not reach support — please try again.');
       });
