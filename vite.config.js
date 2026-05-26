@@ -13,6 +13,12 @@ export default defineConfig({
     // The `e2e/` directory holds Playwright specs that import @playwright/test
     // — they share the `.spec.ts` extension but are not vitest tests.
     exclude: ['node_modules', 'dist', 'e2e/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      include: ['src/**/*.{js,jsx,ts,tsx}', 'api/**/*.ts'],
+      exclude: ['**/*.test.*', '**/__tests__/**', 'src/test/**', 'src/data/**', 'node_modules/**', 'dist/**', 'coverage/**'],
+    },
   },
   resolve: {
     alias: {
