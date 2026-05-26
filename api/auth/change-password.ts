@@ -86,8 +86,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .maybeSingle();
     if (lookupError) {
       console.error('[change-password] users lookup failed', lookupError);
-      res.status(500).json({ code: 'unexpected_error' });
-      return;
+      // PGRST116 = "no row" from PostgREST. `.maybeSingle()` returns
+      // `data: null, error: null` for no-row, so PGRST116 shouldn't fire
+      // here — but if it ever does, treat it as the user_not_found UX
+      // path below. Any other error is a real DB failure: surface it as
+      // 500 `db_error` so ops can distinguish infrastructure issues from
+      // the legitimate user_not_found case.
+      if (lookupError.code !== 'PGRST116') {
+        res.status(500).json({
+          code: 'db_error',
+          message: lookupError.code ?? lookupError.message,
+        });
+        return;
+      }
     }
     if (!userRow) {
       res.status(404).json({ code: 'user_not_found' });
@@ -117,7 +128,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('role', appRole);
     if (updateError) {
       console.error('[change-password] users update failed', updateError);
-      res.status(500).json({ code: 'unexpected_error' });
+      // The UPDATE may have hit a row that disappeared between the lookup
+      // and the write (vanishingly unlikely in this codebase but possible
+      // under load). Either way it's a true DB failure — surface as
+      // `db_error` rather than masking with a generic `unexpected_error`.
+      res.status(500).json({
+        code: 'db_error',
+        message: updateError.code ?? updateError.message,
+      });
       return;
     }
 

@@ -90,13 +90,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .maybeSingle();
     if (userLookupError) {
       console.error('[verify-password] users lookup failed', userLookupError);
-      // Treat as no-row — UI shows the OTP fallback. Avoids leaking DB
-      // state via a generic 500.
-      res.status(401).json({ code: 'password_not_set' });
-      return;
+      // PGRST116 = "no row" from PostgREST. `.maybeSingle()` returns
+      // `data: null, error: null` for no-row, so PGRST116 shouldn't fire
+      // here — but if it ever does, fall through to the password_not_set
+      // UX path. Any other error is a real DB failure: surface it as 500
+      // `db_error` so ops can distinguish infrastructure issues from the
+      // auth-failure UX code.
+      if (userLookupError.code !== 'PGRST116') {
+        res.status(500).json({
+          code: 'db_error',
+          message: userLookupError.code ?? userLookupError.message,
+        });
+        return;
+      }
     }
     const storedHash = (userRow?.password_hash as string | null | undefined) ?? null;
     if (!userRow || !storedHash) {
+      // Genuine "no row matched" or "row exists but password_hash is null"
+      // — these are legitimate auth-failure UX paths the frontend depends
+      // on for the OTP-fallback toast. Do NOT promote these to db_error.
       res.status(401).json({ code: 'password_not_set' });
       return;
     }

@@ -43,6 +43,21 @@ const VALID_ROLES = new Set<JwtRole>([
   'distributor',
 ]);
 
+// Sentinel thrown by `upsertUser` when the upsert query itself fails (as
+// opposed to a "no row" result). The handler catches it and returns a 500
+// `db_error` so ops can distinguish actual DB failures from the demo's
+// happy-path `invalid_otp` UX code.
+class DbError extends Error {
+  readonly code: string | undefined;
+  readonly dbMessage: string;
+  constructor(supabaseError: { code?: string | null; message: string }) {
+    super(supabaseError.message);
+    this.name = 'DbError';
+    this.code = supabaseError.code ?? undefined;
+    this.dbMessage = supabaseError.message;
+  }
+}
+
 async function upsertUser(
   phone: string,
   role: JwtRole,
@@ -76,9 +91,14 @@ async function upsertUser(
     .maybeSingle();
   if (error) {
     console.error('[verify-otp] users upsert failed', error);
-    // Non-fatal for the demo — login still succeeds. Best-effort derive
-    // `hasPassword` from whatever we tried to set in this request.
-    return { hasPassword: Boolean(passwordHash) };
+    // Surface as a true DB error so ops can distinguish this from the
+    // demo's auth-failure UX codes. PGRST116 = "no row" — we use
+    // .maybeSingle() so it shouldn't fire here, but treat it as non-fatal
+    // if it ever does (no row written means no stored hash to report).
+    if (error.code === 'PGRST116') {
+      return { hasPassword: Boolean(passwordHash) };
+    }
+    throw new DbError(error);
   }
   const storedHash = (data?.password_hash as string | null | undefined) ?? null;
   return { hasPassword: Boolean(storedHash) };
@@ -197,6 +217,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     );
   } catch (err) {
+    // Distinguish true DB failures (Supabase non-null `error` from a query)
+    // from generic unexpected errors. Ops can grep `db_error` in logs to find
+    // real infrastructure issues; the demo's auth-failure UX code stays
+    // reserved for shape-validation failures earlier in the handler.
+    if (err instanceof DbError) {
+      console.error('[verify-otp] db error', err);
+      res.status(500).json({
+        code: 'db_error',
+        message: err.code ?? err.dbMessage,
+      });
+      return;
+    }
     console.error('[verify-otp] unexpected error', err);
     res.status(500).json({ error: 'invalid_otp' });
   }
