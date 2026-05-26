@@ -18,10 +18,11 @@ export { DISTRICTS };
 // consistent — "due in 5 days" should always mean 5 days from this same
 // reference, not from the wall clock. Replace with `new Date()` once real data
 // arrives from the backend.
-// Rolled forward 2026-05-22 (Phase 6 of audit remediation per ADR-006). Manual
-// roll-forward keeps "due in N days" math stable mid-session (vs `new Date()`
-// which would drift as the demo runs).
-export const MOCK_NOW = new Date(2026, 4, 22); // 2026-05-22
+// Rolled forward 2026-05-26 (Phase 6 of audit remediation per ADR-006 and
+// CLAUDE.md §10b — slide forward when relative dates start looking stale).
+// Manual roll-forward keeps "due in N days" math stable mid-session (vs
+// `new Date()` which would drift as the demo runs).
+export const MOCK_NOW = new Date(2026, 4, 26); // 2026-05-26
 
 /**
  * Returns the "current time" as the rest of the codebase should treat it.
@@ -86,9 +87,12 @@ export const REGIONS = {
 };
 
 // ─── DISTRIBUTORS ────────────────────────────────────────────────────────────
-// Singleton in the demo seed — `d-001` is the national operator. Mirrors the
-// `distributors` table seeded by Agent A. Kept as a Map for symmetry with the
-// other level dictionaries even though there is only one row today.
+// Two-row catalogue in the demo seed — `d-001` is the default national
+// operator (every distributor login lands here via the demo_personas fallback)
+// and `d-002` is the secondary distributor that the second persona row
+// (`dp-d-002` → `+256700000022`) signs in as. Mirrors the `distributors` table
+// seeded by `scripts/seed-supabase.mjs`. Kept as a Map for symmetry with the
+// other level dictionaries.
 export const DISTRIBUTORS = {
   'd-001': {
     id: 'd-001',
@@ -96,6 +100,16 @@ export const DISTRIBUTORS = {
     parentId: 'ug',
     managerName: 'Distributor Lead',
     managerPhone: '+256700000021',
+    managerEmail: null,
+    status: 'active',
+    metrics: null,
+  },
+  'd-002': {
+    id: 'd-002',
+    name: 'Universal Pensions Uganda — Secondary',
+    parentId: 'ug',
+    managerName: 'Secondary Distributor Lead',
+    managerPhone: '+256700000022',
     managerEmail: null,
     status: 'active',
     metrics: null,
@@ -261,7 +275,9 @@ function generateSubscribers() {
       const scheduleAmount = Math.round(monthlyAmt * (12 / freqPerYear) / 1000) * 1000;
       const includeInsurance = rand() < 0.55;
       const nextDueOffsetDays = randInt(1, 30);
-      const nextDue = new Date();
+      // Anchor to MOCK_NOW (not `new Date()`) so "due in N days" stays
+      // consistent across the demo session — see CLAUDE.md §10b.
+      const nextDue = new Date(MOCK_NOW.getTime());
       nextDue.setDate(nextDue.getDate() + nextDueOffsetDays);
 
       const regParts = `${regYear}-${String(regMonth).padStart(2, '0')}-${String(regDay).padStart(2, '0')}`.split('-').map(Number);
@@ -317,7 +333,9 @@ function generateSubscribers() {
       const claims = [];
       for (let c = 0; c < claimCount; c++) {
         const cDays = randInt(30, 500);
-        const cDate = new Date(Date.now() - cDays * 86400000);
+        // Anchor to MOCK_NOW so claim dates don't drift as the wall clock
+        // advances — keeps "submitted 3 weeks ago" copy demo-stable.
+        const cDate = new Date(MOCK_NOW.getTime() - cDays * 86400000);
         claims.push({
           id: `clm-${id}-${c + 1}`,
           type: pick(CLAIM_TYPES),
@@ -343,7 +361,8 @@ function generateSubscribers() {
         const amt = w === withdrawCount - 1 ? wRemaining : Math.round(wRemaining / (withdrawCount - w) * (0.7 + rand() * 0.6));
         wRemaining -= amt;
         const days = randInt(10, 400);
-        const wd = new Date(Date.now() - days * 86400000);
+        // Anchor to MOCK_NOW so withdrawal dates stay demo-stable.
+        const wd = new Date(MOCK_NOW.getTime() - days * 86400000);
         withdrawals.push({
           id: `wd-${id}-${w + 1}`,
           amount: amt,
@@ -357,11 +376,14 @@ function generateSubscribers() {
 
       // Transactions: contributions (~monthly), withdrawals, premiums
       const transactions = [];
-      const now = Date.now();
+      // Anchor to MOCK_NOW so the 12-month contribution trail lines up with
+      // the same reference point as `nextDueDate` / claim dates above —
+      // keeps every relative date in the demo internally consistent.
+      const refMs = MOCK_NOW.getTime();
       // Contributions — last 12 months if active
       const contribMonths = isActive ? 12 : randInt(3, 8);
       for (let mIdx = contribMonths - 1; mIdx >= 0; mIdx--) {
-        const contribDate = new Date(now - mIdx * 30 * 86400000 - randInt(0, 5) * 86400000);
+        const contribDate = new Date(refMs - mIdx * 30 * 86400000 - randInt(0, 5) * 86400000);
         const monthAmount = contribHistory[11 - Math.min(mIdx, 11)] || monthlyAmt;
         if (monthAmount <= 0) continue;
         transactions.push({
@@ -377,7 +399,7 @@ function generateSubscribers() {
       // Insurance premium if opted-in
       if (includeInsurance) {
         for (let p = 0; p < contribMonths; p++) {
-          const pDate = new Date(now - p * 30 * 86400000 - randInt(0, 3) * 86400000);
+          const pDate = new Date(refMs - p * 30 * 86400000 - randInt(0, 3) * 86400000);
           transactions.push({
             id: `tx-${id}-p-${p}`,
             type: 'premium',

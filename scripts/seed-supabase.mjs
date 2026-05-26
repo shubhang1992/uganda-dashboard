@@ -153,14 +153,64 @@ async function main() {
   // The partial unique index `subscribers(phone) WHERE NOT is_demo_signup`
   // rejects duplicates. Reassign duplicates to +25671XXXXXXX (non-real UG range)
   // so they stay unique and don't collide with demo personas at +2567000000XX.
+  //
+  // Idempotency: pre-seed the `seen` set with every phone already on a live
+  // (non-demo-signup, non-seeded-id) subscriber row in the DB so a re-run
+  // against a populated DB does NOT regenerate a fresh phone that collides
+  // with a different existing row's ID-keyed UPSERT. The `subscribers` UPSERT
+  // keys off `id`, so phone-row mismatches across re-runs would otherwise
+  // trip the partial unique index. We exclude rows whose ID IS in this seed's
+  // own ID set — those will be overwritten in place by the UPSERT, so
+  // including their old phone in `seen` would force a needless re-roll.
+  //
+  // The SELECT runs against a separate short-lived connection so the failure
+  // mode of "table doesn't exist yet" (extreme first-ever seed before
+  // migrations) surfaces as a clear error rather than a half-applied seed.
+  const subscriberIdSet = new Set(subscriberIds);
+  const preloadClient = new Client({ connectionString: DB_URL });
+  await preloadClient.connect();
+  let preloadedDupes = new Set();
+  try {
+    const { rows: existingRows } = await preloadClient.query(
+      "SELECT id, phone FROM subscribers WHERE is_demo_signup = false AND phone IS NOT NULL"
+    );
+    for (const row of existingRows) {
+      // Skip rows we own — the upcoming UPSERT will set their phone to the
+      // freshly-generated value, freeing the old phone (if it differs) for
+      // re-use by another row in this run.
+      if (subscriberIdSet.has(row.id)) continue;
+      preloadedDupes.add(row.phone);
+    }
+    if (preloadedDupes.size) {
+      console.log(`  → ${preloadedDupes.size} existing phone(s) reserved by live (non-seed) subscribers`);
+    }
+  } catch (err) {
+    // If the subscribers table doesn't exist or any other unexpected error
+    // occurs, surface it loudly so a half-applied seed doesn't silently land.
+    console.error('ERROR: failed to pre-load existing subscriber phones — has the schema been migrated?');
+    await preloadClient.end();
+    throw err;
+  } finally {
+    await preloadClient.end();
+  }
   {
-    const seen = new Set();
+    const seen = new Set(preloadedDupes);
     let dupeCount = 0;
     for (const s of subscribers) {
       if (!s.phone) continue;
       if (seen.has(s.phone)) {
         dupeCount += 1;
-        s.phone = `+25671${String(dupeCount).padStart(7, '0')}`;
+        // Re-roll into the +25671XXXXXXX synthetic range, padding far enough
+        // not to collide with the demo persona block (+2567000000XX) or with
+        // the live `+256711…` demo subscribers (`…000001`-`…000005`).
+        let attempt = dupeCount;
+        let candidate = `+25671${String(attempt).padStart(7, '0')}`;
+        while (seen.has(candidate)) {
+          attempt += 1;
+          candidate = `+25671${String(attempt).padStart(7, '0')}`;
+        }
+        s.phone = candidate;
+        dupeCount = attempt;
       }
       seen.add(s.phone);
     }
@@ -905,6 +955,64 @@ async function main() {
         personas.map((p) => p.role),
         personas.map((p) => p.entity_id),
         personas.map((p) => p.label),
+      ],
+      'id'
+    );
+
+    // ── users (auth identities) ────────────────────────────────────────────
+    // Seed a `users` row per demo persona with `password_hash = NULL` so the
+    // first sign-in via `/api/auth/verify-otp` stamps a hash on the existing
+    // row (the OTP path stays available until the user opts into a password).
+    // The `id` follows `verify-otp.ts`'s deterministic `${role}:${phone}` shape
+    // so re-running the seed is idempotent against an OTP-initiated upsert.
+    // We mirror the persona list 1:1 here — the same five phones (agent,
+    // branch, distributor) gain a `users` row; the subscriber pseudo-personas
+    // (`s-0001`…`s-0005`) are NOT in `demo_personas` because subscriber lookup
+    // routes through `users(phone, role='subscriber')` directly, so we also
+    // seed those five subscriber rows so the demo phones land authenticated
+    // on first OTP without a missing-user fallback.
+    console.log('• users…');
+    const userRows = [
+      // Agent / branch / distributor personas — mirror `demo_personas` above.
+      ...personas.map((p) => ({
+        id: `${p.role}:${p.phone}`,
+        phone: p.phone,
+        role: p.role,
+        // Friendly label as a fallback display name until verify-otp updates.
+        name: p.label,
+        entity_id: p.entity_id,
+      })),
+      // Subscriber demo phones (5 seeded subscribers — see CLAUDE.md §8).
+      // The entity IDs match the first 5 lazy-generated subscriber rows so
+      // the JWT issued by verify-otp carries the same `subscriberId` claim
+      // every time. If those IDs drift, verify-otp falls back via
+      // `users` lookup → `subscribers` lookup, so the demo still works.
+      { id: 'subscriber:+256711000001', phone: '+256711000001', role: 'subscriber', name: 'Demo subscriber 1', entity_id: 's-0001' },
+      { id: 'subscriber:+256711000002', phone: '+256711000002', role: 'subscriber', name: 'Demo subscriber 2', entity_id: 's-0002' },
+      { id: 'subscriber:+256711000003', phone: '+256711000003', role: 'subscriber', name: 'Demo subscriber 3', entity_id: 's-0003' },
+      { id: 'subscriber:+256711000004', phone: '+256711000004', role: 'subscriber', name: 'Demo subscriber 4', entity_id: 's-0004' },
+      { id: 'subscriber:+256711000005', phone: '+256711000005', role: 'subscriber', name: 'Demo subscriber 5', entity_id: 's-0005' },
+    ];
+    await bulkInsert(
+      client,
+      'users',
+      [
+        { name: 'id', type: 'text' },
+        { name: 'phone', type: 'text' },
+        { name: 'role', type: 'text' },
+        { name: 'name', type: 'text' },
+        { name: 'entity_id', type: 'text' },
+        { name: 'password_hash', type: 'text' },
+      ],
+      [
+        userRows.map((u) => u.id),
+        userRows.map((u) => u.phone),
+        userRows.map((u) => u.role),
+        userRows.map((u) => u.name),
+        userRows.map((u) => u.entity_id),
+        // NULL hash — verify-otp will stamp a bcrypt digest on first sign-in
+        // if/when the user sets a password (the OTP path stays primary).
+        userRows.map(() => null),
       ],
       'id'
     );
