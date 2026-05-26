@@ -36,8 +36,8 @@ test.describe('distributor → create branch (UI + DB)', () => {
   const managerEmail = `e2e-manager-${Date.now()}@example.com`;
 
   test.afterEach(async () => {
-    // No-op on the happy path (no row was inserted) but harmless. Kept so
-    // future runs — after the wiring bug is fixed — auto-clean.
+    // Auto-clean the inserted row by name so re-runs don't accumulate
+    // duplicate E2E branches in the demo DB.
     const { error } = await supabaseAdmin
       .from('branches')
       .delete()
@@ -48,10 +48,9 @@ test.describe('distributor → create branch (UI + DB)', () => {
   test('submitting the form inserts a branch row', async ({ page }) => {
     await disableAnimations(page);
 
-    // Listen for the eventual POST /rest/v1/branches that *should* fire
-    // when the panel is wired up. With a tight timeout — if the write never
-    // happens, we still want the test to fail fast at this await rather
-    // than hang for 45s.
+    // Listen for the POST /rest/v1/branches that fires when the panel
+    // submits. Tight timeout so a regression that breaks the wiring fails
+    // fast at this await rather than hanging for 45s.
     const insertPromise = page.waitForResponse(
       (res) =>
         res.url().includes('/rest/v1/branches') &&
@@ -106,8 +105,8 @@ test.describe('distributor → create branch (UI + DB)', () => {
     await expect(createBtn).toBeEnabled();
     await createBtn.click();
 
-    // Wait for the insert response. With the current product bug this
-    // throws a timeout — caught by test.fail() above.
+    // Wait for the insert response — confirms the panel actually called
+    // useCreateBranch → entities.createBranch → POST /rest/v1/branches.
     const insertResponse = await insertPromise;
     expect(insertResponse.ok()).toBe(true);
 
