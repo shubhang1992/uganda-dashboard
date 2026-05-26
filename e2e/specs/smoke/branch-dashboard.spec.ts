@@ -23,6 +23,7 @@
 import { test, expect } from '@playwright/test';
 import { disableAnimations } from '../../fixtures/motion';
 import { storageStatePathFor } from '../../fixtures/auth';
+import { selectors } from '../../helpers/selectors';
 
 test.use({ storageState: storageStatePathFor('branch') });
 
@@ -36,7 +37,7 @@ test.describe('branch dashboard — smoke', () => {
     // Wait for either the page to settle or the error boundary to mount.
     // networkidle gives data fetches enough time to fail and trigger the boundary.
     await page.waitForLoadState('networkidle', { timeout: 20_000 });
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(page.getByText(/branch overview/i).first()).toBeVisible();
     await expect(page.getByText(/branch admin/i).first()).toBeVisible();
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
@@ -45,7 +46,7 @@ test.describe('branch dashboard — smoke', () => {
   test('Create agent panel opens', async ({ page }) => {
     await page.goto('/dashboard');
     // "Agents" sidebar button opens a popover with two choices.
-    await page.getByRole('button', { name: /^agents$/i }).first().click();
+    await selectors.dashboardShell.agentsTab(page).first().click();
     await page.getByRole('button', { name: /create new agent/i }).click();
     // CreateAgent renders `<h2>Create New Agent</h2>` as the drawer title.
     await expect(
@@ -55,7 +56,7 @@ test.describe('branch dashboard — smoke', () => {
 
   test('View agents panel opens', async ({ page }) => {
     await page.goto('/dashboard');
-    await page.getByRole('button', { name: /^agents$/i }).first().click();
+    await selectors.dashboardShell.agentsTab(page).first().click();
     await page.getByRole('button', { name: /view existing agents/i }).click();
     await expect(
       page.getByRole('heading', { name: /existing agents/i }),
@@ -76,7 +77,7 @@ test.describe('branch dashboard — smoke', () => {
     // Commission panel opens via DashboardPanelContext state — independent of
     // the ViewAgents shell crash, so this test passes cleanly even with the bug.
     await page.goto('/dashboard');
-    await page.getByRole('button', { name: /^commissions$/i }).first().click();
+    await selectors.dashboardShell.commissionsTab(page).first().click();
     await expect(
       page.getByRole('dialog', { name: /commission settlement/i }),
     ).toBeVisible();
@@ -84,7 +85,7 @@ test.describe('branch dashboard — smoke', () => {
 
   test('Settings panel opens', async ({ page }) => {
     await page.goto('/dashboard');
-    await page.getByRole('button', { name: /^settings$/i }).first().click();
+    await selectors.dashboardShell.settingsTab(page).first().click();
     await expect(
       page.getByRole('dialog', { name: /^settings$/i }),
     ).toBeVisible();

@@ -25,6 +25,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { storageStatePathFor, PERSONA_FOR } from '../../fixtures/auth';
 import { disableAnimations } from '../../fixtures/motion';
 import { supabaseAdmin } from '../../fixtures/db';
+import { selectors } from '../../helpers/selectors';
 
 test.use({ storageState: storageStatePathFor('branch') });
 test.setTimeout(60_000);
@@ -53,7 +54,7 @@ async function loadBranchScope() {
 
 async function openAgentsPanel(page: Page) {
   await page.goto('/dashboard');
-  await page.getByRole('button', { name: /^agents$/i }).first().click();
+  await selectors.dashboardShell.agentsTab(page).first().click();
   await page.getByRole('button', { name: /view existing agents/i }).click();
   await expect(page.getByRole('heading', { name: /existing agents/i })).toBeVisible({ timeout: 15_000 });
 }
@@ -84,7 +85,7 @@ test.describe('branch admin → drill agent → subscriber (scoped)', () => {
     const probeAgentId = agentIds[0];
     await page.goto(`/dashboard/agents/${probeAgentId}`);
     await expect(page).toHaveURL(new RegExp(`/dashboard/agents/${probeAgentId}$`));
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
   });
 
   test('AgentDetail inside the branch shell exposes a "View subscribers" CTA', async ({ page }) => {
@@ -96,7 +97,7 @@ test.describe('branch admin → drill agent → subscriber (scoped)', () => {
     await expect(page).toHaveURL(new RegExp(`/dashboard/agents/${probeAgentId}$`));
 
     const testIdCta = page.getByTestId('agent-view-subscribers');
-    const accessibleCta = page.getByRole('button', { name: /view subscribers/i });
+    const accessibleCta = selectors.agentDetail.viewSubscribersCta(page);
     await expect(
       accessibleCta.or(testIdCta).first(),
       'AgentDetail (reused in branch shell) should expose a "View subscribers" button',
@@ -113,7 +114,7 @@ test.describe('branch admin → drill agent → subscriber (scoped)', () => {
     expect(subscriberCount, `seed sanity: branch ${BRANCH_ID} subscribers > 0`).toBeGreaterThan(0);
 
     await page.goto('/dashboard');
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(page.getByText(/branch overview/i).first()).toBeVisible();
 
     // Look for the authoritative count rendered anywhere on the overview.

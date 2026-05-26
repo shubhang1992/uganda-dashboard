@@ -44,6 +44,7 @@ import { test, expect } from '@playwright/test';
 import { storageStatePathFor, PERSONA_FOR } from '../../fixtures/auth';
 import { disableAnimations } from '../../fixtures/motion';
 import { supabaseAdmin } from '../../fixtures/db';
+import { selectors } from '../../helpers/selectors';
 
 test.use({ storageState: storageStatePathFor('distributor') });
 
@@ -92,13 +93,13 @@ test.describe('settings → set / change password (distributor — see header no
     // variant on first render. The card reads `user.hasPassword === true`,
     // so a missing/undefined claim resolves to the initial-set path.
     await page.goto('/dashboard');
-    await expect(page.getByRole('button', { name: /^overview$/i })).toBeVisible();
+    await expect(selectors.dashboardShell.overviewTab(page)).toBeVisible();
 
     // ── 2. Open the Settings panel via the sidebar ─────────────────────────
     // Sidebar.jsx bottom items expose Settings + Log out as aria-labelled
     // buttons. The Settings button id-tagged 'settings' calls
     // setSettingsOpen(true) on click.
-    await page.getByRole('button', { name: /^settings$/i }).click();
+    await selectors.dashboardShell.settingsTab(page).click();
 
     // The panel mounts with role=dialog (aria-label="Settings"). Assert the
     // "Set password" heading inside it. The heading is rendered as <h3>.
@@ -166,7 +167,7 @@ test.describe('settings → set / change password (distributor — see header no
     // Phone (9 digits, no +256). Distributor demo phone is +256700000021.
     await page.locator('input[name="phone"]').fill('700000021');
     await page.getByRole('radio', { name: /^password$/i }).click();
-    await page.getByRole('button', { name: /^continue$/i }).click();
+    await selectors.signInModal.continueButton(page).click();
 
     // PasswordEntry mounts → fill the same value we set above.
     // (RoleSelect's "Welcome back" h2 lingers briefly during the exit
@@ -178,6 +179,6 @@ test.describe('settings → set / change password (distributor — see header no
     // Dashboard lands. Overview button is the stable distributor-shell anchor.
     await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 10_000 });
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByRole('button', { name: /^overview$/i })).toBeVisible();
+    await expect(selectors.dashboardShell.overviewTab(page)).toBeVisible();
   });
 });

@@ -35,6 +35,7 @@ import { test, expect } from '@playwright/test';
 import { storageStatePathFor, PERSONA_FOR } from '../../fixtures/auth';
 import { disableAnimations } from '../../fixtures/motion';
 import { supabaseAdmin, rowExists, getRow } from '../../fixtures/db';
+import { selectors } from '../../helpers/selectors';
 
 test.use({ storageState: storageStatePathFor('branch') });
 test.setTimeout(45_000);
@@ -88,7 +89,7 @@ test.describe('branch → create agent (UI + DB)', () => {
     // The branch shell mounts the sidebar with the Agents icon (aria-label
     // "Agents"). Clicking it toggles the popover with two items:
     // "Create New Agent" and "View Existing Agents".
-    await page.getByRole('button', { name: /^agents$/i }).first().click();
+    await selectors.dashboardShell.agentsTab(page).first().click();
     await page.getByRole('button', { name: /create new agent/i }).click();
 
     // Wait for the slide-in panel header.

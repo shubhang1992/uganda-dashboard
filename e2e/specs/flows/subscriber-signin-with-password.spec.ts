@@ -39,6 +39,7 @@ import { test, expect } from '@playwright/test';
 import { disableAnimations } from '../../fixtures/motion';
 import { cleanupSubscriberByPhone, supabaseAdmin } from '../../fixtures/db';
 import { walkSignupToFirstContribution } from '../../helpers/signup';
+import { selectors } from '../../helpers/selectors';
 
 test.setTimeout(120_000);
 
@@ -106,7 +107,7 @@ test.describe('subscriber → sign in with password', () => {
     //    is rendered as a role=radio button labelled "Password".
     await page.locator('input[name="phone"]').fill(uniquePhoneDigits);
     await page.getByRole('radio', { name: /^password$/i }).click();
-    await page.getByRole('button', { name: /^continue$/i }).click();
+    await selectors.signInModal.continueButton(page).click();
 
     // 6. PasswordEntry — fill the same password we set during signup.
     //    The input is labelled "Password" (aria-label on the <input>).
@@ -159,7 +160,7 @@ test.describe('subscriber → sign in with password', () => {
 
     await page.locator('input[name="phone"]').fill(seededLocalDigits);
     await page.getByRole('radio', { name: /^password$/i }).click();
-    await page.getByRole('button', { name: /^continue$/i }).click();
+    await selectors.signInModal.continueButton(page).click();
 
     // PasswordEntry mounts.
     // PasswordEntry's input is aria-label="Password" — unique to this step.

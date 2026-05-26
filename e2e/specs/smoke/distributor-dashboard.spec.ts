@@ -18,6 +18,7 @@
 import { test, expect } from '@playwright/test';
 import { disableAnimations } from '../../fixtures/motion';
 import { storageStatePathFor } from '../../fixtures/auth';
+import { selectors } from '../../helpers/selectors';
 
 test.use({ storageState: storageStatePathFor('distributor') });
 
@@ -32,7 +33,7 @@ test.describe('distributor dashboard smoke', () => {
     // mounted by the time we inspect the page.
     await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
     // No error-boundary fallback should be visible on any test.
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
   });
 
   test('main dashboard loads with sidebar visible', async ({ page }) => {
@@ -40,20 +41,20 @@ test.describe('distributor dashboard smoke', () => {
     await expect(page).toHaveURL(/\/dashboard/);
     // Sidebar is the primary nav landmark on desktop; its Overview button is
     // always rendered and is a stable anchor for "the distributor shell mounted".
-    await expect(page.getByRole('button', { name: /^overview$/i })).toBeVisible();
+    await expect(selectors.dashboardShell.overviewTab(page)).toBeVisible();
     // Distributor sidebar exposes the full nav set (Branches/Agents/Subscribers/
     // Commissions/Reports) — a quick reachability check across the role.
-    await expect(page.getByRole('button', { name: /^branches$/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /^agents$/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /^subscribers$/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /^commissions$/i })).toBeVisible();
+    await expect(selectors.dashboardShell.branchesTab(page)).toBeVisible();
+    await expect(selectors.dashboardShell.agentsTab(page)).toBeVisible();
+    await expect(selectors.dashboardShell.subscribersTab(page)).toBeVisible();
+    await expect(selectors.dashboardShell.commissionsTab(page)).toBeVisible();
     await expect(page.getByRole('button', { name: /^reports$/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /^settings$/i })).toBeVisible();
+    await expect(selectors.dashboardShell.settingsTab(page)).toBeVisible();
   });
 
   test('Create branch panel opens', async ({ page }) => {
     // Branches is a flyout — open it, then click the Create New Branch item.
-    await page.getByRole('button', { name: /^branches$/i }).click();
+    await selectors.dashboardShell.branchesTab(page).click();
     await page.getByRole('button', { name: /create new branch/i }).click();
     // CreateBranch renders <h2>Create New Branch</h2>.
     await expect(
@@ -62,7 +63,7 @@ test.describe('distributor dashboard smoke', () => {
   });
 
   test('View branches panel opens', async ({ page }) => {
-    await page.getByRole('button', { name: /^branches$/i }).click();
+    await selectors.dashboardShell.branchesTab(page).click();
     await page.getByRole('button', { name: /view existing branches/i }).click();
     // ViewBranches renders <h2>Existing Branches</h2> on list view.
     await expect(
@@ -71,7 +72,7 @@ test.describe('distributor dashboard smoke', () => {
   });
 
   test('View agents panel opens', async ({ page }) => {
-    await page.getByRole('button', { name: /^agents$/i }).click();
+    await selectors.dashboardShell.agentsTab(page).click();
     await page.getByRole('button', { name: /view existing agents/i }).click();
     // ViewAgents renders <h2>Existing Agents</h2> on list view.
     await expect(
@@ -80,8 +81,8 @@ test.describe('distributor dashboard smoke', () => {
   });
 
   test('View subscribers panel opens', async ({ page }) => {
-    await page.getByRole('button', { name: /^subscribers$/i }).click();
-    await page.getByRole('button', { name: /view existing subscribers/i }).click();
+    await selectors.dashboardShell.subscribersTab(page).click();
+    await selectors.viewListPanel.viewExistingSubscribers(page).click();
     // ViewSubscribers renders <h2>Subscribers <count></h2> — the inline count
     // span is part of the accessible name, so we use a substring match.
     await expect(
@@ -104,7 +105,7 @@ test.describe('distributor dashboard smoke', () => {
 
   test('Commission panel opens', async ({ page }) => {
     // Commissions opens directly.
-    await page.getByRole('button', { name: /^commissions$/i }).click();
+    await selectors.dashboardShell.commissionsTab(page).click();
     // CommissionPanel renders its title in a <div> rather than a heading, but
     // the motion.div wrapper carries role="dialog" aria-label="Commission Settlement".
     await expect(
@@ -114,7 +115,7 @@ test.describe('distributor dashboard smoke', () => {
 
   test('Settings panel opens', async ({ page }) => {
     // Settings sits in the bottom rail of the sidebar (not the top nav).
-    await page.getByRole('button', { name: /^settings$/i }).click();
+    await selectors.dashboardShell.settingsTab(page).click();
     // Settings renders <h2>Settings</h2>.
     await expect(
       page.getByRole('heading', { name: /^settings$/i, level: 2 }),

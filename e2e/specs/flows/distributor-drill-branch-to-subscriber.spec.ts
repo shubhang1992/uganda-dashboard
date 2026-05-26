@@ -23,6 +23,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { storageStatePathFor } from '../../fixtures/auth';
 import { disableAnimations } from '../../fixtures/motion';
 import { supabaseAdmin } from '../../fixtures/db';
+import { selectors } from '../../helpers/selectors';
 
 test.use({ storageState: storageStatePathFor('distributor') });
 test.setTimeout(60_000);
@@ -71,7 +72,7 @@ async function openBranchDetail(page: Page, branchId: string) {
   // with drillTargetBranchId set, taking us straight to BranchDetail.
   await page.goto(`/dashboard/branches/${branchId}`);
   await expect(page).toHaveURL(new RegExp(`/dashboard/branches/${branchId}$`));
-  await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+  await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
 }
 
 test.describe('distributor → drill branch → subscriber', () => {
@@ -93,7 +94,7 @@ test.describe('distributor → drill branch → subscriber', () => {
     await openBranchDetail(page, branchId);
 
     const testIdCta = page.getByTestId('branch-view-subscribers');
-    const accessibleCta = page.getByRole('button', { name: /view subscribers/i });
+    const accessibleCta = selectors.agentDetail.viewSubscribersCta(page);
     // First-class assertion — accessible name. Fails today; will pass when
     // the BranchDetail UI gains the CTA.
     await expect(
@@ -118,8 +119,7 @@ test.describe('distributor → drill branch → subscriber', () => {
 
     await openBranchDetail(page, branchId);
 
-    const cta = page
-      .getByRole('button', { name: /view subscribers/i })
+    const cta = selectors.agentDetail.viewSubscribersCta(page)
       .or(page.getByTestId('branch-view-subscribers'))
       .first();
     await cta.click({ timeout: 15_000 });
@@ -154,8 +154,7 @@ test.describe('distributor → drill branch → subscriber', () => {
     const { branchId, agentIds } = await pickBranchWithAgents();
     await openBranchDetail(page, branchId);
 
-    const cta = page
-      .getByRole('button', { name: /view subscribers/i })
+    const cta = selectors.agentDetail.viewSubscribersCta(page)
       .or(page.getByTestId('branch-view-subscribers'))
       .first();
     await cta.click({ timeout: 15_000 });

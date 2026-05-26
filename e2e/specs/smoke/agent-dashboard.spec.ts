@@ -29,6 +29,7 @@
 import { test, expect } from '@playwright/test';
 import { disableAnimations } from '../../fixtures/motion';
 import { storageStatePathFor } from '../../fixtures/auth';
+import { selectors } from '../../helpers/selectors';
 
 test.use({ storageState: storageStatePathFor('agent') });
 
@@ -40,7 +41,7 @@ test.describe('agent dashboard smoke', () => {
   test('Home loads', async ({ page }) => {
     await page.goto('/dashboard');
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     // Home page has no <h1> — PortfolioPulseCard uses <h2>. The hero label
     // is the most stable identity marker (unique copy on the page).
     await expect(page.getByText('Monthly contribution volume')).toBeVisible();
@@ -49,7 +50,7 @@ test.describe('agent dashboard smoke', () => {
   test('Onboard loads', async ({ page }) => {
     await page.goto('/dashboard/onboard');
     await expect(page).toHaveURL(/\/dashboard\/onboard/);
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(
       page.getByRole('heading', { level: 1, name: /onboard a new subscriber/i })
     ).toBeVisible();
@@ -58,7 +59,7 @@ test.describe('agent dashboard smoke', () => {
   test('Subscribers list loads', async ({ page }) => {
     await page.goto('/dashboard/subscribers');
     await expect(page).toHaveURL(/\/dashboard\/subscribers$/);
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(
       page.getByRole('heading', { level: 1, name: /my subscribers/i })
     ).toBeVisible();
@@ -71,14 +72,14 @@ test.describe('agent dashboard smoke', () => {
     // smoke check guards against.
     await page.goto('/dashboard/subscribers/s-0001');
     await expect(page).toHaveURL(/\/dashboard\/subscribers\/s-0001/);
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
   test('Analytics loads', async ({ page }) => {
     await page.goto('/dashboard/analytics');
     await expect(page).toHaveURL(/\/dashboard\/analytics/);
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(
       page.getByRole('heading', { level: 1, name: /analytics/i })
     ).toBeVisible();
@@ -87,7 +88,7 @@ test.describe('agent dashboard smoke', () => {
   test('Commissions home loads', async ({ page }) => {
     await page.goto('/dashboard/commissions');
     await expect(page).toHaveURL(/\/dashboard\/commissions$/);
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(
       page.getByRole('heading', { level: 1, name: /^commissions$/i })
     ).toBeVisible();
@@ -101,14 +102,14 @@ test.describe('agent dashboard smoke', () => {
     // later, the route table and VALID_VIEWS set both need updates.
     await page.goto('/dashboard/commissions/due');
     await expect(page).toHaveURL(/\/dashboard\/commissions(?:$|\/)/);
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
   test('Settings loads', async ({ page }) => {
     await page.goto('/dashboard/settings');
     await expect(page).toHaveURL(/\/dashboard\/settings/);
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(
       page.getByRole('heading', { level: 1, name: /^settings$/i })
     ).toBeVisible();

@@ -18,6 +18,7 @@ import { test, expect } from '@playwright/test';
 import { storageStatePathFor, PERSONA_FOR } from '../../fixtures/auth';
 import { disableAnimations } from '../../fixtures/motion';
 import { supabaseAdmin } from '../../fixtures/db';
+import { selectors } from '../../helpers/selectors';
 
 test.use({ storageState: storageStatePathFor('agent') });
 test.setTimeout(60_000);
@@ -46,7 +47,7 @@ test.describe('agent → drill subscribers (regression baseline)', () => {
 
     await page.goto('/dashboard/subscribers');
     await expect(page).toHaveURL(/\/dashboard\/subscribers$/);
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(page.getByRole('heading', { level: 1, name: /my subscribers/i })).toBeVisible();
   });
 
@@ -85,13 +86,13 @@ test.describe('agent → drill subscribers (regression baseline)', () => {
 
     await page.goto(`/dashboard/subscribers/${sub.id}`);
     await expect(page).toHaveURL(new RegExp(`/dashboard/subscribers/${sub.id}$`));
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     // PageHeader renders <h1> per the smoke spec — assert any h1 lands.
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
     await page.goto(`/dashboard/subscribers/${sub.id}/schedule`);
     await expect(page).toHaveURL(new RegExp(`/dashboard/subscribers/${sub.id}/schedule$`));
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
@@ -109,7 +110,7 @@ test.describe('agent → drill subscribers (regression baseline)', () => {
     expect(outsider, 'expected at least one outsider subscriber').toBeTruthy();
 
     await page.goto(`/dashboard/subscribers/${outsider!.id}`);
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     // The outsider's name must NOT appear as a page heading (which is the
     // detail page's identity marker). The page may render a "not found"
     // shell — that's fine; what's not fine is rendering the foreign data.

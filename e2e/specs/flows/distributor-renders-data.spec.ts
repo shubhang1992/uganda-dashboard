@@ -23,6 +23,7 @@ import { test, expect } from '@playwright/test';
 import { storageStatePathFor } from '../../fixtures/auth';
 import { disableAnimations } from '../../fixtures/motion';
 import { supabaseAdmin } from '../../fixtures/db';
+import { selectors } from '../../helpers/selectors';
 
 test.use({ storageState: storageStatePathFor('distributor') });
 
@@ -46,7 +47,7 @@ test.describe('distributor → renders live data (UI + DB)', () => {
     // dev server + Supabase round-trip can fall in the 3-4s band, so we
     // assert a 5s upper bound here and log the actual time so a regression
     // beyond the SLA is visible in test output without flaking the run.
-    await expect(page.getByRole('button', { name: /^overview$/i })).toBeVisible({
+    await expect(selectors.dashboardShell.overviewTab(page)).toBeVisible({
       timeout: 5_000,
     });
     const chromeMs = Date.now() - t0;
@@ -106,7 +107,7 @@ test.describe('distributor → renders live data (UI + DB)', () => {
     // surfaces. We open ViewSubscribers afterwards purely to verify it
     // opens cleanly, not to read the count.
     await page.goto('/dashboard');
-    await expect(page.getByRole('button', { name: /^overview$/i })).toBeVisible();
+    await expect(selectors.dashboardShell.overviewTab(page)).toBeVisible();
 
     // Locate the Subscribers tile in OverlayPanel: it's a <button> with
     // a label "Subscribers" and the formatted count just before it.
@@ -123,8 +124,8 @@ test.describe('distributor → renders live data (UI + DB)', () => {
     console.log(`[count] OverlayPanel Subscribers tile = ${total}`);
 
     // ViewSubscribers panel must open without breakage.
-    await page.getByRole('button', { name: /^subscribers$/i }).click();
-    await page.getByRole('button', { name: /view existing subscribers/i }).click();
+    await selectors.dashboardShell.subscribersTab(page).click();
+    await selectors.viewListPanel.viewExistingSubscribers(page).click();
     await expect(page.getByRole('heading', { name: /subscribers/i, level: 2 })).toBeVisible();
     // The count line is present (even if it caps at 1 000 — that's the
     // known UI pagination limit).
@@ -149,35 +150,35 @@ test.describe('distributor → renders live data (UI + DB)', () => {
 
     // Country → /dashboard.
     await page.goto('/dashboard');
-    await expect(page.getByRole('button', { name: /^overview$/i })).toBeVisible();
+    await expect(selectors.dashboardShell.overviewTab(page)).toBeVisible();
 
     // Region.
     await page.goto(`/dashboard/regions/${region!.id}`);
     await expect(page).toHaveURL(new RegExp(`/dashboard/regions/${region!.id}$`));
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
 
     // District.
     await page.goto(`/dashboard/districts/${district!.id}`);
     await expect(page).toHaveURL(new RegExp(`/dashboard/districts/${district!.id}$`));
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
 
     // Branch → auto-opens ViewBranches panel (per DashboardNavContext).
     await page.goto(`/dashboard/branches/${branch!.id}`);
     await expect(page).toHaveURL(new RegExp(`/dashboard/branches/${branch!.id}$`));
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
 
     // Agent → auto-opens ViewAgents panel.
     await page.goto(`/dashboard/agents/${agent!.id}`);
     await expect(page).toHaveURL(new RegExp(`/dashboard/agents/${agent!.id}$`));
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
 
     // Subscriber: ViewSubscribers panel renders a subscriber detail view —
     // accessed via the panel UI, not a routed URL (panels are state-based).
     // We assert the URL-driven mechanism by visiting the agents subscriber
     // sub-route which is the closest the URL gets to subscriber detail.
     await page.goto('/dashboard');
-    await page.getByRole('button', { name: /^subscribers$/i }).click();
-    await page.getByRole('button', { name: /view existing subscribers/i }).click();
+    await selectors.dashboardShell.subscribersTab(page).click();
+    await selectors.viewListPanel.viewExistingSubscribers(page).click();
     await expect(page.getByRole('heading', { name: /subscribers/i, level: 2 })).toBeVisible();
   });
 });

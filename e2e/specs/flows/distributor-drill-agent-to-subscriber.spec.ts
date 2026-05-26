@@ -18,6 +18,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { storageStatePathFor } from '../../fixtures/auth';
 import { disableAnimations } from '../../fixtures/motion';
 import { supabaseAdmin } from '../../fixtures/db';
+import { selectors } from '../../helpers/selectors';
 
 test.use({ storageState: storageStatePathFor('distributor') });
 test.setTimeout(60_000);
@@ -45,7 +46,7 @@ async function pickAgentWithSubscribers(): Promise<{ agentId: string; expectedCo
 async function openAgentDetail(page: Page, agentId: string) {
   await page.goto(`/dashboard/agents/${agentId}`);
   await expect(page).toHaveURL(new RegExp(`/dashboard/agents/${agentId}$`));
-  await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+  await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
 }
 
 test.describe('distributor → drill agent → subscriber', () => {
@@ -58,7 +59,7 @@ test.describe('distributor → drill agent → subscriber', () => {
     await openAgentDetail(page, agentId);
 
     const testIdCta = page.getByTestId('agent-view-subscribers');
-    const accessibleCta = page.getByRole('button', { name: /view subscribers/i });
+    const accessibleCta = selectors.agentDetail.viewSubscribersCta(page);
     await expect(
       accessibleCta.or(testIdCta).first(),
       'AgentDetail should expose a "View subscribers" button (data-testid="agent-view-subscribers" or aria-label matching /view subscribers/i)',
@@ -74,8 +75,7 @@ test.describe('distributor → drill agent → subscriber', () => {
 
     await openAgentDetail(page, agentId);
 
-    const cta = page
-      .getByRole('button', { name: /view subscribers/i })
+    const cta = selectors.agentDetail.viewSubscribersCta(page)
       .or(page.getByTestId('agent-view-subscribers'))
       .first();
     await cta.click({ timeout: 15_000 });
@@ -99,8 +99,7 @@ test.describe('distributor → drill agent → subscriber', () => {
     const { agentId } = await pickAgentWithSubscribers();
     await openAgentDetail(page, agentId);
 
-    const cta = page
-      .getByRole('button', { name: /view subscribers/i })
+    const cta = selectors.agentDetail.viewSubscribersCta(page)
       .or(page.getByTestId('agent-view-subscribers'))
       .first();
     await cta.click({ timeout: 15_000 });

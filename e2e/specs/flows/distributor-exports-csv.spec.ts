@@ -23,6 +23,7 @@
 import { test, expect } from '@playwright/test';
 import { storageStatePathFor } from '../../fixtures/auth';
 import { disableAnimations } from '../../fixtures/motion';
+import { selectors } from '../../helpers/selectors';
 
 const BOM = '﻿';
 
@@ -36,7 +37,7 @@ test.describe('subscriber → /dashboard/reports/all-transactions Export CSV', (
   test('downloads a CSV with BOM and header', async ({ page }) => {
     await page.goto('/dashboard/reports/all-transactions');
     await expect(page.getByRole('heading', { level: 1, name: /all transactions/i })).toBeVisible();
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
 
     // Wait for the report to settle — either the "N of M transactions"
     // line OR the "No transactions yet" empty state must be visible. The
@@ -100,17 +101,17 @@ test.describe('distributor → commission detail Download', () => {
     test.skip(isMobile === true, 'distributor sidebar is desktop-only; mobile uses MobileDrawer');
 
     await page.goto('/dashboard');
-    await expect(page.getByRole('button', { name: /^overview$/i })).toBeVisible();
+    await expect(selectors.dashboardShell.overviewTab(page)).toBeVisible();
 
     // Open the Commissions panel (sidebar → Commissions).
-    await page.getByRole('button', { name: /^commissions$/i }).click();
+    await selectors.dashboardShell.commissionsTab(page).click();
     const panel = page.getByRole('dialog', { name: /commission settlement/i });
     await expect(panel).toBeVisible();
 
     // Smoke: the panel mounts without an error boundary fallback. The
     // CSV contract is covered by csv.test.js (unit) + the subscriber
     // all-transactions spec above.
-    await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
   });
 });
 
