@@ -23,11 +23,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '@components': fileURLToPath(new URL('./src/components', import.meta.url)),
-      '@contexts': fileURLToPath(new URL('./src/contexts', import.meta.url)),
-      '@dashboard': fileURLToPath(new URL('./src/dashboard', import.meta.url)),
-      '@data': fileURLToPath(new URL('./src/data', import.meta.url)),
-      '@utils': fileURLToPath(new URL('./src/utils', import.meta.url)),
     },
   },
   build: {

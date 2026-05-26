@@ -8,6 +8,18 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+// Preflight env checks — fail loudly at module load if either required var is
+// missing. The Proxy below defers client construction until first use, but
+// without these checks a misconfigured deployment would only fail when a
+// route first hit Supabase. Catching this at import time turns a silent prod
+// outage into an obvious boot-time error.
+if (!process.env.VITE_SUPABASE_URL) {
+  throw new Error('VITE_SUPABASE_URL env var is not set. Required by api/_lib/supabase-admin.ts.');
+}
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error('SUPABASE_SERVICE_ROLE_KEY env var is not set. Required by api/_lib/supabase-admin.ts.');
+}
+
 let cached: SupabaseClient | null = null;
 
 function getClient(): SupabaseClient {

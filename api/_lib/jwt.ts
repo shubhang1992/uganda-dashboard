@@ -15,6 +15,15 @@
 
 import { SignJWT, jwtVerify } from 'jose';
 
+// Preflight env check — fail loudly at module load if the signing secret is
+// missing. Without this, the first request that needs a JWT would throw deep
+// inside `getSecretKey()` with the same message; surfacing the failure at
+// import time makes the misconfiguration obvious in logs and prevents a
+// "ghost route" that 500s on every invocation.
+if (!process.env.SUPABASE_JWT_SECRET) {
+  throw new Error('SUPABASE_JWT_SECRET env var is not set. Required by api/_lib/jwt.ts.');
+}
+
 export type JwtRole = 'subscriber' | 'agent' | 'branch' | 'distributor';
 
 export type JwtClaims = {

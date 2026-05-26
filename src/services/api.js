@@ -8,18 +8,22 @@
 //   - Convenience wrappers: api.get / post / put / delete.
 //
 // `vercel.json` rewrites everything except `/api/*` and `/assets/*` to
-// `/index.html`, so this same-origin prefix works in dev (vercel dev) and in
-// production. `VITE_API_BASE_URL` is intentionally NOT read — the new
-// architecture pins the prefix to `/api`.
+// `/index.html`, so the same-origin `/api` prefix works in dev (`vercel dev`)
+// and production. The prefix is read from `src/config/env.js` (`API_BASE_URL`)
+// which honours `VITE_API_BASE_URL` when set and falls back to `/api`. Override
+// the env var only if the `/api/*` routes are hosted elsewhere (separate
+// origin, preview vs. prod split, etc.).
 //
 // `VITE_USE_SUPABASE` is the rollback feature flag. When set to the string
 // `'false'` it flips `IS_SUPABASE_ENABLED` off; downstream services can branch
 // on it to fall back to mocks.
 
+import { API_BASE_URL } from '../config/env';
+
 const AUTH_KEY = 'upensions_auth';
 const TOKEN_KEY = 'upensions_token';
 
-const API_PREFIX = '/api';
+const API_PREFIX = API_BASE_URL;
 
 /** Rollback feature flag (string env -> boolean). Default ON. */
 export const IS_SUPABASE_ENABLED =

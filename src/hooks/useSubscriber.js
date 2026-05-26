@@ -24,6 +24,11 @@ export function useCurrentSubscriber() {
   });
 }
 
+// Canonical query-key shape: ['subscriberTransactions', id, filters].
+// Invalidations elsewhere (this file's `useInvalidateSubscriber`, the agent-side
+// `useUpdateSubscriberSchedule.onSettled`) use the two-element prefix
+// `['subscriberTransactions', id]` which matches every cached filter variant
+// for that subscriber via TanStack Query's default partial-key match.
 export function useSubscriberTransactions(id, filters) {
   return useQuery({
     queryKey: ['subscriberTransactions', id, filters],

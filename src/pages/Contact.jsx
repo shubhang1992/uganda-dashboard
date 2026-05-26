@@ -40,7 +40,19 @@ export default function Contact() {
     setSubmitting(true);
     try {
       const res = await submitContactForm(form);
-      setDemoMode(!!res.demo);
+      // Validate the response shape. In demo mode the service returns
+      // `{ ok: true, demo: true }` (no id, by design — no DB write). In the
+      // real path the backend returns `{ submitted: true, id }` which the
+      // service forwards as `{ ok: true, demo: false, id }`. A real-path
+      // response without a non-empty `id` is a backend contract violation
+      // (X13): show the email fallback rather than silently claiming success.
+      const isDemo = !!res?.demo;
+      const hasValidId = typeof res?.id === 'string' && res.id.length > 0;
+      if (!isDemo && !hasValidId) {
+        setError(`We couldn't confirm your message was received. Please email ${SUPPORT_EMAIL} instead.`);
+        return;
+      }
+      setDemoMode(isDemo);
       setSubmitted(true);
     } catch (err) {
       setError(err?.message || `Couldn't send. Please email ${SUPPORT_EMAIL} instead.`);
