@@ -29,19 +29,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import supabaseAdmin from '../_lib/supabase-admin.js';
 import { verifyJwt, type JwtClaims } from '../_lib/jwt.js';
+import { extractBearer } from '../_lib/bearer.js';
 import {
   hashPassword,
   validatePasswordShape,
   verifyPassword,
 } from './_lib/password.js';
-
-function extractBearer(req: VercelRequest): string | null {
-  const header = req.headers.authorization;
-  if (!header || typeof header !== 'string') return null;
-  if (!header.startsWith('Bearer ')) return null;
-  const token = header.slice('Bearer '.length).trim();
-  return token.length > 0 ? token : null;
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

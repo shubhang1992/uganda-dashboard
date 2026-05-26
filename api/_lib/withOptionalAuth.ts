@@ -5,6 +5,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyJwt, type JwtClaims } from './jwt.js';
+import { extractBearer } from './bearer.js';
 
 export type MaybeAuthedRequest = VercelRequest & { user: JwtClaims | null };
 
@@ -17,14 +18,6 @@ export type VercelHandler = (
   req: VercelRequest,
   res: VercelResponse
 ) => void | Promise<void>;
-
-function extractBearer(req: VercelRequest): string | null {
-  const header = req.headers.authorization;
-  if (!header || typeof header !== 'string') return null;
-  if (!header.startsWith('Bearer ')) return null;
-  const token = header.slice('Bearer '.length).trim();
-  return token.length > 0 ? token : null;
-}
 
 export function withOptionalAuth(handler: MaybeAuthedHandler): VercelHandler {
   return async (req, res) => {
