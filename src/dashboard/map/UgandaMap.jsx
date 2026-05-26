@@ -19,6 +19,91 @@ const REGION_COLORS = {
   Western: { fill: '#7B7FC4', glow: 'rgba(123, 127, 196, 0.35)' },
 };
 
+// ─── GeoJSON loaders ─────────────────────────────────────────────────────────
+// Module-level cache so subsequent UgandaMap mounts re-use the parsed payload.
+// The districts file is ~hundreds of KB; keeping it out of the initial bundle
+// (and out of the initial fetch when the user lands at country level) shaves
+// LCP on the dashboard. F10 in the audit.
+let cachedRegions = null;
+let regionsPromise = null;
+let cachedDistricts = null;
+let districtsPromise = null;
+
+function loadRegions() {
+  if (cachedRegions) return Promise.resolve(cachedRegions);
+  if (regionsPromise) return regionsPromise;
+  regionsPromise = fetch('/uganda-regions.geojson')
+    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then((data) => { cachedRegions = data; return data; })
+    .catch((err) => { regionsPromise = null; throw err; });
+  return regionsPromise;
+}
+
+function loadDistricts() {
+  if (cachedDistricts) return Promise.resolve(cachedDistricts);
+  if (districtsPromise) return districtsPromise;
+  districtsPromise = fetch('/uganda-districts.geojson')
+    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then((data) => { cachedDistricts = data; return data; })
+    .catch((err) => { districtsPromise = null; throw err; });
+  return districtsPromise;
+}
+
+// Per-feature style cache. Keyed by feature object identity so repeated
+// re-renders of the same parsed GeoJSON skip the property lookups. F11.
+const regionOverlayStyleCache = new WeakMap();
+const districtStyleCache = new WeakMap();
+
+function getCachedRegionStyle(feature, level, selectedRegionName) {
+  // Cache key composite: level + selected region. We bucket the cache per
+  // (level, selectedRegionName) using nested WeakMaps via the feature.
+  let bucket = regionOverlayStyleCache.get(feature);
+  const bucketKey = `${level}::${selectedRegionName || ''}`;
+  if (bucket && bucket.key === bucketKey) return bucket.style;
+  const name = feature.properties.name;
+  const colors = REGION_COLORS[name] || { fill: '#5E63A8', glow: 'rgba(94,99,168,0.35)' };
+  let style;
+  if (level === 'country') {
+    style = {
+      fillColor: colors.fill,
+      fillOpacity: 0.08,
+      color: '#c8cad6',
+      weight: 0.6,
+      opacity: 0.4,
+    };
+  } else {
+    const isSelected = selectedRegionName === name;
+    style = {
+      fillColor: colors.fill,
+      fillOpacity: isSelected ? 0.1 : 0.03,
+      color: '#c8cad6',
+      weight: isSelected ? 0.6 : 0.3,
+      opacity: isSelected ? 0.4 : 0.15,
+    };
+  }
+  regionOverlayStyleCache.set(feature, { key: bucketKey, style });
+  return style;
+}
+
+function getCachedDistrictStyle(feature, selectedDistrictName) {
+  let bucket = districtStyleCache.get(feature);
+  const bucketKey = `${selectedDistrictName || ''}`;
+  if (bucket && bucket.key === bucketKey) return bucket.style;
+  const name = feature.properties.name;
+  const region = feature.properties.region;
+  const colors = REGION_COLORS[region] || { fill: '#5E63A8', glow: 'rgba(94,99,168,0.35)' };
+  const isSelected = selectedDistrictName === name;
+  const style = {
+    fillColor: 'transparent',
+    fillOpacity: 0,
+    color: isSelected ? colors.fill : '#a0a5bc',
+    weight: isSelected ? 1.5 : 0.5,
+    opacity: isSelected ? 0.5 : 0.3,
+  };
+  districtStyleCache.set(feature, { key: bucketKey, style });
+  return style;
+}
+
 // ─── Soft bokeh glow icon — radial gradient halo at region centroids ─────────
 function createGlowIcon(color, id, size = 180) {
   const gradId = `rg-${id}`;
@@ -86,16 +171,55 @@ function UgandaMap() {
   const REGION_NAME_TO_ID = useMemo(() => Object.fromEntries(regionsArr.map((r) => [r.name, r.id])), [regionsArr]);
   const DISTRICT_NAME_TO_ID = useMemo(() => Object.fromEntries(districtsArr.map((d) => [d.name, d.id])), [districtsArr]);
 
+  // Regions GeoJSON is small + always required at every drill level — fetch
+  // immediately on mount so the base country fill paints right away.
   useEffect(() => {
-    fetch('/uganda-regions.geojson')
-      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(setRegionsGeo)
-      .catch((err) => { if (IS_DEV) console.error('Failed to load regions GeoJSON:', err); setGeoError(err); });
-    fetch('/uganda-districts.geojson')
-      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(setDistrictsGeo)
-      .catch((err) => { if (IS_DEV) console.error('Failed to load districts GeoJSON:', err); setGeoError(err); });
+    let cancelled = false;
+    loadRegions()
+      .then((data) => { if (!cancelled) setRegionsGeo(data); })
+      .catch((err) => { if (cancelled) return; if (IS_DEV) console.error('Failed to load regions GeoJSON:', err); setGeoError(err); });
+    return () => { cancelled = true; };
   }, []);
+
+  // Districts GeoJSON is larger (and only strictly needed once the user
+  // drills past country level). Defer the fetch:
+  //   • Fire immediately when level !== 'country' (needed for layer rendering)
+  //   • At country level, schedule a prefetch via requestIdleCallback so the
+  //     faint background outlines appear after the critical paint.
+  // Fallback: in environments without `requestIdleCallback` we fall back to
+  // a short setTimeout so the prefetch still runs. The eager fetch path is
+  // kept available for environments without IntersectionObserver (rare
+  // ancient browsers, SSR snapshots) by triggering the load synchronously
+  // when level !== 'country'.
+  useEffect(() => {
+    let cancelled = false;
+    const needNow = level !== 'country';
+    const noIdleSupport = typeof IntersectionObserver === 'undefined';
+
+    const run = () => {
+      loadDistricts()
+        .then((data) => { if (!cancelled) setDistrictsGeo(data); })
+        .catch((err) => { if (cancelled) return; if (IS_DEV) console.error('Failed to load districts GeoJSON:', err); setGeoError(err); });
+    };
+
+    if (needNow || noIdleSupport) {
+      // Eager fetch — needed for current render OR running in a stripped-down
+      // environment where deferring is unsafe (no IntersectionObserver ⇒ very
+      // likely no requestIdleCallback either; just load now).
+      run();
+      return () => { cancelled = true; };
+    }
+
+    // Idle prefetch at country level
+    const ric = typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'
+      ? window.requestIdleCallback
+      : (cb) => setTimeout(cb, 200);
+    const cic = typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function'
+      ? window.cancelIdleCallback
+      : clearTimeout;
+    const handle = ric(() => { if (!cancelled) run(); });
+    return () => { cancelled = true; cic(handle); };
+  }, [level]);
 
   const selectedRegionId = selectedIds.region;
   const selectedDistrictId = selectedIds.district;
@@ -151,47 +275,22 @@ function UgandaMap() {
     opacity: 0.5,
   }), []);
 
-  // Region overlays — very subtle tints, glow dots provide the color
-  const regionOverlayStyle = useCallback((feature) => {
-    const name = feature.properties.name;
-    const colors = REGION_COLORS[name] || { fill: '#5E63A8', glow: 'rgba(94,99,168,0.35)' };
+  // Stable name refs so the style callbacks below have minimal dep churn —
+  // the cache key inside the WeakMap helpers handles invalidation.
+  const selectedRegionName = selectedRegion ? selectedRegion.name : null;
+  const selectedDistrictName = selectedDistrict ? selectedDistrict.name : null;
 
-    if (level === 'country') {
-      return {
-        fillColor: colors.fill,
-        fillOpacity: 0.08,
-        color: '#c8cad6',
-        weight: 0.6,
-        opacity: 0.4,
-      };
-    }
+  // Region overlays — very subtle tints, glow dots provide the color.
+  // Style objects are memoized per-feature via WeakMap (see top of file).
+  const regionOverlayStyle = useCallback(
+    (feature) => getCachedRegionStyle(feature, level, selectedRegionName),
+    [level, selectedRegionName]
+  );
 
-    const isSelected = selectedRegion && selectedRegion.name === name;
-    return {
-      fillColor: colors.fill,
-      fillOpacity: isSelected ? 0.1 : 0.03,
-      color: '#c8cad6',
-      weight: isSelected ? 0.6 : 0.3,
-      opacity: isSelected ? 0.4 : 0.15,
-    };
-  }, [level, selectedRegion]);
-
-  const districtStyle = useCallback((feature) => {
-    const name = feature.properties.name;
-    const region = feature.properties.region;
-    const colors = REGION_COLORS[region] || { fill: '#5E63A8', glow: 'rgba(94,99,168,0.35)' };
-    const isSelected = selectedDistrict && selectedDistrict.name === name;
-
-    // No fill — outlines only. Prevents district polygons from showing color over water.
-    // The region overlay layer handles the area coloring.
-    return {
-      fillColor: 'transparent',
-      fillOpacity: 0,
-      color: isSelected ? colors.fill : '#a0a5bc',
-      weight: isSelected ? 1.5 : 0.5,
-      opacity: isSelected ? 0.5 : 0.3,
-    };
-  }, [selectedDistrict]);
+  const districtStyle = useCallback(
+    (feature) => getCachedDistrictStyle(feature, selectedDistrictName),
+    [selectedDistrictName]
+  );
 
   const selectedDistrictStyle = useCallback(() => ({
     fillColor: '#5E63A8',
@@ -307,9 +406,12 @@ function UgandaMap() {
     [selectedRegionId, selectedDistrictId]
   );
 
-  // Either layer failing to load is fatal — the map can't render correctly
-  // without both region overlays and district outlines.
-  if (geoError && (!regionsGeo || !districtsGeo)) {
+  // Regions failing to load is always fatal. Districts failing is fatal once
+  // the user drills past country (the layer is required to render). At
+  // country level a districts error just means the faint background outlines
+  // won't appear — no need to blank the whole map.
+  const districtsCritical = level !== 'country';
+  if (geoError && (!regionsGeo || (districtsCritical && !districtsGeo))) {
     return (
       <div className={styles.mapContainer} data-level={level}>
         <div className={styles.errorFallback} role="alert">
