@@ -21,6 +21,12 @@ import supabaseAdmin from '../_lib/supabase-admin.js';
 import { signJwt, type JwtRole } from '../_lib/jwt.js';
 import { toCanonicalUGPhone } from '../_lib/phone.js';
 import { verifyPassword } from './_lib/password.js';
+import {
+  ROLE_DEFAULTS,
+  resolveDemoPersona,
+  resolveSubscriber,
+} from './_lib/personas.js';
+import { buildAuthResponseDto, buildJwtClaims } from './_lib/claims.js';
 
 const VALID_ROLES = new Set<JwtRole>([
   'subscriber',
@@ -28,74 +34,6 @@ const VALID_ROLES = new Set<JwtRole>([
   'branch',
   'distributor',
 ]);
-
-// Mirrors `verify-otp.ts` — same demo-stable fallbacks so a sales rep
-// who set a password on the seeded `s-0001` row keeps landing on the same
-// dashboard regardless of phone-input form.
-const ROLE_DEFAULTS: Record<JwtRole, string> = {
-  subscriber: 's-0001',
-  agent: 'a-001',
-  branch: 'b-kam-015',
-  distributor: 'd-001',
-};
-
-type ResponseUser = {
-  role: JwtRole;
-  phone: string;
-  hasPassword: boolean;
-  name?: string;
-  subscriberId?: string;
-  agentId?: string;
-  branchId?: string;
-  distributorId?: string;
-};
-
-type ResolvedIdentity = {
-  entityId: string;
-  name?: string;
-};
-
-async function resolveSubscriber(phone: string): Promise<ResolvedIdentity | null> {
-  // Newest-wins. See `verify-otp.ts` for the rationale — the partial unique
-  // index `WHERE NOT is_demo_signup` means signup-created rows aren't unique
-  // by phone, so we always pick the most recently created one.
-  const { data, error } = await supabaseAdmin
-    .from('subscribers')
-    .select('id, name')
-    .eq('phone', phone)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    console.error('[verify-password] subscriber lookup failed', error);
-    return null;
-  }
-  if (!data) return null;
-  return { entityId: data.id as string, name: (data.name as string) ?? undefined };
-}
-
-async function resolveDemoPersona(
-  phone: string,
-  role: Exclude<JwtRole, 'subscriber'>
-): Promise<ResolvedIdentity> {
-  const { data, error } = await supabaseAdmin
-    .from('demo_personas')
-    .select('entity_id, label')
-    .eq('phone', phone)
-    .eq('role', role)
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    console.error('[verify-password] demo_personas lookup failed', error);
-  }
-  if (data) {
-    return {
-      entityId: data.entity_id as string,
-      name: (data.label as string) ?? undefined,
-    };
-  }
-  return { entityId: ROLE_DEFAULTS[role] };
-}
 
 async function touchLastLogin(phone: string, role: JwtRole): Promise<void> {
   // Best-effort `last_login_at` bump. Failure is non-fatal — the user is
@@ -169,11 +107,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    // Resolve the role-scoped entity ID exactly like verify-otp does.
+    // Resolve the role-scoped entity ID exactly like verify-otp does — the
+    // two routes share `_lib/personas.ts` so the resolution is identical.
     let entityId: string;
     let name: string | undefined;
     if (typedRole === 'subscriber') {
-      const resolved = await resolveSubscriber(canonicalPhone);
+      const resolved = await resolveSubscriber(supabaseAdmin, canonicalPhone);
       if (resolved) {
         entityId = resolved.entityId;
         name = resolved.name;
@@ -181,37 +120,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         entityId = ROLE_DEFAULTS.subscriber;
       }
     } else {
-      const resolved = await resolveDemoPersona(canonicalPhone, typedRole);
+      const resolved = await resolveDemoPersona(
+        supabaseAdmin,
+        canonicalPhone,
+        typedRole
+      );
       entityId = resolved.entityId;
       name = resolved.name;
     }
 
     await touchLastLogin(canonicalPhone, typedRole);
 
-    const claims = {
-      sub: entityId,
-      role: 'authenticated' as const,
-      app_role: typedRole,
-      phone: canonicalPhone,
-      ...(typedRole === 'subscriber' ? { subscriberId: entityId } : {}),
-      ...(typedRole === 'agent' ? { agentId: entityId } : {}),
-      ...(typedRole === 'branch' ? { branchId: entityId } : {}),
-      ...(typedRole === 'distributor' ? { distributorId: entityId } : {}),
-    };
-    const token = await signJwt(claims);
+    // JWT claims + response DTO are built via the shared helpers so this
+    // route and `verify-otp.ts` mint byte-identical payloads. `hasPassword`
+    // is always `true` here — we just verified a non-null hash.
+    const token = await signJwt(
+      buildJwtClaims({
+        role: typedRole,
+        phone: canonicalPhone,
+        entityId,
+      })
+    );
 
-    const user: ResponseUser = {
-      role: typedRole,
-      phone: canonicalPhone,
-      hasPassword: true,
-      ...(name ? { name } : {}),
-      ...(typedRole === 'subscriber' ? { subscriberId: entityId } : {}),
-      ...(typedRole === 'agent' ? { agentId: entityId } : {}),
-      ...(typedRole === 'branch' ? { branchId: entityId } : {}),
-      ...(typedRole === 'distributor' ? { distributorId: entityId } : {}),
-    };
-
-    res.status(200).json({ token, user });
+    res.status(200).json(
+      buildAuthResponseDto({
+        token,
+        role: typedRole,
+        phone: canonicalPhone,
+        entityId,
+        hasPassword: true,
+        name,
+      })
+    );
   } catch (err) {
     console.error('[verify-password] unexpected error', err);
     // Match verify-otp's behaviour: unknown failures surface as a generic

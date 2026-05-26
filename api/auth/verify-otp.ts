@@ -28,6 +28,12 @@ import {
   hashPassword,
   validatePasswordShape,
 } from './_lib/password.js';
+import {
+  ROLE_DEFAULTS,
+  resolveDemoPersona,
+  resolveSubscriber,
+} from './_lib/personas.js';
+import { buildAuthResponseDto, buildJwtClaims } from './_lib/claims.js';
 
 const OTP_REGEX = /^\d{6}$/;
 const VALID_ROLES = new Set<JwtRole>([
@@ -36,84 +42,6 @@ const VALID_ROLES = new Set<JwtRole>([
   'branch',
   'distributor',
 ]);
-
-// Demo-stable fallback entity IDs when the phone isn't recognised. Matches the
-// promise in CLAUDE.md §8 ("every demo login succeeds"). For subscribers the
-// fallback is the first seeded row (`s-0001` / Brian Okello); kept here rather
-// than queried at runtime so a re-seed drift surfaces loudly instead of
-// silently rotating the demo identity mid-session.
-const ROLE_DEFAULTS: Record<JwtRole, string> = {
-  subscriber: 's-0001',
-  agent: 'a-001',
-  branch: 'b-kam-015',
-  distributor: 'd-001',
-};
-
-type ResponseUser = {
-  role: JwtRole;
-  phone: string;
-  hasPassword: boolean;
-  name?: string;
-  subscriberId?: string;
-  agentId?: string;
-  branchId?: string;
-  distributorId?: string;
-};
-
-type ResolvedIdentity = {
-  entityId: string;
-  name?: string;
-};
-
-async function resolveSubscriber(phone: string): Promise<ResolvedIdentity | null> {
-  // ORDER BY created_at DESC: the partial unique index on `subscribers(phone)`
-  // is `WHERE NOT is_demo_signup`, so signup-created rows are NOT unique by
-  // phone. A user re-running the demo accumulates multiple rows for the same
-  // phone (each with their own contribution schedule). Without an ORDER BY,
-  // Postgres returns an arbitrary one — usually the oldest — and the JWT
-  // lands on a stale row whose schedule the user no longer recognises (the
-  // "defaulting to 10K monthly" symptom). Newest-wins matches the demo
-  // expectation that the most recent signup is the "live" account.
-  const { data, error } = await supabaseAdmin
-    .from('subscribers')
-    .select('id, name')
-    .eq('phone', phone)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    // Unexpected DB error — surface as invalid_otp for now (the demo has no
-    // separate `server_error` code in AuthError). Logged server-side for ops.
-    console.error('[verify-otp] subscriber lookup failed', error);
-    return null;
-  }
-  if (!data) return null;
-  return { entityId: data.id as string, name: (data.name as string) ?? undefined };
-}
-
-async function resolveDemoPersona(
-  phone: string,
-  role: Exclude<JwtRole, 'subscriber'>
-): Promise<ResolvedIdentity> {
-  const { data, error } = await supabaseAdmin
-    .from('demo_personas')
-    .select('entity_id, label')
-    .eq('phone', phone)
-    .eq('role', role)
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    console.error('[verify-otp] demo_personas lookup failed', error);
-  }
-  if (data) {
-    return {
-      entityId: data.entity_id as string,
-      name: (data.label as string) ?? undefined,
-    };
-  }
-  // No row → demo-stable fallback.
-  return { entityId: ROLE_DEFAULTS[role] };
-}
 
 async function upsertUser(
   phone: string,
@@ -214,7 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let name: string | undefined;
 
     if (typedRole === 'subscriber') {
-      const resolved = await resolveSubscriber(canonicalPhone);
+      const resolved = await resolveSubscriber(supabaseAdmin, canonicalPhone);
       if (resolved) {
         entityId = resolved.entityId;
         name = resolved.name;
@@ -226,7 +154,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         entityId = ROLE_DEFAULTS.subscriber;
       }
     } else {
-      const resolved = await resolveDemoPersona(canonicalPhone, typedRole);
+      const resolved = await resolveDemoPersona(
+        supabaseAdmin,
+        canonicalPhone,
+        typedRole
+      );
       entityId = resolved.entityId;
       name = resolved.name;
     }
@@ -243,35 +175,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       passwordHash
     );
 
-    // Build the JWT claims. `role` is the Postgres role ("authenticated")
-    // that PostgREST uses for `SET ROLE`; `app_role` carries our application
-    // role and is read by RLS policies via `auth.jwt() ->> 'app_role'`.
-    // Role-specific *Id claim is set so RLS policies can read e.g.
-    // `auth.jwt() ->> 'agentId'`.
-    const claims = {
-      sub: entityId,
-      role: 'authenticated' as const,
-      app_role: typedRole,
-      phone: canonicalPhone,
-      ...(typedRole === 'subscriber' ? { subscriberId: entityId } : {}),
-      ...(typedRole === 'agent' ? { agentId: entityId } : {}),
-      ...(typedRole === 'branch' ? { branchId: entityId } : {}),
-      ...(typedRole === 'distributor' ? { distributorId: entityId } : {}),
-    };
-    const token = await signJwt(claims);
+    // JWT claims + response DTO are built via the shared helpers so this
+    // route and `verify-password.ts` mint byte-identical payloads. See
+    // `_lib/claims.ts` for the claim/role rationale.
+    const token = await signJwt(
+      buildJwtClaims({
+        role: typedRole,
+        phone: canonicalPhone,
+        entityId,
+      })
+    );
 
-    const user: ResponseUser = {
-      role: typedRole,
-      phone: canonicalPhone,
-      hasPassword,
-      ...(name ? { name } : {}),
-      ...(typedRole === 'subscriber' ? { subscriberId: entityId } : {}),
-      ...(typedRole === 'agent' ? { agentId: entityId } : {}),
-      ...(typedRole === 'branch' ? { branchId: entityId } : {}),
-      ...(typedRole === 'distributor' ? { distributorId: entityId } : {}),
-    };
-
-    res.status(200).json({ token, user });
+    res.status(200).json(
+      buildAuthResponseDto({
+        token,
+        role: typedRole,
+        phone: canonicalPhone,
+        entityId,
+        hasPassword,
+        name,
+      })
+    );
   } catch (err) {
     console.error('[verify-otp] unexpected error', err);
     res.status(500).json({ error: 'invalid_otp' });
