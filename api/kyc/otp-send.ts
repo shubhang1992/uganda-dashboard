@@ -15,7 +15,7 @@ const SIMULATED_LATENCY_MS = 600;
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ code: 'method_not_allowed' });
   }
 
   // Body shape: { phone: string }. Canonicalise to +256XXXXXXXXX before any

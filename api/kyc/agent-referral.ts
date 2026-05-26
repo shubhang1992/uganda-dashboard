@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ code: 'method_not_allowed' });
   }
 
   // B13: every response path on this route must be uncacheable. Setting the
@@ -66,7 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ code: 'invalid_phone' });
   }
   if (!reason) {
-    return res.status(400).json({ error: 'reason is required.' });
+    return res.status(400).json({ code: 'reason_required' });
   }
 
   const eta = 'within 24 hours';
@@ -86,11 +86,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   });
 
   if (error) {
-    // Surface a generic error message — the user can still try again or
+    // Surface a generic error code — the user can still try again or
     // proceed via a different channel. Logged for operator triage.
     // eslint-disable-next-line no-console
     console.error('[agent-referral] insert failed', error);
-    return res.status(500).json({ error: 'Could not record referral.' });
+    return res.status(500).json({
+      code: 'db_error',
+      message: error.code ?? error.message,
+    });
   }
 
   return res.status(200).json({ ticketId, eta });

@@ -28,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ code: 'method_not_allowed' });
   }
 
   // B13: every response path on this route must be uncacheable. Setting the
@@ -40,12 +40,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const message = typeof body.message === 'string' ? body.message.trim() : '';
 
-  if (!name) return res.status(400).json({ error: 'name is required.' });
-  if (!email) return res.status(400).json({ error: 'email is required.' });
+  if (!name) return res.status(400).json({ code: 'invalid_name' });
+  if (!email) return res.status(400).json({ code: 'invalid_email' });
   if (!EMAIL_RE.test(email)) {
-    return res.status(400).json({ error: 'email must be a valid address.' });
+    return res.status(400).json({ code: 'invalid_email' });
   }
-  if (!message) return res.status(400).json({ error: 'message is required.' });
+  if (!message) return res.status(400).json({ code: 'invalid_message' });
 
   const id = generateId();
 
@@ -59,7 +59,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (error) {
     // eslint-disable-next-line no-console
     console.error('[contact] insert failed', error);
-    return res.status(500).json({ error: 'Could not record submission.' });
+    return res.status(500).json({
+      code: 'db_error',
+      message: error.code ?? error.message,
+    });
   }
 
   return res.status(200).json({ submitted: true, id });

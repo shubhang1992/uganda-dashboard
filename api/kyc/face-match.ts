@@ -26,7 +26,7 @@ type FaceMatchResult = {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ code: 'method_not_allowed' });
   }
 
   // The body envelope is { selfieFile: <token>, nin: string, sessionId?: string }.
@@ -37,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!body.selfieFile) {
     return res
       .status(400)
-      .json({ error: 'Selfie image is missing — please retake.' });
+      .json({ code: 'selfie_required' });
   }
 
   await new Promise((r) => setTimeout(r, SIMULATED_LATENCY_MS));
@@ -45,6 +45,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const forced = req.headers['x-qa-force'];
   const force = Array.isArray(forced) ? forced[0] : forced;
 
+  // B16 demo-scope intentional: verification refusals are 200 with match:false,
+  // not 4xx. Client UX surfaces the failure based on the body, not the HTTP
+  // status. Do not switch to 4xx.
   if (force === 'liveness-fail') {
     const result: FaceMatchResult = {
       match: false,

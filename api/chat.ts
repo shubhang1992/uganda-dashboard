@@ -245,7 +245,7 @@ async function chatHandler(req: MaybeAuthedRequest, res: VercelResponse): Promis
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     res.setHeader('Cache-Control', 'no-store');
-    res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ code: 'method_not_allowed' });
     return;
   }
 
@@ -264,7 +264,7 @@ async function chatHandler(req: MaybeAuthedRequest, res: VercelResponse): Promis
   }
   const message = body.message;
   if (!message.trim()) {
-    res.status(400).json({ error: 'message is required.' });
+    res.status(400).json({ code: 'invalid_message' });
     return;
   }
 

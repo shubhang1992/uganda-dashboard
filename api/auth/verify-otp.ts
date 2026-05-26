@@ -106,7 +106,8 @@ async function upsertUser(
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
-    res.status(405).json({ error: 'method_not_allowed' });
+    res.setHeader('Allow', 'POST');
+    res.status(405).json({ code: 'method_not_allowed' });
     return;
   }
 
@@ -124,18 +125,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { phone, otp, role, password } = body;
 
   if (typeof phone !== 'string' || phone.length === 0) {
-    res.status(400).json({ error: 'invalid_otp' });
+    res.status(400).json({ code: 'invalid_otp' });
     return;
   }
   if (typeof otp !== 'string' || !OTP_REGEX.test(otp)) {
-    res.status(400).json({ error: 'invalid_otp' });
+    res.status(400).json({ code: 'invalid_otp' });
     return;
   }
   if (
     typeof role !== 'string' ||
     !VALID_ROLES.has(role as JwtRole)
   ) {
-    res.status(400).json({ error: 'invalid_otp' });
+    res.status(400).json({ code: 'invalid_otp' });
     return;
   }
   const typedRole = role as JwtRole;
@@ -235,6 +236,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
     console.error('[verify-otp] unexpected error', err);
-    res.status(500).json({ error: 'invalid_otp' });
+    res.status(500).json({ code: 'invalid_otp' });
   }
 }

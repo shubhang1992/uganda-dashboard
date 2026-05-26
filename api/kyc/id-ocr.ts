@@ -17,7 +17,7 @@ const SIMULATED_LATENCY_MS = 2200;
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ code: 'method_not_allowed' });
   }
 
   await new Promise((r) => setTimeout(r, SIMULATED_LATENCY_MS));
@@ -30,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!body.front || !body.back) {
     return res
       .status(400)
-      .json({ error: 'Both sides of the ID are required.' });
+      .json({ code: 'id_sides_required' });
   }
 
   // Note: Ugandan National IDs don't carry a district. The user always picks

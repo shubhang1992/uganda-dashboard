@@ -37,7 +37,7 @@ function buildQuality({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ code: 'method_not_allowed' });
   }
 
   await new Promise((r) => setTimeout(r, SIMULATED_LATENCY_MS));

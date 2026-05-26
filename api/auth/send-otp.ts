@@ -11,7 +11,8 @@ const VALID_ROLES = new Set(['subscriber', 'agent', 'branch', 'distributor']);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
-    res.status(405).json({ error: 'method_not_allowed' });
+    res.setHeader('Allow', 'POST');
+    res.status(405).json({ code: 'method_not_allowed' });
     return;
   }
 
@@ -28,15 +29,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // what counts as a valid phone — previously the regex-only check here
   // surfaced a console 400 every time SignInModal fired the warm-up send.
   if (typeof phone !== 'string' || phone.length === 0) {
-    res.status(400).json({ error: 'invalid_request' });
+    res.status(400).json({ code: 'invalid_request' });
     return;
   }
   if (!toCanonicalUGPhone(phone)) {
-    res.status(400).json({ error: 'invalid_request' });
+    res.status(400).json({ code: 'invalid_request' });
     return;
   }
   if (typeof role !== 'string' || !VALID_ROLES.has(role)) {
-    res.status(400).json({ error: 'invalid_request' });
+    res.status(400).json({ code: 'invalid_request' });
     return;
   }
 
