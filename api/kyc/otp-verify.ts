@@ -9,6 +9,7 @@
 // ~700ms simulated latency.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { toCanonicalUGPhone } from '../_lib/phone.js';
 
 const SIMULATED_LATENCY_MS = 700;
 
@@ -18,13 +19,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const body = (req.body ?? {}) as { phone?: unknown; code?: string };
+  // Canonicalise the phone before any downstream use; reject early on invalid
+  // shapes so this route can't write/read mismatched representations once it
+  // grows real persistence.
+  const phone = toCanonicalUGPhone(body.phone);
+  if (!phone) {
+    return res.status(400).json({ code: 'invalid_phone' });
+  }
+
   await new Promise((r) => setTimeout(r, SIMULATED_LATENCY_MS));
 
   const forced = req.headers['x-qa-force'];
   const force = Array.isArray(forced) ? forced[0] : forced;
   if (force === 'fail') return res.status(200).json({ verified: false });
 
-  const body = (req.body ?? {}) as { phone?: string; code?: string };
   const code = body.code;
   if (!code || code.length !== 4) {
     return res.status(200).json({ verified: false });

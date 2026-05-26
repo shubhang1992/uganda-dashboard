@@ -12,6 +12,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import supabaseAdmin from '../_lib/supabase-admin.js';
+import { toCanonicalUGPhone } from '../_lib/phone.js';
 
 const SIMULATED_LATENCY_MS = 600;
 const TICKET_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -48,11 +49,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   await new Promise((r) => setTimeout(r, SIMULATED_LATENCY_MS));
 
   const body = (req.body ?? {}) as ReferralBody;
-  const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
+  // Canonicalise phone to +256XXXXXXXXX before doing anything else with it —
+  // the row we INSERT below must store the canonical form so subsequent agent
+  // lookups (which always query by canonical phone) actually match this
+  // referral. Without this, a user typing "0712 345 678" creates a referral
+  // row no agent dashboard can find. (B3/B4.)
+  const phone = toCanonicalUGPhone(body.phone);
   const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
 
-  if (!phone || !reason) {
-    return res.status(400).json({ error: 'phone and reason are required.' });
+  if (!phone) {
+    return res.status(400).json({ code: 'invalid_phone' });
+  }
+  if (!reason) {
+    return res.status(400).json({ error: 'reason is required.' });
   }
 
   const eta = 'within 24 hours';
