@@ -1,6 +1,15 @@
 -- =============================================================================
 -- Universal Pensions Uganda — 0018: Entity metrics rollup
 -- =============================================================================
+-- ----------------------------------------------------------------------
+-- NOTE: This migration's metrics rollup is superseded by 0020.
+-- The 0018 body reads `auth.jwt() ->> 'role'` (always 'authenticated' for
+-- our custom HS256 JWTs) instead of the canonical `app_role` claim, so
+-- every drill-down silently returned zero. The 0019 hotfix re-grants the
+-- ACL; 0020 ships the canonical v3 body with the fixed role gate.
+-- Do NOT delete this file — it must remain for replay safety (audit D4).
+-- ----------------------------------------------------------------------
+--
 -- One SECURITY DEFINER RPC that returns aggregated metrics for many entities
 -- at one level in a single round-trip. Replaces the per-entity EMPTY_METRICS
 -- placeholder that mapRegion/mapDistrict/mapBranch/mapAgent return today.
