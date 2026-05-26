@@ -35,6 +35,7 @@ export default defineConfig([
           'useDashboardPanel',
           'useSignIn',
           'useSignup',
+          'useSubscriberPanel',
           'useToast',
           'useApp',
           'STEPS',
