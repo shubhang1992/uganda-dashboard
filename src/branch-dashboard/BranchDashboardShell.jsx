@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../utils/finance';
+import { EASE_OUT_EXPO } from '../utils/motion';
 import { DashboardProvider } from '../contexts/DashboardContext';
 import { BranchScopeProvider } from '../contexts/BranchScopeContext';
 import { useAuth } from '../contexts/AuthContext';

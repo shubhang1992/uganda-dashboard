@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
 import { useSignup } from '../SignupContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { faceMatch } from '../../services/kyc';

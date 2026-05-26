@@ -165,5 +165,9 @@ export function amtToSlider(a, min, max) {
   return ((Math.log(Math.max(a, min)) - lo) / (hi - lo)) * 100;
 }
 
-/** Shared easing curve */
-export const EASE_OUT_EXPO = [0.16, 1, 0.3, 1];
+/**
+ * @deprecated Import from `src/utils/motion.js` instead. Re-exported here for
+ * backwards compatibility with existing call sites; migrate when touching the
+ * surrounding code.
+ */
+export { EASE_OUT_EXPO } from './motion';
