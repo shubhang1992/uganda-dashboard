@@ -218,6 +218,19 @@ function flavorForRole(role: string | undefined): ChatContext {
   return 'subscriber';
 }
 
+// B14 demo-scope policy (DO NOT TIGHTEN without consulting demo-flow owners):
+//
+// This route accepts a body-supplied `context` field that overrides the
+// default flavor when the caller is unauthenticated. The asymmetry —
+// authenticated callers get the JWT-derived role, unauthenticated callers
+// get the body-supplied one — is intentional: the public landing-page demo
+// widgets (e.g. the "ask the data assistant" hero chip) need to demo the
+// admin/agent flavors of this endpoint without minting a real session for
+// the sales rep walking a prospect through. Tightening this to "JWT or
+// 401" would break the landing-page demo flows; the audit (finding B14)
+// explicitly recommends documenting the policy rather than changing
+// semantics. If you need to revisit this, sync with the demo-flow owners
+// first and check the landing-page chat embeds before shipping.
 function resolveFlavor(req: MaybeAuthedRequest, bodyContext: unknown): ChatContext {
   // JWT-verified role takes precedence — never trust body for an
   // authenticated caller.

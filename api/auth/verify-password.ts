@@ -15,6 +15,7 @@
 //   - invalid_request    — missing/wrong-type field
 //   - password_not_set   — phone+role has no row OR row has NULL password_hash
 //   - invalid_password   — row found with hash, but bcrypt compare failed
+//   - role_mismatch      — defense-in-depth: row's stored role ≠ requested role
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import supabaseAdmin from '../_lib/supabase-admin.js';
@@ -84,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // row per pair, unlike `subscribers`.
     const { data: userRow, error: userLookupError } = await supabaseAdmin
       .from('users')
-      .select('password_hash')
+      .select('password_hash, role')
       .eq('phone', canonicalPhone)
       .eq('role', typedRole)
       .maybeSingle();
@@ -110,6 +111,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // — these are legitimate auth-failure UX paths the frontend depends
       // on for the OTP-fallback toast. Do NOT promote these to db_error.
       res.status(401).json({ code: 'password_not_set' });
+      return;
+    }
+
+    // B12 defense-in-depth: the SELECT above already filters by role, so a
+    // mismatched role would normally yield `userRow === null`. Re-verify
+    // anyway against the row's stored role — guards against future refactors
+    // that drop the WHERE clause, mid-flight role rewrites, or any scenario
+    // where a phone is enrolled under multiple roles and the wrong row leaks
+    // through. Log a single warn so ops can spot probing.
+    const storedRole = (userRow as { role?: unknown }).role;
+    if (typeof storedRole !== 'string' || storedRole !== typedRole) {
+      console.warn('[verify-password] role mismatch');
+      res.status(401).json({ code: 'role_mismatch' });
       return;
     }
 
