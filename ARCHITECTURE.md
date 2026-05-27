@@ -42,10 +42,10 @@ The platform is a thin, three-tier stack with a deliberately narrow contract bet
                     │                               │
                     ▼                               ▼
        ┌─────────────────────────────┐  ┌──────────────────────────────────┐
-       │ Vercel serverless functions │  │   Supabase PostgREST + Realtime  │
-       │ api/ (TypeScript, Node 22)  │  │   (rest/v1 + realtime channels)  │
-       │                             │  │                                  │
-       │ Routes:                     │  │   Reads: anon client via SDK     │
+       │ Render Web Service          │  │   Supabase PostgREST + Realtime  │
+       │ Express 5 / Node 22 / Sing. │  │   (rest/v1 + realtime channels)  │
+       │ server/index.ts mounts      │  │                                  │
+       │ api/*.ts (TypeScript)       │  │   Reads: anon client via SDK     │
        │ • api/auth/* — 4            │  │   Writes: never direct — every   │
        │   (send-otp, verify-otp,    │  │     write goes through a         │
        │    verify-password,         │  │     SECURITY DEFINER RPC         │
@@ -86,9 +86,9 @@ The platform is a thin, three-tier stack with a deliberately narrow contract bet
 
 **The three crossings, in one line each:**
 
-- **Browser → API.** Same-origin `/api/*` fetch from `src/services/api.js`, carrying a custom HS256 JWT in the `Authorization: Bearer` header.
+- **Browser → API.** Cross-origin `https://uganda-dashboard-api.onrender.com/api/*` fetch from `src/services/api.js` (URL baked at Vite build time via `VITE_API_BASE_URL`), carrying a custom HS256 JWT in the `Authorization: Bearer` header. CORS allowlist on the Render side covers production + Vercel preview + Vite dev origins.
 - **Browser → PostgREST.** `supabase-js` over the anon key + the same custom JWT; reads only (every write would be blocked by RLS without a server-side helper).
-- **API → DB.** Vercel functions use the singleton `supabase-admin` (service-role key) which **bypasses RLS**. Used for JWT-mint lookups, contact-form writes, and KYC-referral writes.
+- **API → DB.** Express on Render uses the singleton `supabase-admin` (service-role key) which **bypasses RLS**. Used for JWT-mint lookups, contact-form writes, and KYC-referral writes. The admin client's `auth.persistSession: false` is mandatory under a long-lived process (see BACKEND.md §4).
 
 Everything else is a refinement of those three boundaries.
 
@@ -110,8 +110,8 @@ flowchart TB
     UTIL["src/utils/navigation.js<br/>(shared util, Phase 4B bd5ea82)"]
   end
 
-  subgraph Server["Vercel serverless"]
-    AR["api/* route<br/>verifyJwt via api/_lib/jwt"]
+  subgraph Server["Render Express (Node 22, Singapore)"]
+    AR["api/* route via server/adapter.ts<br/>verifyJwt via api/_lib/jwt"]
     SA["supabaseAdmin<br/>(service-role)"]
     AL1["api/auth/_lib/personas.ts<br/>ROLE_DEFAULTS + resolveDemoPersona<br/>+ resolveSubscriber (Phase 1C)"]
     AL2["api/auth/_lib/claims.ts<br/>buildJwtClaims + buildAuthResponseDto<br/>(Phase 1C)"]
@@ -153,7 +153,7 @@ flowchart TB
 | Service (`src/services/`) | Backend-shape translation + rollback flag (mock branch) | Backend rows ↔ camelCase UI shapes; `IS_SUPABASE_ENABLED` branch | Component refs, hook state, React context |
 | `api.js` / `supabaseClient.js` | Transport primitives | HTTP / PostgREST / RPC calls; auth header injection; 401 propagation | Domain knowledge, optimistic updates |
 | Shared util (`src/utils/`) | Pure helpers that any role may import | `goBackOrFallback`, `formatUGX`, `formatDate`, `EASE_OUT_EXPO`, frequency normalisation | Component refs, React state, hooks |
-| Vercel function (`api/`) | Server-side enforcement (signing, RLS bypass) | Validated body → `supabaseAdmin` → response envelope | Frontend state, React imports |
+| Express handler (`api/`, mounted by `server/index.ts`) | Server-side enforcement (signing, RLS bypass) | Validated body → `supabaseAdmin` → response envelope | Frontend state, React imports |
 | API helper (`api/_lib`, `api/auth/_lib`, `api/kyc/_lib`) | Cross-route logic with one home | JWT mint, persona resolution, bearer parsing, KYC mocks | Per-route handler-specific state |
 | RPC (SECURITY DEFINER) | Atomic multi-table writes; business invariants | Multiple table mutations in one transaction; role check via `auth.jwt() ->> 'app_role'` | Untrusted input without `_validate_signup_payload` |
 | Table | Storage + RLS check | Row data | Direct client writes (RLS blocks everything that isn't an RPC) |
@@ -182,9 +182,9 @@ src/services/auth.js
    │  sendOtp / verifyOtp / signInWithPassword / changePassword
    ▼
 POST /api/auth/{send-otp | verify-otp | verify-password | change-password}
-   │
+   │  (cross-origin → uganda-dashboard-api.onrender.com)
    ▼
-api/auth/* (Vercel function)
+api/auth/* (Express handler on Render, mounted by server/index.ts via toExpress(...))
    │  ┌─ validate body (phone shape, OTP regex, role enum, password shape)
    │  ├─ canonicalise UG phone via api/_lib/phone.ts
    │  ├─ subscriber? `resolveSubscriber(supabaseAdmin, phone)` → newest row or null
@@ -265,9 +265,9 @@ Phase 7's env hardening (`27b78a3`) closed the **broken-app** class of demo sile
 
 | Was | After Phase 7 (`27b78a3`) |
 |---|---|
-| `src/services/supabaseClient.js` silently fell back to `http://localhost:54321` + `'public-anon-key'` when `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` were unset, shipping a broken app to prod with no signal | In any non-dev build (production, preview, `vercel dev` with `NODE_ENV=production`) the resolver **throws** with a pointer to `.env.local.example`. Dev keeps the fallback but `console.warn`s loudly. |
-| `api/_lib/jwt.ts` would only fail on the first request that needed a signature | Module-load preflight check — `throw new Error('SUPABASE_JWT_SECRET env var is not set. Required by api/_lib/jwt.ts.')` runs at import time. |
-| `api/_lib/supabase-admin.ts` lazy-resolved the URL + service key at first call | Module-load preflight checks for both `VITE_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` before the Proxy is exported. |
+| `src/services/supabaseClient.js` silently fell back to `http://localhost:54321` + `'public-anon-key'` when `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` were unset, shipping a broken app to prod with no signal | In any non-dev build (Vercel production or preview) the resolver **throws** with a pointer to `.env.local.example`. Dev keeps the fallback but `console.warn`s loudly. |
+| `api/_lib/jwt.ts` would only fail on the first request that needed a signature | Post-Render: `server/index.ts` calls `assertServerEnv()` after middleware mount but before route mounts (B1) — a misconfigured deploy fails loudly with a single boot log line. |
+| `api/_lib/supabase-admin.ts` lazy-resolved the URL + service key at first call | Same `assertServerEnv()` preflight; the admin client's lazy Proxy is retained for unit-test isolation, but env validation runs at boot. |
 | `.env.local.example` was missing keys actually read by `src/` (`VITE_API_BASE_URL`, `VITE_LEGAL_*`, `VITE_SUPPORT_*`, `VITE_MAP_TILE_URL`) | Template updated; deleted the orphaned root `.env`. The example file is now the source of truth (X10). |
 | Five dead Vite aliases (`@components`, `@contexts`, `@dashboard`, `@data`, `@utils`) cluttered `vite.config.js` | Aliases reduced to **only `@` → `./src`** (X7). |
 
@@ -467,9 +467,10 @@ See also: [`.claude/skills/qa.md`](./.claude/skills/qa.md) for the full E2E play
 | Environment | Command | Origin | Backend |
 |---|---|---|---|
 | **Local frontend-only** | `npm run dev` | `localhost:5173` | Supabase project (via Vite env vars). `VITE_USE_SUPABASE=false` flips to mock fallback. |
-| **Local fullstack** | `npm run dev:api` (`vercel dev`) | `localhost:3000` | Supabase project + local `api/*` routes. The only way to exercise `/api/auth/*` + `/api/kyc/*` end-to-end locally. |
-| **Preview deploy** | Push to a branch → Vercel preview URL | `<branch>-<repo>-<org>.vercel.app` | Same Supabase project as prod (shared). Vercel env: Preview. |
-| **Production deploy** | Push to `main` | `uganda-dashboard.vercel.app` | Same Supabase project. Vercel env: Production. Auto-deploy on push. |
+| **Local fullstack** | `npm run dev` + `npm run dev:api` in two terminals, or `npm run dev:all` | Vite `:5173` + Express `:3001` | Supabase project + local Express server. Set `VITE_API_BASE_URL=http://localhost:3001/api`. The only way to exercise `/api/auth/*` + `/api/kyc/*` end-to-end locally. |
+| **Preview deploy (frontend)** | Push to a branch → Vercel preview URL | `<branch>-<repo>-<org>.vercel.app` | Vercel auto-deploys per PR; frontend only (no backend preview on Render free tier). Backend remains the single Singapore production service for all previews. |
+| **Production deploy (frontend)** | Push to `main` | `uganda-dashboard.vercel.app` | Same Supabase project. Vercel env: Production. Auto-deploy on push via GitHub App. |
+| **Production deploy (backend)** | **Manual** trigger via Render dashboard or Deploy Hook | `uganda-dashboard-api.onrender.com` | `autoDeployTrigger: off` in `render.yaml`; see `docs/render-operational.md` §Manual Deploy. |
 
 ### 8.1 `.env.local.example` is the source of truth (Phase 7 `27b78a3`)
 
@@ -493,7 +494,7 @@ Post-cleanup state:
 | `api/_lib/jwt.ts` | **Module-load throw** for `SUPABASE_JWT_SECRET`. |
 | `api/_lib/supabase-admin.ts` | **Module-load throw** for both `VITE_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. |
 
-`npm run build` succeeds; the throws only fire at function startup. A misconfigured Vercel preview/prod now fails loudly on the first cold-start invocation instead of silently shipping a 404-loop app.
+`npm run build` succeeds; the assertions fire at Express boot. A misconfigured Render deploy now fails loudly with a single boot-log line (`[boot] env ok: ...` missing one or more keys) instead of silently shipping a 404-loop API. The Vercel-side frontend retains its own throw for missing `VITE_*` keys in non-dev builds.
 
 ### 8.3 Vite aliases (X7)
 
@@ -503,16 +504,19 @@ Post-cleanup state: **only `@` → `./src` remains**. Confirmed by `grep -rn "@c
 
 ### 8.4 Env-var matrix
 
-| Variable | Frontend (public) | Server (Vercel function) | Local seed script |
-|---|---|---|---|
-| `VITE_SUPABASE_URL` | ✓ | ✓ (via `api/_lib/supabase-admin.ts`) | — |
-| `VITE_SUPABASE_ANON_KEY` | ✓ | — | — |
-| `VITE_USE_SUPABASE` | ✓ (rollback flag) | — | — |
-| `VITE_API_BASE_URL` | optional (defaults to `/api`) | — | — |
-| `VITE_LEGAL_*`, `VITE_SUPPORT_*`, `VITE_MAP_TILE_URL` | optional (with defaults in `src/config/env.js`) | — | — |
-| `SUPABASE_SERVICE_ROLE_KEY` | **NEVER** | ✓ | — |
-| `SUPABASE_JWT_SECRET` | **NEVER** | ✓ | — |
-| `SUPABASE_DB_URL` | — | — | ✓ (port 6543 pooler) |
+| Variable | Frontend (Vercel, public) | Server (Render Express) | CI (GHA) | Local seed script |
+|---|---|---|---|---|
+| `VITE_SUPABASE_URL` | ✓ (all 3 scopes) | — | ✓ | — |
+| `SUPABASE_URL` (server-side rename) | — | ✓ (`sync: false`) | — | — |
+| `VITE_SUPABASE_ANON_KEY` | ✓ | — | ✓ | — |
+| `VITE_USE_SUPABASE` | ✓ (rollback flag) | — | — | — |
+| `VITE_API_BASE_URL` | ✓ (all 3 scopes — baked into the bundle at Vite build time; absolute Render URL in prod, `http://localhost:3001/api` in local dev) | — | — (Playwright passes via `webServer.env`) | — |
+| `VITE_LEGAL_*`, `VITE_SUPPORT_*`, `VITE_MAP_TILE_URL` | optional (with defaults in `src/config/env.js`) | — | — | — |
+| `SUPABASE_SERVICE_ROLE_KEY` | **NEVER** | ✓ (`sync: false`) | ✓ | — |
+| `SUPABASE_JWT_SECRET` | **NEVER** | ✓ (`sync: false`, copy verbatim from Supabase) | ✓ | — |
+| `SENTRY_DSN` / `VITE_SENTRY_DSN` | ✓ frontend / ✓ Render (optional) | ✓ Render | — | — |
+| `SUPABASE_DB_URL` | — | — | — | ✓ (port 6543 pooler) |
+| `PORT` | — | ✓ (Render injects; local dev defaults to 3001) | — | — |
 
 The `VITE_*` keys are inlined into the client bundle at build time — putting a service-role key behind a `VITE_` prefix would leak it to every browser session. The discipline holds today (no `VITE_*` prefix on server-only keys).
 
@@ -526,7 +530,7 @@ Every `/api/*` call from the frontend goes through `src/services/api.js`. The wr
 
 1. Reads `localStorage['upensions_token']` and injects `Authorization: Bearer <token>` if present.
 2. Sets `Content-Type: application/json` and serializes the body when present.
-3. Hits `/api${path}` (same-origin — Vercel rewrites `/api/*` to functions; everything else to `index.html`).
+3. Hits `${API_BASE_URL}${path}` — post-Render-migration this is the absolute Render URL (`https://uganda-dashboard-api.onrender.com/api/*`) baked into the bundle by Vite from `VITE_API_BASE_URL`. Vercel's `vercel.json` rewrites everything else to `index.html` so deep links don't 404.
 4. On HTTP 401: clears `upensions_token` + `upensions_auth`, notifies all `onAuthExpired` listeners (consumed by `AuthContext` → graceful logout), and throws.
 5. On other non-OK: throws an `Error` carrying `code` (from response body's `error` or `code` field), `status`, and `body`.
 
@@ -547,7 +551,7 @@ Phase 1F (`dbe12e2`, B5/B17) split `db_error` (true DB failure, surface to ops) 
 
 Phase 1I (`e918866`, B12/B14) added a role-mismatch guard in `verify-password.ts` and documented the chat role policy.
 
-`VITE_API_BASE_URL` is read but unused (X15) — `api.js` hardcodes `/api`. The env var is harmless but documents legacy intent (the original spec expected a separate API host).
+`VITE_API_BASE_URL` is consumed by `src/services/api.js` and baked into the bundle at Vite build time. Post-Render-migration the original "separate API host" intent has been realised: production builds point at `uganda-dashboard-api.onrender.com/api`, local dev at `http://localhost:3001/api`.
 
 See also: [`BACKEND.md §3`](./BACKEND.md) (route inventory).
 
@@ -688,7 +692,7 @@ See also: [`BACKEND.md §7`](./BACKEND.md) (migration history).
 
 ## 14. Build & deploy
 
-**Build:**
+**Build (frontend, Vercel):**
 
 - **Vite 6.3.5** with `@vitejs/plugin-react` (React 19 fast refresh).
 - **Manual vendor chunks** (`vite.config.js`): `vendor-leaflet`, `vendor-charts` (recharts + d3-*), `vendor-motion` (framer-motion + motion-utils + motion-dom), `vendor-tanstack`, `vendor-router`, `vendor-react` (react + scheduler + tightly-coupled runtime). React is chunked separately to prevent `forwardRef` undefined errors after hash shifts.
@@ -696,19 +700,26 @@ See also: [`BACKEND.md §7`](./BACKEND.md) (migration history).
 - Lazy-loaded dashboard shells under `React.lazy` so the marketing landing page doesn't carry dashboard code.
 - Path aliases: **`@` → `./src` only** (5 aliases removed in Phase 7, §8.3).
 - CSS Modules only — no Tailwind, no component library, no preprocessor. Tokens live in `src/index.css`.
+- `vercel.json`: `{ "framework": "vite", "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }` — the SPA catch-all is required because Vite's Vercel preset doesn't inject one (B8 in the Render migration audit). `.vercelignore` excludes `api/`, `server/`, `dist-server/`, `e2e/`, `playwright.config.ts`, and `**/*.test.ts` to prevent Vercel from auto-detecting `api/` as functions (B9).
+
+**Build (backend, Render):**
+
+- **Express 5.2** on **Node 22**, mounted by `server/index.ts` with the `toExpress(handler)` adapter (`server/adapter.ts`) wrapping each `api/*.ts` handler.
+- `render.yaml` blueprint pins `runtime: node`, `plan: free`, `region: singapore` (irreversible — chosen because Supabase is in `ap-northeast-1` Tokyo; Singapore minimises the Render→Supabase hop), `autoDeployTrigger: off`, `healthCheckPath: /healthz`, `buildCommand: npm ci && npm run build:api && npm prune --omit=dev`, `startCommand: node dist-server/server/index.js`.
+- `npm run build:api` runs `tsc -p server/tsconfig.json` (NodeNext module + moduleResolution, `outDir: ../dist-server`). This is also the **CI build gate** — if a `.js` extension drifts from a relative import, CI fails before Render does.
 
 **Deploy:**
 
-- **Vercel framework preset** = `vite` (per `vercel.json`).
-- **Function runtime** = `@vercel/node@4.0.0` for every `api/**/*.ts`.
-- **Auto-deploy on push to `main`** → production at `uganda-dashboard.vercel.app`.
-- **Preview deploys** on every branch push → `<branch>-<repo>-<org>.vercel.app`.
-- **CI gating** (`.github/workflows/test.yml`):
-  - On every PR + push to `main`: lint + Vitest (~30s).
-  - E2E gated on lint+unit success: smoke + flows on chromium + mobile-chromium for PRs; full matrix on push to `main`. `--workers=1` because the suite shares one Supabase project.
+- **Frontend (Vercel):** auto-deploys on push to `main` via the GitHub App integration. Preview URL per PR. Build runs in Vercel's builder.
+- **Backend (Render):** **manual deploys only** (`autoDeployTrigger: off` — mirrors CLAUDE.md §1 guardrail). Trigger via Render dashboard → Manual Deploy, or `curl -X POST $RENDER_DEPLOY_HOOK_URL`. Render has no preview environments on the free tier — every PR shares the single Singapore production backend.
+- **Cold-start:** Render free tier spins down after 15 min idle; first request waits ~35–70s. Mitigation: GHA cron `*/14 * * * *` hitting `/healthz` (`.github/workflows/keepalive.yml`) + cron-job.org/UptimeRobot 5-min backup + frontend `useWarmup()` banner before the sign-in modal opens. See `docs/render-operational.md` for the wake strategy detail.
+- **Region rationale:** Uganda → Singapore (~150–200ms) + Singapore → Supabase-Tokyo (~70ms) ≈ 220–270ms per call. Oregon would add ~370–430ms; Frankfurt would pay an even longer Render→Supabase hop. The choice is immutable after service creation.
+- **CI gating (`.github/workflows/test.yml`):**
+  - On every PR + push to `main`: lint + Vitest unit (~30s) + `npm run build:api` (tsc gate, ~15s) before any Playwright run.
+  - E2E gated on lint + unit + tsc success: smoke + flows on chromium + mobile-chromium for PRs; full matrix on push to `main`. `--workers=1` because the suite shares one Supabase project. Playwright spins up Vite (`:5173`) + Express (`:3001`) locally via `webServer.command = 'npm run dev:all'`.
   - Concurrency block cancels in-flight runs on the same ref.
 
-See also: [`BACKEND.md §15`](./BACKEND.md) (operational runbook).
+See also: [`BACKEND.md §16`](./BACKEND.md) (operational runbook) and [`docs/render-operational.md`](./docs/render-operational.md) (Render-specific runbook: manual deploys, log retention, deploy outage window, silent-failure recovery).
 
 ---
 

@@ -2,7 +2,7 @@
 
 Deep backend reference. Pair with `CLAUDE.md` (slim index) and `FRONTEND.md` (deep frontend reference).
 
-Covers the Vercel serverless TypeScript routes under `api/**`, the Supabase Postgres schema + RPCs + RLS in `supabase/migrations/*.sql`, the seed and utility scripts under `scripts/`, and the operational runbook for local + hosted environments.
+Covers the Express + TypeScript routes under `api/**` (mounted by `server/index.ts` and hosted on **Render** — Singapore region, Node 22, free tier), the Supabase Postgres schema + RPCs + RLS in `supabase/migrations/*.sql`, the seed and utility scripts under `scripts/`, and the operational runbook for local + hosted environments. The frontend ships from **Vercel** (Vite preset, no functions); see `docs/render-operational.md` for the post-migration runbook and `renderplan.md` for the migration plan.
 
 > **Scope note.** This platform is a sales-rep **demo**, not a production fintech. Many behaviours (any-6-digit OTP, hardcoded UGX 1,000 unit price, fixed 24h JWT TTL, no refresh, `demo_personas` fallback IDs, mocked KYC, mocked chat, per-session mutation stores) are intentional. See §14a — never reframe them as production-prep TODOs.
 
@@ -21,9 +21,10 @@ Covers the Vercel serverless TypeScript routes under `api/**`, the Supabase Post
                                │                     │  Authorization: Bearer <jwt>
                                ▼                     ▼
               ┌────────────────────────┐   ┌─────────────────────────┐
-              │   Vercel serverless    │   │   Supabase PostgREST    │
-              │   api/**/*.ts (Node)   │   │   (rest/v1, realtime)   │
-              │   @vercel/node@4.0.0   │   │                         │
+              │   Render Web Service   │   │   Supabase PostgREST    │
+              │   Express 5 / Node 22  │   │   (rest/v1, realtime)   │
+              │   server/index.ts +    │   │                         │
+              │   api/**/*.ts (Sing.)  │   │                         │
               └───────────┬────────────┘   └────────────┬────────────┘
                           │  supabase-admin             │  enforces RLS
                           │  (service-role key,         │  via auth.jwt()
@@ -48,12 +49,17 @@ The canonical template is `.env.local.example`. Three keys are public (`VITE_*` 
 
 | Variable | Scope | Read by | Purpose | In `.env.local.example` |
 |---|---|---|---|---|
-| `VITE_SUPABASE_URL` | Public (frontend + server) | `api/_lib/supabase-admin.ts`, `src/services/supabaseClient.js` | Supabase project URL (`https://<ref>.supabase.co`) | Yes |
-| `VITE_SUPABASE_ANON_KEY` | Public | `src/services/supabaseClient.js` | PostgREST anon-tier key (default RLS-restricted) | Yes |
-| `VITE_USE_SUPABASE` | Public | `src/config/env.js` + every service file | Rollback flag — when `'false'`, services fall back to mockData (FRONTEND.md §4) | Yes |
-| `SUPABASE_SERVICE_ROLE_KEY` | **Server-only** | `api/_lib/supabase-admin.ts` | Admin client used by all serverless routes (bypasses RLS) | Yes |
-| `SUPABASE_JWT_SECRET` | **Server-only** | `api/_lib/jwt.ts` | HS256 signing secret; same secret PostgREST uses to verify JWTs | Yes |
+| `VITE_SUPABASE_URL` | Public (Vercel frontend) | `src/services/supabaseClient.js` | Supabase project URL (`https://<ref>.supabase.co`) | Yes |
+| `SUPABASE_URL` | **Server-only (Render)** | `api/_lib/supabase-admin.ts` | Supabase project URL — server-side rename of `VITE_SUPABASE_URL` (G19). For backwards compat the admin client reads `SUPABASE_URL ?? VITE_SUPABASE_URL`. | Yes |
+| `VITE_SUPABASE_ANON_KEY` | Public (Vercel frontend) | `src/services/supabaseClient.js` | PostgREST anon-tier key (default RLS-restricted) | Yes |
+| `VITE_USE_SUPABASE` | Public (Vercel frontend) | `src/config/env.js` + every service file | Rollback flag — when `'false'`, services fall back to mockData (FRONTEND.md §4) | Yes |
+| `VITE_API_BASE_URL` | Public (Vercel frontend, all 3 scopes) | `src/config/env.js` → `src/services/api.js` | Absolute backend URL baked into the bundle at Vite build time. Local: `http://localhost:3001/api`. Prod: `https://uganda-dashboard-api.onrender.com/api`. | Yes |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Server-only (Render)** | `api/_lib/supabase-admin.ts` | Admin client used by all Express routes (bypasses RLS) | Yes |
+| `SUPABASE_JWT_SECRET` | **Server-only (Render)** | `api/_lib/jwt.ts` | HS256 signing secret; same secret PostgREST uses to verify JWTs. **Copy verbatim from Supabase Dashboard → API → JWT Settings.** Do NOT regenerate during the Render migration (B21) — `withOptionalAuth` swallows verification errors and fails open. | Yes |
+| `SENTRY_DSN` | **Server-only (Render)** | `server/index.ts` | Optional. Sentry error aggregation (free 5k events/mo). | Yes (commented placeholder) |
+| `VITE_SENTRY_DSN` | Public (Vercel frontend, optional) | `src/main.jsx` | Same Sentry project, frontend-side capture. | Yes (commented placeholder) |
 | `SUPABASE_DB_URL` | **Local-only** | `scripts/seed-supabase.mjs` | Postgres pooler URL (port 6543) for `npm run seed` | Yes |
+| `PORT` | **Server-only (Render + local dev)** | `server/index.ts` | Express listen port. Render injects this automatically; local dev defaults to `3001`. | Yes |
 
 ### Frontend-only keys consumed by `src/config/env.js`
 
@@ -61,7 +67,7 @@ These keys are read by the frontend but **missing from `.env.local.example`** (a
 
 | Variable | Default fallback |
 |---|---|
-| `VITE_API_BASE_URL` | `/api` (used as `services/api.js` base; current code hardcodes `'/api'` and doesn't actually consume the env value — audit X15) |
+| `VITE_API_BASE_URL` | `/api` only as a legacy fallback. Post-Render-migration the live value is set in Vercel project env (all 3 scopes) to the absolute Render URL (e.g. `https://uganda-dashboard-api.onrender.com/api`); local dev uses `http://localhost:3001/api`. Vite bakes the value at build time — changing it requires a Vercel redeploy. |
 | `VITE_LEGAL_TERMS_URL` | `https://universalpensions.com/legal/terms` |
 | `VITE_LEGAL_PRIVACY_URL` | `https://universalpensions.com/legal/privacy` |
 | `VITE_SUPPORT_WHATSAPP_URL` | `https://wa.me/256700123456` |
@@ -80,7 +86,7 @@ These keys are read by the frontend but **missing from `.env.local.example`** (a
 
 ## §3. API route inventory
 
-**14 routes** live under `api/`. Vercel maps each file to a route (`api/auth/send-otp.ts → POST /api/auth/send-otp`). All routes accept only `POST`. Breakdown:
+**14 routes** live under `api/`. They were originally written as Vercel serverless functions; post-Render-migration `server/index.ts` mounts each one via a thin `toExpress(handler)` adapter (`server/adapter.ts`) using `app.all('/api/.../<route>', toExpress(<handler>))`. `app.all` (not `app.post`) preserves the per-handler manual 405 contract (B5). All routes accept only `POST`; non-POST returns 405 `{ code: 'method_not_allowed' }` with `Allow: POST`. Breakdown:
 
 - **4 auth routes** — `send-otp`, `verify-otp`, `verify-password`, `change-password`
 - **8 KYC routes** — `otp-send`, `otp-verify`, `id-ocr`, `id-quality`, `face-match`, `aml-screen`, `nira-verify`, `agent-referral`
@@ -206,7 +212,9 @@ type JwtClaims = {
 
 ### Supabase admin client
 
-`supabase-admin.ts` returns a Proxy that lazy-instantiates the client on first property access, so unit tests + type-check passes don't throw when env vars are missing. The real client is built with `auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }` — serverless functions are stateless.
+`supabase-admin.ts` returns a Proxy that lazy-instantiates the client on first property access, so unit tests + type-check passes don't throw when env vars are missing. The real client is built with `auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }` — critical under the **long-lived Render Express process** (G66). The previous Vercel topology rebuilt the client per invocation, masking any session-related drift; under a singleton, leaving these flags unset would leak token-refresh timers across requests. If any future code path imports the admin client with different `auth` options, an internal refresh timer could fire on a stale token and break authenticated reads silently.
+
+**Role claim is frozen at JWT mint time (G57).** `api/auth/_lib/claims.ts:50-66` encodes `app_role` when the token is minted. If the underlying `users.role` row changes in the database (e.g. admin manually re-roles a user), the change does NOT propagate until the user re-logs in. There is no refresh path. Doc-only awareness item; no code change.
 
 ### `withAuth` vs `withOptionalAuth`
 
@@ -751,7 +759,7 @@ Every item below is intentional for a sales-rep demo. Never frame as a productio
 - **`contribution_history`** is a JSONB sparkline denormalized from `transactions`; no consistency trigger keeps it in sync with the ledger.
 - **`search_entities` hardcoded `LIMIT 8`.** Plenty for a demo's autocomplete UX.
 - **No CSRF / origin checks** on the public POST routes. Acceptable because the demo runs from a single allowed origin.
-- **`vercel.json` has no security headers** — no CSP, HSTS, X-Frame-Options, etc. Logged at low severity (audit X8) and explicitly out of scope.
+- **No application-level security headers (CSP, HSTS, X-Frame-Options) configured by the platform.** Vercel hosts the frontend with default headers; Render's Express layer applies `helmet()` (the post-migration default) which sets sane defaults including X-Content-Type-Options and a baseline CSP. Tightening CSP for an SPA + cross-origin Render API is explicitly out of scope for the demo.
 
 ### §15b. Real bugs / awareness items
 
@@ -827,12 +835,13 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 | Apply migrations locally | `supabase db reset` (re-runs every `00NN_*.sql`) |
 | Push migrations to hosted project | `supabase db push` |
 | Apply a single migration via MCP | `mcp__supabase__apply_migration` (note: wraps DDL in a transaction; split `CREATE INDEX CONCURRENTLY` out via `execute_sql` — see 0022 header) |
-| Tail Vercel logs | `vercel logs <deployment-url>` |
+| Tail backend (Render) logs | Render dashboard → `uganda-dashboard-api` → Logs (live tail; ~7-day retention per `docs/render-operational.md` §Log Retention). Or via MCP: `mcp__render__list_logs`. |
+| Tail frontend (Vercel) build/runtime logs | `vercel logs <deployment-url>` — note: post-migration there are no functions, so runtime logs are SPA build/serve only. |
 | Reseed Postgres | `npm run seed` (reads `SUPABASE_DB_URL` from `.env.local`) |
 | Clip GeoJSON | `node scripts/clip-districts.mjs` |
 | Test a read RPC from psql | `SELECT public.get_entity_commission_summary('region', 'r-central');` |
 | Impersonate a role in psql | `SET LOCAL request.jwt.claims = '{"role":"authenticated","app_role":"agent","agentId":"a-001","aud":"authenticated"}'; SELECT count(*) FROM subscribers;` |
-| Rotate JWT secret | Project Settings → API → JWT settings → rotate. Update `SUPABASE_JWT_SECRET` in Vercel env (Preview + Production). Existing tokens become invalid (forced logout). |
+| Rotate JWT secret | **4-step procedure (G42).** `api/_lib/jwt.ts:59-72` caches the secret as `Uint8Array` for the lifetime of the process; Render does NOT hot-reload env vars. (1) Supabase Dashboard → Project Settings → API → JWT Settings → rotate. (2) Update `SUPABASE_JWT_SECRET` in the Render dashboard env. (3) Trigger a Render restart — Render dashboard → service → Manual Deploy → "Deploy latest commit", or `curl -X POST $RENDER_DEPLOY_HOOK_URL`. (4) Accept that all users get logged out: the 24h-TTL tokens become invalid immediately. (Vercel no longer holds this secret post-migration.) |
 | Inspect realtime publication | `SELECT pubname, tablename FROM pg_publication_tables WHERE pubname = 'supabase_realtime';` (expected: empty for `public.*` after 0025) |
 | Confirm app_role discipline | `SELECT count(*) FROM pg_policies WHERE schemaname='public' AND (qual LIKE '%''role''%' OR with_check LIKE '%''role''%');` (expected: 0) |
 

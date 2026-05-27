@@ -40,8 +40,10 @@ See `CLAUDE.md` for the slim entry index, `BACKEND.md` for SQL/RPC/RLS detail, a
 
 | Script | Purpose |
 | --- | --- |
-| `npm run dev` | Vite dev server (frontend only, mock fallback if backend off) |
-| `npm run dev:api` | `vercel dev` — frontend + `api/*` routes locally |
+| `npm run dev` | Vite dev server on `:5173` (frontend only, mock fallback if backend off) |
+| `npm run dev:api` | Express backend on `:3001` (`tsx watch server/index.ts`). Pair with `npm run dev` in another terminal, or run `npm run dev:all` for both |
+| `npm run dev:all` | Both servers in one terminal via `concurrently` |
+| `npm run build:api` | `tsc -p server/tsconfig.json` — also runs in CI before Playwright |
 | `npm run build` | Production Vite build |
 | `npm run preview` | Serve the built bundle |
 | `npm run lint` | ESLint 9 flat config |
@@ -317,7 +319,7 @@ All public exports below. Every service file follows the `IS_SUPABASE_ENABLED ? 
 
 Same-origin `/api/*` wrapper around `fetch`. Reads `Authorization: Bearer <upensions_token>` from localStorage on every request. On HTTP 401: clears auth keys and notifies all `onAuthExpired` listeners (consumed by `AuthContext`). Thrown errors carry `code`, `status`, and `body`.
 
-`VITE_API_BASE_URL` exists in `src/config/env.js` but `api.js` hardcodes `/api` and **never reads** the env var — known low-priority drift (audit X15, §16b).
+`VITE_API_BASE_URL` is the live API base URL. Post-Render migration this points at `https://uganda-dashboard-api.onrender.com/api` in Vercel project env (all three scopes — Production / Preview / Development) and at `http://localhost:3001/api` in local dev. `src/config/env.js` defaults to `/api` only if the env var is missing (e.g. a legacy preview that wasn't redeployed); modern builds bake the absolute URL at Vite build time. Bundle-baked semantics mean changing the value requires a Vercel redeploy, not just an env edit.
 
 ### 5.2 `supabaseClient.js` — supabase-js singleton
 
@@ -1094,7 +1096,7 @@ These are residual issues that survived the Phase 4–5 cleanup. Listed so anyon
 - **X11 / X17 (resolved at unit layer)** — every service mock branch now has Phase 2 unit tests (see §17).
 - **X12 (med)** — `useSubscriber.useSubscriberTransactions` keys `[id, filters]`; agent-side variants drop `filters`. Cross-context cache key drift.
 - **X13 (low)** — `pages/Contact.jsx` doesn't validate `{ submitted, id }` response shape from `/api/contact`.
-- **X15 (low)** — `src/services/api.js:22` hardcodes `'/api'`; `VITE_API_BASE_URL` is read by `src/config/env.js` but never consumed.
+- **X15 (resolved)** — `src/services/api.js` now consumes `VITE_API_BASE_URL` from `src/config/env.js`. Post-Render-migration Vercel bakes the absolute URL into the bundle at build time (Production / Preview / Development scopes); local dev uses `http://localhost:3001/api`. See `BACKEND.md §2`.
 
 **Closed in this cleanup pass:**
 

@@ -2,7 +2,7 @@
 
 Current request/response contract for the platform's backend surface. The old `~30-route REST` design has been archived in `docs/archive/api-contracts-2024-original.md` — it described an aspirational shape that was never built. The real surface is much smaller:
 
-1. **14 API routes** under `api/` (Vercel-style serverless TypeScript handlers).
+1. **14 API routes** under `api/` (Vercel-shape TypeScript handlers, now mounted by `server/index.ts` on **Render Express** at `https://uganda-dashboard-api.onrender.com`. The Vercel-style request/response signature is preserved via the `toExpress(handler)` adapter in `server/adapter.ts`).
 2. **Supabase RPCs** (PostgreSQL `SECURITY DEFINER` functions) called via `supabase.rpc(name, args)` from the frontend with the user's HS256-signed JWT.
 3. **PostgREST direct table reads** governed by row-level security policies (no writes — writes always go through RPCs).
 
@@ -52,7 +52,7 @@ CLAUDE.md §10a is the canonical list. Relevant to this doc:
 
 ## 2. API routes (14 total)
 
-All routes live under `api/` and are deployed by Vercel as serverless functions. All return JSON. All accept only `POST` unless noted; non-POST returns 405 `{ code: 'method_not_allowed' }` with an `Allow: POST` header.
+All routes live under `api/` and are served by Express on Render — `server/index.ts` mounts each handler via `app.all('/api/...', toExpress(<handler>))`. (`app.all` instead of `app.post` preserves the per-handler manual 405 contract.) All return JSON. All accept only `POST` unless noted; non-POST returns 405 `{ code: 'method_not_allowed' }` with an `Allow: POST` header. Frontend points at `VITE_API_BASE_URL` (`http://localhost:3001/api` in local dev, absolute Render URL in prod).
 
 ### 2.1 Auth (4 routes — `api/auth/`)
 

@@ -1,6 +1,6 @@
 # CLAUDE.md — Universal Pensions Uganda
 
-Slim entry index for this repo. Two deep specialist docs sit alongside this file: **`FRONTEND.md`** (React/Vite/CSS Modules) and **`BACKEND.md`** (Vercel functions + Supabase + RLS). Detail lives in those two files and in `docs/*`; this file is for orientation only.
+Slim entry index for this repo. Two deep specialist docs sit alongside this file: **`FRONTEND.md`** (React/Vite/CSS Modules) and **`BACKEND.md`** (Express on Render + Supabase + RLS). Detail lives in those two files and in `docs/*`; this file is for orientation only.
 
 ---
 
@@ -8,8 +8,8 @@ Slim entry index for this repo. Two deep specialist docs sit alongside this file
 
 **Universal Pensions Uganda** is a digital long-term savings + pension platform aimed at everyday Ugandans (informal workers, gig workers, farmers, self-employed). The app in this repo is a **demo / sales-presentation tool** that sales reps walk prospects through — it is **NOT** a production fintech. Mocked OTP, mocked KYC, `demo_personas` fallback IDs, a hardcoded UGX 1,000 unit price, and a 24-hour fixed JWT are **intentional demo scope** and must not be treated as production-prep TODOs.
 
-- **Live URL:** `uganda-dashboard.vercel.app` (auto-deploy on push to `main` — do not push without explicit approval).
-- **Stack:** React 19 · Vite 6 · CSS Modules (no Tailwind) · Framer Motion 12 · React Router 7 · TanStack Query 5 / Virtual 3 · Leaflet 1.9 · Recharts 3 · Vercel serverless TS · Supabase Postgres · custom HS256 JWT via `jose`.
+- **Live URL:** `uganda-dashboard.vercel.app` (auto-deploy on push to `main` — do not push without explicit approval). **Applies to both:** Vercel (frontend, automatic via the GitHub App integration) and Render (backend at `uganda-dashboard-api.onrender.com`, **manual** deploys only — `autoDeployTrigger: off` in `render.yaml`).
+- **Stack:** React 19 · Vite 6 · CSS Modules (no Tailwind) · Framer Motion 12 · React Router 7 · TanStack Query 5 / Virtual 3 · Leaflet 1.9 · Recharts 3 · Express 5 on Render (Node 22, Singapore region) · Supabase Postgres · custom HS256 JWT via `jose`.
 - **Role build status (4 of 6 built):** subscriber, agent, branch, distributor are live. Employer and admin are deferred (no shells, no RLS policies yet — see `BACKEND.md §8`). Build order when resumed: **Employer first, then Admin** (central admin with global rights).
 
 ---
@@ -43,9 +43,11 @@ npm run dev                         # frontend only (mock fallback if VITE_USE_S
 
 Script | Purpose
 --- | ---
-`npm run dev` | Vite dev server, frontend only
-`npm run dev:api` | `vercel dev` — frontend + `api/*` routes locally
+`npm run dev` | Vite dev server (frontend on `:5173`)
+`npm run dev:api` | Express backend on `:3001` (`dotenv -e .env.local -- tsx watch server/index.ts`); pair with `npm run dev` in a second terminal
+`npm run dev:all` | Both servers in one terminal (`concurrently` — Vite + Express)
 `npm run build` | Production Vite build
+`npm run build:api` | `tsc -p server/tsconfig.json` — Render build gate, also runs in CI
 `npm run preview` | Serve the built bundle
 `npm run lint` | ESLint 9 flat config (0 errors expected; 1 TanStack Virtual informational warning is normal — drops to 1 after Phase 6 of audit remediation cleared the orphaned-worktree duplicates + the stale eslint-disable directive)
 `npm test` | Vitest one-shot
@@ -118,7 +120,11 @@ File | What it does
 4. **RLS policies read JWT claims, not `auth.uid()`** — `auth.uid()` is `NULL` for our custom HS256 tokens. See `BACKEND.md §8`.
 5. **The demo OTP route accepts any 6-digit code.** It is **not** production-grade and must never ship as-is to a real customer — it's intentional demo scope (see §10a).
 
-Also: **do NOT run `vercel env pull`** — it overwrites `.env.local` and wipes the `SUPABASE_DB_URL` needed by the seed script.
+Also — env-var sourcing under the new Vercel-frontend / Render-backend split:
+
+- **Vercel env (frontend only).** Contains the public `VITE_*` keys (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_USE_SUPABASE`, `VITE_API_BASE_URL`) across Production / Preview / Development scopes. Server-only keys (`SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`) are **no longer stored in Vercel** post-migration — Vercel hosts no functions, so it has no use for them. **Do NOT run `vercel env pull`** — it still overwrites `.env.local` and wipes the local-only `SUPABASE_DB_URL` needed by the seed script. `vercel env add` is safe for adding new `VITE_*` keys.
+- **Render env (server only).** Contains `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `SUPABASE_URL` (server-side rename of `VITE_SUPABASE_URL`), and `SENTRY_DSN`. Managed in the Render dashboard → service → Environment. **Never** add `VITE_*` keys here — Render doesn't run a build that consumes them, and they cause confusion.
+- **GitHub Actions env (CI only).** Mirrors enough of both to run the E2E suite — public `VITE_*` plus server `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_JWT_SECRET` for test fixtures. Listed in `.github/workflows/test.yml`.
 
 ---
 

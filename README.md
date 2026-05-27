@@ -13,7 +13,7 @@ The codebase covers four surfaces:
 1. **Public landing page** (`/`) — scrollytelling marketing site that demos 40 years of compounded savings via scroll-linked animation.
 2. **Signup / KYC flow** (`/signup/*`) — 9-step subscriber onboarding (phone OTP, NIRA ID OCR, NIRA verify, face match, AML screen, agent fallback).
 3. **Role dashboards** (`/dashboard/...`) — currently live for Subscriber, Agent, Branch, Distributor. Employer + Admin roles are deferred.
-4. **Vercel serverless backend** (`api/*.ts`) — 14 routes covering auth, KYC mocks, contact, chat. Database is Supabase (Postgres + RLS + custom HS256 JWT via `jose`).
+4. **Express backend on Render** (`server/index.ts` mounts `api/*.ts`) — 14 routes covering auth, KYC mocks, contact, chat. Singapore region, Node 22, free tier. Database is Supabase (Postgres + RLS + custom HS256 JWT via `jose`).
 
 ## Tech stack
 
@@ -24,7 +24,7 @@ The codebase covers four surfaces:
 - **Framer Motion 12** for scroll-linked + entrance animation
 - **CSS Modules** (no Tailwind, no component library) — design tokens in `src/index.css`
 - **Leaflet 1.9** + **Recharts 3** for the distributor map and charts
-- **Vercel serverless** TypeScript handlers in `api/` (Node 22)
+- **Express 5** TypeScript handlers in `api/` mounted by `server/index.ts`; hosted on **Render** (Singapore, free tier, Node 22). Frontend hosted on **Vercel** (Vite preset, no functions).
 - **Supabase** (Postgres + RLS + PostgREST). 28 migrations under `supabase/migrations/`.
 - **jose** for custom HS256 JWT signing/verification
 - **Playwright 1.60** for E2E (browser-driven full-app suite under `e2e/`)
@@ -45,18 +45,26 @@ cp .env.local.example .env.local
 #           it overwrites this file. See BACKEND.md §2).
 
 # 3. Frontend-only dev (uses mock data if VITE_USE_SUPABASE=false)
-npm run dev
+npm run dev   # Vite on :5173
 
-# 4. Frontend + /api routes locally (vercel dev — requires Vercel CLI)
-npm run dev:api
+# 4. Full local stack — TWO TERMINALS, or use dev:all for one
+npm run dev          # terminal A: Vite frontend on :5173
+npm run dev:api      # terminal B: Express backend on :3001 (tsx watch server/index.ts)
+
+# OR, single terminal via concurrently:
+npm run dev:all      # spawns both servers, colour-prefixed output
 ```
+
+> **Local dev = two terminals** (`npm run dev` + `npm run dev:api`) or `npm run dev:all`. **Production = Vercel (frontend) + Render (backend).** See `docs/render-operational.md` for the Render runbook.
 
 ## npm scripts
 
 | Script | Purpose |
 | --- | --- |
 | `npm run dev` | Vite dev server on http://localhost:5173 (frontend only) |
-| `npm run dev:api` | `vercel dev` — frontend + `api/*` routes |
+| `npm run dev:api` | Express backend on http://localhost:3001 (`tsx watch server/index.ts`) |
+| `npm run dev:all` | Both servers in one terminal via `concurrently` |
+| `npm run build:api` | `tsc -p server/tsconfig.json` — used by Render's build command and CI |
 | `npm run build` | Production Vite build |
 | `npm run preview` | Serve the built bundle |
 | `npm run lint` | ESLint flat-config (0 errors expected) |
@@ -104,4 +112,10 @@ Seed demo data with `npm run seed`. Phone numbers use the synthetic `+25671XXXXX
 
 ## Deployment
 
-Auto-deploy to Vercel on push to `main`. Do not push without explicit approval — production preview shares the same Supabase project as local dev. Environment variables are managed in the Vercel dashboard (do NOT run `vercel env pull` — it overwrites `.env.local` and wipes `SUPABASE_DB_URL`).
+The deployment topology splits along the frontend/backend boundary:
+
+- **Frontend (Vercel)** — Vite preset, no functions. Auto-deploys on push to `main` via the GitHub App. Preview URL per PR. Env vars (all `VITE_*`) live in the Vercel dashboard across Production / Preview / Development scopes. Do NOT run `vercel env pull` — it overwrites `.env.local` and wipes the local-only `SUPABASE_DB_URL` needed by the seed script.
+- **Backend (Render)** — Express 5 on Node 22, Singapore region, free tier. Blueprint at `render.yaml`; **manual deploys only** (`autoDeployTrigger: off`). Env vars (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `SENTRY_DSN`) live in the Render dashboard. See `docs/render-operational.md` for the full runbook — manual deploy procedure, log retention, deploy outage window, silent-failure recovery.
+- **CI (GitHub Actions)** — `.github/workflows/test.yml` runs lint + Vitest + `npm run build:api` (tsc gate) + Playwright (dual-server). `.github/workflows/keepalive.yml` pings `/healthz` every 14 min to keep the Render free-tier service warm.
+
+Do not push to `main` without explicit approval — production shares the same Supabase project as local dev.
