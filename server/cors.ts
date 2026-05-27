@@ -1,12 +1,17 @@
 // CORS configuration for the Render-hosted Express API.
 //
-// The single regex below covers the four URL patterns Vercel issues to the
-// frontend project (N15 — Vercel reserves the `uganda-dashboard-*` namespace
+// The single regex below covers the URL patterns Vercel issues to the
+// frontend project (N15 — Vercel reserves the `uganda-dashboard*` namespace
 // to the owning team, so no attacker can squat a matching subdomain):
-//   1. Production alias            — https://uganda-dashboard-<team>.vercel.app
-//   2. Git-branch preview          — https://uganda-dashboard-git-<branch>-<team>.vercel.app
-//   3. Deployment-hash preview     — https://uganda-dashboard-<hash>-<team>.vercel.app
-//   4. Team-scoped no-hash URL     — https://uganda-dashboard-<team>.vercel.app (alias variant)
+//   1. Production alias (bare)     — https://uganda-dashboard.vercel.app
+//   2. Production alias (team)     — https://uganda-dashboard-<team>.vercel.app
+//   3. Git-branch preview          — https://uganda-dashboard-git-<branch>-<team>.vercel.app
+//   4. Deployment-hash preview     — https://uganda-dashboard-<hash>-<team>.vercel.app
+//
+// The optional `(-[\w-]+)?` group makes the team / branch / hash suffix
+// optional so the bare production URL matches too — the audit's original
+// `uganda-dashboard-.*` regex required a trailing dash and missed the
+// bare production alias.
 //
 // Calls without an `Origin` header (curl, Render's healthcheck pinger, the
 // GHA keepalive cron) hit the callback with `origin === undefined`; we let
@@ -24,7 +29,7 @@
 
 import type cors from 'cors';
 
-const VERCEL_PREVIEW_RE = /^https:\/\/uganda-dashboard-.*\.vercel\.app$/;
+const VERCEL_PREVIEW_RE = /^https:\/\/uganda-dashboard(-[\w-]+)?\.vercel\.app$/;
 
 export const corsOptions: cors.CorsOptions = {
   origin: (origin, cb) => {
