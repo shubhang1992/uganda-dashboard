@@ -19,13 +19,15 @@ services:
     branch: cleanup/post-audit-2026-05-26                   # G14, swap to main after cutover
     autoDeployTrigger: off                                  # G14
     healthCheckPath: /healthz                               # G16
-    buildCommand: npm ci && npm run build:api && npm prune --omit=dev   # G15
+    buildCommand: npm ci --include=dev && npm run build:api && npm prune --omit=dev   # G15 — --include=dev required because NODE_ENV=production would otherwise make `npm ci` skip devDeps (@types/*, @vercel/node, tsx, @sentry/* are devDeps)
     startCommand: node dist-server/server/index.js
     envVars:
       - key: NODE_VERSION
         value: "22"                                         # B6 — under envVars, not inline shell
       - key: NODE_ENV
         value: production
+      - key: NPM_CONFIG_PRODUCTION                          # belt-and-suspenders for `npm ci` devDeps
+        value: "false"
       - key: PORT
         value: "3001"
       - key: SUPABASE_URL                                   # G19 — server uses non-VITE name
