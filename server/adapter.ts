@@ -16,10 +16,20 @@
 // can hand them to Sentry. Do NOT swallow with `res.status(500).json(...)`
 // here — that would short-circuit observability.
 
-import type { VercelRequest, VercelResponse, VercelApiHandler } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Request, Response, RequestHandler } from 'express';
 
-export function toExpress(handler: VercelApiHandler): RequestHandler {
+// The 14 handlers actually return `Promise<VercelResponse>` (every one ends in
+// `return res.status(...).json(...)`) — strictly broader than `@vercel/node`'s
+// exported `VercelApiHandler` (which is `Promise<void>`). Declare a permissive
+// signature here so the adapter accepts the real handler shape without forcing
+// 14 handler rewrites.
+type VercelHandler = (
+  req: VercelRequest,
+  res: VercelResponse
+) => unknown | Promise<unknown>;
+
+export function toExpress(handler: VercelHandler): RequestHandler {
   return async (req: Request, res: Response, next) => {
     try {
       await handler(req as unknown as VercelRequest, res as unknown as VercelResponse);

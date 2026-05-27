@@ -63,12 +63,11 @@ const app = express();
 // confused into 502s.
 app.set('trust proxy', 1);
 
-// ─── 4. Sentry request handler — MUST be before other middleware so any
-// error in helmet/cors/json-parsing is captured. Guarded so an unset DSN
-// (local dev, PR previews) doesn't crash with "Sentry not initialised."
-if (process.env.SENTRY_DSN) {
-  app.use(Sentry.Handlers.requestHandler());
-}
+// ─── 4. Sentry request instrumentation — in @sentry/node v8 this is set up
+// automatically by the auto-instrumented Express integration when Sentry.init
+// runs before `express()`. The legacy `Sentry.Handlers.requestHandler()`
+// middleware was removed in v8; no per-request middleware is needed here.
+// The error handler is still installed manually below, after route mounts.
 
 // ─── 5. Security + parsing middleware (G17, G3, G2, G1)
 app.use(helmet());
@@ -139,9 +138,11 @@ app.all('/api/chat', toExpress(chat));
 
 // ─── 10. Sentry error handler — MUST come after routes, before custom error
 // handlers. Captures any error that bubbled through `next(err)` from the
-// adapter.
+// adapter. In @sentry/node v8 the API moved from `Sentry.Handlers.errorHandler()`
+// to `Sentry.setupExpressErrorHandler(app)` (it internally registers the
+// error middleware).
 if (process.env.SENTRY_DSN) {
-  app.use(Sentry.Handlers.errorHandler());
+  Sentry.setupExpressErrorHandler(app);
 }
 
 // ─── 11. Final 404 — catches anything that didn't match a route mount.
