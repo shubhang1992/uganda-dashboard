@@ -8,7 +8,7 @@ Slim entry index for this repo. Two deep specialist docs sit alongside this file
 
 **Universal Pensions Uganda** is a digital long-term savings + pension platform aimed at everyday Ugandans (informal workers, gig workers, farmers, self-employed). The app in this repo is a **demo / sales-presentation tool** that sales reps walk prospects through — it is **NOT** a production fintech. Mocked OTP, mocked KYC, `demo_personas` fallback IDs, a hardcoded UGX 1,000 unit price, and a 24-hour fixed JWT are **intentional demo scope** and must not be treated as production-prep TODOs.
 
-- **Live URL:** `uganda-dashboard.vercel.app` (auto-deploy on push to `main` — do not push without explicit approval). **Applies to both:** Vercel (frontend, automatic via the GitHub App integration) and Render (backend at `uganda-dashboard-api.onrender.com`, **manual** deploys only — `autoDeployTrigger: off` in `render.yaml`).
+- **Live URL:** `uganda-dashboard.vercel.app` (Vercel frontend, auto-deploys on push to `main` — do not push without explicit approval). Backend at `uganda-dashboard-api.onrender.com` is **manual** deploys only (`autoDeployTrigger: off`). Full topology in [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
 - **Stack:** React 19 · Vite 6 · CSS Modules (no Tailwind) · Framer Motion 12 · React Router 7 · TanStack Query 5 / Virtual 3 · Leaflet 1.9 · Recharts 3 · Express 5 on Render (Node 22, Singapore region) · Supabase Postgres · custom HS256 JWT via `jose`.
 - **Role build status (4 of 6 built):** subscriber, agent, branch, distributor are live. Employer and admin are deferred (no shells, no RLS policies yet — see `BACKEND.md §8`). Build order when resumed: **Employer first, then Admin** (central admin with global rights).
 
@@ -25,7 +25,9 @@ Role × capability matrix (who can see/do what) | `docs/role-permissions.md`
 Field-level entity model / aggregation rules / health-score formula | `docs/data-model.md`
 HTTP request/response shapes + cache keys / invalidation table | `docs/api-contracts.md`
 Product spec, personas, workflows, business rules | `docs/SPEC.md`
-QA audit findings & fix log | `docs/DASHBOARD_AUDIT.md`, `docs/DASHBOARD_AUDIT_FIXES.md`
+Testing pipeline, Vitest + Playwright + CI matrix | `docs/TESTING.md`
+Deploy topology + env-var sync matrix | `docs/DEPLOYMENT.md`
+QA audit findings & fix log (historic) | `docs/archive/DASHBOARD_AUDIT.md`, `docs/archive/DASHBOARD_AUDIT_FIXES.md`
 Browser-level E2E suite (`/qa`) + Playwright config | `.claude/skills/qa.md`
 Design artifacts (Figma exports etc.) | `docs/design/`
 
@@ -44,37 +46,33 @@ npm run dev                         # frontend only (mock fallback if VITE_USE_S
 Script | Purpose
 --- | ---
 `npm run dev` | Vite dev server (frontend on `:5173`)
-`npm run dev:api` | Express backend on `:3001` (`dotenv -e .env.local -- tsx watch server/index.ts`); pair with `npm run dev` in a second terminal
+`npm run dev:api` | Express backend on `:3001`; pair with `npm run dev` in a second terminal
 `npm run dev:all` | Both servers in one terminal (`concurrently` — Vite + Express)
-`npm run build` | Production Vite build
-`npm run build:api` | `tsc -p server/tsconfig.json` — Render build gate, also runs in CI
-`npm run preview` | Serve the built bundle
-`npm run lint` | ESLint 9 flat config (0 errors expected; 1 TanStack Virtual informational warning is normal — drops to 1 after Phase 6 of audit remediation cleared the orphaned-worktree duplicates + the stale eslint-disable directive)
-`npm test` | Vitest one-shot
-`npm run test:watch` | Vitest watch
-`npm run test:e2e` | Playwright E2E suite (full). Subcommands: `:smoke`, `:flows`, `:headed`, `:ui`. See `.claude/skills/qa.md`.
+`npm run build` / `build:api` | Production Vite build / `tsc -p server/tsconfig.json` (Render gate, also runs in CI)
+`npm run lint` | ESLint 9 flat config (0 errors expected; 1 TanStack Virtual informational warning is normal)
+`npm test` / `:watch` | Vitest one-shot / watch
+`npm run test:e2e` | Playwright E2E. Subcommands: `:smoke`, `:flows`, `:headed`, `:ui`. See `.claude/skills/qa.md`.
 `npm run seed` | Seed Supabase via `scripts/seed-supabase.mjs` (see `BACKEND.md §12`)
 
-**Env vars** (full table in `BACKEND.md §2`; template in `.env.local.example`):
+**Env vars** (essentials only; template in `.env.local.example`):
 
 Key | Scope
 --- | ---
 `VITE_SUPABASE_URL` | Public (frontend)
-`VITE_SUPABASE_ANON_KEY` | Public (frontend)
-`VITE_USE_SUPABASE` | Public — rollback flag; `'false'` flips every service into mock-backed branch
+`VITE_API_BASE_URL` | Public (frontend) — points at the Render backend
 `SUPABASE_SERVICE_ROLE_KEY` | Server-only (never expose to frontend)
 `SUPABASE_JWT_SECRET` | Server-only (HS256 signing secret)
-`SUPABASE_DB_URL` | Local-only (seed script) — do **NOT** run `vercel env pull`, it wipes this
+
+Full table including server-only + local-only keys: [`BACKEND.md §2`](./BACKEND.md).
 
 **Root config files:**
 
 File | What it does
 --- | ---
-`vite.config.js` | Path aliases (`@`, `@components`, `@contexts`, `@dashboard`, `@data`, `@utils`); manual vendor chunks (`vendor-leaflet`/`-charts`/`-motion`/`-tanstack`/`-router`/`-react`); `chunkSizeWarningLimit: 700`; embedded Vitest config
+`vite.config.js` | Path aliases (`@`, `@components`, `@contexts`, `@dashboard`, `@data`, `@utils`); manual vendor chunks; `chunkSizeWarningLimit: 700`; embedded Vitest config
 `eslint.config.js` | ESLint 9 flat config (`@eslint/js` + react-hooks + react-refresh)
 `.env.local.example` | Canonical env-var template (copy to `.env.local` — gitignored)
-`.npmrc` | `legacy-peer-deps=true`
-`.node-version` | Node 22 LTS pinned
+`.npmrc` / `.node-version` | `legacy-peer-deps=true` / Node 22 LTS pinned
 `index.html` | Vite entry HTML; carries the skip-to-content link targeting `#main`
 
 ---
@@ -120,11 +118,7 @@ File | What it does
 4. **RLS policies read JWT claims, not `auth.uid()`** — `auth.uid()` is `NULL` for our custom HS256 tokens. See `BACKEND.md §8`.
 5. **The demo OTP route accepts any 6-digit code.** It is **not** production-grade and must never ship as-is to a real customer — it's intentional demo scope (see §10a).
 
-Also — env-var sourcing under the new Vercel-frontend / Render-backend split:
-
-- **Vercel env (frontend only).** Contains the public `VITE_*` keys (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_USE_SUPABASE`, `VITE_API_BASE_URL`) across Production / Preview / Development scopes. Server-only keys (`SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`) are **no longer stored in Vercel** post-migration — Vercel hosts no functions, so it has no use for them. **Do NOT run `vercel env pull`** — it still overwrites `.env.local` and wipes the local-only `SUPABASE_DB_URL` needed by the seed script. `vercel env add` is safe for adding new `VITE_*` keys.
-- **Render env (server only).** Contains `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `SUPABASE_URL` (server-side rename of `VITE_SUPABASE_URL`), and `SENTRY_DSN`. Managed in the Render dashboard → service → Environment. **Never** add `VITE_*` keys here — Render doesn't run a build that consumes them, and they cause confusion.
-- **GitHub Actions env (CI only).** Mirrors enough of both to run the E2E suite — public `VITE_*` plus server `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_JWT_SECRET` for test fixtures. Listed in `.github/workflows/test.yml`.
+Where each env variable lives (Vercel / Render / GHA): [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
 
 ---
 
@@ -197,15 +191,10 @@ See `FRONTEND.md §16a` and `BACKEND.md §14a` for the role-specific demo-scope 
 
 **When you add a service, hook, table, RPC, migration, route, or context, update `FRONTEND.md` or `BACKEND.md` in the same commit.** These docs are reference material — they decay fast if treated as one-time deliverables. Keep `CLAUDE.md` itself slim: bump it only when the routing table, hard rules, glossary, anti-patterns, or demo scope shift. Schema detail, signatures, and design-token values belong in the specialist docs, not here.
 
+When you create / delete / rename a doc, update §2 routing table AND [`README.md §6`](./README.md) doc map in the same commit.
+
 ---
 
 ## See also
 
-- [`FRONTEND.md`](./FRONTEND.md) — services, hooks, contexts, dashboard variants, signup flow, design tokens, accessibility, frontend findings
-- [`BACKEND.md`](./BACKEND.md) — env vars, API routes, `_lib/` helpers, auth flow, schema, migrations, RLS, RPCs, commission state machine, triggers, seeding, runbook
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system architecture: layered patterns, role boundaries, auth model, write/realtime patterns
-- [`docs/role-permissions.md`](./docs/role-permissions.md) — role × capability matrix
-- [`docs/data-model.md`](./docs/data-model.md) — field-level entity model + aggregation rules
-- [`docs/api-contracts.md`](./docs/api-contracts.md) — HTTP shapes + cache keys + invalidation
-- [`docs/SPEC.md`](./docs/SPEC.md) — product spec, personas, workflows
-- [`docs/design/`](./docs/design/) — QA audit artifacts + design exports
+The two deep specialists: [`FRONTEND.md`](./FRONTEND.md) and [`BACKEND.md`](./BACKEND.md). For everything else, follow §2 above.
