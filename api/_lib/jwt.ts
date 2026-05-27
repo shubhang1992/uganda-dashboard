@@ -15,14 +15,12 @@
 
 import { SignJWT, jwtVerify } from 'jose';
 
-// Preflight env check — fail loudly at module load if the signing secret is
-// missing. Without this, the first request that needs a JWT would throw deep
-// inside `getSecretKey()` with the same message; surfacing the failure at
-// import time makes the misconfiguration obvious in logs and prevents a
-// "ghost route" that 500s on every invocation.
-if (!process.env.SUPABASE_JWT_SECRET) {
-  throw new Error('SUPABASE_JWT_SECRET env var is not set. Required by api/_lib/jwt.ts.');
-}
+// Env preflight has moved to `server/env.ts:assertServerEnv()` (B1). Under
+// the long-lived Express process a top-level `throw` here would crash the
+// whole shared backend (including /healthz) and push Render into a redeploy
+// loop. We rely on `assertServerEnv()` running once at server boot before
+// any handler can import this module. The deferred check in `getSecretKey()`
+// below is a defensive secondary guard.
 
 export type JwtRole = 'subscriber' | 'agent' | 'branch' | 'distributor';
 
@@ -62,7 +60,9 @@ function getSecretKey(): Uint8Array {
   if (cachedKey) return cachedKey;
   const raw = process.env.SUPABASE_JWT_SECRET;
   if (!raw) {
-    throw new Error('SUPABASE_JWT_SECRET is not set');
+    throw new Error(
+      'SUPABASE_JWT_SECRET is not set. Expected server/env.ts:assertServerEnv() to have caught this at boot.'
+    );
   }
   // Supabase / GoTrue / PostgREST verify HS256 signatures with the secret
   // bytes interpreted as raw UTF-8. Signing with base64-decoded bytes would
