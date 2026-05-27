@@ -1,0 +1,11 @@
+# Prevent Vercel from auto-detecting api/ as serverless functions.
+# Without this, Vercel still indexes top-level api/*.ts even after
+# the `functions` block is removed from vercel.json, and would
+# silently hit the 12-function Hobby cap (audit B9).
+
+api/
+server/
+dist-server/
+**/*.test.ts
+e2e/
+playwright.config.ts
