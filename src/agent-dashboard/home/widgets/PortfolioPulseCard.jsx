@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO, formatUGX, monthlyEquivalent } from '../../../utils/finance';
+import { EASE_OUT_EXPO, monthlyEquivalent } from '../../../utils/finance';
+import { formatUGX, formatNumber } from '../../../utils/currency';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useEntity } from '../../../hooks/useEntity';
 import { useAgentSubscribers } from '../../../hooks/useAgent';
@@ -109,7 +110,7 @@ export default function PortfolioPulseCard({ agentId }) {
       </div>
 
       <div className={styles.heroSubline}>
-        across {portfolio.total.toLocaleString('en-UG')} subscriber{portfolio.total === 1 ? '' : 's'} · expected this month
+        across {formatNumber(portfolio.total)} subscriber{portfolio.total === 1 ? '' : 's'} · expected this month
       </div>
 
       <div className={styles.metricsStatic}>
@@ -120,7 +121,7 @@ export default function PortfolioPulseCard({ agentId }) {
               <div className={styles.stat}>
                 <span className={styles.statLabel}>Total subscribers</span>
                 <span className={styles.statValue}>
-                  {portfolio.total.toLocaleString('en-UG')}
+                  {formatNumber(portfolio.total)}
                 </span>
               </div>
               <div className={styles.stat}>
@@ -177,14 +178,14 @@ export default function PortfolioPulseCard({ agentId }) {
                 <span className={styles.splitDot} data-tone="active" aria-hidden="true" />
                 <span className={styles.splitItemLabel}>Active</span>
                 <span className={styles.splitItemValue}>
-                  {portfolio.active.toLocaleString('en-UG')}
+                  {formatNumber(portfolio.active)}
                 </span>
               </span>
               <span className={styles.splitItem}>
                 <span className={styles.splitDot} data-tone="dormant" aria-hidden="true" />
                 <span className={styles.splitItemLabel}>Dormant</span>
                 <span className={styles.splitItemValue}>
-                  {portfolio.dormant.toLocaleString('en-UG')}
+                  {formatNumber(portfolio.dormant)}
                 </span>
               </span>
             </div>

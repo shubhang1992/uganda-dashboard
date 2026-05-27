@@ -88,7 +88,7 @@
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-lg);
   background:
-    radial-gradient(120% 100% at 0% 0%, rgba(94, 99, 168, 0.55) 0%, rgba(41, 40, 103, 0) 60%),
+    radial-gradient(120% 100% at 0% 0%, rgba(94, 99, 168, 0.55) 0%, transparent 60%),
     linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
   color: var(--color-white);
   border: none;
@@ -235,7 +235,7 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: rgba(41, 40, 103, 0.08);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
   color: var(--color-indigo);
   transition: transform 0.18s ease;
 }

@@ -1,10 +1,19 @@
 import { useMemo, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO, formatUGX, fmtShort } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
-import { useCountry, useEntity, useChildren, useAllEntities } from '../../hooks/useEntity';
+import {
+  useCountry,
+  useEntity,
+  useChildren,
+  useAllEntities,
+  useEntityMetrics,
+  useChildrenMetrics,
+  useAllEntitiesMetrics,
+} from '../../hooks/useEntity';
 import styles from './ReportsHub.module.css';
 
 /* ─── Lazy-load individual report views ──────────────────────────────── */
@@ -146,10 +155,29 @@ function ReportsIndex({ panelMode, onSelectReport }) {
   const { branchId } = useBranchScope();
   const isBranch = !!branchId;
   const { data: country } = useCountry();
-  const { data: regions = [] } = useAllEntities('region');
+  const { data: regionsRaw = [] } = useAllEntities('region');
   const { data: branch } = useEntity('branch', branchId);
-  const { data: branchAgents = [] } = useChildren('branch', branchId);
-  const m = isBranch ? branch?.metrics : country?.metrics;
+  const { data: branchAgentsRaw = [] } = useChildren('branch', branchId);
+
+  // Live rollups — country KPI tiles, region cards in the featured row, and
+  // (for branch users) the branch hero. Without these overlays, every value
+  // sourced from `m.metrics.X` reads zero under Supabase.
+  const { data: countryMetrics } = useEntityMetrics('country', 'ug');
+  const { data: branchMetrics } = useEntityMetrics('branch', branchId);
+  const { data: regionMetricsMap = {} } = useAllEntitiesMetrics('region');
+  const { data: branchAgentMetricsMap = {} } = useChildrenMetrics('branch', branchId);
+  const regions = useMemo(
+    () => regionsRaw.map(r => ({ ...r, metrics: regionMetricsMap[r.id] ?? r.metrics })),
+    [regionsRaw, regionMetricsMap],
+  );
+  const branchAgents = useMemo(
+    () => branchAgentsRaw.map(a => ({ ...a, metrics: branchAgentMetricsMap[a.id] ?? a.metrics })),
+    [branchAgentsRaw, branchAgentMetricsMap],
+  );
+
+  const m = isBranch
+    ? (branchMetrics ?? branch?.metrics)
+    : (countryMetrics ?? country?.metrics);
 
   const go = (id) => {
     if (panelMode && onSelectReport) onSelectReport(id);
@@ -205,7 +233,7 @@ function ReportsIndex({ panelMode, onSelectReport }) {
                   {regions.slice(0, 4).map((r) => (
                     <div key={r.id} className={styles.regionPill}>
                       <span className={styles.regionName}>{r.name}</span>
-                      <span className={styles.regionVal}>{fmtShort(r.metrics?.aum || 0)}</span>
+                      <span className={styles.regionVal}>{formatUGXShort(r.metrics?.aum || 0)}</span>
                     </div>
                   ))}
                 </div>
@@ -238,7 +266,7 @@ function ReportsIndex({ panelMode, onSelectReport }) {
                     </span>
                     <CardArrow />
                   </div>
-                  <span className={styles.dirCount}>{card.count?.toLocaleString()}</span>
+                  <span className={styles.dirCount}>{formatNumber(card.count)}</span>
                   <span className={styles.dirLabel}>{card.label}</span>
                   <span className={styles.dirDetail}>{card.detail}</span>
                 </motion.button>
@@ -364,7 +392,7 @@ function ReportsIndex({ panelMode, onSelectReport }) {
                   <CardArrow />
                 </div>
                 <div className={styles.insightMain}>
-                  <span className={styles.insightBig}>+{m.newSubscribersThisMonth?.toLocaleString()}</span>
+                  <span className={styles.insightBig}>+{formatNumber(m.newSubscribersThisMonth)}</span>
                   <span className={styles.insightUnit}>this month</span>
                 </div>
                 <div className={styles.insightFooter}>

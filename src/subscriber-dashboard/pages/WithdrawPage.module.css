@@ -97,7 +97,7 @@
 
 .bucket[data-active='true'][data-tone='retirement'] {
   border-color: var(--color-indigo);
-  background: rgba(41, 40, 103, 0.05);
+  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
 }
 
 .bucket[data-locked='true'] {
@@ -170,7 +170,7 @@
 
 .amountField:focus-within {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .amountField[data-error] {

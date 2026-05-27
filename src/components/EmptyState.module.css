@@ -1,0 +1,159 @@
+/* ── EmptyState ───────────────────────────────────────────────────────────
+   Shared list-view empty-state. Two kinds share the same vertical layout
+   but vary the icon and the muted accent ring tone so the two states feel
+   distinct at a glance. `no-data` reads as an invitation (lavender ring,
+   seed icon, optional CTA), while `no-match` reads as a soft nudge
+   (cloud ring, magnifier-slash icon). */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-12) var(--space-6);
+  gap: var(--space-3);
+  /* Subtle entry so the panel doesn't pop — the timing matches other
+     view-switch fades inside the slide-in panels. */
+  animation: emptyFadeIn 0.35s var(--ease-out-expo) backwards;
+}
+
+.iconHalo {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-bottom: var(--space-1);
+}
+
+.iconRing {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-full);
+  border: 1.5px dashed rgba(217, 220, 242, 0.9);
+}
+
+.wrap[data-kind='no-data'] .iconRing {
+  border-color: rgba(217, 220, 242, 0.95);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(94, 99, 168, 0.06) 0%, transparent 70%);
+}
+
+.wrap[data-kind='no-match'] .iconRing {
+  border-color: rgba(217, 220, 242, 0.7);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(47, 143, 157, 0.05) 0%, transparent 70%);
+}
+
+.iconBg {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-white);
+  color: var(--color-indigo-soft);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--color-indigo) 5%, transparent) inset,
+    0 4px 14px color-mix(in srgb, var(--color-indigo) 8%, transparent);
+}
+
+.wrap[data-kind='no-match'] .iconBg {
+  color: var(--color-teal);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 36ch;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.body {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-gray);
+  margin: 0;
+}
+
+.cta {
+  margin-top: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-full);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  border: 1px solid var(--color-indigo);
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 6px 18px color-mix(in srgb, var(--color-indigo) 18%, transparent);
+  touch-action: manipulation;
+}
+
+.cta:hover {
+  background: var(--color-indigo-deep);
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 10px 24px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+}
+
+.cta:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 2px;
+}
+
+.cta:active {
+  transform: translateY(0);
+}
+
+.ctaIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes emptyFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrap {
+    animation: none;
+  }
+  .cta {
+    transition: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .wrap {
+    padding: var(--space-8) var(--space-5);
+  }
+}

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
-import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
+import { useAllEntities, useAllEntitiesMap, useAllEntitiesMetrics } from '../../../hooks/useEntity';
 import { formatUGX } from '../../../utils/finance';
+import { formatNumber } from '../../../utils/currency';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 import FilterSelect from '../FilterSelect';
@@ -17,9 +18,14 @@ function RankBadge({ rank, total }) {
 }
 
 export default function BranchPerformance({ onBack }) {
-  const { data: branches = [], isLoading: loadingBranches } = useAllEntities('branch');
+  const { data: branchesRaw = [], isLoading: loadingBranches } = useAllEntities('branch');
   const { data: districtsMap = {} } = useAllEntitiesMap('district');
   const { data: regionsMap = {} } = useAllEntitiesMap('region');
+  const { data: branchMetricsMap = {} } = useAllEntitiesMetrics('branch');
+  const branches = useMemo(
+    () => branchesRaw.map(b => ({ ...b, metrics: branchMetricsMap[b.id] ?? b.metrics })),
+    [branchesRaw, branchMetricsMap],
+  );
 
   const [search, setSearch] = useState('');
   const [regionFilter, setRegionFilter] = useState('');
@@ -60,6 +66,15 @@ export default function BranchPerformance({ onBack }) {
     return data;
   }, [enriched, search, regionFilter]);
 
+  // CSV serialiser walks `row[col.key]` flatly — project nested metrics up.
+  const exportRows = useMemo(() => filtered.map((b) => ({
+    ...b,
+    totalContributions: b.metrics?.totalContributions ?? 0,
+    aum: b.metrics?.aum ?? 0,
+    totalSubscribers: b.metrics?.totalSubscribers ?? 0,
+    activeRate: b.metrics?.activeRate ?? 0,
+  })), [filtered]);
+
   const columns = [
     {
       key: 'rank',
@@ -93,7 +108,7 @@ export default function BranchPerformance({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalSubscribers || 0,
-      render: (row) => (row.metrics?.totalSubscribers || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalSubscribers || 0),
     },
     {
       key: 'activeRate',
@@ -130,6 +145,9 @@ export default function BranchPerformance({ onBack }) {
       onBack={onBack}
       title="Branch Performance"
       description="Branches ranked by contribution volume, growth, and efficiency"
+      exportRows={exportRows}
+      exportColumns={columns}
+      exportFilename="branch-performance"
       filters={
         <>
           <SearchFilter value={search} onChange={setSearch} placeholder="Search branches…" />

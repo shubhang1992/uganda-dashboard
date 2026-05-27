@@ -1,4 +1,12 @@
-// Shared finance utilities — single source of truth
+// Shared finance utilities — single source of truth.
+//
+// NOTE: Currency formatting lives in `src/utils/currency.js` and date
+// formatting in `src/utils/date.js`. The legacy `formatUGX`, `formatUGXExact`,
+// and `fmtShort` exports below are thin shims that forward to those modules,
+// kept for back-compat across ~50 call sites. New code should import from
+// `currency.js` / `date.js` directly.
+
+import { formatUGX as _formatUGX, formatUGXShort } from './currency';
 
 /** @type {number} Monthly interest rate (annual / 12) */
 export const MONTHLY_RATE = 0.10 / 12;
@@ -105,36 +113,33 @@ export function calcFV(pmt, years) {
 
 /**
  * Format a UGX number to short form with prefix (e.g. "UGX 1.2M").
+ * @deprecated Import { formatUGX } from `@/utils/currency` instead.
  * @param {number} n - Amount in UGX
  * @returns {string} Formatted string
  */
 export function formatUGX(n) {
-  if (n <= 0)    return '—';
-  if (n >= 1e9)  return `UGX ${(n / 1e9).toFixed(2)}B`;
-  if (n >= 1e6)  return `UGX ${(n / 1e6).toFixed(1)}M`;
-  return `UGX ${(n / 1e3).toFixed(0)}K`;
+  return _formatUGX(n, { compact: true });
 }
 
 /**
  * Format a UGX number with full precision (e.g. "UGX 50,000").
  * Use when exact amounts matter — e.g., contribution schedules, receipts.
+ * @deprecated Import { formatUGX } from `@/utils/currency` with `{ compact: false }`.
  * @param {number} n - Amount in UGX
  * @returns {string} Formatted string
  */
 export function formatUGXExact(n) {
-  if (!Number.isFinite(n) || n <= 0) return 'UGX 0';
-  return `UGX ${Math.round(n).toLocaleString('en-UG')}`;
+  return _formatUGX(n, { compact: false });
 }
 
 /**
  * Short form without "UGX" prefix (e.g. "1.2M").
+ * @deprecated Import { formatUGXShort } from `@/utils/currency`.
  * @param {number} n - Amount in UGX
  * @returns {string} Formatted string
  */
 export function fmtShort(n) {
-  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `${(n / 1e6).toFixed(0)}M`;
-  return `${(n / 1e3).toFixed(0)}K`;
+  return formatUGXShort(n);
 }
 
 /**
@@ -160,5 +165,9 @@ export function amtToSlider(a, min, max) {
   return ((Math.log(Math.max(a, min)) - lo) / (hi - lo)) * 100;
 }
 
-/** Shared easing curve */
-export const EASE_OUT_EXPO = [0.16, 1, 0.3, 1];
+/**
+ * @deprecated Import from `src/utils/motion.js` instead. Re-exported here for
+ * backwards compatibility with existing call sites; migrate when touching the
+ * surrounding code.
+ */
+export { EASE_OUT_EXPO } from './motion';

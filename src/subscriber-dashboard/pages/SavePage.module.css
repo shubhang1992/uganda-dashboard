@@ -81,7 +81,7 @@
 
 .amountField:focus-within {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .amountField[data-error] {
@@ -175,7 +175,7 @@
 
 .allocOption[data-active='true'] {
   border-color: var(--color-indigo);
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
 }
 
 .allocTitle {
@@ -378,7 +378,7 @@
 }
 
 .summaryRow[data-highlight='true'] {
-  background: rgba(41, 40, 103, 0.05);
+  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
   font-weight: 700;
 }
 

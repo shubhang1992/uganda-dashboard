@@ -8,7 +8,7 @@
 /* Phone-only adjustments: hide the safety widget (withdraw/claim live in
    the sidebar) and surface the AI co-pilot above the future-value card so
    subscribers get to a question-friendly entry point sooner. */
-@media (max-width: 599px) {
+@media (max-width: 767.98px) {
   .phoneHide { display: none; }
 
   .slotPulse      { order: 1; }
@@ -19,7 +19,7 @@
   .slotActivity   { order: 6; }
 }
 
-@media (min-width: 600px) {
+@media (min-width: 768px) {
   .page {
     gap: var(--space-4);
     padding: var(--space-5) var(--space-5) var(--space-8);

@@ -10,9 +10,10 @@ import {
 } from 'recharts';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
-import { formatUGX, normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
+import { normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
+import { formatUGX, formatNumber } from '../../utils/currency';
 import ErrorCard from '../../components/feedback/ErrorCard';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './AnalyticsPage.module.css';
 
 const PALETTE = {
@@ -57,7 +58,7 @@ function chartTooltip({ active, payload, label, valueFormatter }) {
           <span className={styles.tooltipDot} style={{ background: p.color || p.fill }} />
           <span className={styles.tooltipName}>{p.name}</span>
           <span className={styles.tooltipValue}>
-            {valueFormatter ? valueFormatter(p.value) : p.value.toLocaleString('en-UG')}
+            {valueFormatter ? valueFormatter(p.value) : formatNumber(p.value)}
           </span>
         </div>
       ))}
@@ -134,7 +135,7 @@ export default function AnalyticsPage() {
     <div className={styles.page}>
       <PageHeader
         title="Analytics"
-        subtitle={`Insights from your ${total.toLocaleString('en-UG')} subscriber${total === 1 ? '' : 's'}`}
+        subtitle={`Insights from your ${formatNumber(total)} subscriber${total === 1 ? '' : 's'}`}
         fallback="/dashboard"
       />
 
@@ -165,7 +166,7 @@ export default function AnalyticsPage() {
                   </Pie>
                   <Tooltip
                     cursor={false}
-                    content={(p) => chartTooltip({ ...p, valueFormatter: (v) => `${v.toLocaleString('en-UG')} (${pct(v, total)})` })}
+                    content={(p) => chartTooltip({ ...p, valueFormatter: (v) => `${formatNumber(v)} (${pct(v, total)})` })}
                   />
                   <Legend
                     verticalAlign="bottom"
@@ -186,7 +187,7 @@ export default function AnalyticsPage() {
                   <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip
                     cursor={{ fill: PALETTE.lavender, opacity: 0.4 }}
-                    content={(p) => chartTooltip({ ...p, valueFormatter: (v) => `${v.toLocaleString('en-UG')} (${pct(v, total)})` })}
+                    content={(p) => chartTooltip({ ...p, valueFormatter: (v) => `${formatNumber(v)} (${pct(v, total)})` })}
                   />
                   <Bar
                     dataKey="value"
@@ -218,7 +219,7 @@ export default function AnalyticsPage() {
                   <YAxis type="category" dataKey="label" tick={axisTick} tickLine={false} axisLine={false} width={80} />
                   <Tooltip
                     cursor={{ fill: PALETTE.lavender, opacity: 0.4 }}
-                    content={(p) => chartTooltip({ ...p, valueFormatter: (v) => `${v.toLocaleString('en-UG')} (${pct(v, total)})` })}
+                    content={(p) => chartTooltip({ ...p, valueFormatter: (v) => `${formatNumber(v)} (${pct(v, total)})` })}
                   />
                   <Bar
                     dataKey="value"
@@ -241,7 +242,7 @@ export default function AnalyticsPage() {
                   <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip
                     cursor={{ fill: PALETTE.lavender, opacity: 0.4 }}
-                    content={(p) => chartTooltip({ ...p, valueFormatter: (v) => `${v.toLocaleString('en-UG')} (${pct(v, total)})` })}
+                    content={(p) => chartTooltip({ ...p, valueFormatter: (v) => `${formatNumber(v)} (${pct(v, total)})` })}
                   />
                   <Bar
                     dataKey="value"
@@ -267,13 +268,13 @@ export default function AnalyticsPage() {
             <div className={styles.activeStat}>
               <span className={styles.activeDot} data-tone="positive" />
               <span className={styles.activeLabel}>Active</span>
-              <span className={styles.activeValue}>{data.active.toLocaleString('en-UG')}</span>
+              <span className={styles.activeValue}>{formatNumber(data.active)}</span>
               <span className={styles.activePct}>{pct(data.active, total)}</span>
             </div>
             <div className={styles.activeStat}>
               <span className={styles.activeDot} data-tone="muted" />
               <span className={styles.activeLabel}>Dormant</span>
-              <span className={styles.activeValue}>{data.dormant.toLocaleString('en-UG')}</span>
+              <span className={styles.activeValue}>{formatNumber(data.dormant)}</span>
               <span className={styles.activePct}>{pct(data.dormant, total)}</span>
             </div>
           </div>
@@ -310,7 +311,7 @@ export default function AnalyticsPage() {
                 <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip
                   cursor={{ stroke: PALETTE.indigoSoft, strokeWidth: 1, strokeDasharray: '3 3' }}
-                  content={(p) => chartTooltip({ ...p, valueFormatter: (v) => `${v.toLocaleString('en-UG')} new` })}
+                  content={(p) => chartTooltip({ ...p, valueFormatter: (v) => `${formatNumber(v)} new` })}
                 />
                 <Line
                   type="monotone"
@@ -328,7 +329,7 @@ export default function AnalyticsPage() {
           <footer className={styles.cardFoot}>
             <span className={styles.cardFootLabel}>Last {MONTHS_BACK} months</span>
             <span className={styles.cardFootValue}>
-              +{data.velocityTotal.toLocaleString('en-UG')} new ·{' '}
+              +{formatNumber(data.velocityTotal)} new ·{' '}
               {formatUGX(data.lifetimeContribution)} lifetime contributions
             </span>
           </footer>

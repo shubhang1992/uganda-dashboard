@@ -1,10 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Modal from '../../components/Modal';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useToast } from '../../contexts/ToastContext';
-import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
+import { formatDate } from '../../utils/date';
 import { cadenceLabel, CADENCES } from '../../utils/settlementCycle';
+import { downloadCsv } from '../../utils/csvDownload';
 import {
   useCommissionRate, useSetCommissionRate,
   useCommissionSummary, useAgentCommissionList,
@@ -20,13 +26,9 @@ import {
   useMarkBranchReviewed, useReleaseRun, useReleaseBranch,
 } from '../../hooks/useCommission';
 import { getInitials } from '../../utils/dashboard';
+import SkeletonRow from '../../components/SkeletonRow';
+import EmptyState from '../../components/EmptyState';
 import styles from './CommissionPanel.module.css';
-
-function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 function formatRunRange(start, end) {
   if (!start || !end) return '—';
@@ -156,10 +158,10 @@ export default function CommissionPanel({ splitMode = false }) {
     isBranch && currentRun ? currentRun.id : null,
     isBranch ? branchId : null
   );
-  const { data: agentList = [] } = useAgentCommissionList(statusFocus);
+  const { data: agentList = [], isLoading: agentListLoading } = useAgentCommissionList(statusFocus);
   const { data: agentDetail } = useAgentCommissionDetail(selectedAgentId);
   const { data: subscribers = [] } = useCommissionSubscribers(selectedAgentId, subFilter);
-  const { data: disputedAgents = [] } = useDisputedAgentList();
+  const { data: disputedAgents = [], isLoading: disputedLoading } = useDisputedAgentList();
   const approveDisputeMutation = useApproveDispute();
   const rejectDisputeMutation = useRejectDispute();
   const bulkApproveMutation = useBulkApproveDisputes();
@@ -201,18 +203,20 @@ export default function CommissionPanel({ splitMode = false }) {
     return () => clearTimeout(t);
   }, [commissionsOpen]);
 
-  // Escape to close
+  // Escape closes the panel. The shared <Modal> primitive stops propagation
+  // when a child modal is open, so this handler never fires while a modal
+  // is active — the modal closes first, then a second Escape closes the
+  // panel.
   useEffect(() => {
     if (!commissionsOpen) return;
     function onKey(e) {
       if (e.key === 'Escape') {
-        if (releaseModalOpen) setReleaseModalOpen(false);
-        else setCommissionsOpen(false);
+        setCommissionsOpen(false);
       }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [commissionsOpen, releaseModalOpen, setCommissionsOpen]);
+  }, [commissionsOpen, setCommissionsOpen]);
 
   // Branch-scoped lists
   const scopedAgentList = useMemo(
@@ -224,26 +228,52 @@ export default function CommissionPanel({ splitMode = false }) {
     [disputedAgents, branchId, isBranch]
   );
 
+  // Debounce the search input — the filter memos below run a full
+  // `.toLowerCase()` + `.includes()` pass over the agent list on every
+  // keystroke. With 2k+ agents that's enough work to drop a frame on every
+  // letter. 200ms aligns with the OverlayPanel debounce so the two search
+  // surfaces feel uniform.
+  const debouncedSearch = useDebouncedValue(search, 200);
+
   const filteredAgents = useMemo(() => {
-    if (!search.trim()) return scopedAgentList;
-    const q = search.toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) return scopedAgentList;
     return scopedAgentList.filter((a) =>
       a.agentName.toLowerCase().includes(q) || a.branchName.toLowerCase().includes(q)
     );
-  }, [scopedAgentList, search]);
+  }, [scopedAgentList, debouncedSearch]);
 
   const filteredDisputed = useMemo(() => {
-    if (!search.trim()) return scopedDisputedAgents;
-    const q = search.toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) return scopedDisputedAgents;
     return scopedDisputedAgents.filter((a) =>
       a.agentName.toLowerCase().includes(q) || a.branchName.toLowerCase().includes(q)
     );
-  }, [scopedDisputedAgents, search]);
+  }, [scopedDisputedAgents, debouncedSearch]);
 
-  // Branch view of the open run
-  const branchSliceTotal = branchReview?.lines?.reduce((s, c) => s + (c.amount || 0), 0) || 0;
-  const branchPendingLines = branchReview?.lines?.filter((c) => c.status === 'in_run') || [];
-  const branchHeldLines = branchReview?.lines?.filter((c) => c.status === 'held') || [];
+  // Cold-load guards — skeleton only fires when the query is pending AND
+  // no rows have ever been seen yet. Background refetches keep the live
+  // list visible so we never bounce the user back into a loading state.
+  const agentsCold = agentListLoading && scopedAgentList.length === 0;
+  const disputedCold = disputedLoading && scopedDisputedAgents.length === 0;
+
+  // Branch view of the open run — memoize the three derivations off
+  // `branchReview.lines` so they only recompute when the underlying lines
+  // change. Without this, the parent re-renders triggered by any unrelated
+  // state setter (toolbar focus, search, modal open) would re-run all three
+  // O(n) passes even though the lines themselves haven't changed.
+  const branchSliceTotal = useMemo(
+    () => branchReview?.lines?.reduce((s, c) => s + (c.amount || 0), 0) || 0,
+    [branchReview?.lines]
+  );
+  const branchPendingLines = useMemo(
+    () => branchReview?.lines?.filter((c) => c.status === 'in_run') || [],
+    [branchReview?.lines]
+  );
+  const branchHeldLines = useMemo(
+    () => branchReview?.lines?.filter((c) => c.status === 'held') || [],
+    [branchReview?.lines]
+  );
 
   // Navigation
   function goHome() {
@@ -417,6 +447,57 @@ export default function CommissionPanel({ splitMode = false }) {
     }
   }
 
+  // ── Agent commission detail CSV download ──────────────────────────────────
+  // Wires the "Download" button at the bottom of the agent-detail view to a
+  // real CSV export. We flatten the paid + due transactions into one table so
+  // the export is a self-contained ledger of the agent's commission lines.
+  // Hidden when there's no agentDetail (e.g. while the detail query loads).
+  const isMobile = useIsMobile();
+  const handleAgentDetailDownload = useCallback(async () => {
+    if (!agentDetail) return;
+    const rows = [
+      ...(agentDetail.paidTransactions || []).map((tx) => ({
+        date: tx.transactionDate,
+        subscriber: tx.subscriberName,
+        amount: tx.amount,
+        status: tx.status === 'confirmed' ? 'Paid (confirmed)' : 'Paid (awaiting agent)',
+      })),
+      ...(agentDetail.dueTransactions || []).map((tx) => ({
+        date: tx.dueDate,
+        subscriber: tx.subscriberName,
+        amount: tx.amount,
+        status: tx.status === 'in_run'
+          ? 'Due (in current run)'
+          : tx.status === 'held'
+            ? 'Due (held)'
+            : 'Due',
+      })),
+    ];
+    const columns = [
+      { key: 'date', label: 'Date' },
+      { key: 'subscriber', label: 'Subscriber' },
+      { key: 'amount', label: 'Amount (UGX)' },
+      { key: 'status', label: 'Status' },
+    ];
+    try {
+      await downloadCsv({
+        rows,
+        columns,
+        // Filename slug — agent name + ID keep the file searchable on disk.
+        filename: `commissions-${agentDetail.agentName || 'agent'}-${agentDetail.agentId || ''}`,
+        isMobile,
+        onCapNotice: ({ capped, total }) => {
+          addToast(
+            'warning',
+            `Showing first ${formatNumber(capped)} rows in export — refine your filter for full data (${formatNumber(total)} total).`,
+          );
+        },
+      });
+    } catch (err) {
+      addToast('error', err?.message || 'Could not download commission ledger.');
+    }
+  }, [agentDetail, isMobile, addToast]);
+
   // Breadcrumb
   const breadcrumbItems = useMemo(() => {
     const items = [{ label: 'Commissions', view: 'home' }];
@@ -585,7 +666,7 @@ export default function CommissionPanel({ splitMode = false }) {
                               </div>
                               <div className={styles.runMetric}>
                                 <span className={styles.runMetricLabel}>Agents</span>
-                                <span className={styles.runMetricValue}>{(currentRun.agentCount || 0).toLocaleString()}</span>
+                                <span className={styles.runMetricValue}>{formatNumber(currentRun.agentCount || 0)}</span>
                               </div>
                               <div className={styles.runMetric}>
                                 <span className={styles.runMetricLabel}>Branch sign-off</span>
@@ -717,18 +798,18 @@ export default function CommissionPanel({ splitMode = false }) {
                     <div className={styles.summaryStrip}>
                       <button className={styles.summaryItem} onClick={() => goAgents(null)}>
                         <span className={styles.summaryItemLabel}>Total</span>
-                        <span className={styles.summaryItemValue}>{fmtShort(summary?.totalCommissions || 0)}</span>
-                        <span className={styles.summaryItemCount}>{(summary?.countTotal || 0).toLocaleString()} records</span>
+                        <span className={styles.summaryItemValue}>{formatUGXShort(summary?.totalCommissions || 0)}</span>
+                        <span className={styles.summaryItemCount}>{formatNumber(summary?.countTotal || 0)} records</span>
                       </button>
                       <button className={styles.summaryItem} onClick={() => goAgents('paid')}>
                         <span className={styles.summaryItemLabel}>Settled</span>
-                        <span className={styles.summaryItemValue}>{fmtShort(summary?.totalPaid || 0)}</span>
-                        <span className={styles.summaryItemCount}>{(summary?.countPaid || 0).toLocaleString()} paid</span>
+                        <span className={styles.summaryItemValue}>{formatUGXShort(summary?.totalPaid || 0)}</span>
+                        <span className={styles.summaryItemCount}>{formatNumber(summary?.countPaid || 0)} paid</span>
                       </button>
                       <button className={styles.summaryItem} onClick={() => goAgents('due')}>
                         <span className={styles.summaryItemLabel}>Outstanding</span>
-                        <span className={styles.summaryItemValue}>{fmtShort(summary?.totalDue || 0)}</span>
-                        <span className={styles.summaryItemCount}>{(summary?.countDue || 0).toLocaleString()} owed</span>
+                        <span className={styles.summaryItemValue}>{formatUGXShort(summary?.totalDue || 0)}</span>
+                        <span className={styles.summaryItemCount}>{formatNumber(summary?.countDue || 0)} owed</span>
                       </button>
                     </div>
 
@@ -791,7 +872,7 @@ export default function CommissionPanel({ splitMode = false }) {
                         </div>
                         <div className={styles.runHeaderStat}>
                           <span className={styles.runMetricLabel}>Commissions</span>
-                          <span className={styles.runHeaderValue}>{currentRun.commissionCount.toLocaleString()}</span>
+                          <span className={styles.runHeaderValue}>{formatNumber(currentRun.commissionCount)}</span>
                         </div>
                         <div className={styles.runHeaderStat}>
                           <span className={styles.runMetricLabel}>Approved</span>
@@ -855,7 +936,7 @@ export default function CommissionPanel({ splitMode = false }) {
                           </div>
                           <div className={styles.runHeaderStat}>
                             <span className={styles.runMetricLabel}>Commissions</span>
-                            <span className={styles.runHeaderValue}>{branchRow.count.toLocaleString()}</span>
+                            <span className={styles.runHeaderValue}>{formatNumber(branchRow.count)}</span>
                           </div>
                           <div className={styles.runHeaderStat}>
                             <span className={styles.runMetricLabel}>State</span>
@@ -1016,7 +1097,7 @@ export default function CommissionPanel({ splitMode = false }) {
                             <div className={styles.runRowMain}>
                               <div className={styles.runRowTitle}>{formatRunRange(run.openedAt, run.closesAt)}</div>
                               <div className={styles.runRowSub}>
-                                {run.commissionCount.toLocaleString()} commission{run.commissionCount === 1 ? '' : 's'}
+                                {formatNumber(run.commissionCount)} commission{run.commissionCount === 1 ? '' : 's'}
                                 {run.releasedAt ? ` · released ${formatDate(run.releasedAt)}` : ''}
                               </div>
                             </div>
@@ -1053,8 +1134,30 @@ export default function CommissionPanel({ splitMode = false }) {
                       </div>
                     </div>
 
-                    {filteredAgents.length === 0 ? (
-                      <div className={styles.empty}>No agents found</div>
+                    {agentsCold ? (
+                      <SkeletonRow count={6} label="Loading commission ledger" />
+                    ) : filteredAgents.length === 0 ? (
+                      // Differentiated empty: clean state ("no commissions
+                      // recorded yet") vs filter mismatch ("widen your search").
+                      debouncedSearch.trim() === '' ? (
+                        <EmptyState
+                          kind="no-data"
+                          title={
+                            statusFocus === 'paid'
+                              ? 'No commissions paid yet.'
+                              : statusFocus === 'due'
+                                ? 'No commissions due.'
+                                : 'No commissions yet.'
+                          }
+                          body="Commission activity will appear here as soon as it's recorded."
+                        />
+                      ) : (
+                        <EmptyState
+                          kind="no-match"
+                          title="No agents match"
+                          body="Try adjusting your search."
+                        />
+                      )
                     ) : (
                       filteredAgents.map((agent) => (
                         <button
@@ -1069,9 +1172,9 @@ export default function CommissionPanel({ splitMode = false }) {
                           </div>
                           <div>
                             <div className={styles.agentAmount}>
-                              {statusFocus === 'paid' ? fmtShort(agent.totalPaid) :
-                               statusFocus === 'due' ? fmtShort(agent.totalDue) :
-                               fmtShort(agent.totalCommissions)}
+                              {statusFocus === 'paid' ? formatUGXShort(agent.totalPaid) :
+                               statusFocus === 'due' ? formatUGXShort(agent.totalDue) :
+                               formatUGXShort(agent.totalCommissions)}
                             </div>
                             <div className={styles.agentAmountLabel}>
                               {agent.subscribersOnboarded} subscribers
@@ -1157,7 +1260,12 @@ export default function CommissionPanel({ splitMode = false }) {
                       )}
                     </div>
 
-                    <button className={styles.downloadBtn} aria-label="Download as Excel">
+                    <button
+                      className={styles.downloadBtn}
+                      onClick={handleAgentDetailDownload}
+                      aria-label="Download commission ledger as CSV"
+                      type="button"
+                    >
                       {Icons.download}
                       Download
                     </button>
@@ -1219,12 +1327,25 @@ export default function CommissionPanel({ splitMode = false }) {
                       <div className={styles.selectBar}>
                         <button
                           className={styles.selectAllBtn}
+                          role="checkbox"
+                          aria-checked={
+                            selectedIds.size === 0
+                              ? 'false'
+                              : selectedIds.size === filteredDisputed.length
+                                ? 'true'
+                                : 'mixed'
+                          }
+                          aria-label={
+                            selectedIds.size === filteredDisputed.length
+                              ? `Deselect all ${filteredDisputed.length} disputed agents`
+                              : `Select all ${filteredDisputed.length} disputed agents`
+                          }
                           onClick={() => {
                             if (selectedIds.size === filteredDisputed.length) clearSelection();
                             else selectAll(filteredDisputed.map((a) => a.agentId));
                           }}
                         >
-                          <span className={styles.checkbox} data-checked={selectedIds.size === filteredDisputed.length && filteredDisputed.length > 0}>
+                          <span className={styles.checkbox} data-checked={selectedIds.size === filteredDisputed.length && filteredDisputed.length > 0} aria-hidden="true">
                             {selectedIds.size === filteredDisputed.length && filteredDisputed.length > 0 && Icons.approve}
                           </span>
                           {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
@@ -1235,8 +1356,22 @@ export default function CommissionPanel({ splitMode = false }) {
                       </div>
                     )}
 
-                    {filteredDisputed.length === 0 ? (
-                      <div className={styles.empty}>No disputed settlements</div>
+                    {disputedCold ? (
+                      <SkeletonRow count={5} label="Loading disputes" />
+                    ) : filteredDisputed.length === 0 ? (
+                      debouncedSearch.trim() === '' ? (
+                        <EmptyState
+                          kind="no-data"
+                          title="No disputed settlements"
+                          body="Disputes raised by agents will appear here for review."
+                        />
+                      ) : (
+                        <EmptyState
+                          kind="no-match"
+                          title="No agents match"
+                          body="Try adjusting your search."
+                        />
+                      )
                     ) : (
                       filteredDisputed.map((agent) => (
                         <div key={agent.agentId} className={styles.selectableRow} data-selected={selectedIds.has(agent.agentId)}>
@@ -1332,7 +1467,7 @@ export default function CommissionPanel({ splitMode = false }) {
                       </div>
                       <div className={styles.detailStat}>
                         <div className={styles.detailStatLabel}>Amount</div>
-                        <div className={styles.detailStatValue}>{fmtShort(selectedDisputeAgent.disputedAmount)}</div>
+                        <div className={styles.detailStatValue}>{formatUGXShort(selectedDisputeAgent.disputedAmount)}</div>
                       </div>
                     </div>
 
@@ -1407,276 +1542,261 @@ export default function CommissionPanel({ splitMode = false }) {
               </AnimatePresence>
             </div>
 
-            {/* Resolution Modal — single + bulk dispute approve/reject */}
-            <AnimatePresence>
-              {resolutionTarget && (() => {
-                const isApprove = resolutionTarget.action === 'approve';
-                const total = resolutionTarget.ids.length;
-                const pre = resolutionTarget.prePaymentCount || 0;
-                const post = resolutionTarget.postPaymentCount || 0;
-                const noun = total === 1 ? 'dispute' : `${total} disputes`;
-                const verb = isApprove ? 'Approve' : 'Reject';
-                const title = `${verb} ${noun}`;
-                const subtitle = isApprove
-                  ? `Side with the agent on ${resolutionTarget.contextLabel}.`
-                  : `Decline ${resolutionTarget.contextLabel}.`;
-
-                // Consequence sentences — only emit the ones that apply to this batch.
-                const sentences = [];
-                if (isApprove) {
-                  if (pre > 0) {
-                    sentences.push(
-                      <span key="pre">
-                        <strong>{pre === total ? 'These' : pre}</strong>
-                        {' '}{pre === 1 ? 'commission goes' : 'commissions go'} back to <em>Owed</em> and pay out in the next settlement run — approving here doesn&apos;t move money on its own.
-                      </span>
-                    );
-                  }
-                  if (post > 0) {
-                    sentences.push(
-                      <span key="post">
-                        <strong>{post === total ? 'These' : post}</strong>
-                        {' '}{post === 1 ? 'is a post-payment claim' : 'are post-payment claims'} — the original release record stands; record any off-ledger re-issue (e.g. MTN MM-XXXX) in the outcome reason.
-                      </span>
-                    );
-                  }
-                } else {
-                  if (pre > 0) {
-                    sentences.push(
-                      <span key="pre">
-                        <strong>{pre === total ? 'These' : pre}</strong>
-                        {' '}{pre === 1 ? 'commission will be voided' : 'commissions will be voided'} (status → <em>rejected</em>). The agent will not be paid for {pre === 1 ? 'it' : 'them'}.
-                      </span>
-                    );
-                  }
-                  if (post > 0) {
-                    sentences.push(
-                      <span key="post">
-                        <strong>{post === total ? 'These' : post}</strong>
-                        {' '}{post === 1 ? 'is a post-payment claim' : 'are post-payment claims'} — the release record stays on file; the outcome reason should explain why the dispute was denied.
-                      </span>
-                    );
-                  }
-                }
-
-                const placeholder = isApprove
-                  ? (post > 0
-                      ? 'e.g. Confirmed legitimate; commission re-issued via MTN MM-9931'
-                      : 'e.g. Confirmed; restored to Owed for next run')
-                  : (post > 0
-                      ? 'e.g. Payment proof on record (MM-7782); dispute denied'
-                      : 'e.g. Claim could not be substantiated; commission voided');
-
-                return (
-                  <motion.div
-                    className={styles.modalOverlay}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <motion.div
-                      className={styles.modal}
-                      initial={{ opacity: 0, scale: 0.95, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95, y: 12 }}
-                      transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
-                    >
-                      <div className={styles.modalHeader}>
-                        <div className={styles.modalTitle}>{title}</div>
-                        <div className={styles.modalSubtitle}>{subtitle}</div>
-                      </div>
-                      <div className={styles.modalBody}>
-                        <div className={styles.modalConsequence} data-action={resolutionTarget.action}>
-                          <div className={styles.modalConsequenceLabel}>What happens</div>
-                          {sentences.map((s, i) => (
-                            <p key={i} className={styles.modalConsequenceLine}>{s}</p>
-                          ))}
-                        </div>
-                        <label className={styles.modalLabel} htmlFor="resolution-reason">
-                          Outcome reason
-                        </label>
-                        <textarea
-                          id="resolution-reason"
-                          className={styles.modalTextarea}
-                          rows={3}
-                          value={resolutionReason}
-                          onChange={(e) => setResolutionReason(e.target.value)}
-                          placeholder={placeholder}
-                          maxLength={400}
-                          autoFocus
-                        />
-                        <div className={styles.modalHint}>
-                          Stored on every affected commission so the agent and audit trail can see why.
-                        </div>
-                      </div>
-                      <div className={styles.modalActions}>
-                        <button className={styles.modalBackBtn} onClick={() => setResolutionTarget(null)}>
-                          Cancel
-                        </button>
-                        <button
-                          className={styles.modalConfirmBtn}
-                          onClick={submitResolution}
-                          disabled={
-                            !resolutionReason.trim() ||
-                            approveDisputeMutation.isPending ||
-                            rejectDisputeMutation.isPending ||
-                            bulkApproveMutation.isPending ||
-                            bulkRejectMutation.isPending
-                          }
-                        >
-                          {isApprove ? `Confirm ${verb.toLowerCase()}` : `Confirm ${verb.toLowerCase()}`}
-                        </button>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                );
-              })()}
-            </AnimatePresence>
-
-            {/* Branch line action modal — Hold or Dispute with reason capture */}
-            <AnimatePresence>
-              {lineActionTarget && (
-                <motion.div
-                  className={styles.modalOverlay}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <motion.div
-                    className={styles.modal}
-                    initial={{ opacity: 0, scale: 0.95, y: 12 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 12 }}
-                    transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
-                  >
-                    <div className={styles.modalHeader}>
-                      <div className={styles.modalTitle}>
-                        {lineActionTarget.action === 'hold' ? 'Hold this line' : 'Flag a dispute'}
-                      </div>
-                      <div className={styles.modalSubtitle}>
-                        {lineActionTarget.action === 'hold'
-                          ? `It will roll into the next run. ${lineActionTarget.line.subscriberName} · ${formatUGX(lineActionTarget.line.amount)}`
-                          : `Distributor will review. ${lineActionTarget.line.subscriberName} · ${formatUGX(lineActionTarget.line.amount)}`}
-                      </div>
-                    </div>
-                    <div className={styles.modalBody}>
-                      <label className={styles.modalLabel} htmlFor="line-action-reason">
-                        Reason
-                      </label>
-                      <textarea
-                        id="line-action-reason"
-                        className={styles.modalTextarea}
-                        rows={3}
-                        value={lineActionReason}
-                        onChange={(e) => setLineActionReason(e.target.value)}
-                        placeholder={lineActionTarget.action === 'hold'
-                          ? 'e.g. Subscriber records being verified; should pay next cycle'
-                          : 'e.g. Suspect duplicate; agent ID does not match KYC'}
-                        maxLength={400}
-                        autoFocus
-                      />
-                    </div>
-                    <div className={styles.modalActions}>
-                      <button className={styles.modalBackBtn} onClick={() => setLineActionTarget(null)}>
-                        Cancel
-                      </button>
-                      <button
-                        className={styles.modalConfirmBtn}
-                        onClick={submitLineAction}
-                        disabled={
-                          !lineActionReason.trim() ||
-                          branchHoldLineMutation.isPending ||
-                          branchDisputeLineMutation.isPending
-                        }
-                      >
-                        {lineActionTarget.action === 'hold' ? 'Hold line' : 'File dispute'}
-                      </button>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Release Modal — handles both bulk-approved and per-branch */}
-            <AnimatePresence>
-              {releaseModalOpen && currentRun && (() => {
-                const branchRow = releaseScope === 'branch' && selectedRunBranchId
-                  ? runBranches.find((b) => b.branchId === selectedRunBranchId)
-                  : null;
-                const isBranchScope = releaseScope === 'branch' && branchRow;
-                const approvedRows = runBranches.filter((b) => b.state === 'approved');
-                const approvedTotal = approvedRows.reduce((s, r) => s + r.amount, 0);
-                const approvedCount = approvedRows.reduce((s, r) => s + r.count, 0);
-                const isBusy = releaseRunMutation.isPending || releaseBranchMutation.isPending;
-                return (
-                  <motion.div
-                    className={styles.modalOverlay}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <motion.div
-                      className={styles.modal}
-                      initial={{ opacity: 0, scale: 0.95, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95, y: 12 }}
-                      transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
-                    >
-                      <div className={styles.modalHeader}>
-                        <div className={styles.modalTitle}>
-                          {isBranchScope ? `Release ${branchRow.branchName}` : 'Release approved branches'}
-                        </div>
-                        <div className={styles.modalSubtitle}>
-                          {isBranchScope
-                            ? 'Confirm you have transferred funds for this branch only.'
-                            : 'Confirm you have transferred funds for every approved branch. Pending branches will stay open.'}
-                        </div>
-                      </div>
-                      <div className={styles.modalBody}>
-                        <div className={styles.modalSummary}>
-                          <div className={styles.modalSummaryLabel}>Total to release</div>
-                          <div className={styles.modalSummaryValue}>
-                            {formatUGX(isBranchScope ? branchRow.amount : approvedTotal)}
-                          </div>
-                        </div>
-                        <div className={styles.modalSummary}>
-                          <div className={styles.modalSummaryLabel}>Commissions</div>
-                          <div className={styles.modalSummaryValue}>
-                            {isBranchScope ? branchRow.count : approvedCount}
-                          </div>
-                        </div>
-                        <div className={styles.modalSummary}>
-                          <div className={styles.modalSummaryLabel}>
-                            {isBranchScope ? 'Branch' : 'Approved branches'}
-                          </div>
-                          <div className={styles.modalSummaryValue}>
-                            {isBranchScope ? branchRow.branchId : approvedRows.length}
-                          </div>
-                        </div>
-                      </div>
-                      <div className={styles.modalActions}>
-                        <button className={styles.modalBackBtn} onClick={() => setReleaseModalOpen(false)}>
-                          Back
-                        </button>
-                        <button
-                          className={styles.modalConfirmBtn}
-                          onClick={handleReleaseConfirm}
-                          disabled={isBusy}
-                        >
-                          {isBusy ? 'Releasing…' : 'Confirm release'}
-                        </button>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                );
-              })()}
-            </AnimatePresence>
           </motion.div>
         </>
       )}
+
+      {/* Resolution Modal — single + bulk dispute approve/reject.
+       * Rendered outside the slide-in panel so it portals to <body>; the
+       * shared <Modal> primitive owns focus trap, scroll-lock, ESC + backdrop
+       * dismissal, so ESC closes only the modal — not the parent panel. The
+       * `commissionsOpen` gate ensures modals unmount when the parent panel
+       * closes (panel state cleanup is delayed 400ms for its exit animation). */}
+      {commissionsOpen && (() => {
+        if (!resolutionTarget) return null;
+        const isApprove = resolutionTarget.action === 'approve';
+        const total = resolutionTarget.ids.length;
+        const pre = resolutionTarget.prePaymentCount || 0;
+        const post = resolutionTarget.postPaymentCount || 0;
+        const noun = total === 1 ? 'dispute' : `${total} disputes`;
+        const verb = isApprove ? 'Approve' : 'Reject';
+        const title = `${verb} ${noun}`;
+        const subtitle = isApprove
+          ? `Side with the agent on ${resolutionTarget.contextLabel}.`
+          : `Decline ${resolutionTarget.contextLabel}.`;
+
+        const sentences = [];
+        if (isApprove) {
+          if (pre > 0) {
+            sentences.push(
+              <span key="pre">
+                <strong>{pre === total ? 'These' : pre}</strong>
+                {' '}{pre === 1 ? 'commission goes' : 'commissions go'} back to <em>Owed</em> and pay out in the next settlement run — approving here doesn&apos;t move money on its own.
+              </span>
+            );
+          }
+          if (post > 0) {
+            sentences.push(
+              <span key="post">
+                <strong>{post === total ? 'These' : post}</strong>
+                {' '}{post === 1 ? 'is a post-payment claim' : 'are post-payment claims'} — the original release record stands; record any off-ledger re-issue (e.g. MTN MM-XXXX) in the outcome reason.
+              </span>
+            );
+          }
+        } else {
+          if (pre > 0) {
+            sentences.push(
+              <span key="pre">
+                <strong>{pre === total ? 'These' : pre}</strong>
+                {' '}{pre === 1 ? 'commission will be voided' : 'commissions will be voided'} (status → <em>rejected</em>). The agent will not be paid for {pre === 1 ? 'it' : 'them'}.
+              </span>
+            );
+          }
+          if (post > 0) {
+            sentences.push(
+              <span key="post">
+                <strong>{post === total ? 'These' : post}</strong>
+                {' '}{post === 1 ? 'is a post-payment claim' : 'are post-payment claims'} — the release record stays on file; the outcome reason should explain why the dispute was denied.
+              </span>
+            );
+          }
+        }
+
+        const placeholder = isApprove
+          ? (post > 0
+              ? 'e.g. Confirmed legitimate; commission re-issued via MTN MM-9931'
+              : 'e.g. Confirmed; restored to Owed for next run')
+          : (post > 0
+              ? 'e.g. Payment proof on record (MM-7782); dispute denied'
+              : 'e.g. Claim could not be substantiated; commission voided');
+
+        const isBusy =
+          approveDisputeMutation.isPending ||
+          rejectDisputeMutation.isPending ||
+          bulkApproveMutation.isPending ||
+          bulkRejectMutation.isPending;
+
+        return (
+          <Modal
+            open={Boolean(resolutionTarget)}
+            onClose={() => {
+              if (!isBusy) setResolutionTarget(null);
+            }}
+            title={title}
+            size="md"
+            dismissOnBackdrop={!isBusy}
+          >
+            <div className={styles.modal}>
+              <div className={styles.modalHeader}>
+                <div className={styles.modalTitle}>{title}</div>
+                <div className={styles.modalSubtitle}>{subtitle}</div>
+              </div>
+              <div className={styles.modalBody}>
+                <div className={styles.modalConsequence} data-action={resolutionTarget.action}>
+                  <div className={styles.modalConsequenceLabel}>What happens</div>
+                  {sentences.map((s, i) => (
+                    <p key={i} className={styles.modalConsequenceLine}>{s}</p>
+                  ))}
+                </div>
+                <label className={styles.modalLabel} htmlFor="resolution-reason">
+                  Outcome reason
+                </label>
+                <textarea
+                  id="resolution-reason"
+                  className={styles.modalTextarea}
+                  rows={3}
+                  value={resolutionReason}
+                  onChange={(e) => setResolutionReason(e.target.value)}
+                  placeholder={placeholder}
+                  maxLength={400}
+                />
+                <div className={styles.modalHint}>
+                  Stored on every affected commission so the agent and audit trail can see why.
+                </div>
+              </div>
+              <div className={styles.modalActions}>
+                <button className={styles.modalBackBtn} onClick={() => setResolutionTarget(null)}>
+                  Cancel
+                </button>
+                <button
+                  className={styles.modalConfirmBtn}
+                  onClick={submitResolution}
+                  disabled={!resolutionReason.trim() || isBusy}
+                >
+                  {`Confirm ${verb.toLowerCase()}`}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
+
+      {/* Branch line action modal — Hold or Dispute with reason capture */}
+      {commissionsOpen && lineActionTarget && (() => {
+        const isHold = lineActionTarget.action === 'hold';
+        const title = isHold ? 'Hold this line' : 'Flag a dispute';
+        const isBusy =
+          branchHoldLineMutation.isPending || branchDisputeLineMutation.isPending;
+        return (
+          <Modal
+            open={Boolean(lineActionTarget)}
+            onClose={() => {
+              if (!isBusy) setLineActionTarget(null);
+            }}
+            title={title}
+            size="md"
+            dismissOnBackdrop={!isBusy}
+          >
+            <div className={styles.modal}>
+              <div className={styles.modalHeader}>
+                <div className={styles.modalTitle}>{title}</div>
+                <div className={styles.modalSubtitle}>
+                  {isHold
+                    ? `It will roll into the next run. ${lineActionTarget.line.subscriberName} · ${formatUGX(lineActionTarget.line.amount)}`
+                    : `Distributor will review. ${lineActionTarget.line.subscriberName} · ${formatUGX(lineActionTarget.line.amount)}`}
+                </div>
+              </div>
+              <div className={styles.modalBody}>
+                <label className={styles.modalLabel} htmlFor="line-action-reason">
+                  Reason
+                </label>
+                <textarea
+                  id="line-action-reason"
+                  className={styles.modalTextarea}
+                  rows={3}
+                  value={lineActionReason}
+                  onChange={(e) => setLineActionReason(e.target.value)}
+                  placeholder={isHold
+                    ? 'e.g. Subscriber records being verified; should pay next cycle'
+                    : 'e.g. Suspect duplicate; agent ID does not match KYC'}
+                  maxLength={400}
+                />
+              </div>
+              <div className={styles.modalActions}>
+                <button className={styles.modalBackBtn} onClick={() => setLineActionTarget(null)}>
+                  Cancel
+                </button>
+                <button
+                  className={styles.modalConfirmBtn}
+                  onClick={submitLineAction}
+                  disabled={!lineActionReason.trim() || isBusy}
+                >
+                  {isHold ? 'Hold line' : 'File dispute'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
+
+      {/* Release Modal — handles both bulk-approved and per-branch */}
+      {commissionsOpen && releaseModalOpen && currentRun && (() => {
+        const branchRow = releaseScope === 'branch' && selectedRunBranchId
+          ? runBranches.find((b) => b.branchId === selectedRunBranchId)
+          : null;
+        const isBranchScope = releaseScope === 'branch' && branchRow;
+        const approvedRows = runBranches.filter((b) => b.state === 'approved');
+        const approvedTotal = approvedRows.reduce((s, r) => s + r.amount, 0);
+        const approvedCount = approvedRows.reduce((s, r) => s + r.count, 0);
+        const isBusy = releaseRunMutation.isPending || releaseBranchMutation.isPending;
+        const title = isBranchScope ? `Release ${branchRow.branchName}` : 'Release approved branches';
+        return (
+          <Modal
+            open={releaseModalOpen}
+            onClose={() => {
+              if (!isBusy) setReleaseModalOpen(false);
+            }}
+            title={title}
+            size="md"
+            dismissOnBackdrop={!isBusy}
+          >
+            <div className={styles.modal}>
+              <div className={styles.modalHeader}>
+                <div className={styles.modalTitle}>{title}</div>
+                <div className={styles.modalSubtitle}>
+                  {isBranchScope
+                    ? 'Confirm you have transferred funds for this branch only.'
+                    : 'Confirm you have transferred funds for every approved branch. Pending branches will stay open.'}
+                </div>
+              </div>
+              <div className={styles.modalBody}>
+                <div className={styles.modalSummary}>
+                  <div className={styles.modalSummaryLabel}>Total to release</div>
+                  <div className={styles.modalSummaryValue}>
+                    {formatUGX(isBranchScope ? branchRow.amount : approvedTotal)}
+                  </div>
+                </div>
+                <div className={styles.modalSummary}>
+                  <div className={styles.modalSummaryLabel}>Commissions</div>
+                  <div className={styles.modalSummaryValue}>
+                    {isBranchScope ? branchRow.count : approvedCount}
+                  </div>
+                </div>
+                <div className={styles.modalSummary}>
+                  <div className={styles.modalSummaryLabel}>
+                    {isBranchScope ? 'Branch' : 'Approved branches'}
+                  </div>
+                  <div className={styles.modalSummaryValue}>
+                    {isBranchScope ? branchRow.branchId : approvedRows.length}
+                  </div>
+                </div>
+              </div>
+              <div className={styles.modalActions}>
+                <button className={styles.modalBackBtn} onClick={() => setReleaseModalOpen(false)}>
+                  Back
+                </button>
+                <button
+                  className={styles.modalConfirmBtn}
+                  onClick={handleReleaseConfirm}
+                  disabled={isBusy}
+                >
+                  {isBusy ? 'Releasing…' : 'Confirm release'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
     </AnimatePresence>
   );
 }

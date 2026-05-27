@@ -4,6 +4,7 @@ import { formatUGX, formatUGXExact } from '../../../utils/finance';
 import { downloadCSV } from '../../../utils/csv';
 import ErrorCard from '../../../components/feedback/ErrorCard';
 import ExportButton from '../../../components/reports/ExportButton';
+import SkeletonRow from '../../../components/SkeletonRow';
 import frameStyles from './ReportFrame.module.css';
 
 function txYear(isoDate) {
@@ -11,7 +12,7 @@ function txYear(isoDate) {
 }
 
 export default function AnnualStatement() {
-  const { data: sub, isError, error, refetch } = useCurrentSubscriber();
+  const { data: sub, isLoading, isError, error, refetch } = useCurrentSubscriber();
   const transactions = useMemo(() => sub?.transactions || [], [sub?.transactions]);
 
   /* Build a set of years present in transactions */
@@ -64,6 +65,22 @@ export default function AnnualStatement() {
         message={error}
         onRetry={refetch}
       />
+    );
+  }
+
+  // Cold-load skeleton — without this the report briefly renders a "0 of 0"
+  // year summary on a slow connection.
+  if (isLoading && !sub) {
+    return (
+      <div className={frameStyles.frame}>
+        <div className={frameStyles.headerRow}>
+          <div className={frameStyles.headerText}>
+            <span className={frameStyles.eyebrow}>Annual tax statement</span>
+            <span className={frameStyles.headerDesc}>Loading…</span>
+          </div>
+        </div>
+        <SkeletonRow count={5} label="Loading annual statement" />
+      </div>
     );
   }
 

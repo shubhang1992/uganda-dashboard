@@ -36,7 +36,7 @@
   border-radius: 50%;
   background: var(--color-indigo);
   opacity: 0.3;
-  animation: el-pulse 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation: el-pulse 1.8s var(--ease-out-expo) infinite;
 }
 
 @keyframes el-pulse {
@@ -95,7 +95,7 @@
   height: 56px;
   margin-bottom: 0.75rem;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, rgba(41, 40, 103, 0.08) 0%, rgba(94, 99, 168, 0.1) 100%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-indigo) 8%, transparent) 0%, rgba(94, 99, 168, 0.1) 100%);
   border: 1px solid rgba(94, 99, 168, 0.2);
   color: var(--color-indigo);
 }

@@ -4,8 +4,9 @@ import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers, useUpdateSubscriberSchedule } from '../../hooks/useAgent';
 import { useToast } from '../../contexts/ToastContext';
 import ErrorCard from '../../components/feedback/ErrorCard';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import ContributionSettingsForm from '../../components/contribution/ContributionSettingsForm';
+import SkeletonRow from '../../components/SkeletonRow';
 import styles from './SubscriberSchedulePage.module.css';
 
 export default function SubscriberSchedulePage() {
@@ -45,9 +46,16 @@ export default function SubscriberSchedulePage() {
   }
 
   if (isLoading) {
+    // Skeleton instead of a bare "Loading…" header — the schedule form is
+    // multi-section and the form data lookup ultimately blocks render here,
+    // so showing the form's silhouette keeps the page feeling alive.
     return (
       <div className={styles.page}>
-        <PageHeader title="Loading…" fallback={`/dashboard/subscribers/${id}`} />
+        <PageHeader
+          title="Loading schedule…"
+          fallback={`/dashboard/subscribers/${id}`}
+        />
+        <SkeletonRow count={4} label="Loading subscriber schedule" />
       </div>
     );
   }

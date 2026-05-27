@@ -45,8 +45,9 @@ Sign-in flow: Role Select → (Distributor Sub-select if applicable) → Phone E
 
 ### Data Scope
 - **Visibility:** All entities across the entire network (country-wide)
-- **Drill-down:** Country → Region → District → Branch → Agent → Subscriber
+- **Drill-down:** Country → Distributor → Region → District → Branch → Agent → Subscriber
 - **Commission scope:** All commissions across all branches/agents
+- **Distributor row.** The `distributors` table (national singleton `d-001`, added in migration `0016`) is **read-visible to every authenticated role** via `distributors_select USING (true)` — needed so branch / agent / subscriber surfaces can render "Operated by Universal Pensions Uganda" attribution without leaking other tables. Only the distributor role can update, and only against its own row, via `distributors_update_self USING (auth.jwt() ->> 'distributorId' = id)`. See `BACKEND.md §8` for the policy text and `docs/data-model.md` for the entity definition.
 
 ### Actions (CRUD)
 | Action | Permission | Scope |
@@ -319,15 +320,16 @@ The `agentConfirmed` field on commissions exists specifically for this role:
 
 | Role | Entity Visibility | Commission Visibility | Report Scope |
 |------|------------------|----------------------|--------------|
-| distributor | All entities, all levels | All commissions | All 11 reports, network-wide |
-| branch | Own branch + own agents + own subscribers | Own branch's commissions | 8 reports, branch-scoped |
-| agent | Own record + own subscribers | Own commissions (read + confirm + dispute) | Client-side analytics over own portfolio |
-| subscriber | Own record only | None | 5 own-account reports (transactions, contributions, withdrawals, insurance, annual) |
+| distributor | All entities, all levels (including read of own `distributors` row + update of own row) | All commissions | All 11 reports, network-wide |
+| branch | Own branch + own agents + own subscribers (+ read-only of the singleton `distributors` row for attribution) | Own branch's commissions | 8 reports, branch-scoped |
+| agent | Own record + own subscribers (+ read-only of the singleton `distributors` row) | Own commissions (read + confirm + dispute) | Client-side analytics over own portfolio |
+| subscriber | Own record only (+ read-only of the singleton `distributors` row) | None | 5 own-account reports (transactions, contributions, withdrawals, insurance, annual) |
 | employer (planned) | Own org's employees | None | Own org reports |
 | admin (planned) | All entities, all levels | All commissions | All reports, all scopes |
 
 ### Scoping Implementation
-- **Distributor:** No scoping applied — all data visible
+- **Distributor:** No scoping applied — all data visible. The `distributors` table is the one exception: `distributors_update_self` restricts UPDATE to `auth.jwt() ->> 'distributorId' = id` (today's singleton seed means this is "distributor edits its own row" — the policy is shaped for the multi-distributor future).
+- **All authenticated roles read `distributors`:** `distributors_select USING (true)` lets the singleton row resolve for every dashboard's "Operated by …" attribution without selectively granting per-role read.
 - **Branch:** `BranchScopeProvider` injects `branchId` into context. Report views check `useBranchScope()` and filter data accordingly. Commission endpoints receive `branchId` parameter.
 - **Agent:** `AgentScopeProvider` injects `agentId`. `useAgentSubscribers(agentId)` and commission hooks scope automatically. The auth `user.agentId` comes from the backend's `verifyOtp` response — the client no longer injects it.
 - **Subscriber:** `useCurrentSubscriber()` resolves from authenticated phone (server-side); subscriber is the implicit "self" in every endpoint under `/api/subscribers/me/*`.

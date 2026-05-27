@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { goBackOrFallback } from './navigation';
+import { goBackOrFallback } from '../utils/navigation';
 import styles from './PageHeader.module.css';
 
 export default function PageHeader({ title, subtitle, backTo, onBack, fallback = '/dashboard' }) {

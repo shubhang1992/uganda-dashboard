@@ -7,7 +7,7 @@
   flex-direction: column;
   gap: 1.25rem;
   width: 100%;
-  box-shadow: 0 12px 40px rgba(41,40,103,0.2);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--color-indigo) 20%, transparent);
 }
 
 /* ── Year tabs ── */

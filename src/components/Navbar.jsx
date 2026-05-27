@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, useScroll, useMotionValueEvent, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../utils/finance';
 import { useSignIn } from '../contexts/SignInContext';
@@ -22,9 +22,27 @@ export default function Navbar() {
     setScrolled(latest > 40);
   });
 
-  function closeMenu() {
+  // Stable callbacks — the JSX below passes these to multiple children
+  // (the overlay, every drawer link, the drawer Sign in/CTA), so allocating
+  // fresh arrows each render would force every consumer to re-attach its
+  // listener. Wrapping in `useCallback` keeps the identity stable across
+  // renders so React can skip those updates.
+  const closeMenu = useCallback(() => {
     setMenuOpen(false);
-  }
+  }, []);
+
+  const toggleMenu = useCallback(() => {
+    setMenuOpen((open) => !open);
+  }, []);
+
+  const handleSignIn = useCallback(() => {
+    signIn.open();
+  }, [signIn]);
+
+  const handleDrawerSignIn = useCallback(() => {
+    closeMenu();
+    signIn.open();
+  }, [closeMenu, signIn]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -33,7 +51,7 @@ export default function Navbar() {
     }
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [menuOpen]);
+  }, [menuOpen, closeMenu]);
 
   return (
     <>
@@ -57,14 +75,14 @@ export default function Navbar() {
           </nav>
 
           <div className={styles.actions}>
-            <button className={styles.signIn} onClick={() => signIn.open()}>Sign in</button>
+            <button className={styles.signIn} onClick={handleSignIn}>Sign in</button>
             <a href="#start" className={styles.cta}>Start saving</a>
           </div>
 
           {/* Hamburger button — mobile only */}
           <button
             className={styles.burger}
-            onClick={() => setMenuOpen(!menuOpen)}
+            onClick={toggleMenu}
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
           >
@@ -103,7 +121,7 @@ export default function Navbar() {
                 ))}
               </nav>
               <div className={styles.drawerActions}>
-                <button className={styles.drawerSignIn} onClick={() => { closeMenu(); signIn.open(); }}>Sign in</button>
+                <button className={styles.drawerSignIn} onClick={handleDrawerSignIn}>Sign in</button>
                 <a href="#start" className={styles.drawerCta} onClick={closeMenu}>Start saving</a>
               </div>
             </motion.div>

@@ -3,8 +3,8 @@
   overflow: hidden;
   border-radius: var(--radius-xl);
   background:
-    radial-gradient(110% 90% at 0% 0%, rgba(94, 99, 168, 0.55) 0%, rgba(41, 40, 103, 0) 55%),
-    radial-gradient(120% 100% at 100% 100%, rgba(45, 212, 191, 0.18) 0%, rgba(41, 40, 103, 0) 60%),
+    radial-gradient(110% 90% at 0% 0%, rgba(94, 99, 168, 0.55) 0%, transparent 55%),
+    radial-gradient(120% 100% at 100% 100%, rgba(45, 212, 191, 0.18) 0%, transparent 60%),
     linear-gradient(160deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
   color: var(--color-white);
   padding: var(--space-5);
@@ -355,7 +355,7 @@
   transform: translateX(2px);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .statGrid {
     padding: var(--space-3);
     gap: var(--space-2);
@@ -375,7 +375,7 @@
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 480px) {
   .heroValue {
     font-size: clamp(1.75rem, 11vw, 2.5rem);
   }

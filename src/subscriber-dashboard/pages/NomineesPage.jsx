@@ -3,9 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { isValidUGPhone } from '../../utils/phone';
 import { getInitials } from '../../utils/dashboard';
-import { useCurrentSubscriber, useUpdateNominees } from '../../hooks/useSubscriber';
+import { useCurrentSubscriber, useUpdateNominees, useSubscriberNominees } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './NomineesPage.module.css';
 
 const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'other'];
@@ -155,6 +155,7 @@ export default function NomineesPage() {
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const updateNominees = useUpdateNominees(sub?.id);
+  const { data: nominees } = useSubscriberNominees(sub?.id);
 
   const [tab, setTab] = useState('pension');
   const [pensionList, setPensionList] = useState([]);
@@ -163,10 +164,10 @@ export default function NomineesPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!sub) return;
-    setPensionList(sub.nominees?.pension?.map((n) => ({ ...n })) ?? []);
-    setInsuranceList(sub.nominees?.insurance?.map((n) => ({ ...n })) ?? []);
-  }, [sub]);
+    if (!nominees) return;
+    setPensionList((nominees.pension ?? []).map((n) => ({ ...n })));
+    setInsuranceList((nominees.insurance ?? []).map((n) => ({ ...n })));
+  }, [nominees]);
 
   const currentList = tab === 'pension' ? pensionList : insuranceList;
   const setCurrentList = tab === 'pension' ? setPensionList : setInsuranceList;
@@ -178,7 +179,7 @@ export default function NomineesPage() {
     [currentList],
   );
 
-  const originalList = tab === 'pension' ? sub?.nominees?.pension : sub?.nominees?.insurance;
+  const originalList = tab === 'pension' ? nominees?.pension : nominees?.insurance;
   const dirty = useMemo(() => {
     if (!originalList) return currentList.length > 0;
     if (originalList.length !== currentList.length) return true;
@@ -232,6 +233,8 @@ export default function NomineesPage() {
         insurance: tab === 'insurance' ? insuranceList : undefined,
       });
       addToast('success', 'Nominees updated.');
+    } catch (err) {
+      addToast('error', err?.message || 'Could not update nominees.');
     } finally {
       setSubmitting(false);
     }

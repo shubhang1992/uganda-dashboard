@@ -1,12 +1,15 @@
 import { useState, useMemo } from 'react';
 import { useCurrentSubscriber } from '../../../hooks/useSubscriber';
 import { formatUGXExact, formatUGX } from '../../../utils/finance';
+import { formatDate } from '../../../utils/date';
 import { downloadCSV } from '../../../utils/csv';
 import ReportTable from '../../../components/reports/ReportTable';
 import FilterSelect from '../../../components/reports/FilterSelect';
 import SearchFilter from '../../../components/reports/SearchFilter';
 import ErrorCard from '../../../components/feedback/ErrorCard';
 import ExportButton from '../../../components/reports/ExportButton';
+import SkeletonRow from '../../../components/SkeletonRow';
+import EmptyState from '../../../components/EmptyState';
 import frameStyles from './ReportFrame.module.css';
 
 const TYPE_OPTIONS = [
@@ -22,12 +25,6 @@ const STATUS_OPTIONS = [
   { value: 'processing', label: 'Processing' },
 ];
 
-function formatDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 function pillTone(status) {
   if (status === 'paid' || status === 'settled') return 'ok';
   if (status === 'processing' || status === 'submitted' || status === 'under_review') return 'pending';
@@ -35,7 +32,7 @@ function pillTone(status) {
 }
 
 export default function AllTransactions() {
-  const { data: sub, isError, error, refetch } = useCurrentSubscriber();
+  const { data: sub, isLoading, isError, error, refetch } = useCurrentSubscriber();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -144,6 +141,22 @@ export default function AllTransactions() {
     );
   }
 
+  // Cold-load skeleton — shows the frame chrome with placeholder rows
+  // instead of a blank report that would otherwise read as "no data".
+  if (isLoading && !sub) {
+    return (
+      <div className={frameStyles.frame}>
+        <div className={frameStyles.headerRow}>
+          <div className={frameStyles.headerText}>
+            <span className={frameStyles.eyebrow}>Every movement in your account</span>
+            <span className={frameStyles.headerDesc}>Loading transactions…</span>
+          </div>
+        </div>
+        <SkeletonRow count={8} label="Loading transactions" />
+      </div>
+    );
+  }
+
   return (
     <div className={frameStyles.frame}>
       <div className={frameStyles.headerRow}>
@@ -175,13 +188,32 @@ export default function AllTransactions() {
         <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />
       </div>
 
-      <ReportTable
-        columns={columns}
-        data={filtered}
-        defaultSort="date"
-        defaultDir="desc"
-        rowKey="id"
-      />
+      {filtered.length === 0 ? (
+        // Differentiate "you have no transactions yet" from "you filtered too
+        // hard". Either way we keep the filters visible above this card so the
+        // user can adjust without scrolling.
+        transactions.length === 0 ? (
+          <EmptyState
+            kind="no-data"
+            title="No transactions yet."
+            body="Once your first contribution clears, it'll show up here."
+          />
+        ) : (
+          <EmptyState
+            kind="no-match"
+            title="No transactions match"
+            body="Try adjusting your search or filters."
+          />
+        )
+      ) : (
+        <ReportTable
+          columns={columns}
+          data={filtered}
+          defaultSort="date"
+          defaultDir="desc"
+          rowKey="id"
+        />
+      )}
     </div>
   );
 }

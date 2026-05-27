@@ -2,8 +2,9 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useAllEntities, useUpdateBranch, useSetBranchStatus } from '../../hooks/useEntity';
-import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
+import { useAllEntities, useUpdateBranch, useSetBranchStatus, useAllEntitiesMetrics } from '../../hooks/useEntity';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { useToast } from '../../contexts/ToastContext';
@@ -14,6 +15,9 @@ import TrendArrow from '../shared/TrendArrow';
 import MiniChart from '../shared/MiniChart';
 import KpiCard from '../shared/KpiCard';
 import Demographics from '../shared/Demographics';
+import Modal from '../../components/Modal';
+import SkeletonRow from '../../components/SkeletonRow';
+import EmptyState from '../../components/EmptyState';
 import styles from './ViewBranches.module.css';
 
 function getStatus(activeRate) {
@@ -71,7 +75,7 @@ function AgentDetail({ agent }) {
 
       {/* KPIs */}
       <div className={styles.kpiRow}>
-        <KpiCard icon={Icons.subscribers} label="Subscribers" value={m.totalSubscribers.toLocaleString()} />
+        <KpiCard icon={Icons.subscribers} label="Subscribers" value={formatNumber(m.totalSubscribers)} />
         <KpiCard icon={Icons.activeRate} label="Active Rate" value={m.activeRate} suffix="%" />
         <KpiCard icon={Icons.contributions} label="Contributions" value={formatUGX(m.totalContributions)} />
         <KpiCard icon={Icons.aum} label="AUM" value={formatUGX(m.aum)} />
@@ -131,7 +135,7 @@ function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch }) {
 
       {/* KPIs */}
       <div className={styles.kpiRow}>
-        <KpiCard icon={Icons.subscribers} label="Subscribers" value={m.totalSubscribers.toLocaleString()} />
+        <KpiCard icon={Icons.subscribers} label="Subscribers" value={formatNumber(m.totalSubscribers)} />
         <KpiCard icon={Icons.agents} label="Agents" value={m.totalAgents} />
         <KpiCard icon={Icons.aum} label="AUM" value={formatUGX(m.aum)} />
         <KpiCard icon={Icons.activeRate} label="Active Rate" value={m.activeRate} suffix="%" />
@@ -388,34 +392,66 @@ export default function ViewBranches() {
   const regionBtnRef = useRef(null);
   const sortBtnRef = useRef(null);
 
-  const { data: allBranchesRaw = [] } = useAllEntities('branch');
+  const { data: allBranchesRaw = [], isLoading: branchesLoading } = useAllEntities('branch');
   const { data: allAgentsRaw = [] } = useAllEntities('agent');
   const { data: allDistrictsRaw = [] } = useAllEntities('district');
   const { data: allRegionsRaw = [] } = useAllEntities('region');
 
+  // Per-branch and per-agent metrics — the entity mappers return EMPTY_METRICS
+  // under Supabase, so we overlay real rollups via the get_entity_metrics_rollup
+  // RPC. Without this merge every `branch.metrics.totalSubscribers` (and the
+  // same for agents) reads zero.
+  const { data: branchMetricsMap = {} } = useAllEntitiesMetrics('branch');
+  const { data: agentMetricsMap = {} } = useAllEntitiesMetrics('agent');
+
+  // Treat the very first cold-load (no rows yet AND query is pending) as
+  // the skeleton case. Once cached branches exist we always render the
+  // live list — even during a background refetch — so we never bounce
+  // back into a skeleton after the user has already seen the data.
+  const isCold = branchesLoading && allBranchesRaw.length === 0;
+
   const DISTRICTS_MAP = useMemo(() => Object.fromEntries(allDistrictsRaw.map(d => [d.id, d])), [allDistrictsRaw]);
   const REGIONS_MAP = useMemo(() => Object.fromEntries(allRegionsRaw.map(r => [r.id, r])), [allRegionsRaw]);
+
+  // Overlay live rollup metrics into each agent so per-row "X subs" labels
+  // and the per-branch agent list pick up real counts.
+  const allAgents = useMemo(
+    () => allAgentsRaw.map(a => ({ ...a, metrics: agentMetricsMap[a.id] ?? a.metrics })),
+    [allAgentsRaw, agentMetricsMap],
+  );
+
   const AGENTS_BY_BRANCH = useMemo(() => {
     const map = {};
-    allAgentsRaw.forEach(a => {
+    allAgents.forEach(a => {
       if (!map[a.parentId]) map[a.parentId] = [];
       map[a.parentId].push(a);
     });
     return map;
-  }, [allAgentsRaw]);
+  }, [allAgents]);
 
-  const allBranches = allBranchesRaw;
+  // Overlay live rollup metrics into each branch so the totals/sort columns
+  // and per-row pills pick up real numbers.
+  const allBranches = useMemo(
+    () => allBranchesRaw.map(b => ({ ...b, metrics: branchMetricsMap[b.id] ?? b.metrics })),
+    [allBranchesRaw, branchMetricsMap],
+  );
 
-  // Auto-select branch when opened via map drill-down
+  // Auto-select branch when opened via map drill-down. Reads from the
+  // metrics-overlaid `allBranches`, not `allBranchesRaw` (which has
+  // EMPTY_METRICS), so the BranchDetail KPI cards bind to real numbers.
   useEffect(() => {
-    if (viewBranchesOpen && drillTargetBranchId && allBranchesRaw.length > 0) {
-      const branch = allBranchesRaw.find(b => b.id === drillTargetBranchId);
-      if (branch) {
-        setSelectedBranch(branch);
-        setView('detail');
-      }
+    if (!viewBranchesOpen || !drillTargetBranchId || allBranches.length === 0) return;
+    const branch = allBranches.find(b => b.id === drillTargetBranchId);
+    if (!branch) return;
+    setSelectedBranch(branch);
+    // Only snap to 'detail' on the first auto-select for this drill target;
+    // later metrics-overlay updates refresh selectedBranch in place without
+    // overwriting a user-initiated nav to an agent / edit pane.
+    if (!selectedBranch || selectedBranch.id !== drillTargetBranchId) {
+      setView('detail');
     }
-  }, [viewBranchesOpen, drillTargetBranchId, allBranchesRaw]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedBranch intentionally excluded to avoid self-triggered loop
+  }, [viewBranchesOpen, drillTargetBranchId, allBranches]);
 
   const handleClose = useCallback(() => {
     if (drillTargetBranchId) closeDrillPanel();
@@ -655,6 +691,8 @@ export default function ViewBranches() {
                     <button
                       className={styles.filterBtn}
                       data-active={!!regionFilter}
+                      aria-haspopup="listbox"
+                      aria-expanded={regionDropOpen}
                       onClick={() => setRegionDropOpen((p) => !p)}
                     >
                       <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
@@ -665,6 +703,8 @@ export default function ViewBranches() {
                     <AnimatePresence>
                       {regionDropOpen && (
                         <motion.div
+                          role="listbox"
+                          aria-label="Filter by region"
                           className={styles.filterDropdown}
                           initial={{ opacity: 0, y: -4 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -672,6 +712,8 @@ export default function ViewBranches() {
                           transition={{ duration: 0.12 }}
                         >
                           <button
+                            role="option"
+                            aria-selected={!regionFilter}
                             className={styles.filterOption}
                             data-selected={!regionFilter}
                             onClick={() => { setRegionFilter(null); setRegionDropOpen(false); }}
@@ -682,6 +724,8 @@ export default function ViewBranches() {
                           {regionOptions.map((r) => (
                             <button
                               key={r.id}
+                              role="option"
+                              aria-selected={regionFilter === r.id}
                               className={styles.filterOption}
                               data-selected={regionFilter === r.id}
                               onClick={() => { setRegionFilter(r.id); setRegionDropOpen(false); }}
@@ -698,6 +742,8 @@ export default function ViewBranches() {
                     <button
                       className={styles.filterBtn}
                       data-active={sortKey !== 'subscribers'}
+                      aria-haspopup="listbox"
+                      aria-expanded={sortDropOpen}
                       onClick={() => setSortDropOpen((p) => !p)}
                     >
                       <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
@@ -708,6 +754,8 @@ export default function ViewBranches() {
                     <AnimatePresence>
                       {sortDropOpen && (
                         <motion.div
+                          role="listbox"
+                          aria-label="Sort branches"
                           className={styles.filterDropdown}
                           initial={{ opacity: 0, y: -4 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -717,6 +765,8 @@ export default function ViewBranches() {
                           {SORT_OPTIONS.map((opt) => (
                             <button
                               key={opt.key}
+                              role="option"
+                              aria-selected={sortKey === opt.key}
                               className={styles.filterOption}
                               data-selected={sortKey === opt.key}
                               onClick={() => { setSortKey(opt.key); setSortDropOpen(false); }}
@@ -731,12 +781,13 @@ export default function ViewBranches() {
                 </div>
 
                 {/* ── Status filter chips ────────────────────────── */}
-                <div className={styles.statusChips}>
+                <div className={styles.statusChips} role="group" aria-label="Filter branches by status">
                   {['all', 'active', 'inactive'].map((s) => (
                     <button
                       key={s}
                       className={styles.statusChip}
                       data-active={statusFilter === s}
+                      aria-pressed={statusFilter === s}
                       onClick={() => setStatusFilter(s)}
                     >
                       {s === 'all' ? 'All' : s === 'active' ? 'Active' : 'Inactive'}
@@ -748,17 +799,17 @@ export default function ViewBranches() {
                 <div className={styles.summaryStrip}>
                   <div className={styles.summaryChip}>
                     <span className={styles.summaryChipIcon}>{Icons.subscribers}</span>
-                    <span className={styles.summaryChipValue}>{totals.subs.toLocaleString()}</span>
+                    <span className={styles.summaryChipValue}>{formatNumber(totals.subs)}</span>
                     <span className={styles.summaryChipLabel}>Subscribers</span>
                   </div>
                   <div className={styles.summaryChip}>
                     <span className={styles.summaryChipIcon}>{Icons.agents}</span>
-                    <span className={styles.summaryChipValue}>{totals.agents.toLocaleString()}</span>
+                    <span className={styles.summaryChipValue}>{formatNumber(totals.agents)}</span>
                     <span className={styles.summaryChipLabel}>Agents</span>
                   </div>
                   <div className={styles.summaryChip}>
                     <span className={styles.summaryChipIcon}>{Icons.aum}</span>
-                    <span className={styles.summaryChipValue}>{fmtShort(totals.aum)}</span>
+                    <span className={styles.summaryChipValue}>{formatUGXShort(totals.aum)}</span>
                     <span className={styles.summaryChipLabel}>AUM</span>
                   </div>
                 </div>
@@ -778,20 +829,34 @@ export default function ViewBranches() {
                     transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
                   >
                     <div className={styles.listCount}>
-                      Showing {filtered.length} of {allBranches.length} branches
+                      {isCold
+                        ? 'Loading branches…'
+                        : `Showing ${filtered.length} of ${allBranches.length} branches`}
                     </div>
 
-                    {filtered.length === 0 ? (
-                      <div className={styles.emptyState}>
-                        <div className={styles.emptyIcon}>
-                          <svg aria-hidden="true" viewBox="0 0 48 48" fill="none" width="48" height="48">
-                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="1.5" />
-                            <path d="M16 20h16M16 28h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                        </div>
-                        <div className={styles.emptyTitle}>No branches found</div>
-                        <div className={styles.emptyDesc}>Try adjusting your search or filters</div>
-                      </div>
+                    {isCold ? (
+                      <SkeletonRow
+                        count={6}
+                        variant="card"
+                        label="Loading branches"
+                      />
+                    ) : filtered.length === 0 ? (
+                      // Differentiate genuinely-empty from filter-mismatch so the
+                      // user knows whether to invite the first branch or to widen
+                      // their search.
+                      search.trim() === '' && !regionFilter && statusFilter === 'all' ? (
+                        <EmptyState
+                          kind="no-data"
+                          title="No branches yet."
+                          body="When branches are added, they'll show up here for review."
+                        />
+                      ) : (
+                        <EmptyState
+                          kind="no-match"
+                          title="No branches match"
+                          body="Try adjusting your search or filters."
+                        />
+                      )
                     ) : (
                       <div
                         ref={virtualListRef}
@@ -916,64 +981,55 @@ export default function ViewBranches() {
               </div>
             )}
 
-            {/* ── Confirm status-change modal ─────────────────────── */}
-            <AnimatePresence>
-              {confirmStatusOpen && selectedBranch && (
-                <motion.div
-                  className={styles.confirmBackdrop}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.18 }}
-                  onClick={() => !setBranchStatusMutation.isPending && setConfirmStatusOpen(false)}
-                >
-                  <motion.div
-                    className={styles.confirmDialog}
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="confirm-status-title"
-                    initial={{ opacity: 0, scale: 0.96, y: 8 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.96, y: 4 }}
-                    transition={{ duration: 0.22, ease: EASE_OUT_EXPO }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <h3 id="confirm-status-title" className={styles.confirmTitle}>
-                      {selectedBranch.status === 'active' ? 'Deactivate this branch?' : 'Activate this branch?'}
-                    </h3>
-                    <p className={styles.confirmBody}>
-                      {selectedBranch.status === 'active'
-                        ? `${selectedBranch.name} will stop accepting new subscribers and its agents won't be able to log in until it's reactivated.`
-                        : `${selectedBranch.name} will resume normal operation.`}
-                    </p>
-                    <div className={styles.confirmActions}>
-                      <button
-                        type="button"
-                        className={styles.cancelBtn}
-                        onClick={() => setConfirmStatusOpen(false)}
-                        disabled={setBranchStatusMutation.isPending}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        className={selectedBranch.status === 'active' ? styles.deactivateBtn : styles.activateBtn}
-                        onClick={handleToggleStatusConfirm}
-                        disabled={setBranchStatusMutation.isPending}
-                        autoFocus
-                      >
-                        {setBranchStatusMutation.isPending
-                          ? 'Working…'
-                          : selectedBranch.status === 'active' ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Confirm status-change modal ─────────────────────── */}
+      {selectedBranch && (() => {
+        const isActive = selectedBranch.status === 'active';
+        const title = isActive ? 'Deactivate this branch?' : 'Activate this branch?';
+        return (
+          <Modal
+            open={confirmStatusOpen}
+            onClose={() => {
+              if (!setBranchStatusMutation.isPending) setConfirmStatusOpen(false);
+            }}
+            title={title}
+            size="sm"
+            dismissOnBackdrop={!setBranchStatusMutation.isPending}
+          >
+            <div className={styles.confirmDialog}>
+              <h3 className={styles.confirmTitle}>{title}</h3>
+              <p className={styles.confirmBody}>
+                {isActive
+                  ? `${selectedBranch.name} will stop accepting new subscribers and its agents won't be able to log in until it's reactivated.`
+                  : `${selectedBranch.name} will resume normal operation.`}
+              </p>
+              <div className={styles.confirmActions}>
+                <button
+                  type="button"
+                  className={styles.cancelBtn}
+                  onClick={() => setConfirmStatusOpen(false)}
+                  disabled={setBranchStatusMutation.isPending}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={isActive ? styles.deactivateBtn : styles.activateBtn}
+                  onClick={handleToggleStatusConfirm}
+                  disabled={setBranchStatusMutation.isPending}
+                >
+                  {setBranchStatusMutation.isPending
+                    ? 'Working…'
+                    : isActive ? 'Deactivate' : 'Activate'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
     </>
   );
 }

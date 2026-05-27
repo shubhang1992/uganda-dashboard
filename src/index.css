@@ -3,7 +3,12 @@
    ============================================ */
 
 :root {
-  /* Brand Colors */
+  /* Brand Colors.
+     For translucent indigo overlays (borders, soft backgrounds, ambient
+     shadows), modules use `color-mix(in srgb, var(--color-indigo) X%, transparent)`
+     rather than hard-coded `rgba(41, 40, 103, …)` — this keeps every alpha
+     anchored to the canonical indigo token (F17). Solid shadow tokens
+     `--shadow-sm/md/lg/xl` below cover the common ambient-shadow recipe. */
   --color-indigo:        #292867;
   --color-indigo-deep:   #1B1A4A;
   --color-indigo-soft:   #5E63A8;
@@ -85,9 +90,45 @@
   --color-medal-silver:   #94A3B8;
   --color-medal-bronze:   #CD7F32;
 
+  /* KYC status tokens (signup steps: ReviewStep / NiraStep / PendingReviewStep
+     / AgentFallbackStep / LivenessStep / BeneficiariesStep). Accessible
+     contrast-checked shades of the existing status palette, used for
+     verification-success ticks, OCR confidence chips, NIRA mismatch warnings,
+     and pending-review goldenrod icons. */
+  --color-kyc-success:      #1f6e44;
+  --color-kyc-warning:      #8B5A00;
+  --color-kyc-warning-dark: #876300;
+  --color-kyc-warning-amber:#c47c00;
+  --color-kyc-pending:      #B8860B;
+  --color-kyc-error:        #b22834;
+  --color-kyc-error-soft:   #FB7185;
+
   /* Transitions */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out:   cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Breakpoints (F19, Phase 5C).
+     CSS custom properties cannot be referenced inside `@media (max-width: …)`
+     queries, so these tokens act as DOCUMENTATION for the canonical 4-breakpoint
+     scale. Module `@media` blocks use the literal pixel value that matches the
+     token (e.g. `@media (max-width: 768px)` corresponds to `--bp-md`). When a
+     future preprocessor or `@custom-media` lands, these tokens become the
+     single source of truth.
+
+     Scale:
+       --bp-sm  480px — small mobile (under-iPhone-15 portrait)
+       --bp-md  768px — large mobile / portrait tablet (iPad portrait boundary)
+       --bp-lg  1024px — landscape tablet / small desktop
+       --bp-xl  1280px — desktop / wide layouts
+
+     Migration (Phase 5C): values 360/374/380/400/420 → 480 (sm);
+     values 540/599/600/640/700/720 → 768 (md);
+     values 800/880/900/960 → 1024 (lg);
+     values 1100/1180 → 1280 (xl). */
+  --bp-sm: 480px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --bp-xl: 1280px;
 }
 
 /* Reset */
@@ -200,6 +241,45 @@ a:focus-visible {
    `style={{ textTransform: 'capitalize' }}`. */
 .capitalize {
   text-transform: capitalize;
+}
+
+/* Form primitive: `.input`
+   Canonical 48px frosted form-input — used by modal/panel forms across the
+   admin / branch / dashboard surfaces (CreateAgent, CreateBranch,
+   ViewBranches, ViewAgents, Settings, …). CSS Modules consume it via
+   `composes: input from global;` so each module can layer module-specific
+   overrides (width, error state, readonly look) without redefining the
+   shared shape. Other input variants (chat composer, sign-in 56px,
+   subscriber-card soft inputs) are intentionally distinct and not
+   composed from this primitive. F16. */
+.input {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  padding: 0 var(--space-4);
+  height: 48px;
+  border: 1.5px solid rgba(217, 220, 242, 0.6);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.input:focus-visible {
+  box-shadow: 0 0 0 2px rgba(41, 40, 103, 0.15);
+}
+
+.input:focus {
+  border-color: var(--color-indigo);
+  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  background: var(--color-white);
+}
+
+.input::placeholder {
+  color: var(--color-gray);
+  font-weight: 400;
+  opacity: 0.6;
 }
 
 @media (max-width: 768px) {

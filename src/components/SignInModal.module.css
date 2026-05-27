@@ -38,7 +38,7 @@
   border-radius: 1.5rem;
   box-shadow:
     0 24px 80px rgba(27, 26, 74, 0.25),
-    0 0 0 1px rgba(41, 40, 103, 0.06);
+    0 0 0 1px color-mix(in srgb, var(--color-indigo) 6%, transparent);
   width: 440px;
   max-width: calc(100vw - 2rem);
   max-height: calc(100vh - 4rem);
@@ -146,7 +146,7 @@
   gap: 0.25rem;
   padding: 0.25rem;
   margin-bottom: 1.25rem;
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   border-radius: var(--radius-full);
 }
 
@@ -163,11 +163,62 @@
 .authTab[data-active='true'] {
   color: var(--color-indigo);
   background: var(--color-white);
-  box-shadow: 0 2px 6px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .authTab:not([data-active='true']):hover {
   color: var(--color-indigo);
+}
+
+/* ── Method toggle (One-time code / Password chips) ─────────────
+   Sits above the phone input on PhoneEntry. Visual cousin of .authTabs
+   above but a free-standing radiogroup of pills rather than the "Sign in
+   vs Create account" segmented tabs. Visible for every role. */
+.methodToggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.methodChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-slate);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-indigo) 10%, transparent);
+  padding: 0.5rem 0.875rem;
+  border-radius: var(--radius-full);
+  min-height: 36px;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.methodChip:hover {
+  color: var(--color-indigo);
+  border-color: color-mix(in srgb, var(--color-indigo) 25%, transparent);
+}
+
+.methodChip[aria-checked='true'] {
+  background: var(--color-indigo);
+  color: var(--color-white);
+  border-color: var(--color-indigo);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-indigo) 18%, transparent);
+}
+
+.methodChip[aria-checked='true']:hover {
+  color: var(--color-white);
+  background: #1B1A4A;
+}
+
+.methodChip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 22%, transparent);
 }
 
 .altRole {

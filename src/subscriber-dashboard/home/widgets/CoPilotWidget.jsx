@@ -1,7 +1,31 @@
+/**
+ * Subscriber Co-Pilot widget — keyword-anchored chat affordance on the
+ * subscriber home screen.
+ *
+ * INTENTIONAL DUPLICATION with `src/agent-dashboard/home/widgets/CoPilotWidget.jsx`.
+ * Audit F26 reviewed extracting a shared `CopilotShell`; we kept both files in
+ * place because the divergences are larger than the shared chrome:
+ *   - CSS modules diverge (this file uses `.avatar`, `.avatarRing`, `.glowA/B`,
+ *     `.composerIcon`, `.headText`, `.eyebrowDot`, `.pills/.pill`,
+ *     `.suggestionsLabel`; agent uses `.eyebrowSpark`, `.suggestionBtn`,
+ *     `.suggestionDot`, `.suggestionItem`) — different role-appropriate
+ *     aesthetics, not stylistic accidents.
+ *   - Header DOM differs (avatar + glow elements + headText wrapper here;
+ *     inline eyebrow + simpler structure on the agent side).
+ *   - Composer differs (this side has a sparkle icon prefix; agent does not).
+ *   - Suggestions DOM differs (pills-grid here; ul/li with dot separators
+ *     on the agent side).
+ *   - Reply logic differs in shape — async service call + try/catch + toast
+ *     errors here; sync keyword matcher with no error path on the agent side.
+ * A shared shell would have to standardise the CSS contract (visual change)
+ * or pass classNames/slot content through, adding more glue than it removes.
+ * Keep the two files in lockstep visually only where it makes design sense.
+ */
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../../utils/finance';
 import { getSubscriberChatResponse } from '../../../services/chat';
+import { useToast } from '../../../contexts/ToastContext';
 import styles from './CoPilotWidget.module.css';
 
 const SUGGESTIONS = [
@@ -15,6 +39,7 @@ export default function CoPilotWidget() {
   const [input, setInput] = useState('');
   const [exchange, setExchange] = useState(null);
   const [isThinking, setIsThinking] = useState(false);
+  const { addToast } = useToast();
   const inputRef = useRef(null);
   const aliveRef = useRef(true);
   const timerRef = useRef(null);
@@ -30,13 +55,20 @@ export default function CoPilotWidget() {
     setExchange({ question: trimmed, answer: null });
     setInput('');
     setIsThinking(true);
-    const reply = await getSubscriberChatResponse(trimmed);
-    if (!aliveRef.current) return;
-    timerRef.current = setTimeout(() => {
+    try {
+      const reply = await getSubscriberChatResponse(trimmed);
       if (!aliveRef.current) return;
-      setExchange({ question: trimmed, answer: reply });
+      timerRef.current = setTimeout(() => {
+        if (!aliveRef.current) return;
+        setExchange({ question: trimmed, answer: reply });
+        setIsThinking(false);
+      }, 480);
+    } catch (err) {
+      if (!aliveRef.current) return;
       setIsThinking(false);
-    }, 480);
+      setExchange(null);
+      addToast('error', err?.message || 'Co-Pilot is unavailable — please try again.');
+    }
   }
 
   function handleSubmit(e) {

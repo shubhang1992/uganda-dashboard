@@ -1,0 +1,45 @@
+# Universal Pensions Uganda — pre-cleanup snapshot
+# Captured 2026-05-18 against live project zengmiugieqjqzaccbqe
+# Source: Agent A audit-remediation §6.A (pre-flight DB snapshot)
+#
+# Format: table_or_metric=value
+# Restorability check: every cleanup step inverts trivially from these
+# counts (NULL-out is reversible via redo from seed; balance-flip is a
+# single multiplication; paid_date NULL-out is reversible from updated_at).
+# A pg_dump would be the strict belt-and-braces option, but is not available
+# in this MCP-only environment (no SUPABASE_DB_URL handy in agent context).
+
+# ─── Pre-state row counts (affected tables) ────────────────────────────────
+agents=2049
+subscribers=30003
+commissions=30003
+transactions=522135
+contribution_schedules=30003
+
+# ─── Pre-state defect counts (cleanup baseline) ────────────────────────────
+duplicate_agent_email_groups=597
+duplicate_agent_email_extras_to_clear=1057
+duplicate_nin_groups=1
+duplicate_nin_extras_to_clear=2
+positive_amount_withdrawals=1
+orphan_paid_dates=1806
+disputed_missing_audit_trail=493
+null_agent_contributions=2
+overdue_contribution_schedules=2019
+duplicate_commission_agent_subscriber_groups=0
+duplicate_commission_agent_subscriber_extras=0
+
+# ─── Schema state ───────────────────────────────────────────────────────────
+distributors_table_exists=false
+agent_dispute_line_rpc_exists=true
+agent_dispute_line_signature=p_commission_id text, p_dispute_reason text -> void
+
+# ─── Divergences vs §6.A audit numbers ──────────────────────────────────────
+# Audit step 1 said "10 duplicate agent emails"; live shows 1,057 extras
+#   across 597 groups. Likely the audit number is a sampled / display-limited
+#   figure. The cleanup logic (keep oldest, NULL duplicates) is shape-correct
+#   regardless of scale and is required for the UNIQUE index to apply.
+# Audit step 2 said "3"; live shows 1 group / 2 extras. Off by one — possibly
+#   the audit counted the keeper row too (1 keeper + 2 extras = 3 total rows).
+# Audit step 7 referred to a `schedules` table; the actual schema has
+#   `contribution_schedules`. The cleanup targets that.

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
@@ -117,11 +117,15 @@ const MORE_ITEMS = [
   },
 ];
 
-export default function BranchSidebar() {
+export default function BranchSidebar({ mode = 'desktop', onNavigate }) {
   const [hovered, setHovered] = useState(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [agentPopover, setAgentPopover] = useState(false);
+  // In drawer mode the agent group expands inline (no popover); we still want
+  // toggle state so users can collapse it.
+  const [agentExpanded, setAgentExpanded] = useState(false);
   const agentPopoverRef = useRef(null);
+  const moreWrapRef = useRef(null);
   const { logout } = useAuth();
   const navigate = useNavigate();
   const {
@@ -132,6 +136,7 @@ export default function BranchSidebar() {
     settingsOpen, setSettingsOpen,
     setDrillTargetAgentId,
   } = useDashboard();
+  const isDrawer = mode === 'drawer';
   // `active` is derived from which panel is open — no setState-in-effect needed.
   const active = useMemo(() => {
     if (viewAgentsOpen || createAgentOpen) return 'agents';
@@ -143,12 +148,11 @@ export default function BranchSidebar() {
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
 
-  useEffect(() => {
-    if (!moreOpen) return;
-    const handler = () => closeMore();
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
-  }, [moreOpen, closeMore]);
+  // Close the "More" popover on outside click + Escape via the shared hook.
+  // Replaces a hand-rolled `document.addEventListener('click', ...)` effect
+  // that fired on any click (including the trigger itself) and skipped the
+  // Escape key entirely.
+  useOutsideClick(moreOpen, closeMore, [moreWrapRef]);
 
   // Close agent popover on outside click + Escape.
   useOutsideClick(agentPopover, () => setAgentPopover(false), [agentPopoverRef]);
@@ -163,49 +167,200 @@ export default function BranchSidebar() {
 
   function handleClick(id) {
     setMoreOpen(false);
+
+    // In drawer mode, expanding the agents group keeps the drawer open
+    // (so the user can pick "Create" or "View"); leaf actions notify the
+    // parent so the drawer can close itself.
+    if (id === 'agents') {
+      if (isDrawer) {
+        setAgentExpanded((prev) => !prev);
+      } else {
+        setAgentPopover((prev) => !prev);
+      }
+      return;
+    }
+
     setAgentPopover(false);
 
     if (id === 'overview') {
       closeAllPanels();
-      return;
-    }
-    if (id === 'agents') {
-      setAgentPopover((prev) => !prev);
+      onNavigate?.();
       return;
     }
     if (id === 'create-agent') {
       closeAllPanels();
       setCreateAgentOpen(true);
+      onNavigate?.();
       return;
     }
     if (id === 'view-agents') {
       closeAllPanels();
       setDrillTargetAgentId(null);
       setViewAgentsOpen(true);
+      onNavigate?.();
       return;
     }
     if (id === 'commissions') {
       closeAllPanels();
       setCommissionsOpen(true);
+      onNavigate?.();
       return;
     }
     if (id === 'reports') {
       closeAllPanels();
       setViewReportsOpen(true);
+      onNavigate?.();
       return;
     }
     if (id === 'settings') {
       closeAllPanels();
       setSettingsOpen(true);
+      onNavigate?.();
       return;
     }
     if (id === 'logout') {
+      onNavigate?.();
       logout();
       navigate('/');
       return;
     }
   }
 
+  /* ── Drawer mode (mobile slide-in) ─────────────────────────────
+     Renders a full-width vertical menu with labels visible. The
+     "Agents" item expands inline so users can pick Create / View
+     without leaving the drawer surface. */
+  if (isDrawer) {
+    const agentItem = NAV_ITEMS.find((it) => it.id === 'agents');
+    const otherTopItems = NAV_ITEMS.filter((it) => it.id !== 'agents');
+
+    return (
+      <nav className={styles.drawer} aria-label="Branch navigation">
+        <div className={styles.drawerHeader}>
+          <img
+            src={logoWhite}
+            alt="Universal Pensions"
+            width="140"
+            height="32"
+            className={styles.drawerLogo}
+          />
+        </div>
+
+        <div className={styles.drawerSection}>
+          {/* Overview */}
+          {otherTopItems.filter((it) => it.id === 'overview').map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={styles.drawerRow}
+              data-active={active === item.id}
+              onClick={() => handleClick(item.id)}
+            >
+              <span className={styles.drawerRowIcon}>{item.icon}</span>
+              <span className={styles.drawerRowLabel}>{item.label}</span>
+            </button>
+          ))}
+
+          {/* Agents group with inline expansion */}
+          {agentItem && (
+            <div className={styles.drawerGroup}>
+              <button
+                type="button"
+                className={styles.drawerRow}
+                data-active={active === 'agents'}
+                aria-expanded={agentExpanded}
+                aria-controls="branch-drawer-agents-submenu"
+                onClick={() => handleClick('agents')}
+              >
+                <span className={styles.drawerRowIcon}>{agentItem.icon}</span>
+                <span className={styles.drawerRowLabel}>{agentItem.label}</span>
+                <span
+                  className={styles.drawerChevron}
+                  data-open={agentExpanded || undefined}
+                  aria-hidden="true"
+                >
+                  <svg viewBox="0 0 12 12" width="12" height="12" fill="none">
+                    <path
+                      d="M3 4.5l3 3 3-3"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+              </button>
+              <AnimatePresence initial={false}>
+                {agentExpanded && (
+                  <motion.div
+                    id="branch-drawer-agents-submenu"
+                    className={styles.drawerSubmenu}
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.22, ease: EASE_OUT_EXPO }}
+                  >
+                    <button
+                      type="button"
+                      className={styles.drawerSubItem}
+                      onClick={() => handleClick('create-agent')}
+                    >
+                      <span className={styles.drawerSubBullet} aria-hidden="true" />
+                      Create new agent
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.drawerSubItem}
+                      onClick={() => handleClick('view-agents')}
+                    >
+                      <span className={styles.drawerSubBullet} aria-hidden="true" />
+                      View existing agents
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Remaining top items (commissions, reports) */}
+          {otherTopItems
+            .filter((it) => it.id !== 'overview')
+            .map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={styles.drawerRow}
+                data-active={active === item.id}
+                onClick={() => handleClick(item.id)}
+              >
+                <span className={styles.drawerRowIcon}>{item.icon}</span>
+                <span className={styles.drawerRowLabel}>{item.label}</span>
+              </button>
+            ))}
+        </div>
+
+        <div className={styles.drawerSpacer} />
+
+        <div className={styles.drawerSection}>
+          {BOTTOM_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={styles.drawerRow}
+              data-active={active === item.id}
+              data-variant={item.id === 'logout' ? 'logout' : undefined}
+              onClick={() => handleClick(item.id)}
+            >
+              <span className={styles.drawerRowIcon}>{item.icon}</span>
+              <span className={styles.drawerRowLabel}>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+    );
+  }
+
+  /* ── Desktop sidebar (default) ──────────────────────────────── */
   return (
     <nav className={styles.sidebar}>
       <div className={styles.logo}>
@@ -350,11 +505,13 @@ export default function BranchSidebar() {
             )}
           </div>
         ))}
-        <div className={styles.moreWrap}>
+        <div className={styles.moreWrap} ref={moreWrapRef}>
           <button
             className={styles.mobileBtn}
             data-active={moreOpen}
-            onClick={(e) => { e.stopPropagation(); setMoreOpen(!moreOpen); }}
+            onClick={() => setMoreOpen((prev) => !prev)}
+            aria-haspopup="menu"
+            aria-expanded={moreOpen}
             aria-label="More options"
           >
             <span className={styles.iconWrap}>
@@ -369,16 +526,17 @@ export default function BranchSidebar() {
           <AnimatePresence>
             {moreOpen && (
               <motion.div
+                role="menu"
                 className={styles.moreMenu}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 8 }}
                 transition={{ duration: 0.2, ease: EASE_OUT_EXPO }}
-                onClick={(e) => e.stopPropagation()}
               >
                 {MORE_ITEMS.map((item) => (
                   <button
                     key={item.id}
+                    role="menuitem"
                     className={styles.moreItem}
                     onClick={() => handleClick(item.id)}
                   >

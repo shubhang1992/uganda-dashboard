@@ -12,6 +12,15 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    // G69 — Frontend Sentry capture. Gated on VITE_SENTRY_DSN at runtime so
+    // the import is a no-op when Sentry isn't configured for this env. Use
+    // a dynamic import so the SDK only loads on a real error path (keeps
+    // the cold critical path lean).
+    if (import.meta.env.VITE_SENTRY_DSN) {
+      import('@sentry/react').then((Sentry) =>
+        Sentry.captureException(error, { contexts: { react: errorInfo } })
+      ).catch(() => { /* if Sentry import fails, the console log below still runs */ });
+    }
     console.error('[ErrorBoundary] Caught error:', error);
     console.error('[ErrorBoundary] Component stack:', errorInfo.componentStack);
   }

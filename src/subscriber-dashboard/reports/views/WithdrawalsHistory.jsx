@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
-import { useCurrentSubscriber } from '../../../hooks/useSubscriber';
+import { useCurrentSubscriber, useSubscriberWithdrawals } from '../../../hooks/useSubscriber';
 import { formatUGX, formatUGXExact } from '../../../utils/finance';
+import { formatDate } from '../../../utils/date';
 import { downloadCSV } from '../../../utils/csv';
 import ReportTable from '../../../components/reports/ReportTable';
 import FilterSelect from '../../../components/reports/FilterSelect';
 import ErrorCard from '../../../components/feedback/ErrorCard';
 import ExportButton from '../../../components/reports/ExportButton';
+import SkeletonRow from '../../../components/SkeletonRow';
+import EmptyState from '../../../components/EmptyState';
 import frameStyles from './ReportFrame.module.css';
 
 const BUCKET_OPTIONS = [
@@ -18,20 +21,14 @@ const STATUS_OPTIONS = [
   { value: 'processing', label: 'Processing' },
 ];
 
-function formatDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 function pillTone(status) {
   if (status === 'paid') return 'ok';
   return 'pending';
 }
 
 export default function WithdrawalsHistory() {
-  const { data: sub, isError, error, refetch } = useCurrentSubscriber();
-  const withdrawals = useMemo(() => sub?.withdrawals || [], [sub?.withdrawals]);
+  const { data: sub, isLoading, isError, error, refetch } = useCurrentSubscriber();
+  const { data: withdrawals = [] } = useSubscriberWithdrawals(sub?.id);
 
   const [bucketFilter, setBucketFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -106,6 +103,21 @@ export default function WithdrawalsHistory() {
     );
   }
 
+  // Cold-load skeleton — keep the report frame anchored while data hydrates.
+  if (isLoading && !sub) {
+    return (
+      <div className={frameStyles.frame}>
+        <div className={frameStyles.headerRow}>
+          <div className={frameStyles.headerText}>
+            <span className={frameStyles.eyebrow}>Your withdrawals</span>
+            <span className={frameStyles.headerDesc}>Loading…</span>
+          </div>
+        </div>
+        <SkeletonRow count={6} label="Loading withdrawals" />
+      </div>
+    );
+  }
+
   return (
     <div className={frameStyles.frame}>
       <div className={frameStyles.headerRow}>
@@ -136,13 +148,30 @@ export default function WithdrawalsHistory() {
         <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />
       </div>
 
-      <ReportTable
-        columns={columns}
-        data={filtered}
-        defaultSort="date"
-        defaultDir="desc"
-        rowKey="id"
-      />
+      {filtered.length === 0 ? (
+        // No withdrawals at all vs filtered down to zero — different prompts.
+        withdrawals.length === 0 ? (
+          <EmptyState
+            kind="no-data"
+            title="No withdrawals yet."
+            body="Any withdrawals you make will be tracked here."
+          />
+        ) : (
+          <EmptyState
+            kind="no-match"
+            title="No withdrawals match"
+            body="Try adjusting your bucket or status filter."
+          />
+        )
+      ) : (
+        <ReportTable
+          columns={columns}
+          data={filtered}
+          defaultSort="date"
+          defaultDir="desc"
+          rowKey="id"
+        />
+      )}
     </div>
   );
 }

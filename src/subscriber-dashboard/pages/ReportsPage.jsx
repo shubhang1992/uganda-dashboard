@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './ReportsPage.module.css';
 
 const REPORT_VIEWS = {

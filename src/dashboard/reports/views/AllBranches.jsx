@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
-import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
+import { useAllEntities, useAllEntitiesMap, useAllEntitiesMetrics } from '../../../hooks/useEntity';
 import { formatUGX } from '../../../utils/finance';
+import { formatNumber } from '../../../utils/currency';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 import FilterSelect from '../FilterSelect';
@@ -29,9 +30,14 @@ function StatusBadge({ status }) {
 }
 
 export default function AllBranches({ onBack }) {
-  const { data: branches = [], isLoading: loadingBranches } = useAllEntities('branch');
+  const { data: branchesRaw = [], isLoading: loadingBranches } = useAllEntities('branch');
   const { data: districtsMap = {}, isLoading: loadingDistricts } = useAllEntitiesMap('district');
   const { data: regionsMap = {}, isLoading: loadingRegions } = useAllEntitiesMap('region');
+  const { data: branchMetricsMap = {} } = useAllEntitiesMetrics('branch');
+  const branches = useMemo(
+    () => branchesRaw.map(b => ({ ...b, metrics: branchMetricsMap[b.id] ?? b.metrics })),
+    [branchesRaw, branchMetricsMap],
+  );
 
   const [search, setSearch] = useState('');
   const [regionFilter, setRegionFilter] = useState('');
@@ -61,6 +67,17 @@ export default function AllBranches({ onBack }) {
 
   const loading = loadingBranches || loadingDistricts || loadingRegions;
 
+  // CSV serialiser walks `row[col.key]` flatly, so project nested `metrics.*`
+  // values up to the top level for the export rows. The on-screen table keeps
+  // reading via `sortValue`/`render` and is unaffected.
+  const exportRows = useMemo(() => filtered.map((b) => ({
+    ...b,
+    totalSubscribers: b.metrics?.totalSubscribers ?? 0,
+    totalAgents: b.metrics?.totalAgents ?? 0,
+    aum: b.metrics?.aum ?? 0,
+    activeRate: b.metrics?.activeRate ?? 0,
+  })), [filtered]);
+
   const columns = [
     { key: 'name', label: 'Branch', sortable: true, width: '180px' },
     { key: 'districtName', label: 'District', sortable: true },
@@ -78,7 +95,7 @@ export default function AllBranches({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalSubscribers || 0,
-      render: (row) => (row.metrics?.totalSubscribers || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalSubscribers || 0),
     },
     {
       key: 'totalAgents',
@@ -86,7 +103,7 @@ export default function AllBranches({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalAgents || 0,
-      render: (row) => (row.metrics?.totalAgents || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalAgents || 0),
     },
     {
       key: 'aum',
@@ -111,6 +128,9 @@ export default function AllBranches({ onBack }) {
       onBack={onBack}
       title="All Branches"
       description={`${filtered.length} branches across the distribution network`}
+      exportRows={exportRows}
+      exportColumns={columns}
+      exportFilename="all-branches"
       filters={
         <>
           <SearchFilter value={search} onChange={setSearch} placeholder="Search branches…" />

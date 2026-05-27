@@ -1,5 +1,4 @@
 {
-  "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
-  ]
+  "framework": "vite",
+  "rewrites": [{"source": "/(.*)", "destination": "/index.html"}]
 }

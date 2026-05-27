@@ -1,4 +1,5 @@
-import { useEntity, useChildren } from '../../hooks/useEntity';
+import { useMemo } from 'react';
+import { useEntity, useChildren, useEntityMetrics, useChildrenMetrics } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
@@ -31,8 +32,17 @@ export default function BranchOverview() {
     settingsOpen,
   } = useDashboard();
   const { data: branch } = useEntity('branch', branchId);
-  const { data: agents = [] } = useChildren('branch', branchId);
+  const { data: agentsRaw = [] } = useChildren('branch', branchId);
   const { data: commissionSummary } = useEntityCommissionSummary('branch', branchId);
+  // Live rollup overlays — branch.metrics from the entity mapper is EMPTY_METRICS
+  // under Supabase, and each agent.metrics is similarly zero. Without these
+  // merges the gauge, KPIs, leaderboard, demographics and alerts all read 0.
+  const { data: branchMetrics } = useEntityMetrics('branch', branchId);
+  const { data: agentMetricsMap = {} } = useChildrenMetrics('branch', branchId);
+  const agents = useMemo(
+    () => agentsRaw.map(a => ({ ...a, metrics: agentMetricsMap[a.id] ?? a.metrics })),
+    [agentsRaw, agentMetricsMap],
+  );
   const isMobile = useIsMobile();
 
   // Which panel (if any) is currently driving split view
@@ -52,7 +62,7 @@ export default function BranchOverview() {
   // On mobile, panels go full-screen — no need to squish the overview
   const targetPaddingRight = splitState && !isMobile ? PANEL_PADDING[activePanel] : 24;
 
-  const metrics = branch?.metrics || {};
+  const metrics = branchMetrics ?? branch?.metrics ?? {};
 
   if (!branch) {
     return (

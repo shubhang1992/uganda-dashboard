@@ -2,10 +2,11 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO, formatUGXExact, formatUGX, calcFV, parseAmount } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
 import { useCurrentSubscriber, useRequestWithdrawal } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import { MIN_WITHDRAW, RETIREMENT_AGE } from '../../constants/savings';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import { goBackOrFallback } from '../shell/navigation';
 import styles from './WithdrawPage.module.css';
 
@@ -82,6 +83,8 @@ export default function WithdrawPage() {
       setResultWd(wd);
       setView('success');
       addToast('success', `Withdrawal of ${formatUGXExact(amount)} requested.`);
+    } catch (err) {
+      addToast('error', err?.message || 'Could not request withdrawal.');
     } finally {
       setSubmitting(false);
     }
@@ -184,7 +187,7 @@ export default function WithdrawPage() {
                     inputMode="numeric"
                     autoComplete="off"
                     spellCheck={false}
-                    value={amountStr ? Number.parseInt(amountStr, 10).toLocaleString('en-UG') : ''}
+                    value={amountStr ? formatNumber(Number.parseInt(amountStr, 10)) : ''}
                     onChange={(e) => setAmountStr(e.target.value.replace(/[^\d]/g, ''))}
                     placeholder="Enter amount"
                     className={styles.amountInput}

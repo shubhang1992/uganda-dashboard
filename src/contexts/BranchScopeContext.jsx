@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 
 // Provides a branch ID to descendants when the dashboard is rendered for a
 // Branch Admin. Distributor Admin trees do not wrap with this provider, so
@@ -8,8 +8,10 @@ import { createContext, useContext } from 'react';
 const BranchScopeContext = createContext({ branchId: null });
 
 export function BranchScopeProvider({ branchId, children }) {
+  const value = useMemo(() => ({ branchId: branchId || null }), [branchId]);
+
   return (
-    <BranchScopeContext value={{ branchId: branchId || null }}>
+    <BranchScopeContext value={value}>
       {children}
     </BranchScopeContext>
   );

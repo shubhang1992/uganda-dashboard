@@ -2,10 +2,11 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { EASE_OUT_EXPO, formatUGXExact, formatUGX, parseAmount } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
 import { useCurrentSubscriber, useMakeContribution } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import { MIN_CONTRIBUTION, QUICK_CONTRIBUTION_AMOUNTS } from '../../constants/savings';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import { goBackOrFallback } from '../shell/navigation';
 import styles from './SavePage.module.css';
 
@@ -27,7 +28,7 @@ export default function SavePage() {
   const prefillAmount = location.state?.prefillAmount;
 
   const [view, setView] = useState('form'); // form | confirm | success
-  const [amountStr, setAmountStr] = useState(prefillAmount ? String(prefillAmount) : '10000');
+  const [amountStr, setAmountStr] = useState(prefillAmount ? String(prefillAmount) : '');
   const [customSplit, setCustomSplit] = useState(false);
   const [retirementPct, setRetirementPct] = useState(defaultRetPct);
   const [method, setMethod] = useState('mtn');
@@ -70,6 +71,8 @@ export default function SavePage() {
       setResultTx(tx);
       setView('success');
       addToast('success', `${formatUGXExact(amount)} added to your savings.`);
+    } catch (err) {
+      addToast('error', err?.message || 'Could not add contribution.');
     } finally {
       setSubmitting(false);
     }
@@ -116,7 +119,7 @@ export default function SavePage() {
                     inputMode="numeric"
                     autoComplete="off"
                     spellCheck={false}
-                    value={amountStr ? Number.parseInt(amountStr, 10).toLocaleString('en-UG') : ''}
+                    value={amountStr ? formatNumber(Number.parseInt(amountStr, 10)) : ''}
                     onChange={(e) => setAmountStr(e.target.value.replace(/[^\d]/g, ''))}
                     placeholder="Enter amount"
                     className={styles.amountInput}

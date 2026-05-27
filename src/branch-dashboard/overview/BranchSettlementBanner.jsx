@@ -1,15 +1,11 @@
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGX } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX } from '../../utils/currency';
+import { formatDate } from '../../utils/date';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentRun, useBranchRunReview } from '../../hooks/useCommission';
 import styles from './BranchSettlementBanner.module.css';
-
-function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 export default function BranchSettlementBanner() {
   const { branchId } = useBranchScope();

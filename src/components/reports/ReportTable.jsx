@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
 import styles from './ReportTable.module.css';
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
@@ -164,7 +165,7 @@ export default function ReportTable({
       <div className={styles.pagination}>
         <div className={styles.pageInfo}>
           <span className={styles.pageCount}>
-            {(page * pageSize + 1).toLocaleString()}–{Math.min((page + 1) * pageSize, sorted.length).toLocaleString()} of {sorted.length.toLocaleString()}
+            {formatNumber(page * pageSize + 1)}–{formatNumber(Math.min((page + 1) * pageSize, sorted.length))} of {formatNumber(sorted.length)}
           </span>
         </div>
         <div className={styles.pageControls}>

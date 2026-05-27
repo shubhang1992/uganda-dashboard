@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
+import { formatDate } from '../../utils/date';
 import { useCurrentSubscriber, useSubscriberAgent } from '../../hooks/useSubscriber';
+import { useToast } from '../../contexts/ToastContext';
 import { getAgentReply } from '../../services/chat';
 import { getInitials } from '../../utils/dashboard';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './AgentPage.module.css';
 
 const STORAGE_KEY = 'up-sub-agent-messages';
@@ -40,7 +43,7 @@ function formatTenure(months) {
 
 function formatMsgTime(ts) {
   if (!ts) return '';
-  return new Date(ts).toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' });
+  return formatDate(ts, { variant: 'time' });
 }
 
 const SUGGESTED_QUERIES = [
@@ -54,18 +57,33 @@ export default function AgentPage() {
   const { data: sub } = useCurrentSubscriber();
   const subId = sub?.id;
   const { data: agent } = useSubscriberAgent(subId);
+  const { addToast } = useToast();
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [seedKey, setSeedKey] = useState(null);
   const listRef = useRef(null);
+  // Tracks whether the component has unmounted so async agent replies don't
+  // call setState on an unmounted instance.
+  const cleanupRef = useRef(false);
+
+  useEffect(() => {
+    cleanupRef.current = false;
+    return () => {
+      cleanupRef.current = true;
+    };
+  }, []);
 
   const targetKey = subId && agent ? `${subId}:${agent.id}` : null;
-  // Adjust state during render when the conversation identity changes — this
-  // is the React 19-supported pattern for deriving state from props without
-  // a layout-thrashing effect. See react.dev "You Might Not Need an Effect".
-  if (targetKey && targetKey !== seedKey) {
+  // Seed the conversation in an effect (not during render) when the
+  // subscriber/agent identity changes. Avoids the React warning about
+  // updating state during render and the unmount-after-async-response leak.
+  // The cascading-renders lint rule is overzealous for this one-shot hydration.
+  useEffect(() => {
+    if (!targetKey || targetKey === seedKey) return;
+    if (cleanupRef.current) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- hydrate chat from persisted history */
     setSeedKey(targetKey);
     const persisted = loadMessages(subId);
     if (persisted && persisted.length > 0) {
@@ -80,7 +98,8 @@ export default function AgentPage() {
         },
       ]);
     }
-  }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [targetKey, seedKey, subId, agent]);
 
   useEffect(() => {
     if (subId && messages.length > 0) persistMessages(subId, messages);
@@ -96,13 +115,20 @@ export default function AgentPage() {
     setMessages((prev) => [...prev, { role: 'user', text: msg, at: Date.now() }]);
     setInput('');
     setIsTyping(true);
-    getAgentReply(msg, agent).then((response) => {
-      setTimeout(() => {
+    getAgentReply(msg, agent)
+      .then((response) => {
+        setTimeout(() => {
+          if (cleanupRef.current === true) return;
+          setIsTyping(false);
+          setMessages((prev) => [...prev, { role: 'agent', text: response, at: Date.now() }]);
+        }, 1100);
+      })
+      .catch((err) => {
+        if (cleanupRef.current === true) return;
         setIsTyping(false);
-        setMessages((prev) => [...prev, { role: 'agent', text: response, at: Date.now() }]);
-      }, 1100);
-    });
-  }, [agent, input]);
+        addToast('error', err?.message || 'Could not reach your agent — please try again.');
+      });
+  }, [agent, input, addToast]);
 
   const initials = getInitials(agent?.name || '');
   const ratingLabel = agent?.rating ? `${agent.rating.toFixed(1)} ★` : null;
@@ -193,7 +219,7 @@ export default function AgentPage() {
                   {Number.isFinite(agent.subscribersManaged) && (
                     <div className={styles.metaRow}>
                       <dt>Looking after</dt>
-                      <dd>{agent.subscribersManaged.toLocaleString()} savers</dd>
+                      <dd>{formatNumber(agent.subscribersManaged)} savers</dd>
                     </div>
                   )}
                 </dl>

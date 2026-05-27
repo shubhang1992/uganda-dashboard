@@ -1,17 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { formatUGX, formatUGXExact, normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
+import { formatDate } from '../../utils/date';
 import { getInitials } from '../../utils/dashboard';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
 import ErrorCard from '../../components/feedback/ErrorCard';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './SubscriberDetailPage.module.css';
-
-function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 function StatusPill({ status }) {
   return (
@@ -22,25 +17,42 @@ function StatusPill({ status }) {
   );
 }
 
-function KycBadge() {
+function KycBadge({ status }) {
+  // Map the raw kyc_status field to a chip. Anything missing or unrecognised
+  // renders as a neutral "Pending" — we never default to "verified" because
+  // that would lie to an agent looking at an un-verified subscriber.
+  const normalised = status === 'verified' || status === 'pending' || status === 'rejected'
+    ? status
+    : 'pending';
+  const label =
+    normalised === 'verified' ? 'KYC verified'
+    : normalised === 'rejected' ? 'KYC rejected'
+    : 'KYC pending';
   return (
-    <span className={styles.kycBadge} data-kyc="complete">
-      <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden="true">
-        <path d="M2.5 6.2l2.3 2.3L9.5 3.7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-      KYC verified
+    <span className={styles.kycBadge} data-kyc={normalised}>
+      {normalised === 'verified' ? (
+        <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden="true">
+          <path d="M2.5 6.2l2.3 2.3L9.5 3.7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ) : normalised === 'rejected' ? (
+        <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden="true">
+          <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+        </svg>
+      ) : (
+        <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden="true">
+          <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.5"/>
+          <path d="M6 4v2.2L7.4 7.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      )}
+      {label}
     </span>
   );
 }
 
 function SparkBars({ values }) {
-  // Values are derived deterministically from a sin curve over the subscriber's
-  // contribution total (`sparkValues` in the parent) — they're an estimated
-  // trend, not real per-month history. Replace once the backend supplies a
-  // real `contributionHistory` array.
   const max = Math.max(...values, 1);
   return (
-    <div className={styles.spark} aria-label="Estimated 12-month contribution trend">
+    <div className={styles.spark} aria-label="12-month contribution trend">
       {values.map((v, i) => (
         <div key={i} className={styles.sparkBar} style={{ height: `${Math.max((v / max) * 100, 4)}%` }} />
       ))}
@@ -100,7 +112,14 @@ export default function SubscriberDetailPage() {
 
   const balance = subscriber.netBalance ?? (subscriber.totalContributions - subscriber.totalWithdrawals);
   const schedule = subscriber.contributionSchedule;
-  const sparkValues = Array.from({ length: 12 }, (_, i) => Math.max(0, (subscriber.totalContributions / 12) * (0.5 + Math.sin(i + (subscriber.id?.length || 0)) * 0.5)));
+  // Real per-month contribution series from the backend. When the agent
+  // service doesn't supply one (mock-fallback list, partial RLS shape, etc.)
+  // we render an em-dash rather than fabricating a sin-curve trend.
+  const historyRaw = Array.isArray(subscriber.contributionHistory) ? subscriber.contributionHistory : [];
+  const sparkValues = historyRaw
+    .slice(-12)
+    .map((v) => Math.max(0, Number(v) || 0));
+  const hasSpark = sparkValues.some((v) => v > 0);
 
   return (
     <div className={styles.page}>
@@ -122,7 +141,7 @@ export default function SubscriberDetailPage() {
               {subscriber.email && <><span aria-hidden="true">·</span><span>{subscriber.email}</span></>}
             </div>
             <div className={styles.profileBadges}>
-              <KycBadge />
+              <KycBadge status={subscriber.kycStatus} />
               <StatusPill status={subscriber.isActive ? 'active' : 'dormant'} />
             </div>
           </div>
@@ -193,10 +212,14 @@ export default function SubscriberDetailPage() {
         <section className={styles.section}>
           <header className={styles.sectionHead}>
             <h2 className={styles.sectionTitle}>Contribution rhythm</h2>
-            <span className={styles.sectionHint}>estimated trend · 12 months</span>
+            <span className={styles.sectionHint}>12 months</span>
           </header>
           <div className={styles.trendCard}>
-            <SparkBars values={sparkValues} />
+            {hasSpark ? (
+              <SparkBars values={sparkValues} />
+            ) : (
+              <span className={styles.trendEmpty} aria-label="No contribution history available">—</span>
+            )}
             <div className={styles.trendFooter}>
               <span>12 months</span>
               <span className={styles.trendValue}>{formatUGX(subscriber.totalContributions)}</span>

@@ -2,9 +2,10 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useAllEntities } from '../../hooks/useEntity';
+import { useAllEntities, useAllEntitiesMetrics } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
-import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { getInitials, getTrend, perfLevel } from '../../utils/dashboard';
@@ -14,6 +15,8 @@ import TrendArrow from '../shared/TrendArrow';
 import MiniChart from '../shared/MiniChart';
 import KpiCard from '../shared/KpiCard';
 import Demographics from '../shared/Demographics';
+import SkeletonRow from '../../components/SkeletonRow';
+import EmptyState from '../../components/EmptyState';
 import styles from './ViewAgents.module.css';
 
 
@@ -76,7 +79,7 @@ function AgentDetail({ agent, branchesMap, districtsMap, regionsMap, onViewCommi
       </div>
 
       <div className={styles.kpiRow}>
-        <KpiCard icon={Icons.subscribers} label="Subscribers" value={m.totalSubscribers.toLocaleString()} />
+        <KpiCard icon={Icons.subscribers} label="Subscribers" value={formatNumber(m.totalSubscribers)} />
         <KpiCard icon={Icons.activeRate} label="Active Rate" value={m.activeRate} suffix="%" />
         <KpiCard icon={Icons.contributions} label="Contributions" value={formatUGX(m.totalContributions)} />
         <KpiCard icon={Icons.aum} label="AUM" value={formatUGX(m.aum)} />
@@ -200,10 +203,18 @@ export default function ViewAgents({ splitMode = false }) {
   const { viewAgentsOpen, setViewAgentsOpen, setCommissionsOpen, drillTargetAgentId, closeDrillPanel } = useDashboard();
   const { branchId } = useBranchScope();
 
-  const { data: allAgentsRaw = [] } = useAllEntities('agent');
+  const { data: allAgentsRaw = [], isLoading: agentsLoading } = useAllEntities('agent');
   const { data: allBranchesRaw = [] } = useAllEntities('branch');
   const { data: allDistrictsRaw = [] } = useAllEntities('district');
   const { data: allRegionsRaw = [] } = useAllEntities('region');
+
+  // Per-agent live rollup — without this overlay every `a.metrics.totalSubscribers`
+  // / `a.metrics.activeRate` / `a.metrics.aum` reads zero under Supabase.
+  const { data: agentMetricsMap = {} } = useAllEntitiesMetrics('agent');
+
+  // Cold-load guard — skeleton only on a true first-fetch (pending AND
+  // no cached rows), never on background refetches once data has shown.
+  const isCold = agentsLoading && allAgentsRaw.length === 0;
 
   const BRANCHES_MAP = useMemo(() => Object.fromEntries(allBranchesRaw.map(b => [b.id, b])), [allBranchesRaw]);
   const DISTRICTS_MAP = useMemo(() => Object.fromEntries(allDistrictsRaw.map(d => [d.id, d])), [allDistrictsRaw]);
@@ -223,18 +234,30 @@ export default function ViewAgents({ splitMode = false }) {
   const regionBtnRef = useRef(null);
   const sortBtnRef = useRef(null);
 
-  const allAgents = branchId ? allAgentsRaw.filter(a => a.parentId === branchId) : allAgentsRaw;
+  const allAgentsWithMetrics = useMemo(
+    () => allAgentsRaw.map(a => ({ ...a, metrics: agentMetricsMap[a.id] ?? a.metrics })),
+    [allAgentsRaw, agentMetricsMap],
+  );
+  const allAgents = branchId
+    ? allAgentsWithMetrics.filter(a => a.parentId === branchId)
+    : allAgentsWithMetrics;
 
-  // Auto-select agent when opened via map drill-down
+  // Auto-select agent when opened via map drill-down. Reads from the
+  // metrics-overlaid `allAgents`, not `allAgentsRaw` (which has
+  // EMPTY_METRICS), so the AgentDetail KPI cards bind to real numbers.
   useEffect(() => {
-    if (viewAgentsOpen && drillTargetAgentId && allAgentsRaw.length > 0) {
-      const agent = allAgentsRaw.find(a => a.id === drillTargetAgentId);
-      if (agent) {
-        setSelectedAgent(agent);
-        setView('detail');
-      }
+    if (!viewAgentsOpen || !drillTargetAgentId || allAgents.length === 0) return;
+    const agent = allAgents.find(a => a.id === drillTargetAgentId);
+    if (!agent) return;
+    setSelectedAgent(agent);
+    // Only snap to 'detail' on the first auto-select for this drill target;
+    // later metrics-overlay updates refresh selectedAgent in place without
+    // overwriting a user-initiated nav.
+    if (!selectedAgent || selectedAgent.id !== drillTargetAgentId) {
+      setView('detail');
     }
-  }, [viewAgentsOpen, drillTargetAgentId, allAgentsRaw]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedAgent intentionally excluded to avoid self-triggered loop
+  }, [viewAgentsOpen, drillTargetAgentId, allAgents]);
 
   const handleClose = useCallback(() => {
     if (drillTargetAgentId) closeDrillPanel();
@@ -428,18 +451,24 @@ export default function ViewAgents({ splitMode = false }) {
                     )}
                   </div>
                   <div style={{ position: 'relative' }} ref={regionBtnRef}>
-                    <button className={styles.filterBtn} data-active={!!regionFilter} onClick={() => setRegionDropOpen((p) => !p)}>
+                    <button
+                      className={styles.filterBtn}
+                      data-active={!!regionFilter}
+                      aria-haspopup="listbox"
+                      aria-expanded={regionDropOpen}
+                      onClick={() => setRegionDropOpen((p) => !p)}
+                    >
                       <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
                       {regionFilter ? REGIONS_MAP[regionFilter]?.name : 'Region'}
                     </button>
                     <AnimatePresence>
                       {regionDropOpen && (
-                        <motion.div className={styles.filterDropdown} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}>
-                          <button className={styles.filterOption} data-selected={!regionFilter} onClick={() => { setRegionFilter(null); setRegionDropOpen(false); }}>
+                        <motion.div role="listbox" aria-label="Filter by region" className={styles.filterDropdown} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}>
+                          <button role="option" aria-selected={!regionFilter} className={styles.filterOption} data-selected={!regionFilter} onClick={() => { setRegionFilter(null); setRegionDropOpen(false); }}>
                             All Regions <span className={styles.filterCount}>{allAgents.length}</span>
                           </button>
                           {regionOptions.map((r) => (
-                            <button key={r.id} className={styles.filterOption} data-selected={regionFilter === r.id} onClick={() => { setRegionFilter(r.id); setRegionDropOpen(false); }}>
+                            <button key={r.id} role="option" aria-selected={regionFilter === r.id} className={styles.filterOption} data-selected={regionFilter === r.id} onClick={() => { setRegionFilter(r.id); setRegionDropOpen(false); }}>
                               {r.name} <span className={styles.filterCount}>{regionCounts[r.id] || 0}</span>
                             </button>
                           ))}
@@ -448,15 +477,21 @@ export default function ViewAgents({ splitMode = false }) {
                     </AnimatePresence>
                   </div>
                   <div style={{ position: 'relative' }} ref={sortBtnRef}>
-                    <button className={styles.filterBtn} data-active={sortKey !== 'subscribers'} onClick={() => setSortDropOpen((p) => !p)}>
+                    <button
+                      className={styles.filterBtn}
+                      data-active={sortKey !== 'subscribers'}
+                      aria-haspopup="listbox"
+                      aria-expanded={sortDropOpen}
+                      onClick={() => setSortDropOpen((p) => !p)}
+                    >
                       <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M4 2v12M4 14l-3-3M4 14l3-3M12 14V2M12 2l-3 3M12 2l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       {SORT_OPTIONS.find((o) => o.key === sortKey)?.label || 'Sort'}
                     </button>
                     <AnimatePresence>
                       {sortDropOpen && (
-                        <motion.div className={styles.filterDropdown} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}>
+                        <motion.div role="listbox" aria-label="Sort agents" className={styles.filterDropdown} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}>
                           {SORT_OPTIONS.map((opt) => (
-                            <button key={opt.key} className={styles.filterOption} data-selected={sortKey === opt.key} onClick={() => { setSortKey(opt.key); setSortDropOpen(false); }}>
+                            <button key={opt.key} role="option" aria-selected={sortKey === opt.key} className={styles.filterOption} data-selected={sortKey === opt.key} onClick={() => { setSortKey(opt.key); setSortDropOpen(false); }}>
                               {opt.label}
                             </button>
                           ))}
@@ -466,9 +501,15 @@ export default function ViewAgents({ splitMode = false }) {
                   </div>
                 </div>
 
-                <div className={styles.statusChips}>
+                <div className={styles.statusChips} role="group" aria-label="Filter agents by status">
                   {['all', 'active', 'inactive'].map((s) => (
-                    <button key={s} className={styles.statusChip} data-active={statusFilter === s} onClick={() => setStatusFilter(s)}>
+                    <button
+                      key={s}
+                      className={styles.statusChip}
+                      data-active={statusFilter === s}
+                      aria-pressed={statusFilter === s}
+                      onClick={() => setStatusFilter(s)}
+                    >
                       {s === 'all' ? 'All' : s === 'active' ? 'Active' : 'Inactive'}
                     </button>
                   ))}
@@ -477,17 +518,17 @@ export default function ViewAgents({ splitMode = false }) {
                 <div className={styles.summaryStrip}>
                   <div className={styles.summaryChip}>
                     <span className={styles.summaryChipIcon}>{Icons.subscribers}</span>
-                    <span className={styles.summaryChipValue}>{allAgents.length.toLocaleString()}</span>
+                    <span className={styles.summaryChipValue}>{formatNumber(allAgents.length)}</span>
                     <span className={styles.summaryChipLabel}>Agents</span>
                   </div>
                   <div className={styles.summaryChip}>
                     <span className={styles.summaryChipIcon}>{Icons.subscribers}</span>
-                    <span className={styles.summaryChipValue}>{totals.subs.toLocaleString()}</span>
+                    <span className={styles.summaryChipValue}>{formatNumber(totals.subs)}</span>
                     <span className={styles.summaryChipLabel}>Subscribers</span>
                   </div>
                   <div className={styles.summaryChip}>
                     <span className={styles.summaryChipIcon}>{Icons.aum}</span>
-                    <span className={styles.summaryChipValue}>{fmtShort(totals.aum)}</span>
+                    <span className={styles.summaryChipValue}>{formatUGXShort(totals.aum)}</span>
                     <span className={styles.summaryChipLabel}>AUM</span>
                   </div>
                 </div>
@@ -499,19 +540,31 @@ export default function ViewAgents({ splitMode = false }) {
               <AnimatePresence mode="wait">
                 {view === 'list' && (
                   <motion.div key="va-list" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}>
-                    <div className={styles.listCount}>Showing {filtered.length} of {allAgents.length} agents</div>
+                    <div className={styles.listCount}>
+                      {isCold
+                        ? 'Loading agents…'
+                        : `Showing ${filtered.length} of ${allAgents.length} agents`}
+                    </div>
 
-                    {filtered.length === 0 ? (
-                      <div className={styles.emptyState}>
-                        <div className={styles.emptyIcon}>
-                          <svg aria-hidden="true" viewBox="0 0 48 48" fill="none" width="48" height="48">
-                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="1.5" />
-                            <path d="M16 20h16M16 28h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                        </div>
-                        <div className={styles.emptyTitle}>No agents found</div>
-                        <div className={styles.emptyDesc}>Try adjusting your search or filters</div>
-                      </div>
+                    {isCold ? (
+                      <SkeletonRow count={8} label="Loading agents" />
+                    ) : filtered.length === 0 ? (
+                      // No filters active → "No agents yet" (CTA-free in a list-only
+                      // panel — agents are created from elsewhere in the flow).
+                      // Otherwise nudge the user to widen their filter.
+                      search.trim() === '' && !regionFilter && statusFilter === 'all' ? (
+                        <EmptyState
+                          kind="no-data"
+                          title="No agents yet."
+                          body="Agents added through the network will appear here."
+                        />
+                      ) : (
+                        <EmptyState
+                          kind="no-match"
+                          title="No agents match"
+                          body="Try adjusting your search or filters."
+                        />
+                      )
                     ) : (
                       <div
                         className={styles.virtualList}

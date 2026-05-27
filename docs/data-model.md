@@ -9,14 +9,15 @@
 
 ```
 Country (Uganda)
-└── Region (4)
-    └── District (135)
-        └── Branch (~314)
-            └── Agent (~500+)
-                └── Subscriber (~30,000)
+└── Distributor (1 — national singleton, d-001)
+    └── Region (4)
+        └── District (135)
+            └── Branch (~314)
+                └── Agent (~500+)
+                    └── Subscriber (~30,000)
 ```
 
-Each entity references its parent via `parentId`. Metrics roll up from subscriber → agent → branch → district → region → country.
+Each entity references its parent via `parentId`. Metrics roll up from subscriber → agent → branch → district → region → distributor → country. The Distributor tier was introduced in migration `0016_distributors_table.sql` to give the network operator its own row + RLS surface; on the geographic side it sits *between* Country and Region but acts as a pass-through for aggregation today (single row, `parentId = "ug"`).
 
 ---
 
@@ -37,6 +38,33 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 ### Business Rules
 - Single-country deployment. If multi-country support is needed, this becomes a lookup.
 - `metrics.totalBranches` is set to total count of all branches (not summed from children).
+
+---
+
+## Distributor
+
+### Fields
+| Field | Type | Storage | Description |
+|-------|------|---------|-------------|
+| id | string | Stored | Format: `d-{seq}`; today only `d-001` |
+| name | string | Stored | Distributor name (`"Universal Pensions Uganda — National"`) |
+| parentId | string | Stored | Always `"ug"` (the Country) |
+| managerName | string | Stored | National operations lead |
+| managerEmail | string | Stored | Contact email |
+| managerPhone | string | Stored | Ugandan phone (+256 prefix) |
+| status | string | Stored | `"active"` (default) |
+| createdAt | timestamptz | Stored | Row creation timestamp |
+| updatedAt | timestamptz | Stored | Last update timestamp |
+| metrics | Metrics | Aggregated | Rolled up from the full network — see [Aggregation Rules](#aggregation-rules) |
+
+### Relationships
+- Parent: Country (`"ug"`)
+- Children: Regions (4) — geographic; today the singleton owns the entire network so this is equivalent to "the whole tree below Country"
+
+### Business Rules
+- **National singleton.** The seed ships exactly one row (`d-001`). The schema permits multiple distributors so the table can grow into a multi-distributor model without migration churn.
+- **Metrics.** `useDistributorMetrics()` returns `{ totalSubscribers, totalAgents, totalBranches, aum }` derived from `getAllAtLevel('subscriber' | 'agent' | 'branch')` + a `subscriber_balances` aggregate. Mock fallback returns `aum: 0` plus an `aumNote` string.
+- **RLS.** Read-across-levels via `distributors_select USING (true)` (every authenticated role can read the singleton — used for "Operated by …" attribution surfaces). Self-update via `distributors_update_self USING (auth.jwt() ->> 'distributorId' = id)` — only the distributor role may update, and only against its own row. See `docs/role-permissions.md` and `BACKEND.md §8`.
 
 ---
 
@@ -375,7 +403,8 @@ The Metrics object is shared across Country, Region, District, Branch, and Agent
 - **Branch level**: `addMetrics(branch, agent)` for each child agent, then `finalizeRates()`.
 - **District level**: `addMetrics(district, branch)` for each child branch, then `finalizeRates()`.
 - **Region level**: Same pattern from districts.
-- **Country level**: Same pattern from regions.
+- **Distributor level**: National singleton (`d-001`). Today the rollup is computed by `getDistributorMetrics()` as a flat `Promise.all` of `getAllAtLevel('subscriber' | 'agent' | 'branch')` + a `subscriber_balances` AUM aggregate, rather than the recursive `addMetrics()` walk used by Region/Country — there is only one row and it owns the entire network, so the flat counts equal what a recursive walk would produce. The recursive `addMetrics()` pattern from Region applies when a multi-distributor seed lands.
+- **Country level**: Same pattern from regions (equivalent to "the distributor singleton's view" today; remains separate so the country row stays a meaningful aggregation anchor).
 
 `addMetrics()` sums all numeric fields. For rates:
 - `activeRate` = tracked via `_activeCount` during aggregation, then `round((_activeCount / totalSubscribers) * 100)`.

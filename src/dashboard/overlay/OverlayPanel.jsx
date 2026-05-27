@@ -1,11 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { useCurrentEntity, useChildren, useTopBranch, useSearch } from '../../hooks/useEntity';
+import { useCurrentEntity, useChildren, useTopBranch, useSearch, useEntityMetrics, useChildrenMetrics } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { CHILD_LEVEL } from '../../constants/levels';
-import { formatUGX, EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { formatUGX, formatNumber } from '../../utils/currency';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import styles from './OverlayPanel.module.css';
 const LEVEL_LABELS = { region: 'Regions', district: 'Districts', branch: 'Branches', agent: 'Agents' };
 const LEVEL_TAG = { region: 'Region', district: 'District', branch: 'Branch', agent: 'Agent' };
@@ -113,7 +115,12 @@ function StatusBar({ label, value, segments }) {
 function GlobalSearch({ onNavigate }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const { data: results = [] } = useSearch(query);
+
+  // 200ms debounce — keeps the `useSearch` query from firing on every
+  // keystroke. Per the brief perf target: keystroke → render < 50ms after
+  // debounce, so the visible cost is the debounce window only.
+  const debouncedQuery = useDebouncedValue(query, 200);
+  const { data: results = [] } = useSearch(debouncedQuery);
 
   function handleSelect(item) {
     onNavigate(item.level, item.id);
@@ -125,6 +132,16 @@ function GlobalSearch({ onNavigate }) {
     setQuery('');
     setOpen(false);
   }
+
+  // Blur fires AFTER the dropdown item's `mousedown`/`click` was originally
+  // scheduled, which meant the input's blur was racing the click handler.
+  // The legacy fix was a 150ms `setTimeout` on blur; that surfaced as a
+  // sluggish dropdown that swallowed quick selections. New pattern:
+  //   1. Items use `onPointerDown` (fires *before* blur on the input).
+  //   2. The input's blur handler closes without a timer — by the time
+  //      blur runs, the pointer-down selection has already executed
+  //      `handleSelect`, which itself closes the dropdown.
+  // This eliminates the race without the timeout debt.
 
   if (!open) {
     return (
@@ -152,12 +169,18 @@ function GlobalSearch({ onNavigate }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           autoFocus
-          onBlur={() => setTimeout(handleClose, 150)}
+          onBlur={handleClose}
           aria-label="Search entities"
           name="search"
           autoComplete="off"
         />
-        <button className={styles.searchBarClose} onMouseDown={handleClose} aria-label="Close search">
+        <button
+          className={styles.searchBarClose}
+          // Pointer-down fires before the input's blur, so the close
+          // handler runs in the same gesture without a timer.
+          onPointerDown={handleClose}
+          aria-label="Close search"
+        >
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="12" height="12">
             <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
           </svg>
@@ -166,7 +189,13 @@ function GlobalSearch({ onNavigate }) {
       {results.length > 0 && (
         <div className={styles.searchResults}>
           {results.map((item) => (
-            <button key={item.id} className={styles.searchResultBtn} onMouseDown={() => handleSelect(item)}>
+            <button
+              key={item.id}
+              className={styles.searchResultBtn}
+              // Pointer-down beats the input's blur, so we can navigate
+              // before the dropdown unmounts.
+              onPointerDown={() => handleSelect(item)}
+            >
               <span className={styles.searchResultName}>{item.name}</span>
               <span className={styles.searchResultLevel}>{item.label}</span>
             </button>
@@ -309,7 +338,7 @@ function TimePeriodCard({ metrics, level, parentId, onMetricClick }) {
         >
           <MetricRow
             variant="subscribers" icon={<SubsIcon />}
-            value={d.subs.toLocaleString()} label="New Subscribers"
+            value={formatNumber(d.subs)} label="New Subscribers"
             change={d.subsChange}
             onClick={onMetricClick ? () => onMetricClick('subscriber-growth') : undefined}
           />
@@ -349,9 +378,19 @@ export default function OverlayPanel() {
   const displayLevel = (level === 'branch' || level === 'agent') ? 'district' : level;
   const parentId = displayLevel === 'country' ? 'ug' : selectedIds[displayLevel];
   const nextLevel = CHILD_LEVEL[displayLevel] || null;
-  const { data: currentEntity } = useCurrentEntity(displayLevel, selectedIds);
+  const { data: currentEntity, isLoading: entityLoading } = useCurrentEntity(displayLevel, selectedIds);
   const { data: children = [] } = useChildren(displayLevel, parentId);
   const { data: commissionSummary } = useEntityCommissionSummary(displayLevel, parentId);
+
+  // Per-level metrics rollup. Powers the hero card, MetricsRow tiles, and the
+  // per-child subscriber counts in the child list. Replaces the EMPTY_METRICS
+  // zeros that mapRegion/mapDistrict/mapBranch/mapAgent return otherwise.
+  const { data: entityMetrics, isError: entityMetricsError } = useEntityMetrics(displayLevel, parentId);
+  const { data: childrenMetrics = {} } = useChildrenMetrics(displayLevel, parentId);
+  const childrenWithMetrics = useMemo(
+    () => children.map((c) => ({ ...c, metrics: childrenMetrics[c.id] ?? c.metrics })),
+    [children, childrenMetrics],
+  );
 
   const openReport = useCallback((reportId) => {
     setReportContext(reportId);
@@ -371,10 +410,44 @@ export default function OverlayPanel() {
     setListExpanded(false);
   }
 
-  if (!currentEntity) return null;
+  // Skeleton overlay — used on cold-load while React Query resolves the
+  // current entity. Replaces the legacy `return null` which left the panel
+  // gone (blank space) on first paint. Mirrors the live chrome so layout
+  // doesn't jump when data arrives.
+  if (!currentEntity) {
+    if (entityLoading) {
+      return (
+        <div
+          className={styles.panel}
+          role="status"
+          aria-busy="true"
+          aria-label="Loading network overview"
+        >
+          <div className={styles.panelHeader}>
+            <div className={styles.skeletonRow} style={{ width: 96 }} />
+          </div>
+          <div className={styles.skeletonHero} aria-hidden="true" />
+          <div className={styles.skeletonBlock} aria-hidden="true" style={{ height: 62 }} />
+          <div className={styles.skeletonBlock} aria-hidden="true" style={{ height: 84 }} />
+          <div className={styles.skeletonBlock} aria-hidden="true" style={{ height: 156, flex: '1 1 auto', minHeight: 0 }} />
+        </div>
+      );
+    }
+    return null;
+  }
 
   const isInactive = currentEntity.active === false;
-  const metrics = isInactive ? null : currentEntity.metrics;
+  // Metrics priority:
+  //   1. entityMetrics — live RPC rollup from get_entity_metrics_rollup
+  //   2. currentEntity.metrics — mock seed (full) or EMPTY_METRICS (Supabase)
+  // useDistributorMetrics fallback retired in PR-2 — useEntityMetrics covers
+  // country level via the same RPC.
+  const baseMetrics = isInactive ? null : currentEntity.metrics;
+  const metrics = isInactive
+    ? null
+    : entityMetrics
+    ? { ...baseMetrics, ...entityMetrics }
+    : baseMetrics;
   const aum = metrics ? (metrics.aum || metrics.totalContributions) : 0;
 
   // Slide is driven by CSS `transform: translateX(...)` (GPU-accelerated) on
@@ -432,6 +505,11 @@ export default function OverlayPanel() {
             <div className={styles.heroTop}>
               <span className={styles.aumValue}>{formatUGX(aum)}</span>
               <span className={styles.aumLabel}>Assets Under Management</span>
+              {entityMetricsError && (
+                <span className={styles.metricsErrorBadge} role="status">
+                  Metrics unavailable
+                </span>
+              )}
             </div>
             <div className={styles.heroStats}>
               <div className={styles.stat}>
@@ -450,7 +528,7 @@ export default function OverlayPanel() {
           <div className={styles.countsBlock}>
             <div className={styles.countRow}>
               <button className={styles.countItem} data-clickable onClick={() => openReport('all-subscribers')}>
-                <span className={styles.countNum}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
+                <span className={styles.countNum}>{formatNumber(metrics.totalSubscribers || 0)}</span>
                 <span className={styles.countLabel}>Subscribers</span>
               </button>
               <button className={styles.countItem} data-clickable onClick={() => openReport('all-agents')}>
@@ -472,10 +550,10 @@ export default function OverlayPanel() {
               </div>
               <div className={styles.activityLabels}>
                 <span className={styles.activityActive}>
-                  {Math.round((metrics.totalSubscribers || 0) * (metrics.activeRate / 100)).toLocaleString()} active
+                  {formatNumber((metrics.totalSubscribers || 0) * (metrics.activeRate / 100))} active
                 </span>
                 <span className={styles.activityInactive}>
-                  {Math.round((metrics.totalSubscribers || 0) * ((100 - metrics.activeRate) / 100)).toLocaleString()} inactive
+                  {formatNumber((metrics.totalSubscribers || 0) * ((100 - metrics.activeRate) / 100))} inactive
                 </span>
               </div>
             </div>
@@ -533,10 +611,10 @@ export default function OverlayPanel() {
           </AnimatePresence>
 
           {/* Region/child list */}
-          {children.length > 0 && nextLevel && (
+          {childrenWithMetrics.length > 0 && nextLevel && (
             <CollapsibleSection
               title={LEVEL_LABELS[nextLevel] || 'Items'}
-              count={children.length}
+              count={childrenWithMetrics.length}
               defaultOpen={false}
               fill
               expanded={listExpanded}
@@ -544,7 +622,7 @@ export default function OverlayPanel() {
               key={`children-${displayLevel}-${parentId}`}
             >
               <div className={styles.entityList}>
-                {children.map((child) => {
+                {childrenWithMetrics.map((child) => {
                   const isChildActive = child.active !== false;
                   const subCount = child.metrics?.totalSubscribers || 0;
                   return (
@@ -552,7 +630,7 @@ export default function OverlayPanel() {
                       <div className={styles.statusRow}>
                         <span className={styles.statusLabel}>{child.name}</span>
                         {isChildActive ? (
-                          <span className={styles.statusCount}>{subCount.toLocaleString()} subscribers</span>
+                          <span className={styles.statusCount}>{formatNumber(subCount)} subscribers</span>
                         ) : (
                           <span className={styles.inactiveTag}>No branches</span>
                         )}

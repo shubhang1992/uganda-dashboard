@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../utils/finance';
@@ -8,7 +8,10 @@ import { useCurrentEntity } from '../hooks/useEntity';
 import { useIsMobile } from '../hooks/useIsMobile';
 import logo from '../assets/logo.png';
 import Sidebar from './sidebar/Sidebar';
-import UgandaMap from './map/UgandaMap';
+// UgandaMap pulls leaflet + react-leaflet (~114 KB gzip + Leaflet CSS).
+// React.lazy here means the landing page bundle no longer modulepreloads
+// `vendor-leaflet` (PR-7 partial — AUDIT-3-*).
+const UgandaMap = lazy(() => import('./map/UgandaMap'));
 import OverlayPanel from './overlay/OverlayPanel';
 import Breadcrumb from './overlay/Breadcrumb';
 import MetricsRow from './cards/MetricsRow';
@@ -205,35 +208,62 @@ function NavAnnouncer() {
 
 function DashboardContent() {
   const isMobile = useIsMobile();
+  // Lazy-mount panels so their data hooks don't fire on dashboard cold load.
+  // Before PR-3, all seven panel components were mounted unconditionally,
+  // collectively firing 24 simultaneous Supabase requests at first paint
+  // (AUDIT-1-10). Each panel still has its own AnimatePresence/motion.div
+  // entrance — these guards only delay the React mount + data-hook fire
+  // until the user opens the panel for the first time.
+  const {
+    createBranchOpen,
+    viewBranchesOpen,
+    viewAgentsOpen,
+    viewSubscribersOpen,
+    viewReportsOpen,
+    commissionsOpen,
+    settingsOpen,
+  } = useDashboard();
   return (
     <>
       <main className={styles.main} id="main">
         <NavAnnouncer />
-        {!isMobile && <UgandaMap />}
+        {!isMobile && (
+          <Suspense fallback={null}>
+            <UgandaMap />
+          </Suspense>
+        )}
         <Breadcrumb />
         <OverlayPanel />
         <TopBar />
         <MetricsRow />
       </main>
-      <CreateBranch />
-      <ViewBranches />
-      <ViewAgents />
-      <ViewSubscribers />
-      <ViewReports />
-      <CommissionPanel />
-      <Settings />
+      {createBranchOpen && <CreateBranch />}
+      {viewBranchesOpen && <ViewBranches />}
+      {viewAgentsOpen && <ViewAgents />}
+      {viewSubscribersOpen && <ViewSubscribers />}
+      {viewReportsOpen && <ViewReports />}
+      {commissionsOpen && <CommissionPanel />}
+      {settingsOpen && <Settings />}
     </>
   );
 }
 
 export default function DashboardShell() {
   const [menuOpen, setMenuOpen] = useState(false);
+  // Memoised handlers — inline arrows here recreated `onMenuToggle` and
+  // `onClose` on every parent render, defeating any memoisation in
+  // `MobileHeader`/`MobileDrawer` and re-running the drawer's keydown effect
+  // each tick (F23). `setMenuOpen` is a stable setter, so the callbacks are
+  // safe to memoise with an empty dep list — the toggle reads the latest
+  // value via the functional updater.
+  const handleMenuToggle = useCallback(() => setMenuOpen((open) => !open), []);
+  const handleMenuClose = useCallback(() => setMenuOpen(false), []);
   return (
     <DashboardProvider>
       <div className={styles.shell}>
         <Sidebar />
-        <MobileHeader onMenuToggle={() => setMenuOpen(!menuOpen)} menuOpen={menuOpen} />
-        <MobileDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
+        <MobileHeader onMenuToggle={handleMenuToggle} menuOpen={menuOpen} />
+        <MobileDrawer open={menuOpen} onClose={handleMenuClose} />
         <DashboardContent />
       </div>
     </DashboardProvider>

@@ -24,8 +24,8 @@
   border-radius: var(--radius-xl);
   border: 1px solid var(--color-lavender);
   box-shadow:
-    0 24px 80px rgba(41, 40, 103, 0.18),
-    0 8px 24px rgba(41, 40, 103, 0.08);
+    0 24px 80px color-mix(in srgb, var(--color-indigo) 18%, transparent),
+    0 8px 24px color-mix(in srgb, var(--color-indigo) 8%, transparent);
   overscroll-behavior: contain;
   overflow: hidden;
 }
@@ -38,17 +38,17 @@
   border: none;
   background: var(--color-white);
   box-shadow:
-    0 1px 2px rgba(41, 40, 103, 0.04),
-    0 12px 32px rgba(41, 40, 103, 0.08),
-    0 32px 64px rgba(41, 40, 103, 0.06),
-    0 0 0 1px rgba(41, 40, 103, 0.04);
+    0 1px 2px color-mix(in srgb, var(--color-indigo) 4%, transparent),
+    0 12px 32px color-mix(in srgb, var(--color-indigo) 8%, transparent),
+    0 32px 64px color-mix(in srgb, var(--color-indigo) 6%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--color-indigo) 4%, transparent);
 }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
 .header {
   padding: var(--space-5) var(--space-7);
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(41, 40, 103, 0.06);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 6%, transparent);
 }
 
 .headerTop {
@@ -70,7 +70,7 @@
 }
 
 .backBtn:hover {
-  background: rgba(41, 40, 103, 0.05);
+  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
   color: var(--color-indigo);
 }
 
@@ -88,7 +88,7 @@
 }
 
 .closeBtn:hover {
-  background: rgba(41, 40, 103, 0.05);
+  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
   color: var(--color-indigo);
 }
 
@@ -212,7 +212,7 @@
   height: 100%;
   background: var(--color-status-good);
   border-radius: var(--radius-full);
-  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.6s var(--ease-out-expo);
 }
 
 .progressLabels {
@@ -241,7 +241,7 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  background: rgba(41, 40, 103, 0.03);
+  background: color-mix(in srgb, var(--color-indigo) 3%, transparent);
   border-radius: var(--radius-sm);
 }
 
@@ -274,7 +274,7 @@
 }
 
 .rateEditBtn:hover {
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   color: var(--color-indigo);
 }
 
@@ -302,7 +302,7 @@
 .rateInput:focus,
 .rateInput:focus-visible {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .rateSaveBtn {
@@ -576,7 +576,7 @@
 .searchInput:focus,
 .searchInput:focus-visible {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
   background: var(--color-white);
 }
 
@@ -601,7 +601,7 @@
 }
 
 .searchClear:hover {
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   color: var(--color-indigo);
 }
 
@@ -634,7 +634,7 @@
   width: 40px;
   height: 40px;
   border-radius: var(--radius-full);
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   border: 1px solid var(--color-lavender);
   font-family: var(--font-display);
   font-size: var(--text-xs);
@@ -696,7 +696,7 @@
   width: 52px;
   height: 52px;
   border-radius: var(--radius-full);
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   border: 1px solid var(--color-lavender);
   font-family: var(--font-display);
   font-size: var(--text-base);
@@ -1008,33 +1008,17 @@
 }
 
 /* ── Settlement modal ────────────────────────────────────────────────────── */
-.modalOverlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(27, 26, 74, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 220;
-  padding: var(--space-6);
-  border-radius: var(--radius-xl);
-}
-
+/* Surface (backdrop, dialog border/radius/shadow) is supplied by the shared
+ * <Modal> primitive (src/components/Modal.jsx). `.modal` below is the inner
+ * content layout wrapper — header / body / actions stacked vertically. */
 .modal {
-  width: 100%;
-  max-width: 420px;
-  background: var(--color-white);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--color-lavender);
-  box-shadow:
-    0 24px 60px rgba(41, 40, 103, 0.2),
-    0 8px 20px rgba(41, 40, 103, 0.08);
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .modalHeader {
   padding: var(--space-5) var(--space-6);
-  border-bottom: 1px solid rgba(41, 40, 103, 0.06);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 6%, transparent);
 }
 
 .modalTitle {
@@ -1061,7 +1045,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4);
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
   border-radius: var(--radius-md);
   margin-bottom: var(--space-4);
 }
@@ -1146,7 +1130,7 @@
 .modalTextarea:focus {
   outline: none;
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .modalHint {
@@ -1243,7 +1227,7 @@
 
 .filterPill[data-active='true'] {
   border-color: var(--color-indigo);
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   color: var(--color-indigo);
 }
 
@@ -1312,7 +1296,7 @@
 
 .selectableRow[data-selected='true'] .selectableContent {
   border-color: var(--color-indigo);
-  background: rgba(41, 40, 103, 0.02);
+  background: color-mix(in srgb, var(--color-indigo) 2%, transparent);
 }
 
 .selectableContent {
@@ -1708,10 +1692,6 @@
   }
 
   /* Modal */
-  .modalOverlay {
-    padding: var(--space-4);
-  }
-
   .modalHeader {
     padding: var(--space-4) var(--space-5);
   }
@@ -1746,7 +1726,7 @@
 }
 
 /* ── Small phones ────────────────────────────────────────────────────────── */
-@media (max-width: 400px) {
+@media (max-width: 480px) {
   .primaryGrid {
     grid-template-columns: 1fr;
   }
@@ -1912,7 +1892,7 @@
   margin-bottom: var(--space-4);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .settingsGrid {
     grid-template-columns: 1fr;
   }
@@ -2086,7 +2066,7 @@
   text-transform: uppercase;
   padding: 4px 10px;
   border-radius: var(--radius-full);
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   color: var(--color-indigo-soft);
   white-space: nowrap;
 }
@@ -2145,7 +2125,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .runCardMetrics,
   .summaryStrip,
   .runHeaderRow {
@@ -2246,7 +2226,7 @@
   gap: 4px;
   margin-top: var(--space-3);
   padding-top: var(--space-3);
-  border-top: 1px dashed rgba(41, 40, 103, 0.08);
+  border-top: 1px dashed color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .agentLineRow {
@@ -2277,7 +2257,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .runBranchRow {
     grid-template-columns: 1fr auto;
     grid-template-rows: auto auto;

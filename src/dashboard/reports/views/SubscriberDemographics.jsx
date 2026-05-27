@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useAllEntities, useAllEntitiesMap, useChildren } from '../../../hooks/useEntity';
 import { useBranchScope } from '../../../contexts/BranchScopeContext';
+import { formatNumber } from '../../../utils/currency';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 
@@ -33,6 +34,15 @@ export default function SubscriberDemographics({ onBack }) {
     };
   }), [rows, regionsMap, isBranch]);
 
+  // CSV serialiser walks `row[col.key]` flatly. `totalSubscribers` lives in
+  // `metrics.*` so project it up. The `gender` column has no row-level value
+  // (renderer uses malePct/femalePct) — synthesise an "M/F" string for export.
+  const exportRows = useMemo(() => enriched.map((r) => ({
+    ...r,
+    totalSubscribers: r.metrics?.totalSubscribers ?? 0,
+    gender: `${r.malePct}/${r.femalePct}`,
+  })), [enriched]);
+
   function GenderBar({ male, female }) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -57,7 +67,7 @@ export default function SubscriberDemographics({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalSubscribers || 0,
-      render: (row) => (row.metrics?.totalSubscribers || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalSubscribers || 0),
     },
     {
       key: 'gender',
@@ -78,35 +88,35 @@ export default function SubscriberDemographics({ onBack }) {
       label: '18-25',
       align: 'right',
       sortable: true,
-      render: (row) => row.age1825.toLocaleString(),
+      render: (row) => formatNumber(row.age1825),
     },
     {
       key: 'age2635',
       label: '26-35',
       align: 'right',
       sortable: true,
-      render: (row) => row.age2635.toLocaleString(),
+      render: (row) => formatNumber(row.age2635),
     },
     {
       key: 'age3645',
       label: '36-45',
       align: 'right',
       sortable: true,
-      render: (row) => row.age3645.toLocaleString(),
+      render: (row) => formatNumber(row.age3645),
     },
     {
       key: 'age4655',
       label: '46-55',
       align: 'right',
       sortable: true,
-      render: (row) => row.age4655.toLocaleString(),
+      render: (row) => formatNumber(row.age4655),
     },
     {
       key: 'age56plus',
       label: '56+',
       align: 'right',
       sortable: true,
-      render: (row) => row.age56plus.toLocaleString(),
+      render: (row) => formatNumber(row.age56plus),
     },
   ].filter(Boolean);
 
@@ -117,6 +127,9 @@ export default function SubscriberDemographics({ onBack }) {
       description={isBranch
         ? 'Age distribution and gender breakdown by agent'
         : 'Age distribution and gender breakdown by district'}
+      exportRows={exportRows}
+      exportColumns={columns}
+      exportFilename="subscriber-demographics"
     >
       <ReportTable columns={columns} data={enriched} defaultSort="totalSubscribers" loading={isBranch ? loadingAgents : loadingDistricts} />
     </ReportView>

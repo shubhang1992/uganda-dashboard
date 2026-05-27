@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGX, fmtShort } from '../../utils/finance';
+import Modal from '../../components/Modal';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
+import { formatDate } from '../../utils/date';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import {
   useAgentCommissionDetail,
@@ -20,7 +23,7 @@ import {
   formatPayoutDate,
   groupCommissionsByPaidCycle,
 } from '../../utils/settlementCycle';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './CommissionsPage.module.css';
 
 const VALID_VIEWS = new Set(['earned', 'owed', 'confirm', 'disputes']);
@@ -39,12 +42,6 @@ const DISPUTE_REASONS = [
   'Duplicate commission entry',
   'Other',
 ];
-
-function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 const Icons = {
   chev: (
@@ -271,35 +268,24 @@ function PastCyclesSection({ cycles, onConfirm, onDispute, onWithdraw, isPending
   );
 }
 
-function DisputeModal({ commission, onClose, onConfirm, isPending }) {
+function DisputeModal({ commission, open, onClose, onConfirm, isPending }) {
+  // Internal form state. The parent re-mounts this component via `key` on each
+  // new commission, so state is fresh on every open — no reset effect needed.
   const [reason, setReason] = useState(DISPUTE_REASONS[0]);
   const [custom, setCustom] = useState('');
 
   const finalReason = reason === 'Other' ? custom.trim() : reason;
   const canSubmit = finalReason.length > 0 && !isPending;
 
+  // Bail when fully closed and no commission is set — saves Modal mount work
+  // for the never-opened case. The Modal primitive itself handles its own
+  // exit animation while still mounted.
+  if (!commission) return null;
+
   return (
-    <motion.div
-      key="dispute-backdrop"
-      className={styles.modalBackdrop}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-      onClick={onClose}
-    >
-      <motion.div
-        className={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="dispute-title"
-        initial={{ y: 24, opacity: 0, scale: 0.96 }}
-        animate={{ y: 0, opacity: 1, scale: 1 }}
-        exit={{ y: 24, opacity: 0, scale: 0.96 }}
-        transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 id="dispute-title" className={styles.modalTitle}>Raise a dispute</h3>
+    <Modal open={open} onClose={onClose} title="Raise a dispute" size="md">
+      <div className={styles.modal}>
+        <h3 className={styles.modalTitle}>Raise a dispute</h3>
         <p className={styles.modalSub}>
           Commission {commission.id} for <strong>{commission.subscriberName}</strong> · {formatUGX(commission.amount)}
         </p>
@@ -340,8 +326,8 @@ function DisputeModal({ commission, onClose, onConfirm, isPending }) {
             {isPending ? 'Submitting…' : 'Submit dispute'}
           </button>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </Modal>
   );
 }
 
@@ -500,7 +486,7 @@ export default function CommissionsPage() {
                 <span className={styles.summaryLabel}>Total commissions</span>
                 <span className={styles.summaryValue}>{formatUGX(totals.totalAll)}</span>
                 <span className={styles.summaryHint}>
-                  {all.length.toLocaleString()} record{all.length === 1 ? '' : 's'} from your subscribers
+                  {formatNumber(all.length)} record{all.length === 1 ? '' : 's'} from your subscribers
                 </span>
               </div>
               <div className={styles.summaryProgress}>
@@ -517,15 +503,15 @@ export default function CommissionsPage() {
             <div className={styles.primaryGrid}>
               <button className={styles.primaryCard} data-type="settled" onClick={() => navigate('/dashboard/commissions/earned')}>
                 <div className={styles.primaryIcon}>{Icons.check}</div>
-                <div className={styles.primaryAmount}>{fmtShort(totals.totalPaid)}</div>
+                <div className={styles.primaryAmount}>{formatUGXShort(totals.totalPaid)}</div>
                 <div className={styles.primaryLabel}>Earned</div>
-                <div className={styles.primaryCount}>{totals.paid.length.toLocaleString()} commissions paid</div>
+                <div className={styles.primaryCount}>{formatNumber(totals.paid.length)} commissions paid</div>
               </button>
               <button className={styles.primaryCard} data-type="pending" onClick={() => navigate('/dashboard/commissions/owed')}>
                 <div className={styles.primaryIcon}>{Icons.clock}</div>
-                <div className={styles.primaryAmount}>{fmtShort(totals.totalDue)}</div>
+                <div className={styles.primaryAmount}>{formatUGXShort(totals.totalDue)}</div>
                 <div className={styles.primaryLabel}>Owed</div>
-                <div className={styles.primaryCount}>{totals.due.length.toLocaleString()} awaiting next cycle</div>
+                <div className={styles.primaryCount}>{formatNumber(totals.due.length)} awaiting next cycle</div>
               </button>
             </div>
 
@@ -616,16 +602,15 @@ export default function CommissionsPage() {
         )}
       </div>
 
-      <AnimatePresence>
-        {disputeTarget && (
-          <DisputeModal
-            commission={disputeTarget}
-            onClose={() => setDisputeTarget(null)}
-            onConfirm={handleDisputeSubmit}
-            isPending={dispute.isPending}
-          />
-        )}
-      </AnimatePresence>
+      <DisputeModal
+        // key ensures a fresh form instance per commission — opens reset state.
+        key={disputeTarget?.id || 'no-target'}
+        commission={disputeTarget}
+        open={Boolean(disputeTarget)}
+        onClose={() => setDisputeTarget(null)}
+        onConfirm={handleDisputeSubmit}
+        isPending={dispute.isPending}
+      />
     </div>
   );
 }

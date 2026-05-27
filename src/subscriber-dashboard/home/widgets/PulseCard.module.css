@@ -3,8 +3,8 @@
   overflow: hidden;
   border-radius: var(--radius-xl);
   background:
-    radial-gradient(110% 90% at 0% 0%, rgba(94, 99, 168, 0.55) 0%, rgba(41, 40, 103, 0) 55%),
-    radial-gradient(120% 100% at 100% 100%, rgba(45, 212, 191, 0.18) 0%, rgba(41, 40, 103, 0) 60%),
+    radial-gradient(110% 90% at 0% 0%, rgba(94, 99, 168, 0.55) 0%, transparent 55%),
+    radial-gradient(120% 100% at 100% 100%, rgba(45, 212, 191, 0.18) 0%, transparent 60%),
     linear-gradient(160deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
   color: var(--color-white);
   padding: var(--space-5) var(--space-5) var(--space-5);
@@ -152,7 +152,7 @@
 .balanceChevron {
   flex: 0 0 auto;
   color: rgba(217, 220, 242, 0.7);
-  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
+  transition: transform 0.32s var(--ease-out-expo), color 0.15s ease;
   transform: translateY(-2px);
 }
 
@@ -312,7 +312,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .statGrid {
     padding: var(--space-3);
     gap: var(--space-2);

@@ -21,7 +21,7 @@
 }
 
 .tableScroll::-webkit-scrollbar-thumb {
-  background: rgba(41, 40, 103, 0.2);
+  background: color-mix(in srgb, var(--color-indigo) 20%, transparent);
   border-radius: var(--radius-full);
 }
 
@@ -125,11 +125,11 @@
 }
 
 .tr:hover {
-  background: rgba(41, 40, 103, 0.02);
+  background: color-mix(in srgb, var(--color-indigo) 2%, transparent);
 }
 
 .tr[data-clickable='true']:hover {
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
 }
 
 .td {
@@ -210,7 +210,7 @@ tbody .rowNum {
 .pageSizeSelect:focus {
   outline: none;
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 2px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .pageBtn {

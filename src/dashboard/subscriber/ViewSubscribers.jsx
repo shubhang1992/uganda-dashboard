@@ -1,14 +1,19 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAllEntities } from '../../hooks/useEntity';
-import { formatUGX, fmtShort, EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
+import { formatDate } from '../../utils/date';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { getInitials } from '../../utils/dashboard';
 import { Icons } from '../shared/Icons';
 import MiniChart from '../shared/MiniChart';
 import KpiCard from '../shared/KpiCard';
+import SkeletonRow from '../../components/SkeletonRow';
+import EmptyState from '../../components/EmptyState';
 import styles from './ViewSubscribers.module.css';
 
 
@@ -24,12 +29,6 @@ function kycLabel(status) {
   if (status === 'complete') return 'KYC Verified';
   if (status === 'pending') return 'KYC Pending';
   return 'KYC Incomplete';
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '--';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 /** Compute a balance-like value from contributions minus withdrawals */
@@ -208,9 +207,14 @@ function SubscriberDetail({ subscriber, agentsMap, branchesMap }) {
 export default function ViewSubscribers() {
   const { viewSubscribersOpen, setViewSubscribersOpen } = useDashboard();
 
-  const { data: allSubscribersRaw = [] } = useAllEntities('subscriber');
+  const { data: allSubscribersRaw = [], isLoading: subsLoading } = useAllEntities('subscriber');
   const { data: allAgentsRaw = [] } = useAllEntities('agent');
   const { data: allBranchesRaw = [] } = useAllEntities('branch');
+
+  // Skeleton only on a cold fetch (pending AND no cached rows). Once
+  // the ~30k subscriber list is in the cache we never bounce back to
+  // skeleton during a background refetch.
+  const isCold = subsLoading && allSubscribersRaw.length === 0;
 
   const AGENTS_MAP = useMemo(() => Object.fromEntries(allAgentsRaw.map(a => [a.id, a])), [allAgentsRaw]);
   const BRANCHES_MAP = useMemo(() => Object.fromEntries(allBranchesRaw.map(b => [b.id, b])), [allBranchesRaw]);
@@ -241,10 +245,15 @@ export default function ViewSubscribers() {
     return t;
   }, [allSubscribersRaw]);
 
+  // Debounce the live search input — with ~30k subscribers, running the
+  // filter + sort on every keystroke drops frames. 150ms keeps the input
+  // visibly responsive while collapsing rapid typing into a single recompute.
+  const debouncedSearch = useDebouncedValue(search, 150);
+
   const filtered = useMemo(() => {
     let list = allSubscribersRaw;
-    if (search.trim()) {
-      const q = search.toLowerCase().trim();
+    const q = debouncedSearch.trim().toLowerCase();
+    if (q) {
       list = list.filter((s) =>
         s.name.toLowerCase().includes(q) ||
         s.phone.includes(q)
@@ -257,7 +266,7 @@ export default function ViewSubscribers() {
     }
     const sortOpt = SORT_OPTIONS.find((o) => o.key === sortKey);
     return [...list].sort(sortOpt ? sortOpt.fn : SORT_OPTIONS[0].fn);
-  }, [allSubscribersRaw, search, statusFilter, sortKey]);
+  }, [allSubscribersRaw, debouncedSearch, statusFilter, sortKey]);
 
   const estimateSize = useCallback(() => 72, []);
   const virtualizer = useVirtualizer({
@@ -305,7 +314,7 @@ export default function ViewSubscribers() {
   }
 
   let headerTitle = 'Subscribers';
-  let headerSubtitle = `${allSubscribersRaw.length.toLocaleString()} subscribers across Uganda`;
+  let headerSubtitle = `${formatNumber(allSubscribersRaw.length)} subscribers across Uganda`;
   if (view === 'detail' && selectedSubscriber) {
     headerTitle = selectedSubscriber.name;
     headerSubtitle = `Subscriber${selectedSubscriber.phone ? ` \u00B7 ${selectedSubscriber.phone}` : ''}`;
@@ -365,7 +374,7 @@ export default function ViewSubscribers() {
                       {headerTitle}
                       {view === 'list' && (
                         <span className={styles.filterCount} style={{ marginLeft: 'var(--space-2)', verticalAlign: 'middle' }}>
-                          {allSubscribersRaw.length.toLocaleString()}
+                          {formatNumber(allSubscribersRaw.length)}
                         </span>
                       )}
                     </motion.h2>
@@ -410,15 +419,21 @@ export default function ViewSubscribers() {
                     )}
                   </div>
                   <div style={{ position: 'relative' }} ref={sortBtnRef}>
-                    <button className={styles.filterBtn} data-active={sortKey !== 'balance'} onClick={() => setSortDropOpen((p) => !p)}>
+                    <button
+                      className={styles.filterBtn}
+                      data-active={sortKey !== 'balance'}
+                      aria-haspopup="listbox"
+                      aria-expanded={sortDropOpen}
+                      onClick={() => setSortDropOpen((p) => !p)}
+                    >
                       <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M4 2v12M4 14l-3-3M4 14l3-3M12 14V2M12 2l-3 3M12 2l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       {SORT_OPTIONS.find((o) => o.key === sortKey)?.label || 'Sort'}
                     </button>
                     <AnimatePresence>
                       {sortDropOpen && (
-                        <motion.div className={styles.filterDropdown} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}>
+                        <motion.div role="listbox" aria-label="Sort subscribers" className={styles.filterDropdown} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}>
                           {SORT_OPTIONS.map((opt) => (
-                            <button key={opt.key} className={styles.filterOption} data-selected={sortKey === opt.key} onClick={() => { setSortKey(opt.key); setSortDropOpen(false); }}>
+                            <button key={opt.key} role="option" aria-selected={sortKey === opt.key} className={styles.filterOption} data-selected={sortKey === opt.key} onClick={() => { setSortKey(opt.key); setSortDropOpen(false); }}>
                               {opt.label}
                             </button>
                           ))}
@@ -428,9 +443,15 @@ export default function ViewSubscribers() {
                   </div>
                 </div>
 
-                <div className={styles.statusChips}>
+                <div className={styles.statusChips} role="group" aria-label="Filter subscribers by status">
                   {['all', 'active', 'inactive'].map((s) => (
-                    <button key={s} className={styles.statusChip} data-active={statusFilter === s} onClick={() => setStatusFilter(s)}>
+                    <button
+                      key={s}
+                      className={styles.statusChip}
+                      data-active={statusFilter === s}
+                      aria-pressed={statusFilter === s}
+                      onClick={() => setStatusFilter(s)}
+                    >
                       {s === 'all' ? 'All' : s === 'active' ? 'Active' : 'Inactive'}
                     </button>
                   ))}
@@ -439,17 +460,17 @@ export default function ViewSubscribers() {
                 <div className={styles.summaryStrip}>
                   <div className={styles.summaryChip}>
                     <span className={styles.summaryChipIcon}>{Icons.subscribers}</span>
-                    <span className={styles.summaryChipValue}>{allSubscribersRaw.length.toLocaleString()}</span>
+                    <span className={styles.summaryChipValue}>{formatNumber(allSubscribersRaw.length)}</span>
                     <span className={styles.summaryChipLabel}>Total</span>
                   </div>
                   <div className={styles.summaryChip}>
                     <span className={styles.summaryChipIcon}>{Icons.activeRate}</span>
-                    <span className={styles.summaryChipValue}>{totals.active.toLocaleString()}</span>
+                    <span className={styles.summaryChipValue}>{formatNumber(totals.active)}</span>
                     <span className={styles.summaryChipLabel}>Active</span>
                   </div>
                   <div className={styles.summaryChip}>
                     <span className={styles.summaryChipIcon}>{Icons.aum}</span>
-                    <span className={styles.summaryChipValue}>{fmtShort(totals.totalBalance)}</span>
+                    <span className={styles.summaryChipValue}>{formatUGXShort(totals.totalBalance)}</span>
                     <span className={styles.summaryChipLabel}>Balance</span>
                   </div>
                 </div>
@@ -461,19 +482,29 @@ export default function ViewSubscribers() {
               <AnimatePresence mode="wait">
                 {view === 'list' && (
                   <motion.div key="vs-list" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}>
-                    <div className={styles.listCount}>Showing {filtered.length.toLocaleString()} of {allSubscribersRaw.length.toLocaleString()} subscribers</div>
+                    <div className={styles.listCount}>
+                      {isCold
+                        ? 'Loading subscribers…'
+                        : `Showing ${formatNumber(filtered.length)} of ${formatNumber(allSubscribersRaw.length)} subscribers`}
+                    </div>
 
-                    {filtered.length === 0 ? (
-                      <div className={styles.emptyState}>
-                        <div className={styles.emptyIcon}>
-                          <svg aria-hidden="true" viewBox="0 0 48 48" fill="none" width="48" height="48">
-                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="1.5" />
-                            <path d="M16 20h16M16 28h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                        </div>
-                        <div className={styles.emptyTitle}>No subscribers found</div>
-                        <div className={styles.emptyDesc}>Try adjusting your search or filters</div>
-                      </div>
+                    {isCold ? (
+                      <SkeletonRow count={10} label="Loading subscribers" />
+                    ) : filtered.length === 0 ? (
+                      // No filters → truly empty list; with filters → no match.
+                      debouncedSearch.trim() === '' && statusFilter === 'all' ? (
+                        <EmptyState
+                          kind="no-data"
+                          title="No subscribers yet."
+                          body="Subscribers onboarded by agents will appear here."
+                        />
+                      ) : (
+                        <EmptyState
+                          kind="no-match"
+                          title="No subscribers match"
+                          body="Try adjusting your search or filters."
+                        />
+                      )
                     ) : (
                       <div
                         className={styles.virtualList}
@@ -512,7 +543,7 @@ export default function ViewSubscribers() {
                               </div>
                               <div className={styles.subStats}>
                                 <div className={styles.stat}>
-                                  <span className={styles.statValue}>{fmtShort(balance)}</span>
+                                  <span className={styles.statValue}>{formatUGXShort(balance)}</span>
                                   <span className={styles.statLabel}>Balance</span>
                                 </div>
                               </div>

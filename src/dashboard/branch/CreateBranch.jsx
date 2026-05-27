@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAllEntities } from '../../hooks/useEntity';
+import { useAllEntities, useCreateBranch } from '../../hooks/useEntity';
+import { useToast } from '../../contexts/ToastContext';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { isValidUGPhone } from '../../utils/phone';
 import { useDashboard } from '../../contexts/DashboardContext';
@@ -150,6 +151,8 @@ function SearchableSelect({ options, value, onChange, placeholder, allowCustom, 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export default function CreateBranch() {
   const { createBranchOpen, setCreateBranchOpen } = useDashboard();
+  const createBranch = useCreateBranch();
+  const { addToast } = useToast();
 
   // Entity data via hooks
   const { data: allDistrictsRaw = [] } = useAllEntities('district');
@@ -250,8 +253,21 @@ export default function CreateBranch() {
     setStep((s) => Math.max(s - 1, 0));
   }
 
-  function handleConfirm() {
-    setSuccess(true);
+  async function handleConfirm() {
+    if (createBranch.isPending) return;
+    try {
+      await createBranch.mutateAsync({
+        name: branchName.trim(),
+        districtId: district?.id,
+        adminName: adminName.trim(),
+        adminPhone: adminPhone ? `+256${adminPhone}` : null,
+        adminEmail: adminEmail.trim() || null,
+        status: 'active',
+      });
+      setSuccess(true);
+    } catch (err) {
+      addToast('error', err?.message || 'Could not create branch.');
+    }
   }
 
   function handlePhoneChange(e) {
@@ -646,8 +662,13 @@ export default function CreateBranch() {
                       Continue
                     </button>
                   ) : (
-                    <button className={styles.confirmBtn} onClick={handleConfirm} type="button">
-                      Create Branch
+                    <button
+                      className={styles.confirmBtn}
+                      onClick={handleConfirm}
+                      type="button"
+                      disabled={createBranch.isPending}
+                    >
+                      {createBranch.isPending ? 'Creating…' : 'Create Branch'}
                     </button>
                   )}
                 </div>

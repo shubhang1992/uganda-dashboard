@@ -1,8 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { formatUGX, EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatUGX, formatNumber } from '../../utils/currency';
 import { getChatResponse } from '../../services/chat';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useToast } from '../../contexts/ToastContext';
 import styles from './BranchHealthScore.module.css';
 
 /* ── Derived metrics ── */
@@ -207,6 +209,7 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
   }
 
   const alerts = useMemo(() => computeAlerts(metrics, commissionSummary), [metrics, commissionSummary]);
+  const { addToast } = useToast();
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [copilotUserToggled, setCopilotUserToggled] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -244,9 +247,14 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
     setMessages((prev) => [...prev, { role: 'user', text: msg }]);
     setChatInput('');
     setIsTyping(true);
-    getChatResponse(msg).then((response) => {
-      setTimeout(() => { setIsTyping(false); setMessages((prev) => [...prev, { role: 'assistant', text: response }]); }, 900);
-    });
+    getChatResponse(msg)
+      .then((response) => {
+        setTimeout(() => { setIsTyping(false); setMessages((prev) => [...prev, { role: 'assistant', text: response }]); }, 900);
+      })
+      .catch((err) => {
+        setIsTyping(false);
+        addToast('error', err?.message || 'Copilot is unavailable — please try again.');
+      });
   }
 
   return (
@@ -308,7 +316,7 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
             <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openReport('all-subscribers')}>
               <span className={styles.metricLabel}>Subscribers</span>
               <div className={styles.metricRow}>
-                <span className={styles.metricValueMd}>{(metrics.totalSubscribers || 0).toLocaleString()}</span>
+                <span className={styles.metricValueMd}>{formatNumber(metrics.totalSubscribers || 0)}</span>
                 <span className={styles.metricSub}>{metrics.activeSubscribers || 0} active</span>
               </div>
             </button>
@@ -359,17 +367,49 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
             </span>
           </div>
           <div className={styles.activityFeed}>
-            {events.map((event, i) => (
-              <motion.div key={event.id} className={styles.activityItem}
-                initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: 0.6 + i * 0.05, ease: EASE_OUT_EXPO }}>
-                <span className={styles.activityDot} data-type={event.type} />
-                <div className={styles.activityContent}>
-                  <span className={styles.activityText}>{event.text}</span>
-                  <span className={styles.activityTime}>{timeAgo(event.time)}</span>
-                </div>
+            {events.length === 0 ? (
+              // Hero is on the dark/indigo gradient — render an inline empty
+              // state styled to match (rather than the lavender-on-cloud
+              // <EmptyState />) so it reads as part of the panel.
+              <motion.div
+                className={styles.activityEmpty}
+                role="status"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.5, ease: EASE_OUT_EXPO }}
+              >
+                <span className={styles.activityEmptyIllustration} aria-hidden="true">
+                  <svg viewBox="0 0 56 32" width="56" height="32" fill="none">
+                    <path
+                      d="M2 24 Q10 14 18 22 T34 18 T54 22"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      opacity="0.45"
+                    />
+                    <circle cx="14" cy="20" r="1.5" fill="currentColor" opacity="0.65" />
+                    <circle cx="28" cy="16" r="1.5" fill="currentColor" opacity="0.5" />
+                    <circle cx="44" cy="20" r="1.5" fill="currentColor" opacity="0.4" />
+                  </svg>
+                </span>
+                <span className={styles.activityEmptyTitle}>No activity yet today</span>
+                <span className={styles.activityEmptySub}>
+                  Onboarding events and collections will appear here as they happen.
+                </span>
               </motion.div>
-            ))}
+            ) : (
+              events.map((event, i) => (
+                <motion.div key={event.id} className={styles.activityItem}
+                  initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: 0.6 + i * 0.05, ease: EASE_OUT_EXPO }}>
+                  <span className={styles.activityDot} data-type={event.type} />
+                  <div className={styles.activityContent}>
+                    <span className={styles.activityText}>{event.text}</span>
+                    <span className={styles.activityTime}>{timeAgo(event.time)}</span>
+                  </div>
+                </motion.div>
+              ))
+            )}
           </div>
         </div>
       </div>

@@ -15,10 +15,10 @@
      then the elevation. */
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 0 0 1px rgba(41, 40, 103, 0.02) inset,
-    0 1px 2px rgba(41, 40, 103, 0.04),
-    0 10px 32px rgba(41, 40, 103, 0.06),
-    0 28px 60px -24px rgba(41, 40, 103, 0.14);
+    0 0 0 1px color-mix(in srgb, var(--color-indigo) 2%, transparent) inset,
+    0 1px 2px color-mix(in srgb, var(--color-indigo) 4%, transparent),
+    0 10px 32px color-mix(in srgb, var(--color-indigo) 6%, transparent),
+    0 28px 60px -24px color-mix(in srgb, var(--color-indigo) 14%, transparent);
   padding: var(--space-6) var(--space-7);
   isolation: isolate;
 }
@@ -182,7 +182,7 @@
 .textarea:focus {
   outline: none;
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .input[data-error="true"],
@@ -218,7 +218,7 @@
 
 .phoneGroup:focus-within {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .phoneGroup[data-error="true"] {
@@ -230,7 +230,7 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0 0.9rem;
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
   border-right: 1px solid var(--color-lavender);
   font-family: var(--font-display);
   font-size: var(--text-sm);
@@ -277,7 +277,7 @@
 .segmentBtn[data-active="true"] {
   border-color: var(--color-indigo);
   color: var(--color-indigo);
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
 }
 
 .segmentBtn:hover {
@@ -309,8 +309,8 @@
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.18) inset,
     0 -1px 0 rgba(0, 0, 0, 0.12) inset,
-    0 6px 16px rgba(41, 40, 103, 0.22),
-    0 16px 32px -12px rgba(41, 40, 103, 0.32);
+    0 6px 16px color-mix(in srgb, var(--color-indigo) 22%, transparent),
+    0 16px 32px -12px color-mix(in srgb, var(--color-indigo) 32%, transparent);
   transition: transform 0.2s var(--ease-out-expo), box-shadow 0.2s var(--ease-out-expo);
 }
 
@@ -319,8 +319,8 @@
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.2) inset,
     0 -1px 0 rgba(0, 0, 0, 0.12) inset,
-    0 10px 24px rgba(41, 40, 103, 0.3),
-    0 22px 40px -14px rgba(41, 40, 103, 0.4);
+    0 10px 24px color-mix(in srgb, var(--color-indigo) 30%, transparent),
+    0 22px 40px -14px color-mix(in srgb, var(--color-indigo) 40%, transparent);
 }
 
 .submit:active {
@@ -331,7 +331,7 @@
   opacity: 0.55;
   cursor: not-allowed;
   transform: none;
-  box-shadow: 0 2px 8px rgba(41, 40, 103, 0.14);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-indigo) 14%, transparent);
 }
 
 .secondaryBtn {
@@ -348,14 +348,56 @@
   color: var(--color-indigo);
 }
 
+/* ── Password input + show/hide toggle ─────────────────────────────────
+   Used on ReviewStep for the "Create your password" subsection. The wrapper
+   stays relative so the eye-icon button can absolute-position over the input's
+   right padding. */
+.passwordWrap {
+  position: relative;
+}
+
+.toggleBtn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 6px;
+  color: var(--color-gray);
+  border-radius: var(--radius-sm);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.toggleBtn:hover {
+  color: var(--color-indigo);
+}
+
+.toggleBtn:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 2px;
+}
+
+.strengthHint {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  margin-top: 0.25rem;
+}
+
 /* ── Mobile ──────────────────────────────────────────────────────────── */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .card {
     padding: var(--space-5) var(--space-5);
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.9) inset,
-      0 1px 2px rgba(41, 40, 103, 0.04),
-      0 8px 24px rgba(41, 40, 103, 0.06);
+      0 1px 2px color-mix(in srgb, var(--color-indigo) 4%, transparent),
+      0 8px 24px color-mix(in srgb, var(--color-indigo) 6%, transparent);
   }
 
   .heading {

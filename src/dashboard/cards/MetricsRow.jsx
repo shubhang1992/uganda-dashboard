@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { useCurrentEntity } from '../../hooks/useEntity';
+import { useCurrentEntity, useEntityMetrics } from '../../hooks/useEntity';
 import { getChatResponse } from '../../services/chat';
 import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
 import styles from './MetricsRow.module.css';
 
 const SUGGESTIONS = ['Top agents?', 'Coverage by region?', 'Active subscribers?', 'Gender split?'];
@@ -166,6 +167,44 @@ function AgeBarChart({ distribution }) {
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 const item = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } } };
 
+// ── Skeleton row ───────────────────────────────────────────────────────────
+// Rendered while the entity query is still resolving (cold-load on a fresh
+// distributor session). Mirrors the live row's geometry — two cards, each
+// ~340px wide on desktop — so first-paint width is stable and nothing reflows
+// when metrics arrive. `aria-busy="true"` and `role="status"` make the state
+// announceable for screen readers without spamming the DOM with live-region
+// updates.
+function MetricsRowSkeleton() {
+  return (
+    <div
+      className={styles.rowWrap}
+      role="status"
+      aria-busy="true"
+      aria-label="Loading network metrics"
+    >
+      <div className={styles.row}>
+        {/* 4 grey cards per the brief — two visible at-a-glance on a wide
+            viewport, the other two left in the DOM for layout symmetry +
+            scrolling on narrower widths. */}
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className={styles.skeletonCard} aria-hidden="true">
+            <div className={`${styles.skeletonLine} ${styles.skeletonHead}`} />
+            <div className={styles.skeletonLine} style={{ width: '80%' }} />
+            <div className={styles.skeletonLine} data-tone="dim" style={{ width: '64%' }} />
+            <div className={styles.skeletonChartRow}>
+              <div className={styles.skeletonBar} />
+              <div className={styles.skeletonBar} />
+              <div className={styles.skeletonBar} />
+              <div className={styles.skeletonBar} />
+              <div className={styles.skeletonBar} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function MetricsRow() {
   const {
     level, selectedIds,
@@ -174,8 +213,22 @@ export default function MetricsRow() {
     commissionsOpen, settingsOpen, viewReportsOpen,
     createBranchOpen,
   } = useDashboard();
-  const { data: entity } = useCurrentEntity(level, selectedIds);
-  const metrics = entity?.metrics;
+  const { data: entity, isLoading: entityLoading } = useCurrentEntity(level, selectedIds);
+
+  // Per-level metrics rollup. At any level (country/region/district/branch/
+  // agent), useEntityMetrics returns the full 8-field rollup from
+  // get_entity_metrics_rollup. Replaces the EMPTY_METRICS zeros that the
+  // entity mappers return otherwise. useDistributorMetrics retired in PR-2;
+  // useEntityMetrics('country','ug') is the canonical country read.
+  const parentId = level === 'country' ? 'ug' : selectedIds[level];
+  const { data: entityMetrics } = useEntityMetrics(level, parentId);
+
+  const metrics = useMemo(() => {
+    const base = entity?.metrics || null;
+    if (entityMetrics) return { ...(base || {}), ...entityMetrics };
+    return base;
+  }, [entity, entityMetrics]);
+
   const [expanded, setExpanded] = useState(null);
 
   // Cards start collapsed — user opens explicitly via header toggle
@@ -186,21 +239,26 @@ export default function MetricsRow() {
     setExpanded((prev) => prev === card ? null : card);
   }
 
-  if (!metrics) return null;
-  const totalSubs = metrics.totalSubscribers || 0;
-
-  const hidden =
+  // Loading skeleton — shown while the entity query is still resolving.
+  // Previously the entire row was hidden via `return null`, which made the
+  // distributor dashboard feel "missing" rather than "loading" on cold load.
+  const hiddenForPanels =
     branchMenuOpen || agentMenuOpen || subscriberMenuOpen ||
     viewBranchesOpen || viewAgentsOpen || viewSubscribersOpen ||
     commissionsOpen || settingsOpen || viewReportsOpen ||
     createBranchOpen;
+  if (!metrics) {
+    if (entityLoading && !hiddenForPanels) return <MetricsRowSkeleton />;
+    return null;
+  }
+  const totalSubs = metrics.totalSubscribers || 0;
 
   return (
     <motion.div
       className={styles.rowWrap}
-      animate={{ y: hidden ? 'calc(100% + 2rem)' : 0, opacity: hidden ? 0 : 1 }}
+      animate={{ y: hiddenForPanels ? 'calc(100% + 2rem)' : 0, opacity: hiddenForPanels ? 0 : 1 }}
       transition={{ duration: 0.45, ease: EASE }}
-      style={{ pointerEvents: hidden ? 'none' : undefined }}
+      style={{ pointerEvents: hiddenForPanels ? 'none' : undefined }}
     >
     <motion.div
       className={styles.row}
@@ -271,19 +329,19 @@ export default function MetricsRow() {
                     <div className={styles.expandSubtitle}>Gender (count)</div>
                     <div className={styles.expandGrid}>
                       <div className={styles.expandItem}>
-                        <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.male || 0) / 100).toLocaleString()}</span>
+                        <span className={styles.expandNum}>{formatNumber(totalSubs * (metrics.genderRatio?.male || 0) / 100)}</span>
                         <span className={styles.expandLabel}>Male</span>
                       </div>
                       <div className={styles.expandItem}>
-                        <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.female || 0) / 100).toLocaleString()}</span>
+                        <span className={styles.expandNum}>{formatNumber(totalSubs * (metrics.genderRatio?.female || 0) / 100)}</span>
                         <span className={styles.expandLabel}>Female</span>
                       </div>
                       <div className={styles.expandItem}>
-                        <span className={styles.expandNum}>{Math.round(totalSubs * (metrics.genderRatio?.other || 0) / 100).toLocaleString()}</span>
+                        <span className={styles.expandNum}>{formatNumber(totalSubs * (metrics.genderRatio?.other || 0) / 100)}</span>
                         <span className={styles.expandLabel}>Other</span>
                       </div>
                       <div className={styles.expandItem}>
-                        <span className={styles.expandNum}>{totalSubs.toLocaleString()}</span>
+                        <span className={styles.expandNum}>{formatNumber(totalSubs)}</span>
                         <span className={styles.expandLabel}>Total</span>
                       </div>
                     </div>
@@ -291,7 +349,7 @@ export default function MetricsRow() {
                     <div className={styles.expandGrid}>
                       {Object.entries(metrics.ageDistribution || {}).map(([bracket, count]) => (
                         <div key={bracket} className={styles.expandItem}>
-                          <span className={styles.expandNum}>{count.toLocaleString()}</span>
+                          <span className={styles.expandNum}>{formatNumber(count)}</span>
                           <span className={styles.expandLabel}>{bracket}</span>
                         </div>
                       ))}

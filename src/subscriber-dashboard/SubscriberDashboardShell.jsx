@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { DashboardNavProvider } from '../contexts/DashboardNavContext';
+import { SubscriberPanelProvider } from './SubscriberPanelContext';
 import SubscriberShell from './shell/SubscriberShell';
 import HomePage from './home/HomePage';
 import styles from './SubscriberDashboardShell.module.css';
@@ -38,30 +40,41 @@ function PageFallback() {
 export default function SubscriberDashboardShell() {
   const { role } = useAuth();
   if (role !== 'subscriber') return <Navigate to="/dashboard" replace />;
+  // Mount the subscriber-scoped panel provider (wraps the generic
+  // DashboardPanelProvider). The shared <Settings /> slide-in panel inside
+  // SubscriberShell continues to read settingsOpen / setSettingsOpen via
+  // useDashboard() against the generic layer; the wrapper keeps a seam open
+  // for future subscriber-only panel state (F5 — DASHBOARD_AUDIT.md #27).
+  // DashboardNavProvider stays mounted because DashboardPanelProvider depends
+  // on it (drill-target refs, onPanelActionRef registration).
   return (
-    <Routes>
-      <Route element={<SubscriberShell />}>
-        <Route index element={<HomePage />} />
-        <Route path="save" element={<Suspense fallback={<PageFallback />}><SavePage /></Suspense>} />
-        <Route path="save/schedule" element={<Suspense fallback={<PageFallback />}><SchedulePage /></Suspense>} />
-        <Route path="withdraw" element={<Suspense fallback={<PageFallback />}><WithdrawalsHubPage /></Suspense>} />
-        <Route path="withdraw/savings" element={<Suspense fallback={<PageFallback />}><WithdrawPage /></Suspense>} />
-        <Route path="withdraw/claim" element={<Suspense fallback={<PageFallback />}><ClaimPage /></Suspense>} />
-        <Route path="claim" element={<Navigate to="/dashboard/withdraw/claim" replace />} />
-        <Route path="projection" element={<Suspense fallback={<PageFallback />}><ProjectionPage /></Suspense>} />
-        <Route path="activity" element={<Navigate to="/dashboard/reports/all-transactions" replace />} />
-        <Route path="reports" element={<Suspense fallback={<PageFallback />}><ReportsPage /></Suspense>} />
-        <Route path="reports/:reportId" element={<Suspense fallback={<PageFallback />}><ReportsPage /></Suspense>} />
-        <Route path="help" element={<Suspense fallback={<PageFallback />}><HelpPage /></Suspense>} />
-        <Route path="agent" element={<Suspense fallback={<PageFallback />}><AgentPage /></Suspense>} />
-        <Route path="settings" element={<Suspense fallback={<PageFallback />}><SettingsPage /></Suspense>} />
-        <Route path="settings/profile" element={<Suspense fallback={<PageFallback />}><ProfilePage /></Suspense>} />
-        <Route path="settings/nominees" element={<Suspense fallback={<PageFallback />}><NomineesPage /></Suspense>} />
-        <Route path="settings/insurance" element={<Suspense fallback={<PageFallback />}><InsurancePage /></Suspense>} />
-        <Route path="settings/notifications" element={<Suspense fallback={<PageFallback />}><StubPage title="Notifications" /></Suspense>} />
-        <Route path="settings/security" element={<Suspense fallback={<PageFallback />}><StubPage title="Security" /></Suspense>} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Route>
-    </Routes>
+    <DashboardNavProvider>
+      <SubscriberPanelProvider>
+        <Routes>
+          <Route element={<SubscriberShell />}>
+            <Route index element={<HomePage />} />
+            <Route path="save" element={<Suspense fallback={<PageFallback />}><SavePage /></Suspense>} />
+            <Route path="save/schedule" element={<Suspense fallback={<PageFallback />}><SchedulePage /></Suspense>} />
+            <Route path="withdraw" element={<Suspense fallback={<PageFallback />}><WithdrawalsHubPage /></Suspense>} />
+            <Route path="withdraw/savings" element={<Suspense fallback={<PageFallback />}><WithdrawPage /></Suspense>} />
+            <Route path="withdraw/claim" element={<Suspense fallback={<PageFallback />}><ClaimPage /></Suspense>} />
+            <Route path="claim" element={<Navigate to="/dashboard/withdraw/claim" replace />} />
+            <Route path="projection" element={<Suspense fallback={<PageFallback />}><ProjectionPage /></Suspense>} />
+            <Route path="activity" element={<Navigate to="/dashboard/reports/all-transactions" replace />} />
+            <Route path="reports" element={<Suspense fallback={<PageFallback />}><ReportsPage /></Suspense>} />
+            <Route path="reports/:reportId" element={<Suspense fallback={<PageFallback />}><ReportsPage /></Suspense>} />
+            <Route path="help" element={<Suspense fallback={<PageFallback />}><HelpPage /></Suspense>} />
+            <Route path="agent" element={<Suspense fallback={<PageFallback />}><AgentPage /></Suspense>} />
+            <Route path="settings" element={<Suspense fallback={<PageFallback />}><SettingsPage /></Suspense>} />
+            <Route path="settings/profile" element={<Suspense fallback={<PageFallback />}><ProfilePage /></Suspense>} />
+            <Route path="settings/nominees" element={<Suspense fallback={<PageFallback />}><NomineesPage /></Suspense>} />
+            <Route path="settings/insurance" element={<Suspense fallback={<PageFallback />}><InsurancePage /></Suspense>} />
+            <Route path="settings/notifications" element={<Suspense fallback={<PageFallback />}><StubPage title="Notifications" /></Suspense>} />
+            <Route path="settings/security" element={<Suspense fallback={<PageFallback />}><StubPage title="Security" /></Suspense>} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Route>
+        </Routes>
+      </SubscriberPanelProvider>
+    </DashboardNavProvider>
   );
 }

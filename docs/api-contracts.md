@@ -1,549 +1,217 @@
 # Universal Pensions Uganda — API Contracts
 
-> This document maps every frontend service function to its intended REST API endpoint.
-> It describes request parameters, response shapes, callers, cache keys, and invalidation rules.
-> The frontend uses React Query for caching. Endpoint paths are inferred from service function comments and usage patterns.
+Current request/response contract for the platform's backend surface. The old `~30-route REST` design has been archived in `docs/archive/api-contracts-2024-original.md` — it described an aspirational shape that was never built. The real surface is much smaller:
+
+1. **14 API routes** under `api/` (Vercel-shape TypeScript handlers, now mounted by `server/index.ts` on **Render Express** at `https://uganda-dashboard-api.onrender.com`. The Vercel-style request/response signature is preserved via the `toExpress(handler)` adapter in `server/adapter.ts`).
+2. **Supabase RPCs** (PostgreSQL `SECURITY DEFINER` functions) called via `supabase.rpc(name, args)` from the frontend with the user's HS256-signed JWT.
+3. **PostgREST direct table reads** governed by row-level security policies (no writes — writes always go through RPCs).
+
+Cross-references:
+- `BACKEND.md §3-§5` — full route inventory, error vocabulary, auth flow.
+- `BACKEND.md §8` — RLS policies and the `auth.jwt() ->> 'app_role'` rule.
+- `BACKEND.md §9-§10` — RPC catalogue + commission state machine.
+- `ARCHITECTURE.md` — high-level write/read patterns, auth model.
 
 ---
 
-## 1. Authentication
+## 1. Conventions
 
-### POST /api/auth/send-otp
-- **Service Function:** `sendOtp(phone, role)`
-- **Request Body:** `{ "phone": "7XXXXXXXX", "role": "subscriber|employer|distributor|branch|agent|admin" }`
-- **Response:** `{ "success": true }`
-- **Called By:** `SignInModal → PhoneEntry` component directly
-- **Cache Key:** None (not cached)
-- **Notes:** Phone should be validated as a 9-digit Ugandan number. Role is needed to determine OTP delivery method or scoping.
+### 1.1 Error envelope
 
-### POST /api/auth/verify-otp
-- **Service Function:** `verifyOtp(phone, otp, role)`
-- **Request Body:** `{ "phone": "7XXXXXXXX", "otp": "123456", "role": "branch" }`
-- **Response:** `{ "token": "jwt-string", "user": { "phone": "...", "role": "...", "name": "...", "branchId?": "...", "agentId?": "..." } }`
-- **Called By:** `SignInModal → OtpVerify` component directly
-- **Cache Key:** None
-- **Notes:**
-  - For `branch` role: response MUST include `branchId`
-  - For `agent` role: response should include `agentId`
-  - For `distributor` role: may include `distributorId` if multi-distributor
-  - Token stored in localStorage as `upensions_token`
-  - User object stored in localStorage as `upensions_auth`
+All 14 API routes return errors as JSON in the form:
 
-### hasDashboard(role) — Client-side only
-- **Not an API endpoint** — client-side guard checking if role is in `['distributor', 'branch', 'subscriber', 'agent']`
-- Backend should enforce equivalent authorization on protected endpoints
+```json
+{ "code": "snake_case_reason", "message": "optional human string" }
+```
 
-### Auth error shape
-- `verifyOtp` (and any auth-related endpoint) must reject with the canonical `AuthError` shape: `{ code: 'invalid_otp' | 'rate_limited' | 'locked', message?: string, retryAfterSeconds?: number }`.
-- The client (`OtpVerify`) maps each `code` to a specific user-facing message. Rate-limit / locked responses freeze the form until the resend cooldown elapses.
+`code` is always present and machine-stable. `message` is optional and only set when the body carries useful operator context (e.g. a propagated Supabase error code). The frontend's `services/api.js` fetch wrapper raises an `Error` with `.code` and `.status` set so callers can branch on `err.code === 'invalid_otp'` etc. See `BACKEND.md §3` for the full vocabulary.
 
----
+### 1.2 Auth header
 
-## 2. Entities
+Every route except the auth-related ones (`send-otp`, `verify-otp`, `verify-password`) and the public ones (`contact`, all `kyc/*` during signup) accepts:
 
-### GET /api/country
-- **Service Function:** `getCountry()`
-- **Response:** `{ "id": "ug", "name": "Uganda", "center": [32.3, 1.4], "metrics": { ...Metrics } }`
-- **Called By:** `OverlayPanel → useCountry()`, `DistributionSummary` report
-- **Cache Key:** `['country']`
-- **Invalidated By:** None (country data is relatively static; metrics update on data changes)
+```
+Authorization: Bearer <jwt>
+```
 
-### GET /api/entities/:level/:id
-- **Service Function:** `getEntity(level, id)`
-- **Path Params:** `level` = region|district|branch|agent|subscriber, `id` = entity ID
-- **Response:** Entity object (shape varies by level — see data-model.md)
-- **Called By:** `OverlayPanel → useEntity()`, `BranchOverview → useEntity()`, various detail views
-- **Cache Key:** `['entity', level, id]`
-- **Invalidated By:** Entity mutations (createBranch, etc.)
-- **Notes:** Should return 404 if entity not found. Enabled only when `id` and `level` exist and `level !== 'country'`.
+JWT is HS256, custom-signed (not Supabase Auth — see `BACKEND.md §6`). Claims include `phone`, `app_role`, plus the role-scoped ID (`subscriberId` / `agentId` / `branchId` / `distributorId`). 401 on the server triggers `onAuthExpired` on the client, clearing `localStorage` and redirecting home.
 
-### GET /api/entities/:level/:parentId/children
-- **Service Function:** `getChildren(level, parentId)`
-- **Path Params:** `level` = parent's level, `parentId` = parent's ID
-- **Response:** `Array<Entity>` — all direct children at next hierarchy level
-- **Called By:** `OverlayPanel → useChildren()`, `BranchOverview → useChildren()`, `ContributionsCollections`, `WithdrawalsPayouts`, `SubscriberGrowth`, `SubscriberDemographics`, `KycCompliance` (when branch-scoped — fetches agents under branch)
-- **Cache Key:** `['children', level, parentId]`
-- **Invalidated By:** `createBranch` mutation
-- **Notes:** Enabled only when `parentId` exists.
+### 1.3 Cache headers
 
-### GET /api/entities/:level
-- **Service Function:** `getAllAtLevel(level)`
-- **Path Params:** `level` = region|district|branch|agent|subscriber
-- **Response:** `Array<Entity>` — all entities at that level
-- **Called By:** Report views: `AllBranches → useAllEntities('branch')`, `AllAgents → useAllEntities('agent')`, `AllSubscribers → useAllEntities('subscriber')`, `DistributionSummary → useAllEntities('region')`, and multiple reports using `useAllEntitiesMap()`
-- **Cache Key:** `['entities', level]`
-- **Invalidated By:** `createBranch` mutation (for branch level)
-- **Pagination Notes:**
-  - `region` (4 items) — no pagination needed
-  - `district` (135 items) — no pagination needed
-  - `branch` (~314 items) — client-side OK
-  - `agent` (~500+ items) — client-side OK for now, server-side recommended at scale
-  - `subscriber` (~30,000 items) — **MUST have server-side pagination** in production. Current client loads all into memory.
+Every auth handler and the chat/contact handlers set `Cache-Control: no-store` on **every** response path (B13 in the audit). KYC routes don't currently set this; they hit no DB so caching by accident is harmless, but the convention is to add it on any route that touches user-scoped state.
 
-### GET /api/entities/:level (as map)
-- **Service Function:** `getAllAtLevelMap(level)`
-- **Response:** Same data as `getAllAtLevel` but restructured as `{ [id]: Entity }` on the client
-- **Called By:** Report views for parent name resolution (e.g., agent → branch name lookup)
-- **Cache Key:** `['entitiesMap', level]`
-- **Notes:** This is a client-side reshaping of `getAllAtLevel`. Backend returns the same array; the hook converts it to a map. Could be replaced by embedding parent names in entity responses.
+### 1.4 Demo scope (do not propose fixes)
 
-### GET /api/entities/:level/:id/parent
-- **Service Function:** `getParent(level, id)`
-- **Response:** Parent entity object or `null`
-- **Called By:** Not directly cached — used internally
-- **Notes:** In production, consider embedding parent info in the entity response to eliminate this call.
-
-### GET /api/entities/:level/:parentId/top-branch
-- **Service Function:** `getTopPerformingBranch(level, parentId)`
-- **Path Params:** `level` = country|region|district, `parentId` = entity ID
-- **Response:** `{ "name": "Branch Name", "contribution": 1234567 }` or `null`
-- **Called By:** `OverlayPanel → useTopBranch()` — "Top Branch" metric card
-- **Cache Key:** `['topBranch', level, parentId]`
-- **Notes:** Returns the branch with the highest `monthlyContributions[11]` (latest month) within scope. Enabled when both `level` and `parentId` exist.
-
-### GET /api/breadcrumb
-- **Service Function:** `getBreadcrumb(currentLevel, selectedIds)`
-- **Query Params:** `level` = current level, `ids` = JSON-encoded `{ level: id }` map
-- **Response:** `Array<{ level: string, id: string, name: string }>` — path from country to current
-- **Called By:** `Breadcrumb → useBreadcrumb()` in distributor dashboard
-- **Cache Key:** `['breadcrumb', currentLevel, selectedIds]`
-- **Notes:** Disabled at country level. In production, could be derived from entity ancestor chain.
-
-### POST /api/branches
-- **Service Function:** `createBranch(data)`
-- **Request Body:** `{ "name": "Branch Name", "districtId": "d-xxx", "cityTown": "Town", "address": "...", "landmark?": "...", "poBox?": "...", "adminName": "...", "adminPhone": "7XXXXXXXX", "adminEmail?": "..." }`
-- **Response:** `{ "id": "b-new-xxx", "status": "active", "metrics": null, ...data }`
-- **Called By:** `CreateBranch → useCreateBranch()` mutation
-- **Cache Key:** Invalidates: `['entities', 'branch']`, `['children']`
-- **Notes:** Should also create a user account for the admin (role: 'branch') and send SMS credentials.
-
-### POST /api/agents
-- **Service Function:** Not yet in services (CreateAgent component exists in branch dashboard)
-- **Request Body (inferred from UI):** `{ "fullName": "...", "phone": "7XXXXXXXX", "email?": "...", "gender": "male|female", "idNumber?": "...", "branchId": "b-xxx" }`
-- **Response:** `{ "id": "a-new-xxx", "status": "active", "metrics": null, ...data }`
-- **Notes:** Inferred from `CreateAgent.jsx`. Should create agent entity + user account (role: 'agent') and send SMS credentials. Branch Admin and Distributor Admin can perform this action.
-
-### GET /api/search?q=:query
-- **Service Function:** `searchEntities(query)`
-- **Query Params:** `q` = search string (min 2 chars)
-- **Response:** `Array<{ id: string, name: string, level: string, label: string, parentId: string }>` — max 8 results
-- **Called By:** `TopBar search → useSearch()` (distributor dashboard)
-- **Cache Key:** `['search', query]`
-- **Notes:** Searches regions, districts, branches, agents by name. Does NOT search subscribers. In production: implement full-text search with relevance scoring. Consider Elasticsearch or PostgreSQL `tsvector`.
-
-### getEntitySync(level, id) — Client-side only
-- **Not an API endpoint** — synchronous lookup used by `DashboardContext` for URL → state derivation
-- In production: embed ancestor IDs in entity responses, or encode full path in URL
+CLAUDE.md §10a is the canonical list. Relevant to this doc:
+- `verify-otp` accepts any 6-digit code.
+- KYC routes are stateless Smile-ID-v2-shaped mocks with simulated latency. Pass `x-qa-force` headers to force failure paths.
+- `chat` is a keyword-matching mock; no LLM.
+- `contact` writes to `contact_submissions` but no email is dispatched.
 
 ---
 
-## 3. Commissions
+## 2. API routes (14 total)
 
-### GET /api/commissions/rate
-- **Service Function:** `getCommissionRate()`
-- **Response:** `5000` (number — UGX per subscriber)
-- **Called By:** `CommissionPanel → useCommissionRate()`
-- **Cache Key:** `['commissionRate']`
+All routes live under `api/` and are served by Express on Render — `server/index.ts` mounts each handler via `app.all('/api/...', toExpress(<handler>))`. (`app.all` instead of `app.post` preserves the per-handler manual 405 contract.) All return JSON. All accept only `POST` unless noted; non-POST returns 405 `{ code: 'method_not_allowed' }` with an `Allow: POST` header. Frontend points at `VITE_API_BASE_URL` (`http://localhost:3001/api` in local dev, absolute Render URL in prod).
 
-### PUT /api/commissions/rate
-- **Service Function:** `setCommissionRate(amount)`
-- **Request Body:** `{ "amount": 6000 }`
-- **Response:** `6000` (the updated rate)
-- **Called By:** `CommissionPanel → useSetCommissionRate()` mutation
-- **Cache Key:** Invalidates: `['commissionRate']`
-- **Scope:** Distributor only
+### 2.1 Auth (4 routes — `api/auth/`)
 
-### GET /api/commissions/summary
-- **Service Function:** `getCommissionSummary(branchId)`
-- **Query Params:** `branchId` (optional)
-- **Response:** `{ "totalCommissions": number, "totalPaid": number, "totalDue": number, "totalDisputed": number, "totalRequested": number, "countTotal": number, "countPaid": number, "countDue": number, "countDisputed": number, "countRequested": number }`
-- **Called By:** `CommissionPanel → useCommissionSummary()`
-- **Cache Key:** `['commissionSummary', branchId || 'all']`
-- **Invalidated By:** All settlement and dispute mutations
+#### `POST /api/auth/send-otp`
+Dev-bypass stub — no SMS provider. Validates phone shape + role enum and returns success so the OTP entry step proceeds.
 
-### GET /api/commissions/agents
-- **Service Function:** `getAgentCommissionList(statusFocus)`
-- **Query Params:** `status` (optional: paid|due|disputed)
-- **Response:** `Array<{ agentId, agentName, branchId, branchName, totalCommissions, totalPaid, totalDue, subscribersOnboarded, activeSubscribers, filteredAmount, filteredCount }>`
-- **Called By:** `CommissionPanel → useAgentCommissionList()`
-- **Cache Key:** `['agentCommissions', statusFocus || 'all']`
-- **Invalidated By:** All commission mutations
-- **Pagination:** ~500 agents — consider server-side pagination at scale
+- **Body:** `{ phone: string, role: 'subscriber'|'agent'|'branch'|'distributor' }`
+- **Response 200:** `{ success: true }`
+- **Errors:** `400 invalid_request`, `405 method_not_allowed`
+- **Source:** `api/auth/send-otp.ts`
 
-### GET /api/commissions/agents/:agentId
-- **Service Function:** `getAgentCommissionDetail(agentId)`
-- **Response:** `{ agentId, agentName, agentPhone, branchId, branchName, rating, totalCommissions, totalPaid, totalDue, subscribersOnboarded, activeSubscribers, dormantSubscribers, paidTransactions: Array<{id, transactionDate, amount, agentConfirmed, subscriberId, subscriberName}>, dueTransactions: Array<{id, dueDate, daysToDate, amount, branchId, branchName, subscriberId, subscriberName}>, commissions: Array<Commission> }`
-- **Called By:** `CommissionPanel → useAgentCommissionDetail()`
-- **Cache Key:** `['agentCommissionDetail', agentId]`
-- **Invalidated By:** All commission mutations
-- **Notes:** `daysToDate` = days until due date (negative if overdue). Enabled when `agentId` exists.
+#### `POST /api/auth/verify-otp`
+Validates OTP shape, resolves role-scoped entity ID via `demo_personas` (falling back to seeded defaults — see CLAUDE.md §8), upserts `users(phone, role)` row, and mints a JWT. Accepts an optional `password` to stamp a bcrypt hash on first login.
 
-### GET /api/commissions/agents/:agentId/subscribers
-- **Service Function:** `getCommissionSubscribers(agentId, filter)`
-- **Query Params:** `filter` = active|dormant (optional)
-- **Response:** `Array<{ subscriberId, subscriberName, registeredDate, lastContribution, lastContributionDate, totalContributions, isActive }>`
-- **Called By:** `CommissionPanel → useCommissionSubscribers()`
-- **Cache Key:** `['commissionSubscribers', agentId, filter || 'all']`
-- **Notes:** Enabled when `agentId` exists.
+- **Body:** `{ phone: string, otp: string (6 digits), role: JwtRole, password?: string }`
+- **Response 200:** `{ token: string, user: { id, phone, role, name?, hasPassword: boolean, subscriberId?|agentId?|branchId?|distributorId? } }`
+- **Errors:** `400 invalid_otp | password_required | password_too_short | password_too_long | password_too_weak`, `500 db_error`
+- **Source:** `api/auth/verify-otp.ts`
 
-### GET /api/commissions/disputed
-- **Service Function:** `getDisputedAgentList()`
-- **Response:** `Array<{ agentId, agentName, branchId, branchName, disputedCount, disputedAmount, disputes: Array<{id, subscriberId, subscriberName, amount, dueDate, reason}> }>`
-- **Called By:** `CommissionPanel → useDisputedAgentList()`
-- **Cache Key:** `['disputedAgents']`
-- **Invalidated By:** Approve/reject mutations
+#### `POST /api/auth/verify-password`
+Password sign-in companion to `verify-otp`. Looks up the `users(phone, role)` row and bcrypt-verifies `password` against `password_hash`. On success, mints a JWT with the same shape `verify-otp` does.
 
-### GET /api/commissions/settlement-requests
-- **Service Function:** `getSettlementRequestList()`
-- **Response:** `Array<{ agentId, agentName, branchId, branchName, requestedCount, requestedAmount, requests: Array<{id, subscriberId, subscriberName, amount, dueDate}> }>`
-- **Called By:** `CommissionPanel → useSettlementRequestList()`
-- **Cache Key:** `['settlementRequests']`
-- **Invalidated By:** Settlement mutations
+- **Body:** `{ phone: string, role: JwtRole, password: string }`
+- **Response 200:** same shape as `verify-otp`, with `hasPassword: true`.
+- **Errors:** `400 invalid_request`, `401 password_not_set | invalid_password | role_mismatch`, `500 db_error`
+- **Source:** `api/auth/verify-password.ts`
 
-### POST /api/commissions/:commissionId/approve
-- **Service Function:** `approveCommission(commissionId)`
-- **Response:** Updated commission object (status → 'due', disputeReason → null)
-- **Called By:** `CommissionPanel → useApproveCommission()` mutation
-- **Cache Key:** Invalidates: ALL_COMMISSION_KEYS (`commissionSummary`, `agentCommissions`, `agentCommissionDetail`, `disputedAgents`, `settlementRequests`, `entityCommissionSummary`)
+#### `POST /api/auth/change-password`
+Authenticated. Sets or rotates the user's password. Initial-set flow (no existing hash) skips `currentPassword`; change flow requires it.
 
-### POST /api/commissions/:commissionId/reject
-- **Service Function:** `rejectCommission(commissionId)`
-- **Response:** Updated commission object (status → 'rejected')
-- **Called By:** `CommissionPanel → useRejectCommission()` mutation
-- **Cache Key:** Invalidates: ALL_COMMISSION_KEYS
+- **Header:** `Authorization: Bearer <jwt>`
+- **Body:** `{ currentPassword?: string, newPassword: string }`
+- **Response 200:** `{ ok: true, hasPassword: true }`
+- **Errors:** `400 password_required | password_too_short | password_too_long | password_too_weak | current_password_required`, `401 unauthorized | current_password_invalid`, `404 user_not_found`, `500 db_error | unexpected_error`
+- **Source:** `api/auth/change-password.ts`
 
-### POST /api/commissions/bulk-approve
-- **Service Function:** `bulkApproveCommissions(commissionIds)`
-- **Request Body:** `{ "commissionIds": ["c-00001", "c-00002"] }`
-- **Response:** `Array<Commission>` — updated commissions
-- **Called By:** `CommissionPanel → useBulkApproveCommissions()` mutation
-- **Cache Key:** Invalidates: ALL_COMMISSION_KEYS
+### 2.2 KYC (8 routes — `api/kyc/`)
 
-### POST /api/commissions/bulk-reject
-- **Service Function:** `bulkRejectCommissions(commissionIds)`
-- **Request Body:** `{ "commissionIds": ["c-00001", "c-00002"] }`
-- **Response:** `Array<Commission>` — updated commissions
-- **Called By:** `CommissionPanel → useBulkRejectCommissions()` mutation
-- **Cache Key:** Invalidates: ALL_COMMISSION_KEYS
+All KYC routes are stateless Smile-ID-v2-shaped mocks with simulated latency. They take a client-generated `sessionId` for correlation across stages and (where applicable) `prevTrackingIds` to chain. None require a JWT (signup runs pre-auth). QA can pass `x-qa-force: <reason>` headers to force failure outcomes — each route documents its accepted values inline.
 
-### POST /api/commissions/settle
-- **Service Function:** `settleCommissions(commissionIds)`
-- **Request Body:** `{ "commissionIds": ["c-00001", "c-00002"] }`
-- **Response:** `{ "settled": 2, "paidDate": "2026-04-08" }`
-- **Called By:** `CommissionPanel → useSettleCommissions()` mutation
-- **Cache Key:** Invalidates: `['commissionSummary']`, `['agentCommissions']`, `['agentCommissionDetail']`
+| Route | Body (multipart unless noted) | Response | Latency | Force values |
+| --- | --- | --- | --- | --- |
+| `POST /api/kyc/otp-send` | `{ phone, sessionId? }` (JSON) | `{ success: true, expiresIn: 300 }` | ~600ms | — |
+| `POST /api/kyc/otp-verify` | `{ phone, code, sessionId? }` (JSON) | `{ verified: boolean }` | ~700ms | `fail` |
+| `POST /api/kyc/id-quality` | `image: File, sessionId?` | `{ blur, corners, glare, pass, score }` | ~900ms | `fail-blur`, `fail-corners`, `fail-glare` |
+| `POST /api/kyc/id-ocr` | `front: File, back: File, sessionId?` | `IdExtraction { fullName, nin, cardNumber, dob, districtId, gender, barcodeRaw, confidence, trackingId }` | ~2200ms | — |
+| `POST /api/kyc/nira-verify` | `{ nin, cardNumber, dob, fullName, sessionId? }` (JSON) | `{ result: 'match'\|'partial'\|'no-match', mismatchedFields?, reason?, trackingId }` | ~1800ms | `partial`, `no-match` |
+| `POST /api/kyc/face-match` | `selfie: File, nin, sessionId?` | `{ match, liveness, matchScore, outcome: 'ok'\|'liveness-fail'\|'no-match', trackingId }` | ~1500ms | `liveness-fail`, `no-match` |
+| `POST /api/kyc/aml-screen` | `{ fullName, dob, nin, sessionId?, niraTrackingId? }` (JSON) | `{ outcome: 'clear'\|'flagged', trackingId }` | ~1200ms | `flagged` |
+| `POST /api/kyc/agent-referral` | `{ phone, reason, stage?, trackingId?, sessionId? }` (JSON) | `{ ticketId, eta }` | ~600ms | — |
 
-### POST /api/commissions/agents/:agentId/settle
-- **Service Function:** `settleAgentCommissions(agentId)`
-- **Response:** `{ "settled": number, "paidDate": "2026-04-08" }`
-- **Called By:** `CommissionPanel → useSettleAgentCommissions()` mutation
-- **Cache Key:** Invalidates: `['commissionSummary']`, `['agentCommissions']`, `['agentCommissionDetail']`
+Sources: `api/kyc/*.ts`. Each route also returns `400 invalid_request` for missing/malformed fields and `405 method_not_allowed` for non-POST.
 
-### POST /api/commissions/settle-all
-- **Service Function:** `settleAllCommissions(branchId)`
-- **Query Params:** `branchId` (optional)
-- **Response:** `{ "settled": number, "paidDate": "2026-04-08" }`
-- **Called By:** `CommissionPanel → useSettleAllCommissions()` mutation
-- **Cache Key:** Invalidates: `['commissionSummary']`, `['agentCommissions']`, `['agentCommissionDetail']`
+### 2.3 Misc (2 routes)
 
-### GET /api/commissions/entity-summary/:level/:entityId
-- **Service Function:** `getEntityCommissionSummary(level, entityId)`
-- **Response:** `{ "totalPaid": number, "totalDue": number, "totalDisputed": number, "countPaid": number, "countDue": number, "countDisputed": number, "total": number, "countTotal": number, "settlementRate": number }`
-- **Called By:** `OverlayPanel → useEntityCommissionSummary()`, `BranchOverview → useEntityCommissionSummary()`, `ViewBranches` detail, `ViewAgents` detail
-- **Cache Key:** `['entityCommissionSummary', level, entityId]`
-- **Invalidated By:** All commission mutations (via ALL_COMMISSION_KEYS)
-- **Notes:** Enabled when `entityId` exists OR `level === 'country'`. Server should aggregate commission records for the entity's scope.
+#### `POST /api/contact`
+Public. Validates the landing-page contact form and inserts into `contact_submissions` via the service-role Supabase client (RLS bypassed because the form is open to unauthenticated visitors).
+
+- **Body:** `{ name: string, email: string, message: string }`
+- **Response 200:** `{ submitted: true, id: string }`
+- **Errors:** `400 invalid_name | invalid_email | invalid_message`, `500 db_error`
+- **Source:** `api/contact.ts`
+
+#### `POST /api/chat`
+JWT-optional. When a token is present, `req.user.role` selects the flavour (admin vs agent vs subscriber). When absent, the body's `context` field is honoured (intentional demo-scope policy — see B14 in the audit). Keyword-matching mock; no LLM.
+
+- **Header (optional):** `Authorization: Bearer <jwt>`
+- **Body:** `{ message: string, context?: 'admin'|'agent'|'subscriber' }`
+- **Response 200:** `{ reply: string, suggestions?: string[] }`
+- **Errors:** `400 invalid_message`
+- **Source:** `api/chat.ts`
 
 ---
 
-## 4. Chat (AI Assistant)
+## 3. Supabase RPCs
 
-### POST /api/chat
-- **Service Function:** `getChatResponse(message)`
-- **Request Body:** `{ "message": "How are my agents performing?" }`
-- **Response:** `"Top 3 agents by performance: ..."` (plain text string)
-- **Called By:** `MetricsRow → DataAssistant` (distributor), `BranchHealthScore → BranchCopilot` (branch)
-- **Cache Key:** Not cached (each message is unique)
-- **Notes:**
-  - Currently mock: keyword-matching returns pre-built responses about agents, coverage, subscribers, gender
-  - In production: integrate with LLM (e.g., Claude API) connected to the database
-  - Should be scoped to user's data visibility (distributor sees all, branch sees own branch)
-  - Suggested prompts in UI: "Top agents?", "Gender split?", "Monthly trend?", "Active subscribers?", "Show monthly trend"
+The frontend authenticates to Supabase as `authenticated` and calls `SECURITY DEFINER` PL/pgSQL functions via `supabase.rpc(name, args)`. RPCs read JWT claims via `auth.jwt() ->> 'app_role'` etc. (never `auth.uid()` — see CLAUDE.md §5 anti-pattern 7).
 
----
+### 3.1 Entity / read RPCs
 
-## 5. Profile / Settings
+| RPC | Args | Returns | Intent |
+| --- | --- | --- | --- |
+| `get_entity_metrics_rollup` | `p_level text, p_entity_id text` | `jsonb` (totals + 12-month series + drill-down counts) | One-shot aggregate for distributor/branch overview cards. Replaces N PostgREST queries. |
+| `get_top_branch` | `p_level text, p_entity_id text` | `{ name, contribution } \| null` | Highest-contribution branch under the given scope. |
+| `get_breadcrumb` | `p_level text, p_ids jsonb` | `Array<{ level, id, name }>` | Path from country down to the currently-selected entity. |
+| `search_entities` | `p_q text` | `Array<{ id, name, level, label, parentId }>` (max 8) | Top-bar entity search across regions/districts/branches/agents. |
+| `get_commission_summary` | `p_branch_id text \| null` | Summary row (totals + counts by status) | Commission KPI cards. |
+| `get_entity_commission_summary` | `p_level text, p_entity_id text` | Summary row | Per-entity commission breakdown (drill-down overlays). |
+| `get_agent_commission_detail` | `p_agent_id text` | Agent-level detail object (paid + due transactions, subscriber portfolio) | Agent drawer in commission panel. |
+| `get_run_branch_breakdown` | `p_run_id text` | Per-branch settlement run breakdown | Run review UI in commission panel. |
 
-These endpoints are inferred from `Settings.jsx` — no service functions exist yet.
+### 3.2 Write RPCs (state machine)
 
-### PUT /api/profile
-- **Request Body:** `{ "name": "New Name", "email": "new@email.com", "phone": "7XXXXXXXX" }`
-- **Response:** `{ "success": true, "user": { ...updatedFields } }`
-- **Called By:** `Settings` panel save button
-- **Notes:** Name and phone are required. Email is optional. Phone uses +256 prefix. Validation: name non-empty, phone 9 digits.
+Every write to the commission state machine goes through one of these. The state graph is `due → in_run → [held \| disputed] → released → confirmed/paid → rejected (terminal)`. See `BACKEND.md §10` for the full diagram and trigger logic.
 
-### PUT /api/profile/password
-- **Request Body:** `{ "currentPassword": "...", "newPassword": "..." }`
-- **Response:** `{ "success": true }`
-- **Called By:** `Settings` panel password section
-- **Notes:** Validation: min 8 chars for new password. Strength meter levels: Weak (<8), Fair (8+), Good (12+ or has special chars), Strong (12+ and mixed case and special chars).
+| RPC | Args | Effect |
+| --- | --- | --- |
+| `open_run` | — | Opens a new settlement run; returns the new `run_id`. |
+| `cancel_run` | `p_run_id text` | Cancels an open run. |
+| `release_run` | `p_run_id text` | Releases all lines in the run for agent confirmation. |
+| `release_branch` | `p_run_id text, p_branch_id text` | Releases lines for a specific branch within a run. |
+| `branch_approve_all` | `p_run_id text` | Bulk-approve all due lines for the branch in this run. |
+| `mark_branch_reviewed` | `p_run_id text` | Mark branch's review of the run as complete. |
+| `branch_approve_line` | `p_commission_id text` | Approve a single commission line. |
+| `branch_hold_line` | `p_commission_id text, p_hold_reason text` | Put a line on hold pending investigation. |
+| `branch_dispute_line` | `p_commission_id text, p_dispute_reason text` | Mark a line as disputed (branch-initiated). |
+| `agent_dispute_line` | `p_commission_id text, p_dispute_reason text` | Mark a line as disputed (agent-initiated — maker-checker counterpart). |
+| `approve_dispute` | `p_commission_id text, p_outcome_reason text?` | Resolve a dispute in the agent's favour. |
+| `reject_dispute` | `p_commission_id text, p_outcome_reason text` | Resolve a dispute against the agent (terminal `rejected`). |
+| `withdraw_dispute` | `p_commission_id text` | Agent withdraws their own dispute. |
+| `agent_confirm_commission` | `p_commission_id text` | Agent confirms receipt of payment (closes the maker-checker loop). |
 
----
+### 3.3 Other write RPCs
 
-## 6. Reports
+| RPC | Args | Effect |
+| --- | --- | --- |
+| `create_subscriber_from_signup` | `payload jsonb` | Atomic subscriber creation from the public `/signup/*` flow — creates subscriber + balances + schedule + insurance + nominees + first-contribution commission in a single transaction. |
+| `create_subscriber_from_agent_onboard` | (named args) | Same shape as above but invoked from the agent's onboard flow; differs in audit trail. |
+| `upsert_nominees` | `(p_subscriber_id text, p_pension jsonb, p_insurance jsonb)` | Replaces pension / insurance nominee lists; atomically validates share-sum invariants. |
 
-Reports are client-side views that compose data from entity and commission hooks. They don't have dedicated API endpoints — they reuse the entity endpoints above. However, at scale, some reports will need dedicated server-side endpoints.
-
-### Report Data Sources
-
-| Report | Data Hooks | Filter Parameters | Pagination Needed |
-|--------|-----------|-------------------|-------------------|
-| Distribution Summary | `useCountry()`, `useAllEntities('region')` | None | No (4 regions) |
-| All Branches | `useAllEntities('branch')`, `useAllEntitiesMap('district')`, `useAllEntitiesMap('region')` | search, region, status | No (~314 branches) |
-| All Agents | `useAllEntities('agent')`, `useAllEntitiesMap('branch')`, `useAllEntitiesMap('district')`, `useAllEntitiesMap('region')` | search, region, status | Recommended (~500+ agents) |
-| All Subscribers | `useAllEntities('subscriber')`, `useAllEntitiesMap('agent')`, `useAllEntitiesMap('branch')` | search, kycStatus, activeStatus, gender | **YES** (~30K subscribers) |
-| Contributions & Collections | `useAllEntities('district')` OR `useChildren('branch', branchId)`, `useAllEntitiesMap('region')` | region | No (135 districts / ~8 agents) |
-| Withdrawals & Payouts | Same as Contributions | region | No |
-| Branch Performance | `useAllEntities('branch')`, `useAllEntitiesMap('district')`, `useAllEntitiesMap('region')` | search, region | No (~314) |
-| Agent Performance | `useAllEntities('agent')`, `useAllEntitiesMap('branch')`, maps | search, region | Recommended (~500+) |
-| Subscriber Growth | `useAllEntities('district')` OR `useChildren('branch', branchId)`, map | region | No |
-| Subscriber Demographics | Same as Growth | None | No |
-| KYC & Compliance | `useAllEntities('subscriber')` OR `useChildren('branch', branchId)`, maps | region | **YES** for distributor (aggregates 30K subscribers) |
-
-### Report Column Definitions
-
-Each report has specific sortable columns. The `ReportTable` component handles client-side sorting and pagination (page sizes: 25, 50, 100). In production, reports with >500 rows should support server-side sorting and pagination.
-
-**Key report-specific calculations (should be server-side in production):**
-- Branch Performance: `rank` (by totalContributions), `growth` (MoM % from monthlyContributions[10] vs [11]), `subsPerAgent` (totalSubscribers / totalAgents)
-- Agent Performance: `rank` (by totalContributions)
-- Contributions: `monthlyTrend` (MoM % change), `avgContribution` (total / subscribers)
-- Withdrawals: `withdrawalRatio` (totalWithdrawals / totalContributions * 100)
-- KYC Compliance: `completePct`, `pendingPct`, `incompletePct` (derived from kycPending, kycIncomplete, totalSubscribers)
-- Subscriber Demographics: `youthPct` (sum of 18-25 + 26-35 / total * 100)
-
-### Branch-Scoped Reports
-When `branchId` is provided (Branch Admin), reports:
-- Show agents instead of districts as rows
-- Hide region filter
-- Exclude 3 reports: Distribution Summary, All Branches, Branch Performance (defined in `BRANCH_EXCLUDED_REPORTS`)
-- Use `useChildren('branch', branchId)` instead of `useAllEntities('district')`
+See `supabase/migrations/0002_rpc_functions.sql`, `0004_commission_run_rpcs.sql`, `0014_signup_phone_and_agent_dispute.sql`, `0024_upsert_nominees.sql` for the canonical PL/pgSQL.
 
 ---
 
-## 7. Subscriber endpoints
+## 4. PostgREST reads (RLS-governed)
 
-The Subscriber dashboard consumes these via `src/hooks/useSubscriber.js`. All require an authenticated subscriber token; the backend MUST scope every response by the authenticated subscriber's ID — never accept a `subscriberId` query param from the client for "self" reads.
+Reads of tables like `subscribers`, `subscriber_balances`, `transactions`, `claims`, `withdrawals`, `nominees`, `insurance`, `commissions`, `settlement_runs`, `agent_referrals`, `entities`, etc. happen directly via the `supabase-js` query builder (`supabase.from('subscribers').select(...)`).
 
-### GET /api/subscribers/me
-- **Service Function:** `getCurrentSubscriber(phone)` (resolves to the authenticated subscriber)
-- **Response:** Full subscriber object (see `data-model.md`) with embedded `transactions[]`, `claims[]`, `withdrawals[]`, `nominees`, `insurance`, `contributionSchedule`, `agent`.
-- **Cache Key:** `['currentSubscriber', phone]`
-- **Notes:** First-load read for the entire subscriber dashboard. Embedding sub-collections keeps initial load to a single round-trip; pagination becomes important once a subscriber has thousands of transactions.
+Every table has RLS enabled. Policies read `auth.jwt() ->> 'app_role'` (the application role) plus `auth.jwt() ->> '<role>Id'` to scope rows. Defer to:
 
-### GET /api/subscribers/me/transactions
-- **Service Function:** `getSubscriberTransactions(id, filters)`
-- **Query Params:** `type`, `status`, `from`, `to`, `page`, `pageSize`
-- **Response:** `{ transactions: Transaction[], total: number }`
-- **Cache Key:** `['subscriberTransactions', id, filters]`
+- `supabase/migrations/0003_rls_policies.sql` — initial policy bodies.
+- `supabase/migrations/0007_rls_use_app_role.sql` — switch from `'role'` to `'app_role'` (canonical fix for the silent-failure trap).
+- `supabase/migrations/0008_rls_wrap_auth_jwt_initplan.sql` + `0023_rls_initplan_fixes.sql` — initplan caching tightenings.
+- `ARCHITECTURE.md` and `BACKEND.md §8` — narrative of the RLS model.
 
-### GET /api/subscribers/me/claims
-- **Service Function:** `getSubscriberClaims(id)`
-- **Response:** `Claim[]`
-- **Cache Key:** `['subscriberClaims', id]`
-
-### GET /api/subscribers/me/nominees
-- **Service Function:** `getSubscriberNominees(id)`
-- **Response:** `{ pension: Nominee[], insurance: Nominee[] }`
-- **Cache Key:** `['subscriberNominees', id]`
-
-### GET /api/subscribers/me/agent
-- **Service Function:** `getSubscriberAgent(id)`
-- **Response:** `{ id, name, phone, branchId, branchName, ... }` — the assigned agent enriched with branch info
-- **Cache Key:** `['subscriberAgent', id]`
-
-### POST /api/subscribers/me/contribute
-- **Service Function:** `makeAdHocContribution(id, payload)`
-- **Request Body:** `{ amount: number, method: 'mtn' | 'airtel' | 'card' | ..., reference?: string }`
-- **Response:** Updated `Transaction`
-- **Hook:** `useMakeContribution` — invalidates `currentSubscriber`, `subscriberTransactions`.
-
-### POST /api/subscribers/me/withdraw
-- **Service Function:** `requestWithdrawal(id, payload)`
-- **Request Body:** `{ amount: number, bucket: 'retirement' | 'emergency', reason: string, method: string }`
-- **Response:** New `Withdrawal` record with status: `'pending'`.
-- **Hook:** `useRequestWithdrawal`
-
-### POST /api/subscribers/me/claims
-- **Service Function:** `submitClaim(id, payload)`
-- **Request Body (multipart/form-data):**
-  - `type` — `medical | accident | hospitalization | critical_illness`
-  - `incidentDate` — ISO date
-  - `amount` — UGX integer
-  - `description` — string
-  - `files[]` — actual `File` blobs (the client now passes real files, not just metadata)
-- **Response:** New `Claim` record with status: `'submitted'`.
-- **Hook:** `useSubmitClaim`. Alternative implementation: presigned URL upload first, then send URL refs in JSON body.
-
-### PUT /api/subscribers/me/schedule
-- **Service Function:** `updateContributionSchedule(id, schedule)`
-- **Request Body:** `{ frequency: 'weekly'|'monthly'|'quarterly'|'half-yearly'|'annually', amount: number, retirementPct: number, emergencyPct: number }`
-- **Response:** Updated `subscriber.contributionSchedule`
-- **Hook:** `useUpdateSchedule` (subscriber-side) and `useUpdateSubscriberSchedule(subscriberId, agentId)` (agent-side; same endpoint, just additionally invalidates the agent's portfolio cache).
-
-### PUT /api/subscribers/me/nominees
-- **Service Function:** `updateNominees(id, payload)`
-- **Request Body:** `{ pension?: Nominee[], insurance?: Nominee[] }` (only the tab being edited is sent)
-- **Response:** Updated `nominees`
-- **Hook:** `useUpdateNominees` — uses optimistic update + rollback (see Phase B-7 in the audit's backend-readiness checklist).
-
-### PUT /api/subscribers/me/insurance
-- **Service Function:** `updateInsuranceCover(id, payload)`
-- **Request Body:** `{ cover: number, premiumMonthly: number }` — works for both upgrade and downgrade.
-- **Response:** Updated `insurance`
-- **Hook:** `useUpdateInsuranceCover`
-
-### PUT /api/subscribers/me/profile
-- **Service Function:** `updateProfile(id, updates)`
-- **Request Body:** Partial of `{ name, email, phone }`. Phone is canonical 9-digit Uganda local digits (validated via `utils/phone.js#isValidUGPhone`).
-- **Response:** Updated subscriber-shaped fields
-- **Hook:** `useUpdateProfile` — uses optimistic update + rollback.
+Writes are NEVER permitted directly through PostgREST — all writes flow through SECURITY DEFINER RPCs (CLAUDE.md §7).
 
 ---
 
-## 8. Agent endpoints
+## 5. Realtime channels
 
-Agent dashboard consumes these via `src/hooks/useAgent.js`. Every response must be scoped to the authenticated agent's ID — never trust client-supplied `agentId` for "self" reads.
+Supabase realtime is enabled on **three** tables only:
+- `commissions`
+- `settlement_runs`
+- `settlement_run_branch_reviews`
 
-### GET /api/agents/me/subscribers
-- **Service Function:** `getAgentSubscriberList(agentId)`
-- **Response:** `Array<{ id, name, phone, gender, age, district, registeredDate, totalContributions, netBalance, isActive, contributionSchedule, products[] }>`
-- **Cache Key:** `['agentSubscribers', agentId]`
-- **Notes:** Used by SubscribersPage list, SubscriberDetailPage, AnalyticsPage demographics derivation. At 60 subscribers/agent average, no pagination needed for this endpoint specifically.
-
-### GET /api/agents/me/commissions/detail
-- Same shape as `/api/commissions/agents/:agentId` (Section 3) but always scoped to the authenticated agent.
-- **Cache Key:** `['agentCommissionDetail', agentId]`
-
-### GET /api/agents/me/cadence
-- **Service Function:** `getNetworkCadence()` (currently shared client-side; agents may have per-account cadence in production)
-- **Response:** `{ cadence: 'WEEKLY_FRIDAY' | 'BIWEEKLY_FRIDAY' | 'MONTHLY_FIRST' }`
-- **Cache Key:** `['networkCadence']`
-
-### POST /api/commissions/:commissionId/agent-confirm
-- **Service Function:** `agentConfirmCommission(commissionId)`
-- **Response:** Updated commission (`agentConfirmed: true`)
-- **Hook:** `useAgentConfirmCommission`. Maker-checker counterpart to admin `settleCommissions`.
-
-### POST /api/commissions/:commissionId/dispute
-- **Service Function:** `disputeCommission(commissionId, reason)`
-- **Request Body:** `{ reason: string }`
-- **Response:** Updated commission (`status: 'disputed'`, `disputeReason` set)
-- **Hook:** `useDisputeCommission`
-
-### POST /api/commissions/:commissionId/withdraw-dispute
-- **Service Function:** `withdrawDispute(commissionId)`
-- **Response:** Updated commission (status reverts to `'due'`)
-
-### POST /api/agents/me/onboard-subscriber
-- **Inferred** from `OnboardPage` flow (4-stage: awareness → KYC → schedule → done).
-- **Request Body (multipart/form-data):** Full subscriber payload + KYC documents collected during the 9-step KYC sub-flow. The agent's `onboardingSessionId` correlates the KYC stages.
-- **Response:** New subscriber record + commission record (status `'due'`) for the agent.
+Realtime is intentionally OFF for `transactions`, `subscribers`, `subscriber_balances` (high-churn, low-value-for-UI). See migration `0025_drop_realtime_publication.sql`.
 
 ---
 
-## 9. KYC endpoints
+## 6. Quick index
 
-The signup flow at `/signup/*` (also embedded in agent's `/dashboard/onboard`) consumes these via `src/services/kyc.js`. Each request includes a client-generated `onboardingSessionId` (UUID, persisted in `SignupContext`) so the backend can correlate every stage of one onboarding job.
+| Surface | Count | Where defined |
+| --- | --- | --- |
+| API routes | 14 | `api/**/*.ts` (excl. `_lib/`, `*.test.ts`) |
+| Migrations | 28 | `supabase/migrations/*.sql` |
+| RPCs (read) | 8 | `0002_rpc_functions.sql`, `0018_entity_metrics_rollup.sql`, `0020_entity_metrics_rollup_v3.sql` |
+| RPCs (state machine) | 14 | `0004_commission_run_rpcs.sql`, `0014_signup_phone_and_agent_dispute.sql`, `0021_commission_rpcs_app_role.sql` |
+| RPCs (other write) | 3 | `0002_rpc_functions.sql`, `0024_upsert_nominees.sql` |
+| Tables with realtime | 3 | `0025_drop_realtime_publication.sql` |
 
-The backend integration target is **Smile ID v2** — endpoint shapes match Smile ID's request/response contract. Each endpoint accepts `{ ...payload, sessionId, prevTrackingIds? }` and returns a `trackingId` the next stage can pass back as a correlation key.
-
-### POST /api/kyc/id-quality
-- **Service Function:** `assessImageQuality(file)`
-- **Request Body (multipart/form-data):** `image` (File), `sessionId`
-- **Response:** `{ blur: boolean, corners: boolean, glare: boolean, pass: boolean, score: number }`
-- **Notes:** Client-side guard rail. Real provider runs the same checks server-side before committing OCR credits.
-
-### POST /api/kyc/id-ocr
-- **Service Function:** `extractIdFields({ front, back, sessionId })`
-- **Request Body (multipart/form-data):** `front`, `back` (Files), `sessionId`
-- **Response:** `IdExtraction` — `{ fullName, nin, cardNumber, dob, districtId, gender, barcodeRaw, confidence, trackingId }`
-- **Notes:** OCR + barcode cross-check. Confidence is a 0-1 composite reflecting both OCR and barcode agreement; the client renders this as a high/mid/low badge on ReviewStep.
-
-### POST /api/kyc/nira-verify
-- **Service Function:** `verifyNira({ nin, cardNumber, dob, fullName, sessionId })`
-- **Response:** `{ result: 'match' | 'partial' | 'no-match', mismatchedFields?: string[], reason?: string, trackingId }`
-- **Notes:** On `'partial'`, the client shows the mismatched fields and gives the user a "Fix and re-verify" or "Continue (flagged)" choice rather than auto-advancing.
-
-### POST /api/kyc/otp-send / POST /api/kyc/otp-verify
-- **Service Functions:** `sendOtp({ phone, sessionId })`, `verifyOtp({ phone, code, sessionId })`
-- **Response:** `{ success, expiresIn }` / `{ verified }`
-- **Notes:** Distinct from the SignInModal OTP flow. This is the signup OTP that confirms the phone is reachable before binding it to the new account.
-
-### POST /api/kyc/face-match
-- **Service Function:** `faceMatch({ selfieFile, nin, sessionId })`
-- **Request Body (multipart/form-data):** `selfie` (File), `nin`, `sessionId`
-- **Response:** `{ match, liveness, matchScore, outcome: 'ok' | 'liveness-fail' | 'no-match', trackingId }`
-- **Notes:** The client defensively rejects null `selfieFile` before calling — a missing blob (after localStorage rehydration drops it) shouldn't reach the backend.
-
-### POST /api/kyc/aml-screen
-- **Service Function:** `screenAml({ fullName, dob, nin, sessionId, niraTrackingId })`
-- **Response:** `{ outcome: 'clear' | 'flagged', trackingId }`
-- **Notes:** AML sanction-list + PEP screening. Flagged users are routed to back-office review; the user does not see the reason.
-
-### POST /api/kyc/agent-referral
-- **Service Function:** `referToAgent({ phone, reason, stage?, trackingId?, sessionId })`
-- **Response:** `{ ticketId, eta }`
-- **Notes:** Called by `AgentFallbackStep` when KYC cannot complete automatically (NIRA / liveness failure).
-
----
-
-## 10. Contact form
-
-### POST /api/contact
-- **Service Function:** `submitContactForm({ name, email, message })` (in `services/contact.js`)
-- **Currently:** Demo mode — logs to dev console, returns `{ ok: true, demo: true }` after a 600ms simulated delay; the success screen surfaces the demo state and points users to `support@upensions.ug`.
-- **Backend target:** `POST /api/contact` writes to a support inbox or forwards to a transactional email service (Formspree / SendGrid). Honour `name`, `email`, `message` validation already done client-side.
-
----
-
-## 11. Export / Download
-
-CSV export is **fully wired client-side** via `src/utils/csv.js#downloadCSV(filename, headers, rows)` (RFC 4180 escaping + formula-injection defence + UTF-8 BOM for Excel). Both the distributor `TopBar` and every subscriber report view export the current filtered rows.
-
-Server-side CSV is **not strictly required for current report sizes**, but should be added for:
-- `/api/entities/subscriber` exports (~30K rows) — stream from server.
-- Multi-year activity exports — once subscriber transaction history grows.
-
-### GET /api/export/:reportType (future)
-- **Intended behavior:** Server-side CSV generation for very large or multi-year reports.
-- **Query Params:** Same filters as the report view (search, region, status, etc.)
-
----
-
-## Server-Side Requirements Summary
-
-### Must-Have Server-Side Pagination
-- `GET /api/entities/subscriber` — 30,000+ records
-- `GET /api/commissions/agents` — when agent count grows
-
-### Should-Have Server-Side Sorting
-- All report endpoints that return >100 items
-- Subscriber list endpoints
-
-### Should-Have Server-Side Filtering
-- Reports with filter dropdowns (region, status, KYC, gender)
-- Commission lists (by status, by branch)
-
-### Cache Strategy
-React Query default settings are used. Recommended server-side:
-- Entity data: Cache with 5-minute stale time
-- Commission summaries: Cache with 1-minute stale time (more volatile)
-- Search: Cache with 30-second stale time
-- Commission rate: Cache until invalidated
-
-### Authentication
-- All endpoints except `/api/auth/*` require `Authorization: Bearer <token>` header
-- 401 response triggers client-side logout (clears localStorage, redirects to `/`)
-- Backend base URL configured via `API_BASE_URL` environment variable (see `src/config/env.js`)
-- Fetch wrapper in `src/services/api.js` handles token injection and 401 handling
+For runtime detail (env vars, auth flow, JWT shape, trigger logic, the `app_role` vs `role` trap), open `BACKEND.md`. For role × capability questions, open `docs/role-permissions.md`. For the legacy aspirational REST design, open `docs/archive/api-contracts-2024-original.md`.

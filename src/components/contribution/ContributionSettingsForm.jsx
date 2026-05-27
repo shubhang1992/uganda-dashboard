@@ -9,6 +9,7 @@ import {
   periodsPerYear,
   normalizeFrequency,
 } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
 import {
   RETIREMENT_AGE,
   MIN_CONTRIBUTION,
@@ -171,7 +172,7 @@ export default function ContributionSettingsForm({
                 inputMode="numeric"
                 autoComplete="off"
                 spellCheck={false}
-                value={amountStr ? Number.parseInt(amountStr, 10).toLocaleString('en-UG') : ''}
+                value={amountStr ? formatNumber(Number.parseInt(amountStr, 10)) : ''}
                 onChange={(e) => setAmountStr(e.target.value.replace(/[^\d]/g, ''))}
                 onBlur={() => setTouched(true)}
                 placeholder="Enter amount"

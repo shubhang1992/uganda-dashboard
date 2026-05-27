@@ -1,0 +1,40 @@
+# Render Blueprint — uganda-dashboard backend
+#
+# IMPORTANT INVARIANTS:
+# - region: singapore is IMMUTABLE after service creation (audit B14).
+#   Supabase is hosted in ap-northeast-1 (Tokyo); Singapore minimises the
+#   Render→Supabase hop while keeping Uganda→Render latency reasonable.
+# - autoDeployTrigger: off mirrors the CLAUDE.md §1 guardrail:
+#   "auto-deploy on push to main — do not push without explicit approval".
+# - SUPABASE_JWT_SECRET MUST be copied verbatim from the Supabase project
+#   (Dashboard → API → JWT Settings). Rotating it during the migration
+#   silently fails-open under withOptionalAuth (audit B21).
+
+services:
+  - type: web
+    name: uganda-dashboard-api
+    runtime: node                                           # B6
+    plan: free
+    region: singapore                                       # B14 — IRREVERSIBLE
+    branch: cleanup/post-audit-2026-05-26                   # G14, swap to main after cutover
+    autoDeployTrigger: off                                  # G14
+    healthCheckPath: /healthz                               # G16
+    buildCommand: npm ci --include=dev && npm run build:api && npm prune --omit=dev   # G15 — --include=dev required because NODE_ENV=production would otherwise make `npm ci` skip devDeps (@types/*, @vercel/node, tsx, @sentry/* are devDeps)
+    startCommand: node dist-server/server/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: "22"                                         # B6 — under envVars, not inline shell
+      - key: NODE_ENV
+        value: production
+      - key: NPM_CONFIG_PRODUCTION                          # belt-and-suspenders for `npm ci` devDeps
+        value: "false"
+      - key: PORT
+        value: "3001"
+      - key: SUPABASE_URL                                   # G19 — server uses non-VITE name
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET                            # B21 — COPY VERBATIM
+        sync: false
+      - key: SENTRY_DSN
+        sync: false

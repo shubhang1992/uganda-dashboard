@@ -1,12 +1,19 @@
 import { useMemo } from 'react';
-import { useCountry, useAllEntities } from '../../../hooks/useEntity';
+import { useCountry, useAllEntities, useAllEntitiesMetrics, useEntityMetrics } from '../../../hooks/useEntity';
 import { formatUGX } from '../../../utils/finance';
+import { formatNumber } from '../../../utils/currency';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 
 export default function DistributionSummary({ onBack }) {
   const { data: country, isLoading: loadingCountry } = useCountry();
-  const { data: regions = [], isLoading: loadingRegions } = useAllEntities('region');
+  const { data: regionsRaw = [], isLoading: loadingRegions } = useAllEntities('region');
+  const { data: regionMetricsMap = {} } = useAllEntitiesMetrics('region');
+  const { data: countryMetrics } = useEntityMetrics('country', 'ug');
+  const regions = useMemo(
+    () => regionsRaw.map(r => ({ ...r, metrics: regionMetricsMap[r.id] ?? r.metrics })),
+    [regionsRaw, regionMetricsMap],
+  );
 
   const columns = [
     { key: 'name', label: 'Region', sortable: true, width: '160px' },
@@ -16,7 +23,7 @@ export default function DistributionSummary({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalSubscribers || 0,
-      render: (row) => (row.metrics?.totalSubscribers || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalSubscribers || 0),
     },
     {
       key: 'totalBranches',
@@ -24,7 +31,7 @@ export default function DistributionSummary({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalBranches || 0,
-      render: (row) => (row.metrics?.totalBranches || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalBranches || 0),
     },
     {
       key: 'totalAgents',
@@ -32,7 +39,7 @@ export default function DistributionSummary({ onBack }) {
       align: 'right',
       sortable: true,
       sortValue: (row) => row.metrics?.totalAgents || 0,
-      render: (row) => (row.metrics?.totalAgents || 0).toLocaleString(),
+      render: (row) => formatNumber(row.metrics?.totalAgents || 0),
     },
     {
       key: 'aum',
@@ -77,13 +84,33 @@ export default function DistributionSummary({ onBack }) {
   ];
 
   const description = useMemo(() => {
-    if (!country?.metrics) return 'Network summary across all regions';
-    const m = country.metrics;
-    return `${m.totalSubscribers?.toLocaleString()} subscribers \u00B7 ${m.totalBranches?.toLocaleString()} branches \u00B7 ${formatUGX(m.aum)} AUM`;
-  }, [country]);
+    const m = countryMetrics ?? country?.metrics;
+    if (!m) return 'Network summary across all regions';
+    return `${formatNumber(m.totalSubscribers)} subscribers \u00B7 ${formatNumber(m.totalBranches)} branches \u00B7 ${formatUGX(m.aum)} AUM`;
+  }, [country, countryMetrics]);
+
+  // CSV serialiser walks `row[col.key]` flatly \u2014 project nested metrics up.
+  const exportRows = useMemo(() => regions.map((r) => ({
+    ...r,
+    totalSubscribers: r.metrics?.totalSubscribers ?? 0,
+    totalBranches: r.metrics?.totalBranches ?? 0,
+    totalAgents: r.metrics?.totalAgents ?? 0,
+    aum: r.metrics?.aum ?? 0,
+    totalContributions: r.metrics?.totalContributions ?? 0,
+    totalWithdrawals: r.metrics?.totalWithdrawals ?? 0,
+    activeRate: r.metrics?.activeRate ?? 0,
+    coverageRate: r.metrics?.coverageRate ?? 0,
+  })), [regions]);
 
   return (
-    <ReportView title="Distribution Summary" description={description} onBack={onBack}>
+    <ReportView
+      title="Distribution Summary"
+      description={description}
+      onBack={onBack}
+      exportRows={exportRows}
+      exportColumns={columns}
+      exportFilename="distribution-summary"
+    >
       <ReportTable columns={columns} data={regions} defaultSort="aum" loading={loadingCountry || loadingRegions} />
     </ReportView>
   );

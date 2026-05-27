@@ -7,7 +7,7 @@ import {
 import { EASE_OUT_EXPO, formatUGX, formatUGXExact, calcFV, MONTHLY_RATE, monthlyEquivalent } from '../../utils/finance';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import { RETIREMENT_AGE } from '../../constants/savings';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './ProjectionPage.module.css';
 
 const FALLBACK_AGE = 30;

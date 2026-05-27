@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { formatUGXExact } from '../../../utils/finance';
+import { formatDate } from '../../../utils/date';
+import { useSubscriberTransactions } from '../../../hooks/useSubscriber';
 import styles from './ActivityWidget.module.css';
 
 const TX_META = {
@@ -10,13 +12,13 @@ const TX_META = {
 };
 
 function formatTxDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-UG', { day: 'numeric', month: 'short' });
+  return formatDate(iso, { variant: 'day-month' });
 }
 
 export default function ActivityWidget({ subscriber }) {
   const navigate = useNavigate();
-  const transactions = (subscriber?.transactions || []).slice(0, 3);
+  const { data: all = [] } = useSubscriberTransactions(subscriber?.id);
+  const transactions = all.slice(0, 3);
 
   return (
     <section className={styles.card} aria-labelledby="activity-title">
@@ -31,7 +33,7 @@ export default function ActivityWidget({ subscriber }) {
         <button
           type="button"
           className={styles.viewAll}
-          onClick={() => navigate('/dashboard/activity')}
+          onClick={() => navigate('/dashboard/reports/all-transactions')}
         >
           View all
           <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10" fill="none">

@@ -2,8 +2,9 @@ import { memo } from 'react';
 import styles from './Demographics.module.css';
 
 function Demographics({ metrics }) {
-  const m = metrics;
-  const ageTotal = Object.values(m.ageDistribution).reduce((s, x) => s + x, 0);
+  const genderRatio = metrics?.genderRatio ?? { male: 0, female: 0, other: 0 };
+  const ageDistribution = metrics?.ageDistribution ?? {};
+  const ageTotal = Object.values(ageDistribution).reduce((s, x) => s + x, 0);
   return (
     <div className={styles.demoRow}>
       <div className={styles.demoCard}>
@@ -11,14 +12,14 @@ function Demographics({ metrics }) {
         {['male', 'female', 'other'].map((g) => (
           <div key={g} className={styles.demoItem}>
             <span className={`${styles.demoItemLabel} capitalize`}>{g}</span>
-            <div className={styles.demoBar}><div className={styles.demoBarFill} style={{ width: `${m.genderRatio[g]}%` }} /></div>
-            <span className={styles.demoItemValue}>{m.genderRatio[g]}%</span>
+            <div className={styles.demoBar}><div className={styles.demoBarFill} style={{ width: `${genderRatio[g] ?? 0}%` }} /></div>
+            <span className={styles.demoItemValue}>{genderRatio[g] ?? 0}%</span>
           </div>
         ))}
       </div>
       <div className={styles.demoCard}>
         <div className={styles.demoTitle}>Age</div>
-        {Object.entries(m.ageDistribution).map(([k, v]) => {
+        {Object.entries(ageDistribution).map(([k, v]) => {
           const pct = ageTotal ? Math.round((v / ageTotal) * 100) : 0;
           return (
             <div key={k} className={styles.demoItem}>

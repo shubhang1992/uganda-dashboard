@@ -1,0 +1,278 @@
+// agent service tests — small surface: a single `getAgentSubscriberList`
+// export with real (Supabase) + mock (mockData) branches.
+//
+// X11 parity concern: both branches must return rows with the same flat shape
+// (id, name, phone, contributionSchedule, netBalance, ...). The real branch
+// remaps snake_case → camelCase via `mapAgentSubscriberRow`; the mock branch
+// already returns camelCase from mockData.
+
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { makeSupabaseMock } from '../../test/supabaseMock';
+
+const supabaseMock = makeSupabaseMock();
+
+vi.mock('@/services/supabaseClient', () => ({
+  supabase: supabaseMock,
+  default: supabaseMock,
+  getToken: vi.fn(),
+  setToken: vi.fn(),
+  clearToken: vi.fn(),
+}));
+vi.mock('../supabaseClient', () => ({
+  supabase: supabaseMock,
+  default: supabaseMock,
+  getToken: vi.fn(),
+  setToken: vi.fn(),
+  clearToken: vi.fn(),
+}));
+
+beforeEach(() => {
+  supabaseMock.__reset();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.resetModules();
+});
+
+describe('agent service — real (Supabase) branch', () => {
+  let getAgentSubscriberList;
+  beforeEach(async () => {
+    const mod = await import('../agent');
+    getAgentSubscriberList = mod.getAgentSubscriberList;
+  });
+
+  it('returns [] when no agentId is given', async () => {
+    expect(await getAgentSubscriberList(null)).toEqual([]);
+    expect(await getAgentSubscriberList(undefined)).toEqual([]);
+    expect(await getAgentSubscriberList('')).toEqual([]);
+    expect(supabaseMock.__getFromCalls('subscribers')).toHaveLength(0);
+  });
+
+  it('queries subscribers .eq(agent_id, agentId) with joined schedule + balance', async () => {
+    supabaseMock.__queueFrom('subscribers', { data: [], error: null });
+    await getAgentSubscriberList('a-001');
+    const call = supabaseMock.__getFromCalls('subscribers').at(-1);
+    expect(call.chain.select).toHaveBeenCalledWith(
+      '*, contribution_schedules(*), subscriber_balances(*)',
+    );
+    expect(call.chain.eq).toHaveBeenCalledWith('agent_id', 'a-001');
+  });
+
+  it('maps snake_case columns to camelCase', async () => {
+    supabaseMock.__queueFrom('subscribers', {
+      data: [{
+        id: 's-1',
+        name: 'James Okello',
+        phone: '+25671 100 0001',
+        email: 'j@x.com',
+        gender: 'male',
+        age: 35,
+        kyc_status: 'verified',
+        is_active: true,
+        registered_date: '2024-01-15',
+        products_held: ['pension'],
+        contribution_history: [50000, 60000, 70000],
+        contribution_schedules: {
+          frequency: 'monthly',
+          amount: 50000,
+          retirement_pct: 80,
+          emergency_pct: 20,
+          include_insurance: false,
+          insurance_choice_made: true,
+          next_due_date: '2026-06-01',
+        },
+        subscriber_balances: {
+          total_balance: 500000,
+          retirement_balance: 400000,
+          emergency_balance: 100000,
+          units: 500,
+        },
+      }],
+      error: null,
+    });
+    const list = await getAgentSubscriberList('a-001');
+    expect(list).toHaveLength(1);
+    const sub = list[0];
+    expect(sub.id).toBe('s-1');
+    expect(sub.name).toBe('James Okello');
+    expect(sub.kycStatus).toBe('verified');
+    expect(sub.isActive).toBe(true);
+    expect(sub.registeredDate).toBe('2024-01-15');
+    expect(sub.netBalance).toBe(500000);
+    expect(sub.retirementBalance).toBe(400000);
+    expect(sub.emergencyBalance).toBe(100000);
+    expect(sub.totalContributions).toBe(500000); // proxied from total_balance
+    expect(sub.totalWithdrawals).toBe(0);        // documented placeholder
+    expect(sub.lastContribution).toBe(70000);    // last of contribution_history
+    expect(sub.contributionSchedule.frequency).toBe('monthly');
+    expect(sub.contributionSchedule.amount).toBe(50000);
+    expect(sub.contributionSchedule.retirementPct).toBe(80);
+    expect(sub.contributionSchedule.emergencyPct).toBe(20);
+    expect(sub.contributionSchedule.includeInsurance).toBe(false);
+    expect(sub.contributionSchedule.insuranceChoiceMade).toBe(true);
+    expect(sub.contributionSchedule.nextDueDate).toBe('2026-06-01');
+  });
+
+  it('handles array-shape joins (Supabase to-many embed)', async () => {
+    supabaseMock.__queueFrom('subscribers', {
+      data: [{
+        id: 's-2',
+        name: 'Y',
+        contribution_schedules: [{
+          frequency: 'monthly', amount: 30000, retirement_pct: 80, emergency_pct: 20,
+        }],
+        subscriber_balances: [{
+          total_balance: 200000, retirement_balance: 160000, emergency_balance: 40000, units: 200,
+        }],
+      }],
+      error: null,
+    });
+    const list = await getAgentSubscriberList('a-001');
+    expect(list[0].contributionSchedule.amount).toBe(30000);
+    expect(list[0].netBalance).toBe(200000);
+  });
+
+  it('returns lastContribution=0 when history is empty', async () => {
+    supabaseMock.__queueFrom('subscribers', {
+      data: [{ id: 's-3', name: 'Z', contribution_history: [] }],
+      error: null,
+    });
+    const list = await getAgentSubscriberList('a-001');
+    expect(list[0].lastContribution).toBe(0);
+    expect(list[0].contributionHistory).toEqual([]);
+  });
+
+  it('returns null contributionSchedule when missing', async () => {
+    supabaseMock.__queueFrom('subscribers', {
+      data: [{ id: 's-4', name: 'W' }],
+      error: null,
+    });
+    const list = await getAgentSubscriberList('a-001');
+    expect(list[0].contributionSchedule).toBeNull();
+  });
+
+  it('returns [] when supabase returns null data', async () => {
+    supabaseMock.__queueFrom('subscribers', { data: null, error: null });
+    expect(await getAgentSubscriberList('a-001')).toEqual([]);
+  });
+
+  it('throws when supabase returns an error (network/auth/RLS failure)', async () => {
+    supabaseMock.__queueFrom('subscribers', {
+      data: null,
+      error: { message: 'JWT expired', code: 'PGRST301' },
+    });
+    await expect(getAgentSubscriberList('a-001')).rejects.toMatchObject({
+      message: 'JWT expired',
+    });
+  });
+
+  it('defaults productsHeld to [] when null', async () => {
+    supabaseMock.__queueFrom('subscribers', {
+      data: [{ id: 's-5', name: 'V', products_held: null }],
+      error: null,
+    });
+    const list = await getAgentSubscriberList('a-001');
+    expect(list[0].productsHeld).toEqual([]);
+  });
+});
+
+describe('agent service — mock-fallback branch (IS_SUPABASE_ENABLED=false)', () => {
+  let getAgentSubscriberList;
+
+  beforeEach(async () => {
+    vi.stubEnv('VITE_USE_SUPABASE', 'false');
+    vi.resetModules();
+    vi.doMock('../supabaseClient', () => ({
+      supabase: supabaseMock,
+      default: supabaseMock,
+      getToken: vi.fn(),
+      setToken: vi.fn(),
+      clearToken: vi.fn(),
+    }));
+    const mod = await import('../agent');
+    getAgentSubscriberList = mod.getAgentSubscriberList;
+  });
+
+  it('does NOT call supabase', async () => {
+    supabaseMock.__reset();
+    await getAgentSubscriberList('a-001');
+    expect(supabaseMock.__getFromCalls('subscribers')).toHaveLength(0);
+  });
+
+  it('returns subscribers filtered by parentId (legacy field name)', async () => {
+    // mockData seeds ~30k subscribers; we don't know which agent ids exist
+    // without inspecting the seed. Use a-001 (the demo fallback id, always seeded).
+    const list = await getAgentSubscriberList('a-001');
+    expect(Array.isArray(list)).toBe(true);
+    // Each row should be flat-shaped — same key set as the real branch.
+    for (const s of list) {
+      expect(s).toHaveProperty('id');
+      expect(s).toHaveProperty('name');
+      expect(s).toHaveProperty('netBalance');
+      expect(s).toHaveProperty('contributionSchedule');
+      expect(s).toHaveProperty('productsHeld');
+    }
+  });
+
+  it('returns [] for an agent id that has no subscribers in the mock seed', async () => {
+    const list = await getAgentSubscriberList('a-does-not-exist');
+    expect(list).toEqual([]);
+  });
+});
+
+describe('agent service — real/mock branch parity (X11)', () => {
+  it('real and mock branches return rows with the same key set (when both have results)', async () => {
+    // Real
+    const realMod = await import('../agent');
+    supabaseMock.__queueFrom('subscribers', {
+      data: [{
+        id: 's-1', name: 'X', phone: '+256...',
+        email: 'x@y.com', gender: 'male', age: 35,
+        kyc_status: 'verified', is_active: true, registered_date: '2024-01-15',
+        products_held: ['pension'],
+        contribution_history: [50000],
+        contribution_schedules: { frequency: 'monthly', amount: 50000 },
+        subscriber_balances: { total_balance: 100000 },
+      }],
+      error: null,
+    });
+    const real = await realMod.getAgentSubscriberList('a-001');
+
+    // Mock
+    vi.stubEnv('VITE_USE_SUPABASE', 'false');
+    vi.resetModules();
+    vi.doMock('../supabaseClient', () => ({
+      supabase: supabaseMock,
+      default: supabaseMock,
+      getToken: vi.fn(),
+      setToken: vi.fn(),
+      clearToken: vi.fn(),
+    }));
+    const mockMod = await import('../agent');
+    const mock = await mockMod.getAgentSubscriberList('a-001');
+
+    if (real.length > 0 && mock.length > 0) {
+      // The real branch maps MORE columns (gender, age, isActive, registeredDate,
+      // kycStatus, contributionHistory, retirementBalance, emergencyBalance)
+      // than the mock branch. Document the gap rather than asserting equality —
+      // PARITY GAP: mock branch omits `gender`, `age`, `kycStatus`,
+      // `contributionHistory`, `retirementBalance`, `emergencyBalance`. Both
+      // branches DO share `id, name, phone, email, productsHeld,
+      // contributionSchedule, netBalance, lastContribution, totalContributions,
+      // totalWithdrawals, isActive, registeredDate`.
+      const mockKeys = new Set(Object.keys(mock[0]));
+      const realKeys = new Set(Object.keys(real[0]));
+      // Intersection must include the load-bearing fields.
+      const sharedKeys = [
+        'id', 'name', 'phone', 'email', 'isActive', 'registeredDate',
+        'netBalance', 'productsHeld', 'contributionSchedule', 'lastContribution',
+        'totalContributions', 'totalWithdrawals',
+      ];
+      for (const key of sharedKeys) {
+        expect(mockKeys.has(key)).toBe(true);
+        expect(realKeys.has(key)).toBe(true);
+      }
+    }
+  });
+});

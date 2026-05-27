@@ -3,7 +3,7 @@
   background: var(--color-cloud);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .section {
     padding: var(--space-8) 0 var(--space-12);
   }
@@ -141,7 +141,7 @@
 
 .secondaryBtn:hover {
   border-color: rgba(255,255,255,0.4);
-  color: #fff;
+  color: var(--color-white);
 }
 
 .visual {
@@ -213,7 +213,7 @@
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .card {
     padding: 2rem 1.5rem;
     border-radius: 1.25rem;
@@ -240,7 +240,7 @@
   }
 }
 
-@media (max-width: 360px) {
+@media (max-width: 480px) {
   .card {
     padding: 1.5rem 1rem;
   }

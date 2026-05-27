@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGX, formatUGXExact } from '../../utils/finance';
+import { formatDate } from '../../utils/date';
 import { getInitials } from '../../utils/dashboard';
 import { useCurrentSubscriber, useUpdateInsuranceCover } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
-import PageHeader from '../shell/PageHeader';
+import PageHeader from '../../components/PageHeader';
 import styles from './InsurancePage.module.css';
 
 const COVER_TIERS = [
@@ -14,12 +15,6 @@ const COVER_TIERS = [
   { cover: 3_000_000, premium: 5000 },
   { cover: 5_000_000, premium: 7500 },
 ];
-
-function formatDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 export default function InsurancePage() {
   const navigate = useNavigate();
@@ -75,6 +70,8 @@ export default function InsurancePage() {
         ? `Cover upgraded to ${formatUGX(selectedTier.cover)}.`
         : `Cover lowered to ${formatUGX(selectedTier.cover)}. New premium starts next cycle.`);
       setConfirmingDowngrade(false);
+    } catch (err) {
+      addToast('error', err?.message || 'Could not update cover.');
     } finally {
       setSubmitting(false);
     }

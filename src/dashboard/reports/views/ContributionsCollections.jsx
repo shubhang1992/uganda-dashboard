@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useAllEntities, useAllEntitiesMap, useChildren } from '../../../hooks/useEntity';
+import { useAllEntities, useAllEntitiesMap, useChildren, useAllEntitiesMetrics, useChildrenMetrics } from '../../../hooks/useEntity';
 import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import { formatUGX } from '../../../utils/finance';
 import ReportView from '../ReportView';
@@ -47,14 +47,25 @@ function MiniSparkline({ data }) {
 export default function ContributionsCollections({ onBack }) {
   const { branchId } = useBranchScope();
   const isBranch = !!branchId;
-  const { data: districts = [], isLoading: loadingDistricts } = useAllEntities('district');
-  const { data: branchAgents = [], isLoading: loadingAgents } = useChildren('branch', branchId);
+  const { data: districtsRaw = [], isLoading: loadingDistricts } = useAllEntities('district');
+  const { data: branchAgentsRaw = [], isLoading: loadingAgents } = useChildren('branch', branchId);
   const { data: regionsMap = {} } = useAllEntitiesMap('region');
+  const { data: districtMetricsMap = {} } = useAllEntitiesMetrics('district');
+  const { data: branchAgentMetricsMap = {} } = useChildrenMetrics('branch', branchId);
   const [regionFilter, setRegionFilter] = useState('');
 
   const regionOptions = useMemo(
     () => Object.values(regionsMap).map((r) => ({ value: r.id, label: r.name })).sort((a, b) => a.label.localeCompare(b.label)),
     [regionsMap]
+  );
+
+  const districts = useMemo(
+    () => districtsRaw.map(d => ({ ...d, metrics: districtMetricsMap[d.id] ?? d.metrics })),
+    [districtsRaw, districtMetricsMap],
+  );
+  const branchAgents = useMemo(
+    () => branchAgentsRaw.map(a => ({ ...a, metrics: branchAgentMetricsMap[a.id] ?? a.metrics })),
+    [branchAgentsRaw, branchAgentMetricsMap],
   );
 
   const rows = isBranch ? branchAgents : districts;
@@ -76,6 +87,20 @@ export default function ContributionsCollections({ onBack }) {
     if (isBranch || !regionFilter) return enriched;
     return enriched.filter((d) => d.regionId === regionFilter);
   }, [enriched, regionFilter, isBranch]);
+
+  // CSV serialiser walks `row[col.key]` flatly — project nested metrics up.
+  // `sparkline` is a chart-only column and exports its underlying array as
+  // a comma-joined string, which is more useful than an empty cell.
+  const exportRows = useMemo(() => filtered.map((r) => ({
+    ...r,
+    totalContributions: r.metrics?.totalContributions ?? 0,
+    dailyContributions: r.metrics?.dailyContributions ?? 0,
+    weeklyContributions: r.metrics?.weeklyContributions ?? 0,
+    monthlyTrend: r.prevMonthly
+      ? `${Math.round(((r.latestMonthly - r.prevMonthly) / r.prevMonthly) * 100)}%`
+      : '',
+    sparkline: (r.metrics?.monthlyContributions || []).join('|'),
+  })), [filtered]);
 
   const columns = [
     { key: 'name', label: isBranch ? 'Agent' : 'District', sortable: true, width: '160px' },
@@ -142,6 +167,9 @@ export default function ContributionsCollections({ onBack }) {
       description={isBranch
         ? 'Contribution inflows by agent with period breakdowns and trends'
         : 'Contribution inflows by district with period breakdowns and trends'}
+      exportRows={exportRows}
+      exportColumns={columns}
+      exportFilename="contributions-collections"
       filters={isBranch ? null : (
         <FilterSelect label="Region" value={regionFilter} onChange={setRegionFilter} options={regionOptions} />
       )}

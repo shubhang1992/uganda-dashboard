@@ -53,7 +53,7 @@
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-lg);
   background:
-    radial-gradient(120% 100% at 0% 0%, rgba(94, 99, 168, 0.55) 0%, rgba(41, 40, 103, 0) 60%),
+    radial-gradient(120% 100% at 0% 0%, rgba(94, 99, 168, 0.55) 0%, transparent 60%),
     linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
   color: var(--color-white);
   border: none;
@@ -208,8 +208,8 @@
   border: 3px solid var(--color-indigo);
   border-radius: 50%;
   box-shadow:
-    0 4px 10px rgba(41, 40, 103, 0.28),
-    0 0 0 1px rgba(41, 40, 103, 0.04);
+    0 4px 10px color-mix(in srgb, var(--color-indigo) 28%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--color-indigo) 4%, transparent);
   cursor: grab;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
@@ -221,8 +221,8 @@
   border: 3px solid var(--color-indigo);
   border-radius: 50%;
   box-shadow:
-    0 4px 10px rgba(41, 40, 103, 0.28),
-    0 0 0 1px rgba(41, 40, 103, 0.04);
+    0 4px 10px color-mix(in srgb, var(--color-indigo) 28%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--color-indigo) 4%, transparent);
   cursor: grab;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
@@ -230,15 +230,15 @@
 .sliderInput:hover::-webkit-slider-thumb {
   transform: scale(1.1);
   box-shadow:
-    0 6px 14px rgba(41, 40, 103, 0.32),
-    0 0 0 6px rgba(41, 40, 103, 0.08);
+    0 6px 14px color-mix(in srgb, var(--color-indigo) 32%, transparent),
+    0 0 0 6px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .sliderInput:hover::-moz-range-thumb {
   transform: scale(1.1);
   box-shadow:
-    0 6px 14px rgba(41, 40, 103, 0.32),
-    0 0 0 6px rgba(41, 40, 103, 0.08);
+    0 6px 14px color-mix(in srgb, var(--color-indigo) 32%, transparent),
+    0 0 0 6px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .sliderInput:active::-webkit-slider-thumb {
@@ -255,14 +255,14 @@
 
 .sliderInput:focus-visible::-webkit-slider-thumb {
   box-shadow:
-    0 4px 10px rgba(41, 40, 103, 0.28),
-    0 0 0 5px rgba(41, 40, 103, 0.18);
+    0 4px 10px color-mix(in srgb, var(--color-indigo) 28%, transparent),
+    0 0 0 5px color-mix(in srgb, var(--color-indigo) 18%, transparent);
 }
 
 .sliderInput:focus-visible::-moz-range-thumb {
   box-shadow:
-    0 4px 10px rgba(41, 40, 103, 0.28),
-    0 0 0 5px rgba(41, 40, 103, 0.18);
+    0 4px 10px color-mix(in srgb, var(--color-indigo) 28%, transparent),
+    0 0 0 5px color-mix(in srgb, var(--color-indigo) 18%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

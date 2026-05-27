@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useAllEntities, useAllEntitiesMap } from '../../../hooks/useEntity';
 import { useBranchScope } from '../../../contexts/BranchScopeContext';
 import { formatUGX } from '../../../utils/finance';
+import { formatNumber } from '../../../utils/currency';
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 import FilterSelect from '../FilterSelect';
@@ -69,6 +70,14 @@ export default function AllSubscribers({ onBack }) {
     return data;
   }, [enriched, search, kycFilter, activeFilter, genderFilter]);
 
+  // CSV serialiser walks `row[col.key]` flatly — flatten array/boolean fields
+  // to readable strings so the export doesn't ship "true" / "[object Object]".
+  const exportRows = useMemo(() => filtered.map((s) => ({
+    ...s,
+    isActive: s.isActive ? 'Active' : 'Inactive',
+    productsHeld: (s.productsHeld || []).length,
+  })), [filtered]);
+
   const columns = [
     { key: 'name', label: 'Subscriber', sortable: true, width: '160px' },
     {
@@ -120,8 +129,11 @@ export default function AllSubscribers({ onBack }) {
       onBack={onBack}
       title="All Subscribers"
       description={isBranch
-        ? `${filtered.length.toLocaleString()} subscribers in ${branchesMap[branchId]?.name || 'this branch'}`
-        : `${filtered.length.toLocaleString()} subscribers in the network`}
+        ? `${formatNumber(filtered.length)} subscribers in ${branchesMap[branchId]?.name || 'this branch'}`
+        : `${formatNumber(filtered.length)} subscribers in the network`}
+      exportRows={exportRows}
+      exportColumns={columns}
+      exportFilename="all-subscribers"
       filters={
         <>
           <SearchFilter value={search} onChange={setSearch} placeholder="Search subscribers…" />

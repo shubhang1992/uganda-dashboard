@@ -1,0 +1,4 @@
+# All indigo literals migrated.
+# Phase 5E (56c4839): 16 files ≥10 refs (435 refs).
+# Followup 14 (F17 closeout): 71 files <10 refs (223 refs) → 0.
+# Verify: grep -rcn -E "(#292867|rgba\(\s*41\s*,\s*40\s*,\s*103)" src --include='*.module.css' returns 0.

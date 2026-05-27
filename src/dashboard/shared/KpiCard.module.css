@@ -8,7 +8,7 @@
   border-radius: var(--radius-md);
   padding: var(--space-4);
   box-shadow:
-    0 2px 8px rgba(41, 40, 103, 0.05),
+    0 2px 8px color-mix(in srgb, var(--color-indigo) 5%, transparent),
     0 1px 0 rgba(255, 255, 255, 0.6) inset;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -16,7 +16,7 @@
 .kpiCard:hover {
   transform: translateY(-2px);
   box-shadow:
-    0 6px 20px rgba(41, 40, 103, 0.08),
+    0 6px 20px color-mix(in srgb, var(--color-indigo) 8%, transparent),
     0 1px 0 rgba(255, 255, 255, 0.7) inset;
 }
 
@@ -30,7 +30,7 @@
   margin-bottom: var(--space-3);
 }
 
-.kpiCard:nth-child(1) .kpiIcon { background: rgba(41, 40, 103, 0.07); color: var(--color-indigo); }
+.kpiCard:nth-child(1) .kpiIcon { background: color-mix(in srgb, var(--color-indigo) 7%, transparent); color: var(--color-indigo); }
 .kpiCard:nth-child(2) .kpiIcon { background: rgba(47, 143, 157, 0.08); color: var(--color-teal, #2F8F9D); }
 .kpiCard:nth-child(3) .kpiIcon { background: rgba(94, 99, 168, 0.08); color: var(--color-indigo-soft); }
 .kpiCard:nth-child(4) .kpiIcon { background: rgba(46, 139, 87, 0.08); color: var(--color-green); }

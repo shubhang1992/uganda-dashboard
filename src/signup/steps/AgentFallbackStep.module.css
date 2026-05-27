@@ -6,14 +6,14 @@
   height: 96px;
   border-radius: 50%;
   background: rgba(230, 168, 23, 0.12);
-  color: #B8860B;
+  color: var(--color-kyc-pending);
   margin: 0 auto var(--space-4);
 }
 
 .ticket {
   padding: 1rem 1.1rem;
   border-radius: var(--radius-md);
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
   border: 1px solid var(--color-lavender);
   margin-bottom: var(--space-4);
   display: flex;
@@ -39,7 +39,7 @@
 .spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(41, 40, 103, 0.2);
+  border: 2px solid color-mix(in srgb, var(--color-indigo) 20%, transparent);
   border-top-color: var(--color-indigo);
   border-radius: 50%;
   animation: agent-spin 0.7s linear infinite;

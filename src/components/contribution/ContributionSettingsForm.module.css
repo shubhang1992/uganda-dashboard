@@ -90,7 +90,7 @@
 }
 
 .freqCard[data-active='true'] {
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
   border-color: var(--color-indigo);
 }
 
@@ -136,7 +136,7 @@
 
 .amountField:focus-within {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .amountField[data-error] {
@@ -338,7 +338,7 @@
 
 .insuranceRow[data-active='true'] {
   border-color: var(--color-indigo);
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
 }
 
 .insuranceIcon {
@@ -348,7 +348,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   border-radius: var(--radius-md);
   color: var(--color-indigo);
 }
@@ -589,7 +589,7 @@
 
 .secondaryBtn:hover:not(:disabled) {
   border-color: var(--color-indigo-soft);
-  background: rgba(41, 40, 103, 0.04);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
 }
 
 .secondaryBtn:disabled {

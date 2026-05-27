@@ -24,6 +24,11 @@ export function useCurrentSubscriber() {
   });
 }
 
+// Canonical query-key shape: ['subscriberTransactions', id, filters].
+// Invalidations elsewhere (this file's `useInvalidateSubscriber`, the agent-side
+// `useUpdateSubscriberSchedule.onSettled`) use the two-element prefix
+// `['subscriberTransactions', id]` which matches every cached filter variant
+// for that subscriber via TanStack Query's default partial-key match.
 export function useSubscriberTransactions(id, filters) {
   return useQuery({
     queryKey: ['subscriberTransactions', id, filters],
@@ -36,6 +41,14 @@ export function useSubscriberClaims(id) {
   return useQuery({
     queryKey: ['subscriberClaims', id],
     queryFn: () => subscriberService.getSubscriberClaims(id),
+    enabled: !!id,
+  });
+}
+
+export function useSubscriberWithdrawals(id) {
+  return useQuery({
+    queryKey: ['subscriberWithdrawals', id],
+    queryFn: () => subscriberService.getSubscriberWithdrawals(id),
     enabled: !!id,
   });
 }
@@ -63,6 +76,7 @@ function useInvalidateSubscriber(id) {
     qc.invalidateQueries({ queryKey: ['currentSubscriber'] });
     qc.invalidateQueries({ queryKey: ['subscriberTransactions', id] });
     qc.invalidateQueries({ queryKey: ['subscriberClaims', id] });
+    qc.invalidateQueries({ queryKey: ['subscriberWithdrawals', id] });
     qc.invalidateQueries({ queryKey: ['subscriberNominees', id] });
   };
 }

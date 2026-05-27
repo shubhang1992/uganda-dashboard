@@ -1,0 +1,65 @@
+# Breakpoint migration residual — Cleanup 5C (F19)
+#
+# Phase 5C migrated the top-30 highest-traffic `.module.css` files to the canonical
+# 4-breakpoint scale (`--bp-sm 480px / --bp-md 768px / --bp-lg 1024px / --bp-xl 1280px`)
+# defined in `src/index.css`.
+#
+# This file lists:
+#   (A) Top-30 files where a non-token breakpoint was DELIBERATELY RETAINED, with
+#       a one-line reason — these are intentional layout boundaries that would
+#       regress if forced onto the scale.
+#   (B) Files OUTSIDE the top-30 cap (67 files) still holding non-token values.
+#       These were not migrated to keep the commit incremental. They are queued
+#       for a future pass.
+#
+# Total `.module.css` files with `@media`: 97
+# Migrated (touched in this commit): 22 of top-30
+# Distinct `@media (min|max-width)` values before: 20
+# Distinct `@media (min|max-width)` values after:  16
+#
+# ==============================================================================
+# (A) INTENTIONAL NON-TOKEN RETENTION IN TOP-30 (in-scope, kept on purpose)
+# ==============================================================================
+src/components/Hero.module.css  900px  # tier between 1024 (col-collapse) and 768 (mobile); merging to 1024 would shift stat-row compaction earlier on small desktops
+src/components/Trust.module.css  900px  # cascading mobile-down tier; 1024 not present in file, so the gap is intentional
+src/components/CTA.module.css  900px  # marketing card collapses 2-col → 1-col at 900; merging to 1024 would force single-column on small desktops
+src/components/TimeJourney.module.css  960px  # journey card grid 2→1 collapse; would regress on small desktops if pushed to 1024
+src/components/ForYou.module.css  600px  # inner phone-tier rules (smaller heading, column actions) layered over the 768 panel-stack; merging would conflict
+src/branch-dashboard/overview/BranchHealthScore.module.css  600px  # explicit "small phones go single-column" tier under the 768 "tighten" tier; merging would shift single-col phone layout to iPad portrait
+src/branch-dashboard/overview/BranchOverview.module.css  600px  # paired with BranchHealthScore tiering; same reason
+src/branch-dashboard/overview/OperationsSection.module.css  600px  # paired with the trio; small-phone header padding tier
+src/dashboard/reports/ReportsHub.module.css  900px  # cascading kpiGrid 4→2 columns; mapping to 1024 would push 2-col layout onto small desktops
+src/subscriber-dashboard/home/HomePage.module.css  767.98px  # off-by-0.02 trick anchored to --bp-md to keep `max-width: 767.98` and `min-width: 768` from overlapping at boundary
+#
+# ==============================================================================
+# (B) OUT-OF-SCOPE FILES (not in top-30 — deferred)
+# ==============================================================================
+src/signup/SignupShell.module.css  640, 420
+src/signup/EducationalLoader.module.css  540
+src/signup/steps/ActivatedStep.module.css  540, 400
+src/signup/steps/IdUploadStep.module.css  640 (min-width)
+src/branch-dashboard/sidebar/BranchSidebar.module.css  600
+src/branch-dashboard/overview/BranchSettlementBanner.module.css  600
+src/dashboard/branch/CreateBranch.module.css  400
+src/components/Modal.module.css  540
+src/components/HowItWorks.module.css  600, 700
+src/components/Toast.module.css  600, 400
+src/components/Footer.module.css  900, 500
+src/components/SignInModal.module.css  600
+src/components/SavingsCalculator.module.css  600
+src/components/StickyMobileCTA.module.css  600
+src/components/Navbar.module.css  360
+src/components/signin/RoleSelect.module.css  400, 360
+src/components/signin/OtpVerify.module.css  360, 320
+src/components/contribution/ContributionSettingsForm.module.css  600 (min-width)
+src/pages/FAQ.module.css  600, 520
+src/pages/About.module.css  520, 800
+src/pages/Contact.module.css  520, 960
+src/agent-dashboard/home/HomePage.module.css  600 (min-width), 880
+#
+# Notes for future pass:
+# - 600 → 768 is the most common safe substitution (semantic = "tablet boundary").
+# - 360/400/420/540 → 480 is safe in single-tier files.
+# - 700/900/960 require per-file inspection (cascading tier or unique boundary).
+# - Tokens `--bp-sm/md/lg/xl` are documentation; `@media` queries continue to use
+#   the literal pixel value matching the token until a CSS preprocessor lands.

@@ -69,7 +69,7 @@
 }
 
 .tab[data-active='true'] .tabCount {
-  background: rgba(41, 40, 103, 0.08);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
   color: var(--color-indigo);
 }
 
@@ -199,7 +199,7 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(41, 40, 103, 0.08);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
   color: var(--color-indigo);
   display: flex;
   align-items: center;
@@ -310,7 +310,7 @@
 .input:focus,
 .select:focus {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .shareInput {
@@ -341,7 +341,7 @@
 
 .phoneInput:focus-within {
   border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px rgba(41, 40, 103, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
 .phonePrefix {
@@ -408,7 +408,7 @@
   width: 56px;
   height: 56px;
   border-radius: var(--radius-lg);
-  background: rgba(41, 40, 103, 0.06);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   border: 1px solid var(--color-lavender);
   color: var(--color-indigo);
   display: flex;

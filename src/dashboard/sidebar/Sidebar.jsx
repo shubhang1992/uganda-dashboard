@@ -2,15 +2,16 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
+import { formatNumber } from '../../utils/currency';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { useAllEntities } from '../../hooks/useEntity';
+import { useEntityMetrics } from '../../hooks/useEntity';
 import styles from './Sidebar.module.css';
 
 function formatCount(n) {
   if (!Number.isFinite(n) || n <= 0) return '—';
   if (n >= 10_000) return `${Math.round(n / 1000)}K`;
-  return n.toLocaleString('en-UG');
+  return formatNumber(n);
 }
 
 const MOBILE_NAV = [
@@ -207,13 +208,16 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, subscriberMenuOpen, setSubscriberMenuOpen, viewSubscribersOpen, setViewSubscribersOpen, setDrillTargetBranchId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen, setCommissionsOpen, settingsOpen, setSettingsOpen } = useDashboard();
 
-  // Real counts for the submenu headers — replaces previous hardcoded values.
-  const { data: branchesArr = [] } = useAllEntities('branch');
-  const { data: agentsArr = [] } = useAllEntities('agent');
-  const { data: subscribersArr = [] } = useAllEntities('subscriber');
-  const branchCount = formatCount(branchesArr.length);
-  const agentCount = formatCount(agentsArr.length);
-  const subscriberCount = formatCount(subscribersArr.length);
+  // Real counts for the submenu headers — sourced from the country-level
+  // rollup RPC (single call, 5-min staleTime). Replaces three earlier
+  // `useAllEntities` calls that paginated 30+ pages of subscribers just to
+  // display a count label (PR-2 / AUDIT-1-5). The RPC returns
+  // totalBranches / totalAgents / totalSubscribers as part of its 8-field
+  // result.
+  const { data: countryMetrics } = useEntityMetrics('country', 'ug');
+  const branchCount = formatCount(countryMetrics?.totalBranches ?? 0);
+  const agentCount = formatCount(countryMetrics?.totalAgents ?? 0);
+  const subscriberCount = formatCount(countryMetrics?.totalSubscribers ?? 0);
 
   // `active` is purely derived from which panel/menu is open.
   // No setState-in-effect needed — submenu open state itself is now derived
@@ -255,26 +259,29 @@ export default function Sidebar() {
     }
   }, [createBranchOpen, viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen]);
 
-  /* Close submenus on outside click — keep open when related panel is visible or just closed */
+  /* One delegated document-click listener handles both "close submenus" and
+   * "close More menu" outside-click dismissals. Previously each lived in its
+   * own `useEffect`/`addEventListener` pair — two listener attaches/detaches
+   * per render on top of the bubble path cost paid on every click in the
+   * document. Now a single listener dispatches to each purpose based on the
+   * current open state (F24). Skip attaching entirely when nothing is open. */
+  const anyMenuOpen = branchMenuOpen || agentMenuOpen || subscriberMenuOpen || moreOpen;
   useEffect(() => {
-    if (!branchMenuOpen && !agentMenuOpen && !subscriberMenuOpen) return;
+    if (!anyMenuOpen) return;
     const handler = () => {
-      // Grace period: don't close submenu within 500ms of a panel closing
-      if (Date.now() - panelClosedAt.current < 500) return;
-      if (branchMenuOpen && !createBranchOpen && !viewBranchesOpen) setBranchMenuOpen(false);
-      if (agentMenuOpen && !viewAgentsOpen) setAgentMenuOpen(false);
-      if (subscriberMenuOpen && !viewSubscribersOpen) setSubscriberMenuOpen(false);
+      // Purpose 1: dismiss the mobile "More" popover.
+      if (moreOpen) closeMore();
+      // Purpose 2: dismiss flyout submenus, respecting the 500ms grace period
+      // after a panel just closed so the submenu stays anchored to its source.
+      if (Date.now() - panelClosedAt.current >= 500) {
+        if (branchMenuOpen && !createBranchOpen && !viewBranchesOpen) setBranchMenuOpen(false);
+        if (agentMenuOpen && !viewAgentsOpen) setAgentMenuOpen(false);
+        if (subscriberMenuOpen && !viewSubscribersOpen) setSubscriberMenuOpen(false);
+      }
     };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
-  }, [branchMenuOpen, agentMenuOpen, subscriberMenuOpen, createBranchOpen, viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen, setBranchMenuOpen, setAgentMenuOpen, setSubscriberMenuOpen]);
-
-  useEffect(() => {
-    if (!moreOpen) return;
-    const handler = () => closeMore();
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
-  }, [moreOpen, closeMore]);
+  }, [anyMenuOpen, moreOpen, closeMore, branchMenuOpen, agentMenuOpen, subscriberMenuOpen, createBranchOpen, viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen, setBranchMenuOpen, setAgentMenuOpen, setSubscriberMenuOpen]);
 
   function handleClick(id) {
     setMoreOpen(false);

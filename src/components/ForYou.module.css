@@ -86,7 +86,7 @@
   background: var(--panel-bg, var(--color-cloud));
   border-radius: var(--radius-xl);
   padding: 3rem;
-  border: 1px solid rgba(41,40,103,0.08);
+  border: 1px solid color-mix(in srgb, var(--color-indigo) 8%, transparent);
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 3rem;
@@ -167,7 +167,7 @@
   justify-content: center;
   width: 26px;
   height: 26px;
-  background: rgba(41,40,103,0.08);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
   border-radius: var(--radius-full);
   color: var(--panel-accent, var(--color-indigo));
   flex-shrink: 0;
@@ -214,7 +214,7 @@
   }
 }
 
-@media (max-width: 360px) {
+@media (max-width: 480px) {
   .tab {
     padding: 0.5rem 0.75rem;
     font-size: 11px;

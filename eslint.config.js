@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', '.claude/worktrees/**']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -35,6 +35,7 @@ export default defineConfig([
           'useDashboardPanel',
           'useSignIn',
           'useSignup',
+          'useSubscriberPanel',
           'useToast',
           'useApp',
           'STEPS',

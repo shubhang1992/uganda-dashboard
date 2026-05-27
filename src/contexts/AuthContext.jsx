@@ -1,23 +1,32 @@
-import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { onAuthExpired } from '../services/api';
+import { setToken, clearToken } from '../services/supabaseClient';
 
 /**
  * @typedef {Object} AuthUser
- * @property {string} role - User role ('subscriber'|'employer'|'distributor'|'branch'|'agent'|'admin')
- * @property {string} phone - Phone number
- * @property {string} name - Display name
- * @property {{frequency:'weekly'|'monthly'|'quarterly'|'half-yearly'|'annually', amount:number, retirementPct:number, emergencyPct:number}|null} [contributionSchedule] - Subscriber's one-time contribution plan; editable later from account settings.
+ * @property {string} role - 'subscriber'|'employer'|'distributor'|'branch'|'agent'|'admin'
+ * @property {string} phone - Phone number (E.164)
+ * @property {string} [name] - Display name; may be omitted by the backend.
+ *   AuthContext falls back to `phone` for display when missing.
+ * @property {string} [subscriberId] - Set when role === 'subscriber'
+ * @property {string} [agentId] - Set when role === 'agent'
+ * @property {string} [branchId] - Set when role === 'branch'
+ * @property {string} [distributorId] - Set when role === 'distributor'
+ * @property {{frequency:'weekly'|'monthly'|'quarterly'|'half-yearly'|'annually', amount:number, retirementPct:number, emergencyPct:number}|null} [contributionSchedule]
  */
 
 /**
  * @typedef {Object} AuthContextValue
- * @property {AuthUser|null} user - Current user or null if not authenticated
+ * @property {AuthUser|null} user
  * @property {string|null} role - Shortcut to user.role
- * @property {boolean} isAuthenticated - Whether a user session exists
- * @property {(userData: AuthUser) => void} login - Store session and set user
- * @property {() => void} logout - Clear session
+ * @property {boolean} isAuthenticated
+ * @property {(payload: { token: string, user: AuthUser }) => Promise<AuthUser>} login
+ *   - Persists the JWT (`upensions_token`) and user object (`upensions_auth`),
+ *     updates React state, and returns the resolved user.
+ * @property {() => void} logout - Clears both auth keys + React Query cache.
+ * @property {(updates: Partial<AuthUser>) => void} updateUser - Merge partial updates.
  */
 
 const AUTH_KEY = 'upensions_auth';
@@ -38,13 +47,20 @@ export function AuthProvider({ children }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  const login = useCallback((userData) => {
-    setUser(userData);
+  /**
+   * Persist the JWT + user object and resolve with the user so callers can do
+   * `await login({...}).then(() => navigate(...))`.
+   * Signature is `({ token, user })` rather than the legacy bare user object.
+   */
+  const login = useCallback(async ({ token, user: nextUser }) => {
+    if (token) setToken(token);
+    setUser(nextUser);
     try {
-      localStorage.setItem(AUTH_KEY, JSON.stringify(userData));
+      localStorage.setItem(AUTH_KEY, JSON.stringify(nextUser));
     } catch {
       // Quota / private-browsing — non-fatal; session lives in memory only.
     }
+    return nextUser;
   }, []);
 
   /** Apply partial updates to the active session (e.g. profile edits). */
@@ -63,6 +79,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     setUser(null);
+    clearToken();
     try {
       localStorage.removeItem(AUTH_KEY);
     } catch {
@@ -73,11 +90,64 @@ export function AuthProvider({ children }) {
   }, [queryClient]);
 
   // When the API client surfaces a 401, log out and route home via
-  // react-router rather than a full page reload.
-  useEffect(() => onAuthExpired(() => {
-    logout();
-    navigate('/');
-  }), [logout, navigate]);
+  // react-router rather than a full page reload. Use refs so the listener
+  // body stays identity-stable across renders while always reading the
+  // current `logout` + `navigate` callbacks.
+  const logoutRef = useRef(logout);
+  const navigateRef = useRef(navigate);
+  useEffect(() => {
+    logoutRef.current = logout;
+  });
+  useEffect(() => {
+    navigateRef.current = navigate;
+  });
+
+  // G54 — Subscribe synchronously during render (not inside useEffect) so a
+  // 401 returned by an in-flight request that resolves *before* effects run
+  // (or during React StrictMode's intentional unmount+remount) still hits a
+  // listener. The Set-backed subscribe is naturally idempotent: subsequent
+  // renders short-circuit on the ref, and unmount tears down via the
+  // sibling effect's cleanup. After StrictMode tears the listener down, the
+  // re-mount effect re-subscribes — there is no permanent unsubscribe
+  // window because each new mount runs the synchronous block again on its
+  // first render (refs are mount-scoped).
+  const unsubAuthExpiredRef = useRef(null);
+  if (unsubAuthExpiredRef.current === null) {
+    unsubAuthExpiredRef.current = onAuthExpired(() => {
+      logoutRef.current();
+      navigateRef.current('/');
+    });
+  }
+  useEffect(() => {
+    // If the ref was nulled by a prior cleanup (StrictMode unmount/remount
+    // sequence), re-register here. On the first mount this is a no-op
+    // because the synchronous render block above already registered.
+    if (unsubAuthExpiredRef.current === null) {
+      unsubAuthExpiredRef.current = onAuthExpired(() => {
+        logoutRef.current();
+        navigateRef.current('/');
+      });
+    }
+
+    // G55 — cross-tab logout sync. When another tab clears the JWT (via
+    // logout or notifyAuthExpired), the `storage` event fires here with a
+    // null newValue. We mirror the logout in this tab so the session can't
+    // linger after the user has signed out elsewhere.
+    function onStorage(e) {
+      if (e.key === 'upensions_token' && !e.newValue) {
+        logoutRef.current();
+        navigateRef.current('/');
+      }
+    }
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      if (unsubAuthExpiredRef.current) {
+        unsubAuthExpiredRef.current();
+        unsubAuthExpiredRef.current = null;
+      }
+    };
+  }, []);
 
   const value = useMemo(
     () => ({ user, role: user?.role ?? null, isAuthenticated: !!user, login, logout, updateUser }),

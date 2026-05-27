@@ -15,7 +15,6 @@ import LivenessStep from './steps/LivenessStep';
 import AmlStep from './steps/AmlStep';
 import BeneficiariesStep from './steps/BeneficiariesStep';
 import ConsentStep from './steps/ConsentStep';
-import ActivatedStep from './steps/ActivatedStep';
 import AgentFallbackStep from './steps/AgentFallbackStep';
 import PendingReviewStep from './steps/PendingReviewStep';
 
@@ -26,7 +25,7 @@ const NO_BACK_STEPS = new Set(['id-upload', 'done', AGENT_STEP, PENDING_REVIEW_S
 function SignupFlow() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, logout } = useAuth();
+  const { logout } = useAuth();
   const signup = useSignup();
   const [stepId, setStepId] = useState('id-upload');
   const [pausedAt, setPausedAt] = useState(null);
@@ -68,17 +67,6 @@ function SignupFlow() {
     setPausedAt('aml');
     setDirection(1);
     setStepId(PENDING_REVIEW_STEP);
-  }
-
-  function finishAndEnter() {
-    login({
-      role: 'subscriber',
-      phone: signup.phone,
-      name: signup.fullName || 'New Subscriber',
-      contributionSchedule: signup.contributionSchedule ?? null,
-    });
-    signup.reset();
-    navigate('/coming-soon');
   }
 
   function exitToHome() {
@@ -158,10 +146,7 @@ function SignupFlow() {
         return <BeneficiariesStep onNext={goNext} />;
 
       case 'consent':
-        return <ConsentStep onActivate={async () => goNext()} />;
-
-      case 'done':
-        return <ActivatedStep onFinish={finishAndEnter} />;
+        return <ConsentStep onActivate={async () => navigate('/signup/contribution')} />;
 
       case AGENT_STEP:
         return <AgentFallbackStep onExit={exitToHome} />;

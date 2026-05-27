@@ -1,7 +1,26 @@
-// Chat service — mock AI responses built from actual computed data.
-// When backend is ready, replace with real LLM + DB integration.
+// Chat service — wraps the `/api/chat` Vercel route. The route is
+// JWT-optional: when a JWT is present the server flavors the reply by the
+// claim role (admin/distributor/branch → admin flavor, agent → agent DM
+// flavor, subscriber → subscriber co-pilot). When unauthenticated the server
+// falls back to the `context` field on the body, which is what the
+// subscriber co-pilot uses pre-sign-in.
+//
+// All three exported functions return a plain string (the reply). The route
+// also returns a `suggestions` array, but every existing caller
+// (`BranchHealthScore`, `MetricsRow`, `CoPilotWidget`, `AgentPage`,
+// `HelpPage`) renders the response as a single chat bubble — they don't
+// consume `.suggestions`. So we unwrap `.reply` at the boundary and keep the
+// legacy string contract. If a caller ever needs the suggestions, expose a
+// second function rather than widening this return type.
+//
+// Rollback:
+//   When `IS_SUPABASE_ENABLED` is false (set `VITE_USE_SUPABASE=false`), each
+//   function short-circuits to the legacy localStorage / keyword-matched
+//   implementation so the rollback drill works without the API route.
 
+import { api, IS_SUPABASE_ENABLED } from './api';
 import { COUNTRY, REGIONS, AGENTS, BRANCHES } from '../data/mockData';
+import { formatNumber } from '../utils/currency';
 
 let _responses = null;
 
@@ -31,7 +50,7 @@ function buildResponses() {
       "I can help you analyse your pension network data. Ask about subscribers, agents, coverage, or contributions!",
     agent: `Top 3 agents by performance: ${topAgents.map((a) => `${a.name} (${a.performance}%)`).join(', ')}. Network average: ${avgPerf}%.`,
     coverage: `Coverage: ${Object.values(REGIONS).map((r) => `${r.name} ${r.metrics.coverageRate}%`).join(', ')}. National average: ${cm.coverageRate}%.`,
-    subscriber: `${cm.totalSubscribers.toLocaleString()} subscribers across ${branchCount} branches. ${cm.activeRate}% active. ${regionsBySubscribers[0].name} region leads with ~${regionsBySubscribers[0].subs.toLocaleString()}.`,
+    subscriber: `${formatNumber(cm.totalSubscribers)} subscribers across ${branchCount} branches. ${cm.activeRate}% active. ${regionsBySubscribers[0].name} region leads with ~${formatNumber(regionsBySubscribers[0].subs)}.`,
     gender: `Gender: ${cm.genderRatio.male}% male, ${cm.genderRatio.female}% female, ${cm.genderRatio.other}% other. ${mostBalanced.name} region has the most balanced split.`,
   };
 
@@ -39,24 +58,36 @@ function buildResponses() {
 }
 
 /**
+ * Post a message to `/api/chat` with the given context flag. Returns the
+ * reply string; swallows + logs route failures so the chat UI shows a calm
+ * fallback message instead of breaking. Used by all three public functions
+ * below as a single integration point.
+ */
+async function postChat(message, context, fallback) {
+  try {
+    const res = await api.post('/chat', { message, context });
+    if (res && typeof res.reply === 'string') return res.reply;
+    return fallback;
+  } catch (err) {
+    if (typeof window !== 'undefined' && window?.console) {
+      console.warn('[chat] /api/chat failed; falling back to mock copy.', err);
+    }
+    return fallback;
+  }
+}
+
+/**
  * @endpoint POST /api/chat
  * @param {string} message - User's chat message
  * @returns {Promise<string>} AI-generated response text
- * @description Mock AI chat that returns pre-built responses based on keyword matching.
- *   In production, replace with LLM integration (e.g., Claude API) connected to the
- *   actual database for real-time data analysis. Keywords matched: agent/top, coverage/region,
- *   subscriber/active, gender/split.
+ * @description Distributor/Branch/Admin "data assistant" flavor. The API
+ *   route uses the JWT role to decide the flavor; we pass `context: 'admin'`
+ *   so unauthenticated calls still get the admin flavor.
  * @scope Distributor and Branch Admin (scoped to their data visibility).
  */
 export async function getChatResponse(message) {
-  // Future: api.post('/chat', { message })
-  const responses = buildResponses();
-  const l = message.toLowerCase();
-  if (l.includes('agent') || l.includes('top')) return responses.agent;
-  if (l.includes('coverage') || l.includes('region')) return responses.coverage;
-  if (l.includes('subscriber') || l.includes('active')) return responses.subscriber;
-  if (l.includes('gender') || l.includes('split')) return responses.gender;
-  return responses.default;
+  if (!IS_SUPABASE_ENABLED) return mockChatResponse(message);
+  return postChat(message, 'admin', mockChatResponse(message));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -95,12 +126,48 @@ const subscriberChatResponses = {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * Mock agent reply. The real product will route messages into a person-to-person
- * inbox; this just keeps the prototype demo lively. Falls back to a personable
- * acknowledgement when no keyword matches.
+ * @endpoint POST /api/chat (context: 'agent')
+ * @param {string} message
+ * @param {{ name?: string }} [agent] - Used as a friendly first-name fallback
+ *   when the API isn't yet personalised.
+ * @returns {Promise<string>} Reply text.
+ * @description Subscriber → agent DM. The real product will route messages
+ *   into a person-to-person inbox; today the server returns a keyword-matched
+ *   stock reply.
  */
 export async function getAgentReply(message, agent) {
   const firstName = (agent?.name || 'your agent').split(' ')[0];
+  if (!IS_SUPABASE_ENABLED) return mockAgentReply(message, firstName);
+  return postChat(message, 'agent', mockAgentReply(message, firstName));
+}
+
+/**
+ * @endpoint POST /api/chat (context: 'subscriber')
+ * @param {string} message
+ * @returns {Promise<string>}
+ * @description Subscriber-facing co-pilot. Often called before sign-in, so we
+ *   rely on the route's unauthenticated body-context fallback.
+ */
+export async function getSubscriberChatResponse(message) {
+  if (!IS_SUPABASE_ENABLED) return mockSubscriberChatResponse(message);
+  return postChat(message, 'subscriber', mockSubscriberChatResponse(message));
+}
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/*  Rollback mocks (used when IS_SUPABASE_ENABLED === false)                */
+/* ──────────────────────────────────────────────────────────────────────── */
+
+function mockChatResponse(message) {
+  const responses = buildResponses();
+  const l = (message || '').toLowerCase();
+  if (l.includes('agent') || l.includes('top')) return responses.agent;
+  if (l.includes('coverage') || l.includes('region')) return responses.coverage;
+  if (l.includes('subscriber') || l.includes('active')) return responses.subscriber;
+  if (l.includes('gender') || l.includes('split')) return responses.gender;
+  return responses.default;
+}
+
+function mockAgentReply(message, firstName) {
   const l = (message || '').toLowerCase();
   if (l.includes('contribute') || l.includes('top up') || l.includes('top-up')) {
     return `Sure — easiest is to use the Top up button on your dashboard. If you'd prefer Mobile Money via me, send the amount and I'll send a payment prompt to your phone.`;
@@ -129,9 +196,7 @@ export async function getAgentReply(message, agent) {
   return `Thanks for the message — I'll get back to you shortly. If it's urgent, you can also call me on the number above.`;
 }
 
-/** Mock subscriber-side AI response. Replace with LLM + personal data lookup. */
-export async function getSubscriberChatResponse(message) {
-  // Future: api.post('/subscriber/chat', { message })
+function mockSubscriberChatResponse(message) {
   const l = (message || '').toLowerCase();
   if (l.includes('withdraw') || l.includes('take out')) return subscriberChatResponses.withdraw;
   if (l.includes('contribute') || l.includes('top up') || l.includes('top-up')) return subscriberChatResponses.contribute;
