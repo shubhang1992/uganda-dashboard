@@ -8,7 +8,6 @@
 
 import { api } from './api';
 import { IS_SUPABASE_ENABLED } from './api';
-import { IS_DEV } from '../config/env';
 
 /**
  * @endpoint POST /api/contact
@@ -32,13 +31,14 @@ export async function submitContactForm(payload) {
     // Backend contract: { submitted: true, id }
     return { ok: true, demo: false, id: res?.id };
   } catch (err) {
-    // In local dev without `vercel dev` running, the same-origin POST will
-    // 404. Falling back to the mock keeps the contact form usable in that
-    // mode and matches the spirit of the rollback flag. The mock response
-    // sets `demo: true`, which the Contact page surfaces to the user via
-    // a banner so they know the message wasn't actually sent and can email
-    // ${SUPPORT_EMAIL} instead — no console output needed.
-    if (IS_DEV) {
+    // G53 — Only fall back to the mock when explicitly told to mock via the
+    // rollback feature flag. Previously this fell back whenever IS_DEV was
+    // true, which masked real backend errors during local development (a
+    // 500 from the contact route became a silent "demo banner" instead of
+    // a debuggable failure). The mock response sets `demo: true`, which the
+    // Contact page surfaces to the user via a banner so they know the
+    // message wasn't actually sent and can email ${SUPPORT_EMAIL} instead.
+    if (String(import.meta.env.VITE_USE_SUPABASE ?? 'true').toLowerCase() === 'false') {
       return mockSubmit();
     }
     throw err;

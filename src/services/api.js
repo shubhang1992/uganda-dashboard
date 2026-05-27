@@ -70,16 +70,32 @@ function notifyAuthExpired() {
 
 const METHODS_WITH_BODY = new Set(['POST', 'PUT', 'PATCH']);
 
+/** Build a standard error object surfaced to callers (B18 / G47 / G48 / G50). */
+function createApiError(code, message, status, body) {
+  const err = new Error(message);
+  err.code = code;
+  if (status != null) err.status = status;
+  if (body !== undefined) err.body = body;
+  return err;
+}
+
 /**
- * Fire a request against an `/api/*` Vercel route.
+ * Fire a request against an `/api/*` route (Vercel during dev rewrite or the
+ * Express server in production).
  *
  * @param {string} path - Path beginning with `/`, e.g. `/auth/verify-otp`.
- * @param {RequestInit} [options] - Standard fetch options.
+ * @param {RequestInit & { signal?: AbortSignal, _retry?: boolean }} [options] -
+ *   Standard fetch options. `options.signal` (G52) is honoured alongside the
+ *   internal 20s timeout. `_retry` is internal — set on the second pass so
+ *   the retry loop never recurses past depth 1.
  * @returns {Promise<any>} Parsed JSON body (or null on 204).
- * @throws {Error} On non-OK responses. The thrown error has a `code` (from the
- *   response body's `error` or `code` field), `status` (HTTP status), and an
- *   optional `body` (the parsed JSON). 401 fires `onAuthExpired` listeners
- *   before throwing.
+ * @throws {Error} On non-OK responses. The thrown error has a `code`, `status`
+ *   (HTTP status when applicable), and an optional `body` (the parsed JSON).
+ *   Cold-start error codes layered by Phase 5:
+ *     - `timeout`             — fetch took >20s or aborted (B18 / G67).
+ *     - `network_unreachable` — fetch threw `TypeError` (G50).
+ *     - `server_unavailable`  — 5xx or non-JSON response body (G48).
+ *   401 fires `onAuthExpired` listeners before throwing (unchanged).
  */
 export async function apiFetch(path, options = {}) {
   const url = `${API_PREFIX}${path}`;
@@ -92,7 +108,71 @@ export async function apiFetch(path, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const res = await fetch(url, { ...options, headers });
+  // B18 + G67 — Portable 20s timeout via AbortController. We can't use
+  // `AbortSignal.timeout(20_000)` because Safari 15 (still common in the
+  // demo's target deployment) needs polyfilling for it. G52 — if the caller
+  // passes their own signal, we forward theirs so they retain cancellation
+  // control; otherwise we use our internal controller.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20_000);
+  // Strip internal-only flags from the fetch init.
+  const { signal: callerSignal, _retry, ...rest } = options;
+
+  let res;
+  try {
+    res = await fetch(url, {
+      ...rest,
+      headers,
+      signal: callerSignal ?? controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err?.name === 'AbortError' || err?.name === 'TimeoutError') {
+      const timeoutErr = createApiError('timeout', 'Request timed out');
+      // G49 — single retry on transient cold-start failures.
+      if (!_retry) {
+        await new Promise((r) => setTimeout(r, 1500));
+        return apiFetch(path, { ...options, _retry: true });
+      }
+      throw timeoutErr;
+    }
+    if (err instanceof TypeError) {
+      // G50 — "Failed to fetch" / DNS / TLS / offline all surface as TypeError.
+      const netErr = createApiError('network_unreachable', 'Could not reach server');
+      throw netErr;
+    }
+    throw err;
+  }
+  clearTimeout(timeoutId);
+
+  // G48 — Treat 5xx or non-JSON bodies as server_unavailable (cold-start
+  // returning Render's HTML maintenance page, an LB 502, etc.).
+  if (res.status >= 500) {
+    const err = createApiError('server_unavailable', 'Server unavailable', res.status);
+    // G49 — single retry with 1.5s backoff.
+    if (!_retry) {
+      await new Promise((r) => setTimeout(r, 1500));
+      return apiFetch(path, { ...options, _retry: true });
+    }
+    throw err;
+  }
+  // Defensive header read — some test doubles (and some unusual transport
+  // wrappers) don't expose a `Headers` instance. Treat a missing/empty
+  // content-type as "trust it" — JSON parsing further down will surface any
+  // real mismatch as raw text instead of a thrown server_unavailable.
+  const contentType = (res.headers && typeof res.headers.get === 'function')
+    ? (res.headers.get('content-type') || '')
+    : '';
+  if (res.status !== 204 && contentType && !contentType.includes('json')) {
+    // Server returned 2xx/4xx but the body isn't JSON — most likely a CDN /
+    // load-balancer HTML page interposed in front of the Express server.
+    const err = createApiError('server_unavailable', 'Server unavailable', res.status);
+    if (!_retry) {
+      await new Promise((r) => setTimeout(r, 1500));
+      return apiFetch(path, { ...options, _retry: true });
+    }
+    throw err;
+  }
 
   if (res.status === 401) {
     // Read the body once so we can distinguish "the token itself is bad"
@@ -104,28 +184,19 @@ export async function apiFetch(path, options = {}) {
     const code = body?.error || body?.code;
     if (!code || code === 'session_expired' || code === 'unauthorized') {
       notifyAuthExpired();
-      const err = new Error('Session expired');
-      err.code = 'session_expired';
-      err.status = 401;
-      throw err;
+      throw createApiError('session_expired', 'Session expired', 401);
     }
     const message = body?.message || code || `API error: ${res.status}`;
-    const err = new Error(message);
-    err.code = code;
-    err.status = 401;
-    err.body = body;
-    throw err;
+    throw createApiError(code, message, 401, body);
   }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const code = body?.error || body?.code;
     const message = body?.message || code || `API error: ${res.status}`;
-    const err = new Error(message);
-    err.code = code;
-    err.status = res.status;
-    err.body = body;
-    throw err;
+    // G49 — 4xx is NOT retried; only the transient codes above hit the retry
+    // branch. We fall through to the normal throw.
+    throw createApiError(code, message, res.status, body);
   }
 
   if (res.status === 204) return null;

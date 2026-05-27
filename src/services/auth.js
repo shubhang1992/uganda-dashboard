@@ -41,6 +41,14 @@ function messageForCode(code) {
   if (code === 'password_not_set')   return 'This account uses one-time codes only.';
   if (code === 'current_password_required') return 'Enter your current password.';
   if (code === 'current_password_invalid')  return 'Current password is incorrect.';
+  // G47 — Cold-start / transport-level codes surfaced by services/api.js
+  // (network_unreachable from TypeError, server_unavailable from 5xx /
+  // non-JSON, timeout from the 20s AbortController). These let callers
+  // render distinct messaging instead of falling through to "Invalid code"
+  // when the backend is simply waking up.
+  if (code === 'network_unreachable') return "Couldn't reach the server. Please try again in a moment.";
+  if (code === 'server_unavailable')  return 'Demo backend is temporarily unavailable. Retrying…';
+  if (code === 'timeout')             return 'Request timed out. Please try again.';
   return 'Could not verify the code. Please try again.';
 }
 

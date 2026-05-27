@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useSignIn } from '../contexts/SignInContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { hasDashboard, sendOtp, verifyOtp, signInWithPassword, AuthError } from '../services/auth';
 import RoleSelect from './signin/RoleSelect';
 import DistributorSelect from './signin/DistributorSelect';
@@ -16,6 +17,7 @@ import styles from './SignInModal.module.css';
 export default function SignInModal() {
   const { isOpen, close } = useSignIn();
   const { login } = useAuth();
+  const { addToast } = useToast();
   const navigate = useNavigate();
   const [step, setStep] = useState('role');
   const [role, setRole] = useState(null);
@@ -151,10 +153,22 @@ export default function SignInModal() {
       goTo('password');
       return;
     }
-    // OTP path. Fire-and-forget the send so the OTP step can render immediately.
-    // Any backend rejection surfaces on the verify step instead.
-    sendOtp(phoneNum, role).catch(() => { /* ignore — verify will surface real errors */ });
-    goTo('otp');
+    // B19 — Await the OTP dispatch so a cold backend doesn't drop us on the
+    // OTP step before the send has actually fired. PhoneEntry's submit
+    // button is bound to its own `loading` flag (driven by us awaiting
+    // here), so the spinner stays visible until either the send resolves
+    // (advance to OTP) or rejects (surface a toast, stay on phone step).
+    try {
+      await sendOtp(phoneNum, role);
+      goTo('otp');
+    } catch (err) {
+      // Surface a toast rather than silently advancing — cold-start failures
+      // and network errors should not leave the user typing a code that was
+      // never sent. The toast text honours messageForCode mappings (G47).
+      const message = err?.message || 'Could not send verification code. Please try again.';
+      addToast('error', message);
+      throw err;
+    }
   }
 
   async function handleResend() {
@@ -220,9 +234,15 @@ export default function SignInModal() {
     setMethod('code');
     setPasswordError('');
     setShowSwitchCta(false);
-    // Fire-and-forget — same pattern as the original phone-submit OTP branch.
-    sendOtp(phone, role).catch(() => { /* ignore — verify will surface real errors */ });
-    goTo('otp');
+    // B19 — Await so a failed dispatch surfaces as a toast rather than
+    // silently advancing to a step where the OTP never arrives.
+    try {
+      await sendOtp(phone, role);
+      goTo('otp');
+    } catch (err) {
+      const message = err?.message || 'Could not send verification code. Please try again.';
+      addToast('error', message);
+    }
   }
 
   function handlePhoneBack() {

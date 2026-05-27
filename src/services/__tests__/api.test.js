@@ -168,11 +168,11 @@ describe('api service', () => {
       });
     });
 
-    it('falls back to "API error: <status>" when body has no code or message', async () => {
+    it('falls back to "API error: <status>" when 4xx body has no code or message', async () => {
       vi.spyOn(global, 'fetch').mockResolvedValue(
-        jsonResponse({}, { status: 500 }),
+        jsonResponse({}, { status: 400 }),
       );
-      await expect(apiFetch('/v')).rejects.toThrow('API error: 500');
+      await expect(apiFetch('/v')).rejects.toThrow('API error: 400');
     });
 
     it('attaches the parsed body to the error for non-401 failures', async () => {
@@ -187,14 +187,25 @@ describe('api service', () => {
       }
     });
 
-    it('handles JSON-parse failure on error response gracefully', async () => {
+    it('maps 5xx into server_unavailable (G48) after the single retry', async () => {
+      // First call and retry both return 500 → final throw is server_unavailable.
+      vi.spyOn(global, 'fetch').mockResolvedValue(
+        jsonResponse({}, { status: 500 }),
+      );
+      await expect(apiFetch('/v')).rejects.toMatchObject({
+        code: 'server_unavailable',
+        status: 500,
+      });
+    });
+
+    it('handles JSON-parse failure on 5xx as server_unavailable', async () => {
       vi.spyOn(global, 'fetch').mockResolvedValue({
         ok: false,
         status: 500,
         json: vi.fn(() => Promise.reject(new Error('parse fail'))),
         text: vi.fn(() => Promise.resolve('')),
       });
-      await expect(apiFetch('/v')).rejects.toThrow('API error: 500');
+      await expect(apiFetch('/v')).rejects.toMatchObject({ code: 'server_unavailable' });
     });
   });
 
@@ -350,9 +361,9 @@ describe('api service', () => {
       expect(headers['Content-Type']).toBe('application/json');
     });
 
-    it('propagates network failure (rejected fetch)', async () => {
+    it('maps TypeError fetch rejection to network_unreachable (G50)', async () => {
       vi.spyOn(global, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
-      await expect(api.get('/things')).rejects.toThrow('Failed to fetch');
+      await expect(api.get('/things')).rejects.toMatchObject({ code: 'network_unreachable' });
     });
   });
 });
