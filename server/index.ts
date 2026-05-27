@@ -63,19 +63,31 @@ const app = express();
 // confused into 502s.
 app.set('trust proxy', 1);
 
-// ─── 4. Sentry request instrumentation — in @sentry/node v8 this is set up
+// ─── 4. /healthz — registered EARLY (before helmet) so the total response
+// stays small. Free-tier uptime monitors (cron-job.org) cap response size
+// near 1 KB; helmet's CSP + cross-origin headers add ~700 bytes that are
+// meaningless for a JSON-only healthcheck (no scripts to gate, not embeddable).
+// Render's own healthcheck has no size limit; this affects external pingers.
+// Must remain I/O-free so a misconfigured Supabase deploy still surfaces as
+// `service up, env wrong` rather than a network outage (G16). Stays BEFORE
+// any route mounts so a future catch-all can't shadow it (G70).
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
+// ─── 5. Sentry request instrumentation — in @sentry/node v8 this is set up
 // automatically by the auto-instrumented Express integration when Sentry.init
 // runs before `express()`. The legacy `Sentry.Handlers.requestHandler()`
 // middleware was removed in v8; no per-request middleware is needed here.
 // The error handler is still installed manually below, after route mounts.
 
-// ─── 5. Security + parsing middleware (G17, G3, G2, G1)
+// ─── 6. Security + parsing middleware (G17, G3, G2, G1)
 app.use(helmet());
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '200kb' })); // G2 — 25× smaller than the plan's draft 5mb; no handler needs more
 app.use(compression());
 
-// ─── 6. Access log with pinned format (G17, G68). Render captures stdout so
+// ─── 7. Access log with pinned format (G17, G68). Render captures stdout so
 // `morgan` writing to process.stdout lands in the platform log stream with
 // no extra wiring. Format choice: human-readable, includes :response-time
 // (cold-start regressions become visible in the access log without
@@ -83,15 +95,6 @@ app.use(compression());
 app.use(
   morgan(':method :url :status :response-time ms - :res[content-length]')
 );
-
-// ─── 7. /healthz — registered BEFORE any route mounts (G16, G70). Must
-// remain I/O-free so a misconfigured Supabase deploy can still surface as
-// `service up, env wrong` instead of being mistaken for a network outage.
-// Render's healthcheck has a 5s timeout; a Supabase round-trip here would
-// blow that on a cold start and trip an unnecessary redeploy.
-app.get('/healthz', (_req, res) => {
-  res.status(200).json({ ok: true });
-});
 
 // ─── 8. Rate limiters (G18) — applied per-route below, NOT globally. Four
 // unauthenticated side-effect routes are the only ones that need protection;
