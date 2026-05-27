@@ -1,0 +1,205 @@
+# Render Operational Notes
+
+Operational runbook for the `uganda-dashboard-api` service on Render (free tier, Singapore region). Authored during Phase 3 of the Render migration; see `/Users/shubhang/.claude/plans/dynamic-sparking-kite.md` for the full plan and `/Users/shubhang/Desktop/renderaudit-findings.md` for the underlying audit findings (B6, B7, B14, B15, B21, G5, G14, G15, G41, G59, G60, G61, G62, G63, G64, N27).
+
+---
+
+## Service Topology
+
+- **Frontend:** Vercel (Vite + React SPA) — `uganda-dashboard-*.vercel.app`.
+- **Backend:** Render web service (Node 22, Express 5) — `uganda-dashboard-api.onrender.com` (hostname confirmed after service creation).
+- **Database:** Supabase (`ap-northeast-1`, Tokyo) — keep the Render region in Singapore to minimise the Render→Supabase RTT.
+- **Wake:** GHA cron (14 min) + cron-job.org/UptimeRobot (5 min backup) + frontend `useWarmup()` ping.
+
+---
+
+## Manual Deploy Procedure (G63)
+
+Auto-deploy is **off** by design (mirrors CLAUDE.md §1 guardrail). Every deploy is manual:
+
+1. **From the Render dashboard:** `uganda-dashboard-api` → **Manual Deploy** → **Deploy latest commit**.
+2. **From CI / scripts:** `curl -X POST $RENDER_DEPLOY_HOOK_URL`.
+   - The deploy hook lives at: Render dashboard → service → **Settings** → **Deploy Hook**. Toggle it on, copy the URL, store in 1Password under the project entry. Treat the URL as a secret (anyone with it can trigger a deploy).
+
+---
+
+## Deploy-time Outage Window (G62)
+
+Render's free tier has **no rolling deploys**. Each deploy follows this sequence:
+
+1. Build runs on Render's builder.
+2. New container starts; passes the `/healthz` check.
+3. Old container is killed and traffic switches.
+
+Between step 2 and 3 there's a **30–60s window of 502s** as the old container drains and the new one warms up. **Do not deploy during a live sales pitch.** Schedule deploys in off-hours or coordinate with the team.
+
+---
+
+## Free-tier Resource Caps (N27)
+
+- **Instance hours:** 750/month free. The 14-min GHA keepalive keeps the service warm for ~720h/mo — under the cap with headroom.
+- **Memory:** 512MB ceiling. The current handler set + Express + Supabase client stays well under this in normal use; sustained spikes above ~400MB RSS suggest a leak (see "Silent-failure modes" below).
+- **CPU:** shared (0.1 vCPU). This is why `bcryptjs` was swapped to native `bcrypt` (audit B17) — pure-JS bcrypt blocks the shared CPU's event loop under load.
+
+---
+
+## Log Retention (G60)
+
+Render free tier rotates logs after **~7 days**. The Render dashboard log viewer only shows the most recent window. If 7-day retention is unacceptable:
+
+- **Axiom** (free: 500GB/mo, 30-day retention) — configure as a Render log drain.
+- **Better Stack** (free: 1GB, 3-day retention) — same.
+- Both ingest Render's logs via the **Log Streams** feature in the Render dashboard.
+
+For this demo project, 7-day retention is acceptable; revisit if we move past sales-rep demos.
+
+---
+
+## Failure Alerting (G59)
+
+- **GHA keepalive failures** → GitHub will email the workflow file owner on failure. Verify by triggering `workflow_dispatch` on `keepalive.yml`.
+- **cron-job.org / UptimeRobot** → both support free email-on-failure. Configure for the 5-min backup pinger; alert addresses should be the on-call rotation.
+- **Deploy notifications** (G61) → wire a Slack webhook from the Render dashboard → Settings → Notifications. Optional but recommended; mute during deploy waves.
+
+---
+
+## Silent-failure Recovery Procedures (G64)
+
+These are the 3 documented failure modes where Render keeps running but the symptom is invisible without monitoring:
+
+### 1. `npm ci` deploy failure
+
+**Symptom:** new commit pushed, but the dashboard shows the previous commit still running.
+**What happened:** the build step failed; Render keeps the last successful deploy live. You will get a single email from Render.
+**Recovery:**
+- Open the failed deploy in the dashboard → **Logs** → **Build logs**.
+- Fix the root cause (lock-file drift, missing dep, native module compile error).
+- Re-trigger the deploy via the dashboard or deploy hook.
+
+### 2. Event-loop blocked by synchronous bcrypt under attack
+
+**Symptom:** users report sign-in hanging; healthcheck eventually times out; Render auto-restarts the container.
+**What happened:** a flood of sign-in attempts (or any synchronous CPU-bound work) starved the event loop on the 0.1 vCPU. The `/healthz` probe couldn't get a tick; Render killed the process.
+**Recovery:**
+- Confirm via Render logs: look for `SIGTERM` followed by a fresh boot line.
+- If Sentry is wired, the surge will show up there too.
+- Mitigation already in place: native `bcrypt` (audit B17) + rate limiters on the 4 high-risk routes (audit G18). If it recurs, add an `express-slow-down` layer or move bcrypt to a worker thread.
+
+### 3. 512MB OOM ceiling
+
+**Symptom:** process crashes mid-request; container restarts; intermittent 502s.
+**What happened:** memory grew past 512MB and the OS killed the process. Common causes: large response buffering, leaked Supabase clients, unbounded in-memory caches.
+**Recovery:**
+- Render dashboard → **Metrics** → check the memory chart for the crash window.
+- If RSS climbs monotonically over hours, suspect a leak; capture a heap snapshot locally with `node --inspect dist-server/server/index.js` and reproduce.
+- Verify `auth.persistSession: false` on the Supabase admin client (audit G66) — sessions retained in memory across requests are a common leak source under a long-lived process.
+
+---
+
+## Provisioning Checklist
+
+Follow this when ready to create the Render service. **Do not run the MCP calls until each step's question is answered.**
+
+1. **Select Render workspace** — assistant will guide via `mcp__render__list_workspaces` then `mcp__render__select_workspace`. Confirm which workspace the service should live in (personal vs team).
+2. **Confirm region** — Singapore. **This is IMMUTABLE after service creation.** If Supabase ever moves to a different region, the service must be recreated.
+3. **Have `SUPABASE_JWT_SECRET` on hand** — copy verbatim from the existing Vercel project's env settings (or from Supabase dashboard → API → JWT Settings). **Do NOT regenerate** during migration (audit B21) — rotating it silently fails-open under `withOptionalAuth`.
+4. **Approve `mcp__render__create_web_service`** — the call uses the `render.yaml` blueprint as input; the user confirms before execution.
+5. **Inject secrets via `mcp__render__update_environment_variables`** — set the 4 sync-false vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `SENTRY_DSN` (SENTRY_DSN may be left empty for the first deploy; wire it in Phase 5).
+6. **First manual deploy** — Render dashboard → service → **Manual Deploy** → **Deploy latest commit**, or `curl -X POST $RENDER_DEPLOY_HOOK_URL`.
+
+After step 6, confirm:
+- Deploy logs show `[boot] env ok: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET` (audit G5).
+- `curl https://<host>/healthz` returns 200 within 5s of cold start (audit G16).
+- Latency floor test (audit G41): `time curl -X POST https://<host>/api/auth/send-otp ...` returns in <500ms warm.
+- Render dashboard confirms the region is **Singapore** before any traffic is promoted.
+
+---
+
+## Verification: authenticated read (B22)
+
+`/healthz` and `POST /api/auth/send-otp` both pass even with a wrong `SUPABASE_JWT_SECRET` — `send-otp` mints no token, and `withOptionalAuth` swallows verification failures silently. The first symptom of a broken secret is the dashboard returning anonymous-fallback data days later, in front of a customer.
+
+Run this **after** the first deploy:
+
+1. `POST /api/auth/verify-otp` with a seeded demo phone (e.g. `+25671 100 0001`, role `subscriber`, any 6-digit OTP). Capture the returned JWT.
+2. Decode the JWT (e.g. `jwt.io`); confirm `sub`, `app_role`, `phone`, and the role-scoped ID (`subscriberId`/`agentId`/`branchId`/`distributorId`) are present and non-empty.
+3. Call one role-scoped endpoint with the JWT:
+   ```sh
+   curl -X POST https://uganda-dashboard-api.onrender.com/api/chat \
+     -H "authorization: Bearer <jwt>" \
+     -H "content-type: application/json" \
+     -d '{"message":"my balance"}'
+   ```
+   The reply should be role-aware (subscriber-flavoured copy, not the anonymous fallback).
+4. Cross-check Supabase logs via `mcp__supabase__get_logs` for absence of `PGRST301` — this is the only way to catch a wrong `SUPABASE_JWT_SECRET`; a fail-open mismatch can otherwise stay invisible for days.
+
+If any step fails: confirm the value in the Render dashboard env exactly matches Supabase Dashboard → API → JWT Settings → JWT Secret (no leading/trailing whitespace, no quoting). Restart the Render service after updating.
+
+---
+
+## JWT secret rotation (G42)
+
+`api/_lib/jwt.ts:59-72` caches the secret as `Uint8Array` for the lifetime of the Node process. Render does **not** hot-reload env vars — updating a secret in the dashboard alone has no effect until the process restarts.
+
+Procedure:
+
+1. **Supabase Dashboard** → Project Settings → API → JWT Settings → Rotate.
+2. **Render Dashboard** → `uganda-dashboard-api` → Environment → update `SUPABASE_JWT_SECRET` to the new value (paste verbatim).
+3. **Trigger a restart** — Manual Deploy → "Deploy latest commit", or `curl -X POST $RENDER_DEPLOY_HOOK_URL`. (Saving an env var alone does NOT redeploy the service.)
+4. **Accept the user impact** — every existing 24h-TTL token becomes invalid immediately. All sessions are forced to re-login. Plan rotations for off-hours.
+
+The Vercel project no longer holds this secret post-migration; nothing to update there.
+
+---
+
+## Bandwidth & instance-hour budget (N40, N41)
+
+| Metric | Free-tier cap | Actual demo workload | Headroom |
+|---|---|---|---|
+| Instance hours | 750/month | ~720/mo (14-min keepalive + 24/7 wake) | ~30h/mo |
+| Bandwidth | 100 GB/month | ~250KB per demo session × ~1000 demos/mo ≈ 250 MB/mo | ~99.7 GB |
+| Build minutes | 500/month | ~3 min cold deploy, ~2 min cached (N41) | Routine deploys far under cap |
+
+The keepalive is sized to stay just under the 750h cap; the bandwidth cap is effectively unbounded for the demo workload. Build cache (keyed by `package-lock.json` hash) cuts routine deploy time from ~5–7 min cold to ~2–3 min cached (N41).
+
+---
+
+## Render outage response — pre-canned customer message (N43)
+
+If `status.render.com` shows an active incident mid-pitch, the demo will surface as a 502, a `network_unreachable` error, or a hang. The free-tier outage history is acceptable for a demo platform, but a customer-facing answer matters.
+
+**Suggested message to read out:**
+
+> "Apologies — our backend hosting provider (Render.com) is currently experiencing an incident affecting all customers in this region. Their status page at status.render.com shows it as a known issue and they're working to resolve it now. Our platform itself is healthy; this is purely a hosting-layer disruption. Would you like to reschedule the demo, or shall I walk you through the slide deck while we wait?"
+
+Internal protocol:
+
+- Screenshot the Render status page for the post-mortem.
+- Confirm with the team in Slack that the outage is not project-specific (i.e. all our other services on Render are affected too).
+- Resume the demo as soon as `/healthz` returns 200 — and pre-warm via the GHA `keepalive.yml` `workflow_dispatch` if the wake pingers are also affected.
+
+---
+
+## Backend is stateless — recovery = redeploy (N39)
+
+`grep -rn 'fs\.\|writeFile\|sqlite' api/ server/` returns nothing. The Express process holds no disk state, no in-memory accumulators (audit N36), and no module-level mutable caches beyond the JWT key bytes (which are cached per process, not persisted).
+
+**Recovery model:** the canonical source of truth is git. If the Render service is destroyed (manual or otherwise), recovery is:
+
+1. Re-run the Provisioning Checklist (above) — recreate the service from `render.yaml`.
+2. Re-paste the 4 sync-false env vars from the team password manager.
+3. Manual deploy from the desired commit.
+
+No database backup, no log replay, no warm-start cache. Acceptable for a demo platform; document if the role of this service ever expands.
+
+---
+
+## `/metrics` Prometheus endpoint — explicitly deferred (N42)
+
+This service does **not** expose a `/metrics` endpoint, and we are not planning to. The reasoning:
+
+- The demo workload is < 1 req/s; per-route latency and success-rate visibility from morgan access logs + the Render dashboard's process-level CPU/memory chart is sufficient.
+- A Prometheus scrape target needs an authenticated egress path or a public exposure decision; both add operational surface for negligible benefit at this scale.
+- Sentry covers exception aggregation (audit G58, G69). morgan covers the access log (audit G68's explicit format token).
+
+If this service ever moves past sales-rep demos, revisit by adding `prom-client` and gating `/metrics` behind a static auth header. For now: documented "no" so the question isn't reopened.
