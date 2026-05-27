@@ -85,7 +85,7 @@ describe('api service', () => {
 
   describe('apiFetch()', () => {
     it('prefixes /api and forwards to fetch with default headers', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
       const result = await apiFetch('/auth/verify-otp');
       expect(result).toEqual({ ok: true });
       expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -98,19 +98,19 @@ describe('api service', () => {
 
     it('injects Authorization: Bearer <token> when localStorage has a token', async () => {
       window.localStorage.setItem(TOKEN_KEY, 'abc.def.ghi');
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
       await apiFetch('/path');
       expect(fetchSpy.mock.calls[0][1].headers.Authorization).toBe('Bearer abc.def.ghi');
     });
 
     it('sets Content-Type: application/json for body-bearing methods', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
       await apiFetch('/path', { method: 'POST', body: JSON.stringify({}) });
       expect(fetchSpy.mock.calls[0][1].headers['Content-Type']).toBe('application/json');
     });
 
     it('does not overwrite a caller-supplied Content-Type', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
       await apiFetch('/path', {
         method: 'POST',
         body: 'plain',
@@ -120,13 +120,13 @@ describe('api service', () => {
     });
 
     it('returns null on 204 No Content', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue(emptyResponse({ status: 204 }));
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(emptyResponse({ status: 204 }));
       const result = await apiFetch('/whatever');
       expect(result).toBeNull();
     });
 
     it('returns null on 200 with empty body', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue({
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue({
         ok: true,
         status: 200,
         text: vi.fn(() => Promise.resolve('')),
@@ -137,7 +137,7 @@ describe('api service', () => {
     });
 
     it('returns raw text when the body is not JSON', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue({
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue({
         ok: true,
         status: 200,
         text: vi.fn(() => Promise.resolve('plain text not json')),
@@ -148,7 +148,7 @@ describe('api service', () => {
     });
 
     it('parses error from body.error field (legacy shape)', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue(
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ error: 'validation_failed', message: 'Bad input' }, { status: 400 }),
       );
       await expect(apiFetch('/v')).rejects.toMatchObject({
@@ -159,7 +159,7 @@ describe('api service', () => {
     });
 
     it('parses error from body.code field (unified shape after Phase 1D)', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue(
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ code: 'rate_limited', message: 'Slow down' }, { status: 429 }),
       );
       await expect(apiFetch('/v')).rejects.toMatchObject({
@@ -169,14 +169,14 @@ describe('api service', () => {
     });
 
     it('falls back to "API error: <status>" when 4xx body has no code or message', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue(
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({}, { status: 400 }),
       );
       await expect(apiFetch('/v')).rejects.toThrow('API error: 400');
     });
 
     it('attaches the parsed body to the error for non-401 failures', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue(
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ code: 'failed', extra: 'data' }, { status: 400 }),
       );
       try {
@@ -189,7 +189,7 @@ describe('api service', () => {
 
     it('maps 5xx into server_unavailable (G48) after the single retry', async () => {
       // First call and retry both return 500 → final throw is server_unavailable.
-      vi.spyOn(global, 'fetch').mockResolvedValue(
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({}, { status: 500 }),
       );
       await expect(apiFetch('/v')).rejects.toMatchObject({
@@ -199,7 +199,7 @@ describe('api service', () => {
     });
 
     it('handles JSON-parse failure on 5xx as server_unavailable', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue({
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue({
         ok: false,
         status: 500,
         json: vi.fn(() => Promise.reject(new Error('parse fail'))),
@@ -213,7 +213,7 @@ describe('api service', () => {
     it('fires onAuthExpired listeners on bare 401 (no code)', async () => {
       const handler = vi.fn();
       const unsubscribe = onAuthExpired(handler);
-      vi.spyOn(global, 'fetch').mockResolvedValue(
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({}, { status: 401 }),
       );
       await expect(apiFetch('/x')).rejects.toMatchObject({
@@ -227,7 +227,7 @@ describe('api service', () => {
     it('fires onAuthExpired on session_expired code', async () => {
       const handler = vi.fn();
       const unsubscribe = onAuthExpired(handler);
-      vi.spyOn(global, 'fetch').mockResolvedValue(
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ code: 'session_expired' }, { status: 401 }),
       );
       await expect(apiFetch('/x')).rejects.toMatchObject({ code: 'session_expired' });
@@ -238,7 +238,7 @@ describe('api service', () => {
     it('fires onAuthExpired on unauthorized code', async () => {
       const handler = vi.fn();
       const unsubscribe = onAuthExpired(handler);
-      vi.spyOn(global, 'fetch').mockResolvedValue(
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ error: 'unauthorized' }, { status: 401 }),
       );
       await expect(apiFetch('/x')).rejects.toMatchObject({ code: 'session_expired' });
@@ -249,7 +249,7 @@ describe('api service', () => {
     it('does NOT fire onAuthExpired on domain-level 401 (e.g. invalid_password)', async () => {
       const handler = vi.fn();
       const unsubscribe = onAuthExpired(handler);
-      vi.spyOn(global, 'fetch').mockResolvedValue(
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ code: 'invalid_password', message: 'Wrong password' }, { status: 401 }),
       );
       await expect(apiFetch('/x')).rejects.toMatchObject({
@@ -266,7 +266,7 @@ describe('api service', () => {
       window.localStorage.setItem(TOKEN_KEY, 'tok');
       const handler = vi.fn();
       const unsubscribe = onAuthExpired(handler);
-      vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({}, { status: 401 }));
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({}, { status: 401 }));
       await expect(apiFetch('/x')).rejects.toThrow();
       expect(window.localStorage.getItem(AUTH_KEY)).toBeNull();
       expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull();
@@ -277,7 +277,7 @@ describe('api service', () => {
       // window.location.assign is read-only in jsdom by default — stub it.
       const assignSpy = vi.fn();
       vi.stubGlobal('location', { ...window.location, assign: assignSpy });
-      vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({}, { status: 401 }));
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({}, { status: 401 }));
       await expect(apiFetch('/x')).rejects.toThrow();
       expect(assignSpy).toHaveBeenCalledWith('/');
     });
@@ -290,7 +290,7 @@ describe('api service', () => {
       expect(typeof unsubscribe).toBe('function');
       unsubscribe();
       // After unsubscribe, fire a 401 and confirm the handler is no longer called.
-      vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({}, { status: 401 }));
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({}, { status: 401 }));
       // Also need to register a placeholder so notifyAuthExpired doesn't try to
       // navigate (it asserts at least one listener exists; otherwise it calls
       // location.assign which we don't want in this test).
@@ -306,7 +306,7 @@ describe('api service', () => {
       const good = vi.fn();
       const unsubBad = onAuthExpired(bad);
       const unsubGood = onAuthExpired(good);
-      vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({}, { status: 401 }));
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({}, { status: 401 }));
       await expect(apiFetch('/x')).rejects.toThrow();
       expect(bad).toHaveBeenCalledTimes(1);
       expect(good).toHaveBeenCalledTimes(1);
@@ -317,7 +317,7 @@ describe('api service', () => {
 
   describe('api convenience wrappers', () => {
     it('api.get issues a GET (no body)', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
       await api.get('/things');
       const init = fetchSpy.mock.calls[0][1];
       expect(init.method ?? 'GET').toBe('GET');
@@ -325,7 +325,7 @@ describe('api service', () => {
     });
 
     it('api.post issues a POST with JSON-encoded body', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
       await api.post('/things', { a: 1 });
       const init = fetchSpy.mock.calls[0][1];
       expect(init.method).toBe('POST');
@@ -334,13 +334,13 @@ describe('api service', () => {
     });
 
     it('api.post encodes null payload as "{}" (defensive default)', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
       await api.post('/things');
       expect(fetchSpy.mock.calls[0][1].body).toBe('{}');
     });
 
     it('api.put issues a PUT with JSON-encoded body', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
       await api.put('/things', { a: 2 });
       const init = fetchSpy.mock.calls[0][1];
       expect(init.method).toBe('PUT');
@@ -348,13 +348,13 @@ describe('api service', () => {
     });
 
     it('api.delete issues a DELETE', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
       await api.delete('/things/x');
       expect(fetchSpy.mock.calls[0][1].method).toBe('DELETE');
     });
 
     it('merges custom headers on top of defaults', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
       await api.post('/things', { a: 1 }, { headers: { 'X-QA-Force': 'fail' } });
       const headers = fetchSpy.mock.calls[0][1].headers;
       expect(headers['X-QA-Force']).toBe('fail');
@@ -362,7 +362,7 @@ describe('api service', () => {
     });
 
     it('maps TypeError fetch rejection to network_unreachable (G50)', async () => {
-      vi.spyOn(global, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
       await expect(api.get('/things')).rejects.toMatchObject({ code: 'network_unreachable' });
     });
   });

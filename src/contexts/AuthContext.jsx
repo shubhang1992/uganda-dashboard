@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { onAuthExpired } from '../services/api';
@@ -90,44 +90,19 @@ export function AuthProvider({ children }) {
   }, [queryClient]);
 
   // When the API client surfaces a 401, log out and route home via
-  // react-router rather than a full page reload. Use refs so the listener
-  // body stays identity-stable across renders while always reading the
-  // current `logout` + `navigate` callbacks.
-  const logoutRef = useRef(logout);
-  const navigateRef = useRef(navigate);
+  // react-router rather than a full page reload. Subscribe in useEffect —
+  // the audit's G54 originally pushed for a synchronous-render subscribe to
+  // catch a StrictMode double-invoke race, but that pattern is fragile
+  // under React 19 and was causing render-time crashes. The standard
+  // useEffect subscribe is safe: the listener Set ignores duplicate
+  // registrations and the worst-case race is one extra 401 that arrives in
+  // the ~1ms window before the effect runs (which simply triggers a normal
+  // logout on the next 401, no data loss).
   useEffect(() => {
-    logoutRef.current = logout;
-  });
-  useEffect(() => {
-    navigateRef.current = navigate;
-  });
-
-  // G54 — Subscribe synchronously during render (not inside useEffect) so a
-  // 401 returned by an in-flight request that resolves *before* effects run
-  // (or during React StrictMode's intentional unmount+remount) still hits a
-  // listener. The Set-backed subscribe is naturally idempotent: subsequent
-  // renders short-circuit on the ref, and unmount tears down via the
-  // sibling effect's cleanup. After StrictMode tears the listener down, the
-  // re-mount effect re-subscribes — there is no permanent unsubscribe
-  // window because each new mount runs the synchronous block again on its
-  // first render (refs are mount-scoped).
-  const unsubAuthExpiredRef = useRef(null);
-  if (unsubAuthExpiredRef.current === null) {
-    unsubAuthExpiredRef.current = onAuthExpired(() => {
-      logoutRef.current();
-      navigateRef.current('/');
+    const unsubAuthExpired = onAuthExpired(() => {
+      logout();
+      navigate('/');
     });
-  }
-  useEffect(() => {
-    // If the ref was nulled by a prior cleanup (StrictMode unmount/remount
-    // sequence), re-register here. On the first mount this is a no-op
-    // because the synchronous render block above already registered.
-    if (unsubAuthExpiredRef.current === null) {
-      unsubAuthExpiredRef.current = onAuthExpired(() => {
-        logoutRef.current();
-        navigateRef.current('/');
-      });
-    }
 
     // G55 — cross-tab logout sync. When another tab clears the JWT (via
     // logout or notifyAuthExpired), the `storage` event fires here with a
@@ -135,19 +110,17 @@ export function AuthProvider({ children }) {
     // linger after the user has signed out elsewhere.
     function onStorage(e) {
       if (e.key === 'upensions_token' && !e.newValue) {
-        logoutRef.current();
-        navigateRef.current('/');
+        logout();
+        navigate('/');
       }
     }
     window.addEventListener('storage', onStorage);
+
     return () => {
+      unsubAuthExpired();
       window.removeEventListener('storage', onStorage);
-      if (unsubAuthExpiredRef.current) {
-        unsubAuthExpiredRef.current();
-        unsubAuthExpiredRef.current = null;
-      }
     };
-  }, []);
+  }, [logout, navigate]);
 
   const value = useMemo(
     () => ({ user, role: user?.role ?? null, isAuthenticated: !!user, login, logout, updateUser }),
