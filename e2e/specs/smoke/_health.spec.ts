@@ -1,6 +1,6 @@
 // Sanity check: prove the entire pipeline works end-to-end.
 //   1. globalSetup minted e2e/.auth/{role}.json files
-//   2. webServer (vercel dev) is up on baseURL
+//   2. webServer (Vite :5173 + Express :3001 via npm run dev:all) is up on baseURL
 //   3. Playwright can drive a browser against it
 //   4. A role-storage-state JWT actually authenticates against the dashboard
 //

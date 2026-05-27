@@ -2,7 +2,7 @@
 //
 // Layout:
 //   • testDir → e2e/specs/{smoke,flows,regression}
-//   • webServer → npm run dev:api (vercel dev serves frontend + /api/* together)
+//   • webServer → npm run dev:all (Vite (5173) + Express (3001) in parallel)
 //   • globalSetup → mints localStorage state for all 4 roles (one JSON per role)
 //   • per-spec `test.use({ storageState: 'e2e/.auth/{role}.json' })` chooses identity
 //
@@ -20,8 +20,10 @@ import path from 'node:path';
 // available to globalSetup + Node-side fixtures.
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
-const PORT = Number(process.env.VERCEL_DEV_PORT ?? 3000);
-const BASE_URL = `http://localhost:${PORT}`;
+const VITE_PORT = 5173;
+const API_PORT = 3001;
+const BASE_URL = `http://localhost:${VITE_PORT}`;
+const API_BASE_URL = `http://localhost:${API_PORT}/api`;
 
 export default defineConfig({
   testDir: './e2e/specs',
@@ -128,10 +130,11 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run dev:api',
+    command: 'npm run dev:all',
     url: BASE_URL,
     timeout: 120_000,
     reuseExistingServer: !process.env.CI,
+    env: { VITE_API_BASE_URL: API_BASE_URL },
     stdout: 'ignore',
     stderr: 'pipe',
   },

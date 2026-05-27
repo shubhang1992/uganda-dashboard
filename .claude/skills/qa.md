@@ -55,7 +55,7 @@ Roadmap: walk `test-results/**/*.png` from the last run and use multimodal `Read
 
 | File | Purpose |
 |---|---|
-| `playwright.config.ts` | Config + webServer (vercel dev on :3000) + reporter |
+| `playwright.config.ts` | Config + webServer (`npm run dev:all` → Vite :5173 + Express :3001) + reporter |
 | `e2e/global-setup.ts` | Mints HS256 JWTs for all 4 roles into `e2e/.auth/{role}.json` |
 | `e2e/fixtures/auth.ts` | JWT minter, storageState helpers, `PERSONA_FOR` demo persona map |
 | `e2e/fixtures/db.ts` | Supabase service-role client + `rowExists`/`countWhere`/`getRow`/`cleanupSubscriberByPhone` |
@@ -130,7 +130,7 @@ When a spec fails, do NOT immediately blame the product code. Decision tree:
 2. **Is the selector stale?** The product renamed a button or changed layout. Look at the trace (`npx playwright show-trace ...`) to see what the spec was waiting for. Update the spec.
 3. **Is it a timing/flake?** Re-run with `--retries=2 --workers=1`. If sometimes passes, switch from `waitFor` to `await expect(...).toBeVisible()` with explicit timeouts.
 4. **Is the DB drifted?** Specs that depend on seeded data (e.g. agent `a-001` exists, branch `b-kam-015` exists) fail if seed has drifted. Use `mcp__supabase__execute_sql` to verify. Re-seed with `npm run seed` if needed.
-5. **Is the dev server up?** `lsof -i :3000` — if `vercel dev` died, Playwright restarts it next run; no action needed.
+5. **Is the dev server up?** `lsof -i :5173` (Vite) and `lsof -i :3001` (Express) — if either died, Playwright restarts both next run via `npm run dev:all`; no action needed.
 6. **JWT expired?** Storage states live in `e2e/.auth/{role}.json` and JWTs are 24h. `global-setup` re-mints on every run, so this should never happen — but if it does, `rm -rf e2e/.auth && npm run test:e2e` forces a fresh mint.
 
 ---
@@ -155,7 +155,7 @@ Same as the rest of the repo:
 - `npx playwright install chromium` (one-time, after `npm install`).
 - Node 22 LTS (per `.node-version`).
 
-The harness reads `.env.local` via `dotenv` in `playwright.config.ts` and shares it with `vercel dev` (which the webServer block runs).
+The harness reads `.env.local` via `dotenv` in `playwright.config.ts` and shares it with the two dev servers (`npm run dev:all` starts Vite :5173 and Express :3001 in parallel; Playwright targets `http://localhost:5173`, and the bundle calls the local Express via `VITE_API_BASE_URL=http://localhost:3001/api`).
 
 ---
 

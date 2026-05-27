@@ -111,7 +111,7 @@ export function storageStatePathFor(role: Role): string {
  * e2e/.auth/{role}.json. Caller is responsible for ensuring the directory
  * exists (global-setup does this once up front).
  */
-export async function mintStorageStateFor(role: Role, baseUrl = 'http://localhost:3000'): Promise<string> {
+export async function mintStorageStateFor(role: Role, baseUrl = 'http://localhost:5173'): Promise<string> {
   const persona = PERSONAS[role];
   const token = await mintJwt(role, persona);
   const userObj = buildUserObject(role, persona);
@@ -134,7 +134,7 @@ export async function mintStorageStateFor(role: Role, baseUrl = 'http://localhos
   return dest;
 }
 
-export async function mintAllStorageStates(baseUrl = 'http://localhost:3000') {
+export async function mintAllStorageStates(baseUrl = 'http://localhost:5173') {
   await mkdir(authDir(), { recursive: true });
   for (const role of ROLES) {
     await mintStorageStateFor(role, baseUrl);

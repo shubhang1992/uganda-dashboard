@@ -12,6 +12,6 @@ import type { FullConfig } from '@playwright/test';
 import { mintAllStorageStates } from './fixtures/auth';
 
 export default async function globalSetup(config: FullConfig): Promise<void> {
-  const baseURL = config.projects[0]?.use?.baseURL ?? 'http://localhost:3000';
+  const baseURL = config.projects[0]?.use?.baseURL ?? 'http://localhost:5173';
   await mintAllStorageStates(baseURL);
 }
