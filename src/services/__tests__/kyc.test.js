@@ -36,7 +36,7 @@ describe('kyc service — real (Supabase) branch', () => {
 
   describe('assessImageQuality', () => {
     it('short-circuits to a blurry report when file is < 20KiB (no network)', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch');
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
       const file = { size: 10 * 1024, type: 'image/jpeg' };
       const report = await mod.assessImageQuality(file);
       expect(report.blur).toBe(false);
@@ -46,7 +46,7 @@ describe('kyc service — real (Supabase) branch', () => {
     });
 
     it('POSTs to /api/kyc/id-quality for normal-size files', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ blur: true, corners: true, glare: true, pass: true, score: 1 }),
       );
       const file = { size: 100 * 1024, type: 'image/jpeg' };
@@ -61,7 +61,7 @@ describe('kyc service — real (Supabase) branch', () => {
 
     it('forwards X-QA-Force header when localStorage flag is set', async () => {
       window.localStorage.setItem('upensions_id_quality_force', 'fail-blur');
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ blur: false, corners: true, glare: true, pass: false, score: 0.66 }),
       );
       await mod.assessImageQuality({ size: 100 * 1024, type: 'image/jpeg' });
@@ -77,7 +77,7 @@ describe('kyc service — real (Supabase) branch', () => {
     });
 
     it('POSTs front/back filenames + sessionId envelope to /api/kyc/id-ocr', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({
           fullName: 'X Y', nin: 'CF...', cardNumber: 'UG...',
           dob: '1990-01-01', gender: 'female',
@@ -93,9 +93,9 @@ describe('kyc service — real (Supabase) branch', () => {
     });
 
     it('defaults filename when File-like object lacks .name', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({}));
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({}));
       await mod.extractIdFields({ front: {}, back: {} });
-      const sent = JSON.parse(global.fetch.mock.calls[0][1].body);
+      const sent = JSON.parse(globalThis.fetch.mock.calls[0][1].body);
       expect(sent.front).toBe('front');
       expect(sent.back).toBe('back');
     });
@@ -103,7 +103,7 @@ describe('kyc service — real (Supabase) branch', () => {
 
   describe('verifyNira', () => {
     it('POSTs payload to /api/kyc/nira-verify and returns result', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ result: 'match', trackingId: 'smile_x' }),
       );
       const result = await mod.verifyNira({ nin: 'CF1', cardNumber: 'UG1', dob: '1990-01-01', fullName: 'X' });
@@ -113,7 +113,7 @@ describe('kyc service — real (Supabase) branch', () => {
 
     it('forwards X-QA-Force header from localStorage', async () => {
       window.localStorage.setItem('upensions_nira_force', 'partial');
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ result: 'partial' }));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ result: 'partial' }));
       await mod.verifyNira({ nin: 'x', cardNumber: 'y', dob: 'z', fullName: 'a' });
       expect(fetchSpy.mock.calls[0][1].headers['X-QA-Force']).toBe('partial');
     });
@@ -121,7 +121,7 @@ describe('kyc service — real (Supabase) branch', () => {
 
   describe('sendOtp + verifyOtp', () => {
     it('sendOtp POSTs to /api/kyc/otp-send', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ success: true, expiresIn: 300 }),
       );
       const res = await mod.sendOtp({ phone: '+256700000000' });
@@ -130,7 +130,7 @@ describe('kyc service — real (Supabase) branch', () => {
     });
 
     it('verifyOtp POSTs to /api/kyc/otp-verify', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ verified: true }));
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ verified: true }));
       const res = await mod.verifyOtp({ phone: '+256700000000', code: '1234' });
       expect(res).toEqual({ verified: true });
     });
@@ -142,7 +142,7 @@ describe('kyc service — real (Supabase) branch', () => {
     });
 
     it('POSTs filename token + nin to /api/kyc/face-match', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ match: true, liveness: true, matchScore: 0.97, outcome: 'ok', trackingId: 'smile_x' }),
       );
       const res = await mod.faceMatch({
@@ -154,16 +154,16 @@ describe('kyc service — real (Supabase) branch', () => {
     });
 
     it('defaults selfie filename to "selfie" when File-like lacks .name', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({}));
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({}));
       await mod.faceMatch({ selfieFile: {}, nin: 'x' });
-      const sent = JSON.parse(global.fetch.mock.calls[0][1].body);
+      const sent = JSON.parse(globalThis.fetch.mock.calls[0][1].body);
       expect(sent.selfieFile).toBe('selfie');
     });
   });
 
   describe('screenAml', () => {
     it('POSTs payload to /api/kyc/aml-screen', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ outcome: 'clear', trackingId: 'smile_x' }),
       );
       const res = await mod.screenAml({
@@ -176,7 +176,7 @@ describe('kyc service — real (Supabase) branch', () => {
 
   describe('referToAgent', () => {
     it('POSTs payload to /api/kyc/agent-referral and returns ticket envelope', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ ticketId: 'UAG-XYZ', eta: 'within 24 hours' }),
       );
       const res = await mod.referToAgent({
@@ -187,8 +187,12 @@ describe('kyc service — real (Supabase) branch', () => {
     });
 
     it('surfaces network errors (no fallback)', async () => {
-      vi.spyOn(global, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
-      await expect(mod.referToAgent({})).rejects.toThrow('Failed to fetch');
+      // apiFetch (G50) wraps fetch's TypeError into a typed error with
+      // `code: 'network_unreachable'`; referToAgent re-throws unchanged.
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+      await expect(mod.referToAgent({})).rejects.toMatchObject({
+        code: 'network_unreachable',
+      });
     });
   });
 });
@@ -272,7 +276,7 @@ describe('kyc service — real/mock branch parity (X11)', () => {
 
   it('verifyNira returns the same key set in both branches', async () => {
     const realMod = await import('../kyc');
-    vi.spyOn(global, 'fetch').mockResolvedValue(
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse({ result: 'match', trackingId: 'x' }),
     );
     const real = await realMod.verifyNira({});
@@ -291,7 +295,7 @@ describe('kyc service — real/mock branch parity (X11)', () => {
 
   it('sendOtp returns the same envelope (success, expiresIn) in both branches', async () => {
     const realMod = await import('../kyc');
-    vi.spyOn(global, 'fetch').mockResolvedValue(
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse({ success: true, expiresIn: 300 }),
     );
     const real = await realMod.sendOtp({ phone: 'x' });

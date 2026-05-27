@@ -16,7 +16,7 @@ const UTF8_BOM = '﻿';
  */
 function installBlobSpy() {
   const calls = [];
-  const RealBlob = global.Blob;
+  const RealBlob = globalThis.Blob;
   const FakeBlob = vi.fn(function FakeBlob(parts, opts) {
     calls.push({ parts, opts });
     this.parts = parts;
@@ -26,11 +26,11 @@ function installBlobSpy() {
       0,
     );
   });
-  global.Blob = FakeBlob;
+  globalThis.Blob = FakeBlob;
   return {
     calls,
     restore() {
-      global.Blob = RealBlob;
+      globalThis.Blob = RealBlob;
     },
     /** Concatenate every string part across all blobs created. */
     text() {
@@ -50,10 +50,10 @@ describe('csvDownload utils', () => {
 
   beforeEach(() => {
     // jsdom's URL has createObjectURL but it is a no-op stub; spy on it.
-    originalURL = global.URL;
+    originalURL = globalThis.URL;
     createObjectURLSpy = vi.fn(() => 'blob:fake-url');
     revokeObjectURLSpy = vi.fn();
-    global.URL = {
+    globalThis.URL = {
       ...originalURL,
       createObjectURL: createObjectURLSpy,
       revokeObjectURL: revokeObjectURLSpy,
@@ -64,7 +64,7 @@ describe('csvDownload utils', () => {
 
   afterEach(() => {
     blobSpy.restore();
-    global.URL = originalURL;
+    globalThis.URL = originalURL;
     vi.useRealTimers();
     vi.restoreAllMocks();
   });

@@ -35,6 +35,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Force JavaScript-based actions to use Node 24 (Node 20 is deprecated from
+# 2026-09-16; runners force Node 24 by default from 2026-06-02). Opting in
+# now keeps behaviour stable across the transition window.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   lint-and-unit:
     name: Lint + unit tests

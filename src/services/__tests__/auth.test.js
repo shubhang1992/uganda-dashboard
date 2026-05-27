@@ -587,7 +587,7 @@ describe('messageForCode branch coverage (via AuthError messages)', () => {
 
   // Each test runs through sendOtp because its catch branch funnels every
   // upstream code through messageForCode with no extra mutation.
-  const viaSendOtp = (_code) => sendOtp('+256700000001', 'subscriber');
+  const viaSendOtp = () => sendOtp('+256700000001', 'subscriber');
 
   it('maps rate_limited', async () => {
     await expectMessageFor('rate_limited', 'Too many attempts. Try again shortly.', viaSendOtp);

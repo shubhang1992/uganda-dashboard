@@ -36,7 +36,7 @@ describe('chat service — real (Supabase) branch', () => {
 
   describe('getChatResponse', () => {
     it('POSTs to /api/chat with context=admin and unwraps res.reply', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ reply: 'Greetings, admin.', suggestions: [] }),
       );
       const reply = await mod.getChatResponse('hi');
@@ -49,7 +49,7 @@ describe('chat service — real (Supabase) branch', () => {
     });
 
     it('falls back to mock copy when route returns non-string reply', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ reply: null }));
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ reply: null }));
       const reply = await mod.getChatResponse('how many agents');
       // Falls through to mockChatResponse — "agent" branch.
       expect(typeof reply).toBe('string');
@@ -57,7 +57,7 @@ describe('chat service — real (Supabase) branch', () => {
     });
 
     it('falls back to mock copy on network failure (swallows error)', async () => {
-      vi.spyOn(global, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
       const reply = await mod.getChatResponse('coverage');
       expect(typeof reply).toBe('string');
       // The coverage branch of buildResponses includes the word "coverage".
@@ -65,7 +65,7 @@ describe('chat service — real (Supabase) branch', () => {
     });
 
     it('falls back to mock copy on 500 API error', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue(
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ code: 'internal' }, { status: 500 }),
       );
       const reply = await mod.getChatResponse('subscribers');
@@ -75,7 +75,7 @@ describe('chat service — real (Supabase) branch', () => {
 
   describe('getAgentReply', () => {
     it('POSTs to /api/chat with context=agent and unwraps reply', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ reply: 'Hi, Daniel here.' }),
       );
       const reply = await mod.getAgentReply('hello', { name: 'Daniel Mugisha' });
@@ -86,13 +86,13 @@ describe('chat service — real (Supabase) branch', () => {
     });
 
     it('uses agent first-name fallback when route fails', async () => {
-      vi.spyOn(global, 'fetch').mockRejectedValue(new Error('boom'));
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('boom'));
       const reply = await mod.getAgentReply('hi', { name: 'Daniel Mugisha' });
       expect(reply).toContain('Daniel');
     });
 
     it('uses "your agent" placeholder when no agent name given', async () => {
-      vi.spyOn(global, 'fetch').mockRejectedValue(new Error('boom'));
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('boom'));
       const reply = await mod.getAgentReply('hi');
       // mockAgentReply uses firstName from "your agent".split(' ')[0] => "your"
       // → "Hi! your here." which is awkward but matches the source.
@@ -103,7 +103,7 @@ describe('chat service — real (Supabase) branch', () => {
 
   describe('getSubscriberChatResponse', () => {
     it('POSTs to /api/chat with context=subscriber and unwraps reply', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         jsonResponse({ reply: 'Hello subscriber.' }),
       );
       const reply = await mod.getSubscriberChatResponse('hi');
@@ -113,7 +113,7 @@ describe('chat service — real (Supabase) branch', () => {
     });
 
     it('returns subscriber-flavored fallback on failure (matches "withdraw" keyword)', async () => {
-      vi.spyOn(global, 'fetch').mockRejectedValue(new Error('boom'));
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('boom'));
       const reply = await mod.getSubscriberChatResponse('how do I withdraw');
       expect(reply).toContain('withdraw');
     });
@@ -129,7 +129,7 @@ describe('chat service — mock-fallback branch (IS_SUPABASE_ENABLED=false)', ()
   });
 
   it('getChatResponse does NOT call the network', async () => {
-    const fetchSpy = vi.spyOn(global, 'fetch');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
     await mod.getChatResponse('how many subscribers');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -197,7 +197,7 @@ describe('chat service — mock-fallback branch (IS_SUPABASE_ENABLED=false)', ()
 describe('chat service — real/mock branch parity (X11)', () => {
   it('both branches return a non-empty string from getChatResponse', async () => {
     const realMod = await import('../chat');
-    vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ reply: 'realstr' }));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ reply: 'realstr' }));
     const real = await realMod.getChatResponse('hi');
     expect(typeof real).toBe('string');
     expect(real.length).toBeGreaterThan(0);

@@ -112,7 +112,15 @@ export function AuthProvider({ children }) {
   // window because each new mount runs the synchronous block again on its
   // first render (refs are mount-scoped).
   const unsubAuthExpiredRef = useRef(null);
+  // Audit G54 intentionally registers the onAuthExpired listener during render
+  // (not inside useEffect) so a 401 returned by an in-flight request that
+  // resolves *before* effects run still hits a listener. ESLint flags this as
+  // a refs-during-render violation; we accept the trade because the failure
+  // mode if we miss the early-401 window is a hard page reload (the existing
+  // notifyAuthExpired fallback), which is materially worse for a sales demo.
+  // eslint-disable-next-line react-hooks/refs
   if (unsubAuthExpiredRef.current === null) {
+    // eslint-disable-next-line react-hooks/refs
     unsubAuthExpiredRef.current = onAuthExpired(() => {
       logoutRef.current();
       navigateRef.current('/');

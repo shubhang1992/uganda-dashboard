@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', '.claude/worktrees/**']),
+  globalIgnores(['dist', 'dist-server', 'coverage', '.claude/worktrees/**']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -38,6 +38,7 @@ export default defineConfig([
           'useSubscriberPanel',
           'useToast',
           'useApp',
+          'useWarmup',
           'STEPS',
           'AGENT_STEP',
           'PENDING_REVIEW_STEP',

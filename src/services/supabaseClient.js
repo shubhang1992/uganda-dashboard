@@ -80,7 +80,6 @@ function resolveUrl() {
   if (!IS_DEV) {
     throw new Error('VITE_SUPABASE_URL is not set. Add it to .env.local — see .env.local.example.');
   }
-  // eslint-disable-next-line no-console
   console.warn(
     '[supabaseClient] VITE_SUPABASE_URL is unset — falling back to http://localhost:54321 (dev only). Add it to .env.local — see .env.local.example.',
   );
@@ -92,7 +91,6 @@ function resolveAnonKey() {
   if (!IS_DEV) {
     throw new Error('VITE_SUPABASE_ANON_KEY is not set. Add it to .env.local — see .env.local.example.');
   }
-  // eslint-disable-next-line no-console
   console.warn(
     '[supabaseClient] VITE_SUPABASE_ANON_KEY is unset — falling back to a placeholder (dev only). Add it to .env.local — see .env.local.example.',
   );
