@@ -6,7 +6,7 @@
  *
  * Usage:
  *   1. Add SUPABASE_DB_URL=postgres://... to .env.local (use the connection
- *      pooler URL: aws-0-eu-west-2.pooler.supabase.com:6543).
+ *      pooler URL: aws-1-ap-northeast-1.pooler.supabase.com:6543).
  *   2. Ensure migrations 0001+ are applied to the project.
  *   3. node scripts/seed-supabase.mjs
  *

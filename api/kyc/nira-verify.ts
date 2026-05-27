@@ -13,7 +13,7 @@
 // 1800ms figure listed in the agent brief.)
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { mockTrackingId } from './_lib/mocks';
+import { mockTrackingId } from './_lib/mocks.js';
 
 const SIMULATED_LATENCY_MS = 1800;
 

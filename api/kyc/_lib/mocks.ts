@@ -8,9 +8,13 @@
 //
 // **Canonical tracking-id shape:** `${prefix}_${ts36}_${rand36}`
 //   - `prefix`   — vendor namespace (default `'smile'`, matching Smile ID v2)
-//   - `ts36`     — `Date.now()` in base-36 (~8 chars, monotonically increasing)
-//   - `rand36`   — 6 chars of base-36 randomness (collision-resistant for a
-//                  single demo session; not cryptographic)
+//   - `ts36`     — `Date.now()` in base-36 (~8 chars). Per-process unique
+//                  under shared concurrency; under Express two requests can
+//                  share a millisecond, so `ts36` alone is NOT monotonic
+//                  across concurrent calls.
+//   - `rand36`   — 6 chars of base-36 randomness. Collisions are theoretically
+//                  possible under high concurrency (36^6 ≈ 2.2B space) but
+//                  `Math.random()` is more than sufficient for the demo.
 //
 // Example: `smile_lwxa3y2k_4f9q2z`
 //

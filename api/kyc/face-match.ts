@@ -11,7 +11,7 @@
 // ~1500ms simulated latency.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { mockTrackingId } from './_lib/mocks';
+import { mockTrackingId } from './_lib/mocks.js';
 
 const SIMULATED_LATENCY_MS = 1500;
 

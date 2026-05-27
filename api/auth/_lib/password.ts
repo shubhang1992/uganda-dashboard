@@ -1,6 +1,6 @@
 // Password hashing + shape validation, shared across the auth API routes.
 //
-// This is the ONLY module in the codebase that imports `bcryptjs`. Wrap it
+// This is the ONLY module in the codebase that imports `bcrypt`. Wrap it
 // once here so every caller (signup completion, sign-in verify, Settings
 // change-password, future surfaces) goes through the same cost factor and
 // the same error vocabulary. Never imported from `src/` — frontend never
@@ -19,9 +19,9 @@
 // multi-byte UTF-8 (emoji, accented characters) can blow past 72 bytes well
 // before 72 characters, so the byte length is what we check.
 
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 
-// Work factor. 10 is the bcryptjs default and gives ~80ms per hash on a
+// Work factor. 10 is the bcrypt default and gives ~80ms per hash on a
 // modern Vercel serverless instance — comfortably above the brute-force
 // floor without slowing the demo's "sign in" tap-through.
 const COST = 10;
