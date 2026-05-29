@@ -14,7 +14,6 @@ const SchedulePage = lazy(() => import('./pages/SchedulePage'));
 const WithdrawalsHubPage = lazy(() => import('./pages/WithdrawalsHubPage'));
 const WithdrawPage = lazy(() => import('./pages/WithdrawPage'));
 const ClaimPage = lazy(() => import('./pages/ClaimPage'));
-const ProjectionPage = lazy(() => import('./pages/ProjectionPage'));
 const ActivityPage = lazy(() => import('./pages/ActivityPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
@@ -55,7 +54,6 @@ export default function SubscriberDashboardShell() {
             <Route path="withdraw/savings" element={<Suspense fallback={<PageFallback />}><WithdrawPage /></Suspense>} />
             <Route path="withdraw/claim" element={<Suspense fallback={<PageFallback />}><ClaimPage /></Suspense>} />
             <Route path="claim" element={<Navigate to="/dashboard/withdraw/claim" replace />} />
-            <Route path="projection" element={<Suspense fallback={<PageFallback />}><ProjectionPage /></Suspense>} />
             <Route path="activity" element={<Suspense fallback={<PageFallback />}><ActivityPage /></Suspense>} />
             <Route path="reports" element={<Suspense fallback={<PageFallback />}><ReportsPage /></Suspense>} />
             <Route path="reports/:reportId" element={<Suspense fallback={<PageFallback />}><ReportsPage /></Suspense>} />

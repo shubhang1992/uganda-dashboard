@@ -97,20 +97,28 @@ export default function ReportTable({
         <table className={styles.table}>
           <thead>
             <tr>
-              <th className={styles.rowNum}>#</th>
+              <th scope="col" className={styles.rowNum}>#</th>
               {columns.map((col) => (
                 <th
                   key={col.key}
+                  scope="col"
                   className={styles.th}
                   data-align={col.align || 'left'}
+                  aria-sort={
+                    col.sortable !== false && sortKey === col.key
+                      ? (sortDir === 'asc' ? 'ascending' : 'descending')
+                      : 'none'
+                  }
                   style={col.width ? { width: col.width, minWidth: col.width } : undefined}
                 >
                   {col.sortable !== false ? (
                     <button
+                      type="button"
                       className={styles.sortBtn}
                       onClick={() => handleSort(col.key)}
                       data-active={sortKey === col.key}
                       data-align={col.align || 'left'}
+                      aria-label={`Sort by ${col.label}${sortKey === col.key ? (sortDir === 'asc' ? ', ascending' : ', descending') : ''}`}
                     >
                       <span>{col.label}</span>
                       <span className={styles.sortIcon} data-dir={sortKey === col.key ? sortDir : 'none'}>

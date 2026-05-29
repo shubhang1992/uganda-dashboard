@@ -7,7 +7,6 @@ import TopUpWidget from './widgets/TopUpWidget';
 import CoPilotWidget from './widgets/CoPilotWidget';
 import PoliciesWidget from './widgets/PoliciesWidget';
 import ActivityWidget from './widgets/ActivityWidget';
-import ProjectionWidget from './widgets/ProjectionWidget';
 import IfYouNeedItWidget from './widgets/IfYouNeedItWidget';
 import styles from './HomePage.module.css';
 
@@ -76,9 +75,6 @@ export default function HomePage() {
       </motion.div>
       <motion.div variants={itemVariants} className={styles.slotActivity}>
         <ActivityWidget subscriber={sub} />
-      </motion.div>
-      <motion.div variants={itemVariants} className={`${styles.slotProjection} ${styles.phoneHide}`}>
-        <ProjectionWidget subscriber={sub} />
       </motion.div>
       <motion.div variants={itemVariants} className={`${styles.slotSafety} ${styles.phoneHide}`}>
         <IfYouNeedItWidget subscriber={sub} />

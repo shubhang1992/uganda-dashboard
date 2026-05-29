@@ -61,7 +61,8 @@
   font-weight: 700;
   font-size: var(--text-xs);
   cursor: pointer;
-  padding: 6px 0;
+  padding: 6px 4px;
+  margin-right: -4px;
   touch-action: manipulation;
 }
 

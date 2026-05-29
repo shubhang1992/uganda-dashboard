@@ -205,6 +205,7 @@
   border: none;
   text-align: left;
   padding: 15px 16px;
+  min-height: 48px;
   cursor: pointer;
   touch-action: manipulation;
 }

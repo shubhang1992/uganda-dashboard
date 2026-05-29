@@ -5,14 +5,22 @@
 .hero {
   position: relative;
   isolation: isolate;
-  background: var(--gradient-hero);
+  /* Base --gradient-hero (lighter indigo at top -> deep at the curve) plus a
+     soft lighter-indigo glow entering from the top centre for depth. On-brand
+     (indigo family only — no purple/mint). */
+  background:
+    radial-gradient(125% 78% at 50% -12%, color-mix(in srgb, var(--color-indigo-soft) 50%, transparent) 0%, transparent 60%),
+    var(--gradient-hero);
   color: var(--color-white);
   /* Deep elliptical "bowl": the bottom corners use a 50%-width horizontal
      radius so the two corner arcs meet at centre, giving one smooth downward
      curve that's --radius-capsule deep at the middle. */
   border-radius: 0 0 50% 50% / 0 0 var(--radius-capsule) var(--radius-capsule);
   padding: var(--space-5) var(--space-5) calc(var(--radius-capsule) + var(--space-4));
-  box-shadow: var(--shadow-lg);
+  /* Soft indigo-tinted drop shadow that hugs the elliptical bottom curve
+     (box-shadow follows border-radius), lifting the dome off the light page
+     for a subtle 3D effect. */
+  box-shadow: 0 16px 34px -10px color-mix(in srgb, var(--color-indigo-deep) 32%, transparent);
 }
 
 /* Faint dot-grid texture on the dome (kept extremely subtle — ~5% white). */
@@ -64,6 +72,13 @@
 .iconBtn:active {
   transform: scale(0.94);
   background: rgba(255, 255, 255, 0.24);
+}
+
+/* The global indigo-soft focus ring is <3:1 against the indigo dome; use a
+   white ring here so dome actions have a visible AA-passing focus indicator. */
+.iconBtn:focus-visible {
+  outline: 2px solid var(--color-white);
+  outline-offset: 2px;
 }
 
 /* Reserve the same footprint as a button so the centered title stays optically
@@ -163,6 +178,7 @@
   font-family: var(--font-body);
   font-size: var(--text-sm);
   color: var(--color-on-indigo-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .statRow > * {

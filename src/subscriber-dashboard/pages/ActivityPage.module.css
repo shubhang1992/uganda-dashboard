@@ -185,6 +185,10 @@
   color: var(--color-indigo-deep);
 }
 
+.reportsLink:active {
+  transform: scale(0.98);
+}
+
 .reportsLink:hover svg {
   transform: translateX(2px);
 }
@@ -199,6 +203,9 @@
     transition: none;
   }
   .reportsLink:hover svg {
+    transform: none;
+  }
+  .reportsLink:active {
     transform: none;
   }
 }

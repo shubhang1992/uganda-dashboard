@@ -76,12 +76,6 @@ test.describe('subscriber dashboard smoke', () => {
     await expect(page.getByRole('heading', { level: 1, name: /file a claim/i })).toBeVisible();
   });
 
-  test('Projection loads (/dashboard/projection)', async ({ page }) => {
-    await page.goto('/dashboard/projection');
-    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
-    await expect(page.getByRole('heading', { level: 1, name: /goal projection/i })).toBeVisible();
-  });
-
   test('Activity loads (/dashboard/activity)', async ({ page }) => {
     // Redesign: /dashboard/activity no longer redirects to
     // /dashboard/reports/all-transactions — it now renders ActivityPage

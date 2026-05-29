@@ -210,12 +210,13 @@ export default function SavePage() {
               placeholder="Enter another amount"
               className={styles.amountInput}
               aria-label="Contribution amount in UGX"
-              aria-invalid={belowMin}
+              aria-invalid={belowMin || undefined}
+              aria-describedby={belowMin ? 'save-amount-error' : undefined}
             />
           </label>
 
           {belowMin && (
-            <p className={styles.errorLine}>Minimum {formatUGXExact(MIN_CONTRIBUTION)} required.</p>
+            <p id="save-amount-error" className={styles.errorLine} role="alert">Minimum {formatUGXExact(MIN_CONTRIBUTION)} required.</p>
           )}
         </section>
 

@@ -213,7 +213,6 @@ Shell file: `src/agent-dashboard/AgentDashboardShell.jsx`. Sub-areas: `shell/` (
 | `/dashboard/withdraw/savings` | `pages/WithdrawPage` (lazy) |
 | `/dashboard/withdraw/claim` | `pages/ClaimPage` (lazy) |
 | `/dashboard/claim` | `Navigate to="/dashboard/withdraw/claim"` |
-| `/dashboard/projection` | `pages/ProjectionPage` (lazy) |
 | `/dashboard/activity` | `pages/ActivityPage` (lazy) — first-class Activity tab (Phase 6; no longer a redirect) |
 | `/dashboard/reports` and `/dashboard/reports/:reportId` | `pages/ReportsPage` (lazy) |
 | `/dashboard/help` | `pages/HelpPage` (lazy) |
@@ -710,7 +709,7 @@ Agent-side dispute path is **live** — `useDisputeCommission` → `services/com
 | Sub-areas | `shell/` (SideNav + BottomTabBar + PageHeader + navigation helpers + SubscriberShell), `home/` (HomePage + 6 widgets/), `pages/`, `reports/views/` |
 | Navigation | **All routed** |
 
-6 home widgets: `PulseCard`, `TopUpWidget`, `ProjectionWidget`, `IfYouNeedItWidget` (desktop only), `ActivityWidget`, `CoPilotWidget` (see §13). Reports under `reports/views/`: `AllTransactions`, `ContributionsSummary`, `WithdrawalsHistory`, `InsuranceStatement`, `AnnualStatement`. All mutations are optimistic via the `_sessionMutations` log in `subscriber.js`.
+5 home widgets: `PulseCard`, `TopUpWidget`, `IfYouNeedItWidget` (desktop only), `ActivityWidget`, `CoPilotWidget` (see §13). Reports under `reports/views/`: `AllTransactions`, `ContributionsSummary`, `WithdrawalsHistory`, `InsuranceStatement`, `AnnualStatement`. All mutations are optimistic via the `_sessionMutations` log in `subscriber.js`.
 
 `/settings/notifications` and `/settings/security` are `StubPage` placeholders — see §16b.
 

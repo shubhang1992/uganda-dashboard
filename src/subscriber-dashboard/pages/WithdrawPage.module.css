@@ -263,6 +263,51 @@
   outline-offset: 3px;
 }
 
+/* Danger variant — RED is reserved for destructive/irreversible actions per
+   brand rules. Used ONLY for the final "Confirm withdrawal" commit CTA, never
+   for the benign form-step or success-step buttons. Duplicates the primaryBtn
+   declarations (the file uses no `composes`) and overrides only the surface
+   colour + shadow so disabled/active/focus behaviour stays consistent. */
+.dangerBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-status-poor);
+  color: var(--color-white);
+  border: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  letter-spacing: -0.01em;
+  border-radius: var(--radius-full);
+  padding: 16px 20px;
+  min-height: 52px;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--color-status-poor) 22%, transparent);
+  font-variant-numeric: tabular-nums;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.dangerBtn:disabled {
+  background: var(--color-lavender);
+  color: var(--color-gray);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.dangerBtn:active:not(:disabled) {
+  transform: scale(0.99);
+  background: color-mix(in srgb, var(--color-status-poor) 85%, black);
+}
+
+.dangerBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 3px;
+}
+
 .secondaryBtn {
   flex: 0 0 auto;
   background: var(--color-white);
@@ -487,7 +532,8 @@
 /* Respect reduced-motion: Framer handles transforms, but neutralise the
    active-press scale for users who opt out of motion. */
 @media (prefers-reduced-motion: reduce) {
-  .primaryBtn:active:not(:disabled) {
+  .primaryBtn:active:not(:disabled),
+  .dangerBtn:active:not(:disabled) {
     transform: none;
   }
 }

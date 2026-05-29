@@ -33,16 +33,6 @@ const TABS = [
     ),
   },
   {
-    to: '/dashboard/projection',
-    label: 'Goals',
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
-        <path d="M4 19V5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-        <path d="M4 8l5 4 4-5 7 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    ),
-  },
-  {
     to: '/dashboard/settings',
     label: 'Profile',
     icon: (
@@ -99,13 +89,6 @@ export default function BottomTabBar() {
       >
         <span className={styles.tabIcon}>{TABS[3].icon}</span>
         <span className={styles.tabLabel}>{TABS[3].label}</span>
-      </NavLink>
-      <NavLink
-        to={TABS[4].to}
-        className={({ isActive }) => `${styles.tab} ${isActive ? styles.tabActive : ''}`}
-      >
-        <span className={styles.tabIcon}>{TABS[4].icon}</span>
-        <span className={styles.tabLabel}>{TABS[4].label}</span>
       </NavLink>
     </nav>
   );

@@ -340,7 +340,7 @@ export default function WithdrawPage() {
                       </button>
                       <button
                         type="button"
-                        className={styles.primaryBtn}
+                        className={styles.dangerBtn}
                         disabled={submitting}
                         onClick={handleConfirm}
                       >

@@ -2,13 +2,14 @@ import styles from './HeroCapsule.module.css';
 
 /**
  * HeroCapsule — the curved indigo "dome" header for the subscriber mobile
- * redesign. Presentational only (no router knowledge): pass a resolved `onBack`
- * handler — omit it on tab-root pages so no chevron renders — and an `onMenu`
+ * redesign. Presentational only (no router knowledge): pass an `onMenu`
  * handler (omit to hide the ⋮ button). The 3-column top bar keeps the centered
- * title optically centered by reserving a spacer where a button is absent.
+ * title optically centered by reserving a left spacer. (The top-left back
+ * chevron was removed across the subscriber dashboard — the bottom tab bar and
+ * in-page navigation make it redundant; any `onBack` prop is now ignored.)
  *
  * Layout (top → bottom):
- *   [ ‹back?      ·   TITLE (centered)   ·   ⋮menu? ]
+ *   [ (spacer)    ·   TITLE (centered)   ·   ⋮menu? ]
  *   [ eyebrow? ]        small uppercase caption above the amount
  *   [ prefix amount ]   big white number (e.g. "UGX" + "4,820,000")
  *   [ subtitle? ]       muted supporting line
@@ -17,6 +18,10 @@ import styles from './HeroCapsule.module.css';
  * variant="compact" drops the big-number block for dense pages (e.g. Reports):
  * it renders just the top bar plus an optional muted subtitle, so tables keep
  * their vertical budget and avoid a tall hero causing CLS.
+ *
+ * The ⋮ menu button defaults to a three-dot kebab with aria-label "More
+ * options"; pass `menuIcon` (any node) and/or `menuLabel` to repurpose it
+ * (e.g. a helpdesk/headset icon labelled "Get help").
  *
  * Captions/eyebrow/subtitle use --color-on-indigo-muted (contrast-checked
  * ≥4.5:1 over the dome); the amount stays solid white. The amount line reserves
@@ -29,8 +34,9 @@ export default function HeroCapsule({
   amount,
   subtitle,
   statRow,
-  onBack,
   onMenu,
+  menuIcon,
+  menuLabel = 'More options',
   variant = 'default',
   className = '',
   children,
@@ -39,23 +45,18 @@ export default function HeroCapsule({
   return (
     <header className={`${styles.hero} ${compact ? styles.compact : ''} ${className}`}>
       <div className={styles.topBar}>
-        {onBack ? (
-          <button type="button" className={styles.iconBtn} onClick={onBack} aria-label="Back">
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
-              <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        ) : (
-          <span className={styles.iconSpacer} aria-hidden="true" />
-        )}
+        {/* Left spacer keeps the title optically centered (back chevron removed). */}
+        <span className={styles.iconSpacer} aria-hidden="true" />
         {title && <h1 className={styles.title}>{title}</h1>}
         {onMenu ? (
-          <button type="button" className={styles.iconBtn} onClick={onMenu} aria-label="More options">
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
-              <circle cx="12" cy="5" r="1.5" fill="currentColor" />
-              <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-              <circle cx="12" cy="19" r="1.5" fill="currentColor" />
-            </svg>
+          <button type="button" className={styles.iconBtn} onClick={onMenu} aria-label={menuLabel}>
+            {menuIcon ?? (
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
+                <circle cx="12" cy="5" r="1.5" fill="currentColor" />
+                <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                <circle cx="12" cy="19" r="1.5" fill="currentColor" />
+              </svg>
+            )}
           </button>
         ) : (
           <span className={styles.iconSpacer} aria-hidden="true" />

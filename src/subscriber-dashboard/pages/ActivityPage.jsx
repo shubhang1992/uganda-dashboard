@@ -6,6 +6,7 @@ import { formatDate } from '../../utils/date';
 import { useCurrentSubscriber, useSubscriberTransactions } from '../../hooks/useSubscriber';
 import PageHeader from '../../components/PageHeader';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
+import SkeletonRow from '../../components/SkeletonRow';
 import { goBackOrFallback } from '../shell/navigation';
 import styles from './ActivityPage.module.css';
 
@@ -36,7 +37,13 @@ export default function ActivityPage() {
   const reducedMotion = useReducedMotion();
   const { data: sub } = useCurrentSubscriber();
   const [filter, setFilter] = useState('all');
-  const { data: allTx = [] } = useSubscriberTransactions(sub?.id);
+  const { data: allTx = [], isLoading: txLoading } = useSubscriberTransactions(sub?.id);
+
+  // True while the subscriber id is still resolving or the transactions query
+  // is in flight. Render skeletons + muted hero placeholders during this window
+  // so the page doesn't flash "UGX 0 / 0 in / 0 out" + an empty state and then
+  // pop content in (layout shift / CLS).
+  const loading = !sub?.id || txLoading;
 
   // Anchor "this year" to the most recent transaction year in the feed (the
   // demo seed is anchored to MOCK_NOW = 2026), falling back to the wall clock
@@ -78,8 +85,12 @@ export default function ActivityPage() {
         title="Activity"
         eyebrow="THIS YEAR"
         prefix="UGX"
-        amount={`${yearSummary.net < 0 ? '−' : ''}${formatUGXExact(Math.abs(yearSummary.net)).replace('UGX ', '')}`}
-        statRow={(
+        amount={loading
+          ? '—'
+          : `${yearSummary.net < 0 ? '−' : ''}${formatUGXExact(Math.abs(yearSummary.net)).replace('UGX ', '')}`}
+        statRow={loading ? (
+          <span style={{ opacity: 0.6 }}>Loading your activity…</span>
+        ) : (
           <>
             <span style={{ color: 'var(--color-green)' }}>
               ↑ <strong style={{ color: 'var(--color-green)' }}>{formatUGX(yearSummary.inflow)}</strong> in
@@ -109,7 +120,9 @@ export default function ActivityPage() {
             ))}
           </PillChipGroup>
 
-          {visible.length === 0 ? (
+          {loading ? (
+            <SkeletonRow count={6} variant="compact" label="Loading your activity" />
+          ) : visible.length === 0 ? (
             <div className={styles.empty}>
               <span className={styles.emptyIcon} aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="28" height="28" fill="none">

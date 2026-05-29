@@ -17,8 +17,37 @@ function genId(tab) {
 }
 
 function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle, reducedMotion }) {
+  // Local raw string for the share input so typing can pass through an empty /
+  // partial state (e.g. clearing the field) without parseInt snapping it to 0.
+  // The shared list state (`nominee.share`) always stays a clamped NUMBER —
+  // we only commit a number on blur, so the submitted payload is unchanged.
+  const [shareDraft, setShareDraft] = useState(String(nominee.share ?? ''));
+
+  // Keep the draft in sync when the canonical value changes from outside the
+  // input (auto-balance, Balance button, hydration) but not while the user is
+  // mid-edit — guarded by comparing against the parsed draft.
+  useEffect(() => {
+    const canonical = nominee.share ?? '';
+    if (String(canonical) !== shareDraft && Number.parseInt(shareDraft || '', 10) !== canonical) {
+      setShareDraft(String(canonical));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nominee.share]);
+
   function updateField(field, value) {
     onChange({ ...nominee, [field]: value });
+  }
+  function onShareChange(raw) {
+    // Strip non-digits; allow '' as an intermediate value while editing.
+    const digits = raw.replace(/[^\d]/g, '');
+    setShareDraft(digits);
+  }
+  function onShareBlur() {
+    // Clamp to the documented 1-100 range and commit a NUMBER to shared state.
+    const parsed = Number.parseInt(shareDraft || '0', 10);
+    const clamped = Math.max(1, Math.min(100, Number.isNaN(parsed) ? 1 : parsed));
+    setShareDraft(String(clamped));
+    if (clamped !== nominee.share) updateField('share', clamped);
   }
   function updatePhone(raw) {
     const digits = raw.replace(/[^\d]/g, '').slice(0, 9);
@@ -92,8 +121,9 @@ function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle
                       max={100}
                       inputMode="numeric"
                       className={styles.input}
-                      value={nominee.share ?? ''}
-                      onChange={(e) => updateField('share', Math.max(0, Math.min(100, parseInt(e.target.value || '0', 10))))}
+                      value={shareDraft}
+                      onChange={(e) => onShareChange(e.target.value)}
+                      onBlur={onShareBlur}
                     />
                     <span className={styles.sharePct}>%</span>
                   </div>

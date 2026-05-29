@@ -108,8 +108,14 @@
 }
 
 .row:active {
-  transform: translateY(0);
+  transform: scale(0.99);
+  background: var(--color-cloud);
   box-shadow: 0 2px 6px color-mix(in srgb, var(--color-indigo) 8%, transparent);
+}
+
+.row:active .rowAction {
+  background: var(--color-indigo);
+  color: var(--color-white);
 }
 
 .row:disabled {
@@ -193,6 +199,9 @@
     transition: none;
   }
   .row:hover {
+    transform: none;
+  }
+  .row:active {
     transform: none;
   }
 }

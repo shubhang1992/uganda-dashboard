@@ -53,6 +53,7 @@ export default function ProfilePage() {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [emailTouched, setEmailTouched] = useState(false);
   const [phoneDigits, setPhoneDigits] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -81,6 +82,7 @@ export default function ProfilePage() {
   const validName = name.trim().length >= 2;
   const validPhone = isValidUGPhone(phoneDigits);
   const validEmail = !email || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+  const showEmailError = emailTouched && email && !validEmail;
   const canSave = dirty && validName && validPhone && validEmail;
 
   async function handleSave() {
@@ -151,12 +153,13 @@ export default function ProfilePage() {
                 className={styles.input}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onBlur={() => setEmailTouched(true)}
                 placeholder="you@example.com"
                 autoComplete="email"
                 spellCheck={false}
-                data-error={email && !validEmail ? 'true' : undefined}
+                data-error={showEmailError ? 'true' : undefined}
               />
-              {email && !validEmail && <span className={styles.errorLine}>Looks like that email address isn&apos;t valid.</span>}
+              {showEmailError && <span className={styles.errorLine} role="alert">Looks like that email address isn&apos;t valid.</span>}
             </label>
           </section>
 
