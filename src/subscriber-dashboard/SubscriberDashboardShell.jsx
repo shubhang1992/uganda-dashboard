@@ -16,6 +16,7 @@ const WithdrawPage = lazy(() => import('./pages/WithdrawPage'));
 const ClaimPage = lazy(() => import('./pages/ClaimPage'));
 const ActivityPage = lazy(() => import('./pages/ActivityPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const PoliciesPage = lazy(() => import('./pages/PoliciesPage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
 const AgentPage = lazy(() => import('./pages/AgentPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
@@ -57,6 +58,7 @@ export default function SubscriberDashboardShell() {
             <Route path="activity" element={<Suspense fallback={<PageFallback />}><ActivityPage /></Suspense>} />
             <Route path="reports" element={<Suspense fallback={<PageFallback />}><ReportsPage /></Suspense>} />
             <Route path="reports/:reportId" element={<Suspense fallback={<PageFallback />}><ReportsPage /></Suspense>} />
+            <Route path="policies" element={<Suspense fallback={<PageFallback />}><PoliciesPage /></Suspense>} />
             <Route path="help" element={<Suspense fallback={<PageFallback />}><HelpPage /></Suspense>} />
             <Route path="agent" element={<Suspense fallback={<PageFallback />}><AgentPage /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<PageFallback />}><SettingsPage /></Suspense>} />

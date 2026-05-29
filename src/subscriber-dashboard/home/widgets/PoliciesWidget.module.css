@@ -83,7 +83,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 40px 1fr 36px;
+  grid-template-columns: 40px 1fr auto;
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
@@ -142,6 +142,12 @@
   border: 1px solid color-mix(in srgb, var(--color-indigo) 6%, transparent);
 }
 
+.docIcon[data-type='health'] {
+  background: color-mix(in srgb, var(--color-teal) 12%, transparent);
+  color: var(--color-teal);
+  border-color: color-mix(in srgb, var(--color-teal) 10%, transparent);
+}
+
 .rowBody {
   display: flex;
   flex-direction: column;
@@ -170,31 +176,92 @@
   min-width: 0;
 }
 
-.rowAction {
-  width: 36px;
-  height: 36px;
+/* ── Status pill ─────────────────────────────────────── */
+.pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.pillDot {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
-  color: var(--color-indigo);
+}
+
+.pill[data-tone='active'] {
+  background: color-mix(in srgb, var(--color-status-good) 14%, transparent);
+  color: var(--color-status-good);
+}
+
+.pill[data-tone='active'] .pillDot {
+  background: var(--color-status-good);
+}
+
+.pill[data-tone='expired'] {
+  background: color-mix(in srgb, var(--color-amber) 20%, transparent);
+  color: #9A6A00;
+}
+
+.pill[data-tone='expired'] .pillDot {
+  background: #C98A00;
+}
+
+/* ── Add-a-policy row (empty state) ──────────────────── */
+.addRow {
+  display: grid;
+  grid-template-columns: 40px 1fr 24px;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--color-white);
+  border: 1px dashed var(--color-indigo-soft);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-align: left;
+  touch-action: manipulation;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.addRow:hover {
+  background: var(--color-cloud);
+  border-color: var(--color-indigo);
+}
+
+.addRow:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.addIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  transition:
-    background 0.18s ease,
-    color 0.18s ease,
-    transform 0.18s ease;
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
+  color: var(--color-indigo);
 }
 
-.row:hover:not(:disabled) .rowAction {
-  background: var(--color-indigo);
-  color: var(--color-white);
-  transform: translateY(1px);
+.addChevron {
+  color: var(--color-indigo-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .row,
-  .rowAction,
+  .addRow,
   .viewAll {
     transition: none;
   }

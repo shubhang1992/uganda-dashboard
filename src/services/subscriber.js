@@ -24,7 +24,8 @@
 import { supabase } from './supabaseClient';
 import { IS_SUPABASE_ENABLED } from './api';
 import { normalizeFrequency } from '../utils/finance';
-import { SUBSCRIBERS, AGENTS, BRANCHES } from '../data/mockData';
+import { derivePolicies } from '../utils/policies';
+import { SUBSCRIBERS, AGENTS, BRANCHES, currentTime } from '../data/mockData';
 
 // =============================================================================
 // Legacy mock fallback (used when IS_SUPABASE_ENABLED === false)
@@ -43,6 +44,10 @@ function readSession(id) {
       nomineesOverride: null,
       insuranceOverride: null,
       profileOverride: null,
+      // Per-policy renewal overrides (keyed by 'life' | 'health'). Each holds
+      // { status, renewalDate, paidRef }; derivePolicies reads renewalDate to
+      // flip a renewed policy back to active. Demo-only; resets on refresh.
+      policyRenewals: {},
       balanceDelta: { retirement: 0, emergency: 0, total: 0 },
     });
   }
@@ -75,9 +80,58 @@ function applyMutations(sub) {
   };
 }
 
+/**
+ * Attach the derived `policies` array (life + synthesised health, with
+ * active/expired computed from the demo clock and any session renewals) to a
+ * subscriber. Runs for BOTH mock and Supabase reads so every consumer sees the
+ * same shape. The pure derivation lives in utils/policies (which may not import
+ * the demo clock); reading currentTime() here keeps that rule (§4.1) intact.
+ */
+function attachPolicies(sub) {
+  if (!sub) return sub;
+  const { policyRenewals } = readSession(sub.id);
+  return {
+    ...sub,
+    policies: derivePolicies(sub, { now: currentTime(), renewalOverrides: policyRenewals }),
+  };
+}
+
+/**
+ * Set/clear the session life-renewal override so the derived life policy reads
+ * as active (with a fresh year-long renewal) or reverts. Used by both
+ * updateInsuranceCover (picking cover = activating) and renewPolicy. Works in
+ * mock and Supabase modes because the session store is mode-independent.
+ */
+function setRenewalOverride(id, type, active) {
+  const m = readSession(id);
+  if (active) {
+    m.policyRenewals = {
+      ...m.policyRenewals,
+      [type]: { status: 'active', renewalDate: renewalIsoFromNow(1) },
+    };
+  } else {
+    const next = { ...m.policyRenewals };
+    delete next[type];
+    m.policyRenewals = next;
+  }
+  return m.policyRenewals[type];
+}
+
 function todayIso() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+/** Format a Date as YYYY-MM-DD (local parts), matching mockData's date strings. */
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** The demo clock + N years, as a YYYY-MM-DD string. */
+function renewalIsoFromNow(years = 1) {
+  const d = currentTime();
+  d.setFullYear(d.getFullYear() + years);
+  return isoDate(d);
 }
 
 // =============================================================================
@@ -278,14 +332,14 @@ export async function getCurrentSubscriber(phone) {
     if (!list.length) return null;
     if (phone) {
       const match = list.find((s) => s.phone?.endsWith(phone) || s.phone === phone);
-      if (match) return applyMutations(match);
+      if (match) return attachPolicies(applyMutations(match));
     }
     const demo = list.find((s) =>
       typeof s.age === 'number' &&
       s.age >= 28 && s.age <= 42 &&
       s.contributionSchedule?.amount > 0
     );
-    return applyMutations(demo ?? list[0]);
+    return attachPolicies(applyMutations(demo ?? list[0]));
   }
 
   // RLS (subscribers_select_self) already scopes to the JWT's subscriberId, so
@@ -302,7 +356,7 @@ export async function getCurrentSubscriber(phone) {
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  return mapSubscriberRow(data);
+  return attachPolicies(mapSubscriberRow(data));
 }
 
 export async function getSubscriberTransactions(id, { type, range, status } = {}) {
@@ -788,6 +842,7 @@ export async function updateNominees(id, { pension, insurance } = {}) {
  * signup), INSERT a fresh one; otherwise UPDATE. Status derives from cover.
  */
 export async function updateInsuranceCover(id, { cover, premiumMonthly } = {}) {
+  const active = Number(cover ?? 0) > 0;
   if (!IS_SUPABASE_ENABLED) {
     const sub = SUBSCRIBERS[id];
     if (!sub) throw new Error('Subscriber not found');
@@ -796,13 +851,17 @@ export async function updateInsuranceCover(id, { cover, premiumMonthly } = {}) {
       ...(m.insuranceOverride ?? sub.insurance),
       cover,
       premiumMonthly,
-      status: cover > 0 ? 'active' : 'inactive',
+      status: active ? 'active' : 'inactive',
     };
+    // Selecting cover (re)activates the life policy for a year — the policies
+    // page derives active/expired from the renewal date, so push it forward.
+    setRenewalOverride(id, 'life', active);
     return m.insuranceOverride;
   }
 
   if (!id) throw new Error('Subscriber id required');
-  const status = Number(cover ?? 0) > 0 ? 'active' : 'inactive';
+  setRenewalOverride(id, 'life', active);
+  const status = active ? 'active' : 'inactive';
   const row = unwrap(
     await supabase
       .from('insurance_policies')
@@ -826,6 +885,80 @@ export async function updateInsuranceCover(id, { cover, premiumMonthly } = {}) {
     renewalDate: row.renewal_date,
     status: row.status,
   };
+}
+
+/**
+ * Renew a policy by recording a (demo) premium payment. Demo scope: there is no
+ * real processor — paying flips the policy back to active for the session and
+ * pushes its renewal date forward a year. The renewal is held as a session
+ * override (health has no DB table, and even life renewal is demo-only), so it
+ * behaves identically in mock and Supabase modes and resets on refresh.
+ *
+ * A 'premium'-type transaction is recorded for the activity / Insurance
+ * Statement feed. 'premium' is excluded from balance math in applyMutations
+ * (only 'contribution' rows count toward balances), so renewals never touch
+ * savings balances.
+ *
+ * @param {string} id
+ * @param {{ type: 'life'|'health', method?: string }} payload
+ * @returns {Promise<{ policy: object, reference: string }>}
+ */
+export async function renewPolicy(id, { type, method = 'MTN Mobile Money' } = {}) {
+  if (!id) throw new Error('Subscriber id required');
+  if (type !== 'life' && type !== 'health') throw new Error('Unknown policy type');
+
+  const reference = `RN-${Math.floor(Math.random() * 900000) + 100000}`;
+  // Flip the policy active for a year (read back below to get the amount paid).
+  setRenewalOverride(id, type, true);
+
+  // Resolve the renewed policy so we can charge the exact renewal amount.
+  let sub;
+  if (!IS_SUPABASE_ENABLED) {
+    const base = SUBSCRIBERS[id];
+    if (!base) throw new Error('Subscriber not found');
+    sub = attachPolicies(applyMutations(base));
+  } else {
+    sub = await getCurrentSubscriber();
+  }
+  const policy = sub?.policies?.find((p) => p.type === type);
+  if (!policy) throw new Error('Policy not found');
+  const amount = policy.renewalAmount;
+
+  const tx = {
+    id: `tx-${id}-rn-${Date.now()}`,
+    type: 'premium',
+    amount,
+    date: todayIso(),
+    status: 'settled',
+    method,
+    reference,
+  };
+
+  if (!IS_SUPABASE_ENABLED) {
+    readSession(id).extraTransactions.unshift(tx);
+  } else {
+    // Supabase parity: record the premium in the transactions feed too. Direct
+    // insert mirrors makeAdHocContribution; 'premium' is not counted as a
+    // contribution by the balance trigger, so balances are unaffected. The
+    // policy status/date renewal itself stays a session override (above), since
+    // health has no table and we make no schema changes.
+    try {
+      await supabase.from('transactions').insert({
+        id: tx.id,
+        subscriber_id: id,
+        type: 'premium',
+        amount,
+        date: new Date().toISOString(),
+        status: 'settled',
+        method,
+        txn_ref: reference,
+      });
+    } catch {
+      // Non-fatal in the demo — the policy still renews via the session override.
+    }
+  }
+
+  return { policy, reference };
 }
 
 /**

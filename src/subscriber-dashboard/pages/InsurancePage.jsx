@@ -24,8 +24,12 @@ export default function InsurancePage() {
   const updateCover = useUpdateInsuranceCover(sub?.id);
 
   const insurance = sub?.insurance;
+  // Derive active/expired from the same source as the policies page (status is
+  // computed from the renewal date), so a lapsed life policy isn't shown as
+  // "current cover" here while the policies page calls it expired.
+  const lifePolicy = sub?.policies?.find((p) => p.type === 'life');
   const insNominees = sub?.nominees?.insurance || [];
-  const noPolicy = !insurance || insurance.status !== 'active';
+  const noPolicy = !lifePolicy || lifePolicy.status !== 'active';
 
   const [coverIdx, setCoverIdx] = useState(() => {
     const found = COVER_TIERS.findIndex((t) => t.cover === insurance?.cover);
@@ -91,7 +95,7 @@ export default function InsurancePage() {
           <>
             <span><strong>{formatUGXExact(insurance.premiumMonthly)}</strong> / mo</span>
             <span>Started <strong>{formatDate(insurance.policyStart)}</strong></span>
-            <span>Renews <strong>{formatDate(insurance.renewalDate)}</strong></span>
+            <span>Renews <strong>{formatDate(lifePolicy?.renewalDate ?? insurance.renewalDate)}</strong></span>
           </>
         )}
         fallback="/dashboard/settings"

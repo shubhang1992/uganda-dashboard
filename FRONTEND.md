@@ -215,6 +215,7 @@ Shell file: `src/agent-dashboard/AgentDashboardShell.jsx`. Sub-areas: `shell/` (
 | `/dashboard/claim` | `Navigate to="/dashboard/withdraw/claim"` |
 | `/dashboard/activity` | `pages/ActivityPage` (lazy) — first-class Activity tab (Phase 6; no longer a redirect) |
 | `/dashboard/reports` and `/dashboard/reports/:reportId` | `pages/ReportsPage` (lazy) |
+| `/dashboard/policies` | `pages/PoliciesPage` (lazy) — active/expired insurance policies + renew-by-payment |
 | `/dashboard/help` | `pages/HelpPage` (lazy) |
 | `/dashboard/agent` | `pages/AgentPage` (lazy) |
 | `/dashboard/settings` | `pages/SettingsPage` (lazy) |
@@ -421,13 +422,16 @@ export async function submitClaim(id, payload)
 export async function updateContributionSchedule(id, schedule)
 export async function updateNominees(id, { pension, insurance })
 export async function updateInsuranceCover(id, { cover, premiumMonthly })
+export async function renewPolicy(id, { type, method })       // demo premium payment; flips policy active
 export async function updateProfile(id, updates)
 export async function createFromSignup(payload)              // RPC create_subscriber_from_signup
 export async function createFromAgentOnboard(payload, agentId)  // RPC create_subscriber_from_agent_onboard
 export function invalidateSubscriber()
 ```
 
-`_sessionMutations` Map keyed by subscriber ID — folds `{ extraTransactions, extraClaims, extraWithdrawals, scheduleOverride, nomineesOverride, insuranceOverride, profileOverride, balanceDelta }` into reads. `requestWithdrawal` writes BOTH a transaction (for activity feed) and a withdrawal record (for reports/claims).
+`_sessionMutations` Map keyed by subscriber ID — folds `{ extraTransactions, extraClaims, extraWithdrawals, scheduleOverride, nomineesOverride, insuranceOverride, profileOverride, policyRenewals, balanceDelta }` into reads. `requestWithdrawal` writes BOTH a transaction (for activity feed) and a withdrawal record (for reports/claims).
+
+**Derived `subscriber.policies`.** `getCurrentSubscriber` runs every read (mock + Supabase) through `attachPolicies()`, which calls `derivePolicies()` (`utils/policies.js`) with `currentTime()` + the session's `policyRenewals`. The model stores a single life-cover record per subscriber; the derived list adds a deterministic synthesised **health** policy and computes `active`/`expired` from the renewal date — no schema change. `renewPolicy(id, {type})` records a `'premium'` transaction (excluded from balance math, like seeded premiums) and sets `policyRenewals[type]` so the policy reads active for the session (resets on refresh). `updateInsuranceCover` also sets a life renewal override so picking cover reactivates the policy consistently across both screens.
 
 ### 5.7 `agent.js` — agent-scoped portfolio
 
@@ -572,7 +576,7 @@ Mutations: `useApproveDispute` · `useRejectDispute` · `useBulkApproveDisputes`
 | `useSubscriberWithdrawals(id)` | `['subscriberWithdrawals', id]` |
 | `useSubscriberNominees(id)` | `['subscriberNominees', id]` |
 | `useSubscriberAgent(id)` | `['subscriberAgent', id]` |
-| `useMakeContribution(id)` · `useRequestWithdrawal(id)` · `useUpdateSchedule(id)` · `useUpdateNominees(id)` · `useSubmitClaim(id)` · `useUpdateInsuranceCover(id)` · `useUpdateProfile(id)` | mutations |
+| `useMakeContribution(id)` · `useRequestWithdrawal(id)` · `useUpdateSchedule(id)` · `useUpdateNominees(id)` · `useSubmitClaim(id)` · `useUpdateInsuranceCover(id)` · `useRenewPolicy(id)` · `useUpdateProfile(id)` | mutations |
 
 All mutations call `invalidateSubscriber()` (from `services/subscriber.js`) which clears every `['subscriber*', ...]` key.
 
@@ -709,7 +713,7 @@ Agent-side dispute path is **live** — `useDisputeCommission` → `services/com
 | Sub-areas | `shell/` (SideNav + BottomTabBar + PageHeader + navigation helpers + SubscriberShell), `home/` (HomePage + 6 widgets/), `pages/`, `reports/views/` |
 | Navigation | **All routed** |
 
-5 home widgets: `PulseCard`, `TopUpWidget`, `IfYouNeedItWidget` (desktop only), `ActivityWidget`, `CoPilotWidget` (see §13). Reports under `reports/views/`: `AllTransactions`, `ContributionsSummary`, `WithdrawalsHistory`, `InsuranceStatement`, `AnnualStatement`. All mutations are optimistic via the `_sessionMutations` log in `subscriber.js`.
+6 home widgets: `PulseCard`, `TopUpWidget`, `CoPilotWidget` (see §13), `PoliciesWidget` (insurance snapshot → `/dashboard/policies`), `ActivityWidget`, `IfYouNeedItWidget` (desktop only). Reports under `reports/views/`: `AllTransactions`, `ContributionsSummary`, `WithdrawalsHistory`, `InsuranceStatement`, `AnnualStatement`. `PoliciesPage` lists active/expired policies (derived — see §5.6) with a renew-by-payment sheet mirroring `SavePage`. All mutations are optimistic via the `_sessionMutations` log in `subscriber.js`.
 
 `/settings/notifications` and `/settings/security` are `StubPage` placeholders — see §16b.
 
@@ -871,7 +875,7 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 
 ## 15. Shared utilities, constants & component subdirs
 
-### 15.1 `src/utils/` (10 files)
+### 15.1 `src/utils/` (12 files)
 
 | File | Key exports |
 | --- | --- |
@@ -885,6 +889,8 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 | `csvDownload.js` | `downloadCsv({ rows, columns, filename, isMobile?, onCapNotice? })`, `dateStampedFilename(slug)`, `MOBILE_ROW_CAP = 5000`, `STREAM_THRESHOLD = MAX_ROWS`. Composes `toCsv` / `toCsvStream` with the browser-side Blob + hidden `<a download>` trigger; caps mobile exports at 5,000 rows and fires `onCapNotice({ capped, total })` so callers can surface a toast without coupling the util to a toast context. |
 | `phone.js` | `parseUGPhoneLocal`, `isValidUGPhone`, `formatUGPhone`, `toCanonicalUGPhone` (9-digit local, valid prefixes `70/71/74/75/76/77/78`, canonical storage `+256XXXXXXXXX`) |
 | `settlementCycle.js` | `CADENCES`, `cadenceLabel`, `cadenceShortLabel`, `nextCycleEnd`, `cycleWindow`, `formatCycleLabel`, `formatPayoutDate`, `groupCommissionsByPaidCycle`. |
+| `memberId.js` | `formatMemberId(phone)` — renders a subscriber's member ID from their phone (used on certificates / policy surfaces). |
+| `policies.js` | `derivePolicies(subscriber, { now, renewalOverrides })`, `derivePolicyStatus`, `synthesizeHealthPolicy`, `hashId`. Pure: builds the subscriber's insurance policy list (life from `insurance`, health synthesised deterministically by phone hash), computing `active`/`expired` from the renewal date. **Must NOT import mockData (§4.1)** — the service passes `now = currentTime()`. Consumed by `services/subscriber.js` (`attachPolicies`), `PoliciesPage`, and `PoliciesWidget`. |
 
 **Frequency normalisation rule:** ALWAYS pass schedules through `normalizeFrequency(value)` — defends against legacy aliases (`half-yearly`, `halfYearly`, `semi-annually`, `semiAnnually`).
 

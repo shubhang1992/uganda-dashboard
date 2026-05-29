@@ -1,45 +1,38 @@
 import { useNavigate } from 'react-router-dom';
-import { formatMemberId } from '../../../utils/memberId';
-import { useSubscriberNominees } from '../../../hooks/useSubscriber';
-import { useToast } from '../../../contexts/ToastContext';
-import { openPolicyCertificate } from '../../../signup/contribution/insurancePolicyCertificate';
+import { formatUGXExact } from '../../../utils/finance';
 import styles from './PoliciesWidget.module.css';
 
 /**
- * "Your policies" home card — two document rows the subscriber can open:
- *   1. Life cover certificate — only when life cover exists and the policy is
- *      active. Click assembles the certificate payload (nominees + premium) and
- *      opens the printable certificate in a new tab. Pop-up blocked → toast.
- *   2. Annual statement 2025 — routes to the reports page.
- *
- * PDF metadata (size, issued date) is decorative — no real file is generated.
+ * "Your policies" home card — a snapshot of the subscriber's insurance cover
+ * (life + health, derived in the service via `subscriber.policies`). Each row
+ * shows the policy with an Active/Expired pill and opens the full policies
+ * page. When the subscriber holds nothing yet, an "Add a policy" affordance
+ * routes them to pick cover. "View all" → /dashboard/policies.
  */
+function PolicyGlyph({ type }) {
+  if (type === 'health') {
+    return (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+        <path d="M12 20s-7-4.35-7-9.5A3.5 3.5 0 0112 7.5 3.5 3.5 0 0119 10.5c0 5.15-7 9.5-7 9.5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+        <path d="M12 11.2v3.2M10.4 12.8h3.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M9 12l2.2 2 3.8-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function PoliciesWidget({ subscriber }) {
   const navigate = useNavigate();
-  const { addToast } = useToast();
-  const { data: nominees } = useSubscriberNominees(subscriber?.id);
+  const policies = subscriber?.policies || [];
+  const hasAny = policies.length > 0;
+  const rows = policies.slice(0, 2);
 
-  const insurance = subscriber?.insurance || {};
-  const cover = insurance?.cover || 0;
-  const policyActive = insurance?.status === 'active';
-  const hasLifeCover = cover > 0 && policyActive;
-
-  function handleOpenCertificate() {
-    const ok = openPolicyCertificate({
-      holderName: subscriber?.name,
-      memberId: formatMemberId(subscriber?.phone),
-      dob: subscriber?.dob,
-      cover,
-      premiumPerPeriod: insurance?.premiumMonthly,
-      frequency: subscriber?.contributionSchedule?.frequency,
-      policyStart: insurance?.policyStart,
-      renewalDate: insurance?.renewalDate,
-      beneficiaries: nominees?.insurance ?? [],
-    });
-    if (!ok) {
-      addToast('error', 'Please allow pop-ups for this site, then try again to open your certificate.');
-    }
-  }
+  const goToPolicies = () => navigate('/dashboard/policies');
 
   return (
     <section className={styles.card} aria-labelledby="policies-title">
@@ -47,72 +40,67 @@ export default function PoliciesWidget({ subscriber }) {
         <div className={styles.headText}>
           <span className={styles.eyebrow}>
             <span className={styles.eyebrowDot} aria-hidden="true" />
-            Documents
+            Insurance
           </span>
           <h3 id="policies-title" className={styles.title}>Your policies</h3>
         </div>
-        <button
-          type="button"
-          className={styles.viewAll}
-          onClick={() => navigate('/dashboard/reports/annual-statement')}
-        >
-          View all
-          <svg aria-hidden="true" viewBox="0 0 14 14" width="12" height="12" fill="none">
-            <path d="M5 3l5 4-5 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-      </header>
-
-      <div className={styles.rows}>
-        {hasLifeCover && (
-          <button
-            type="button"
-            className={styles.row}
-            onClick={handleOpenCertificate}
-            aria-label="Open your life cover certificate"
-          >
-            <span className={styles.docIcon} aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
-                <path d="M7 3h7l4 4v14a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
-                <path d="M13 3v5h5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
-              </svg>
-            </span>
-            <span className={styles.rowBody}>
-              <span className={styles.rowTitle}>Life cover certificate</span>
-              <span className={styles.rowMeta}>PDF · Certificate of life insurance</span>
-            </span>
-            <span className={styles.rowAction} aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
-                <path d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </span>
+        {hasAny && (
+          <button type="button" className={styles.viewAll} onClick={goToPolicies}>
+            View all
+            <svg aria-hidden="true" viewBox="0 0 14 14" width="12" height="12" fill="none">
+              <path d="M5 3l5 4-5 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         )}
+      </header>
 
+      {hasAny ? (
+        <div className={styles.rows}>
+          {rows.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className={styles.row}
+              onClick={goToPolicies}
+              aria-label={`${p.name}, ${p.status === 'active' ? 'active' : 'expired'} — view your policies`}
+            >
+              <span className={styles.docIcon} data-type={p.type} aria-hidden="true">
+                <PolicyGlyph type={p.type} />
+              </span>
+              <span className={styles.rowBody}>
+                <span className={styles.rowTitle}>{p.name}</span>
+                <span className={styles.rowMeta}>{formatUGXExact(p.cover)} cover</span>
+              </span>
+              <span className={styles.pill} data-tone={p.status}>
+                <span className={styles.pillDot} aria-hidden="true" />
+                {p.status === 'active' ? 'Active' : 'Expired'}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
         <button
           type="button"
-          className={styles.row}
-          onClick={() => navigate('/dashboard/reports/annual-statement')}
-          aria-label="Open your 2025 annual statement"
+          className={styles.addRow}
+          onClick={() => navigate('/dashboard/settings/insurance')}
+          aria-label="Add a policy"
         >
-          <span className={styles.docIcon} aria-hidden="true">
+          <span className={styles.addIcon} aria-hidden="true">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
-              <path d="M7 3h7l4 4v14a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
-              <path d="M13 3v5h5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
-              <path d="M9 13h6M9 16h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
             </svg>
           </span>
           <span className={styles.rowBody}>
-            <span className={styles.rowTitle}>Annual statement 2025</span>
-            <span className={styles.rowMeta}>PDF · Yearly savings summary</span>
+            <span className={styles.rowTitle}>Add a policy</span>
+            <span className={styles.rowMeta}>Protect your family from UGX 2,000 / mo</span>
           </span>
-          <span className={styles.rowAction} aria-hidden="true">
+          <span className={styles.addChevron} aria-hidden="true">
             <svg viewBox="0 0 14 14" width="12" height="12" fill="none">
-              <path d="M5 3l5 4-5 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M5 3l5 4-5 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
         </button>
-      </div>
+      )}
     </section>
   );
 }

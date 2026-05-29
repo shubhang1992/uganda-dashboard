@@ -156,6 +156,19 @@ export function useUpdateInsuranceCover(id) {
 }
 
 /**
+ * Renews a policy (life | health) via a demo premium payment. Invalidates the
+ * subscriber + transactions caches so the derived `policies` list and the
+ * Insurance Statement feed reflect the renewal.
+ */
+export function useRenewPolicy(id) {
+  const invalidate = useInvalidateSubscriber(id);
+  return useMutation({
+    mutationFn: (payload) => subscriberService.renewPolicy(id, payload),
+    onSuccess: invalidate,
+  });
+}
+
+/**
  * Optimistic profile update — the changed fields appear immediately across
  * every cached `currentSubscriber` query and roll back if the backend rejects.
  */
