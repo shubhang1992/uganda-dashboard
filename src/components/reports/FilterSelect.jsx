@@ -1,10 +1,13 @@
+import { useId } from 'react';
 import styles from './FilterSelect.module.css';
 
 export default function FilterSelect({ label, value, onChange, options, allLabel = 'All' }) {
+  const selectId = useId();
   return (
     <div className={styles.wrap}>
-      <label className={styles.label}>{label}</label>
+      <label className={styles.label} htmlFor={selectId}>{label}</label>
       <select
+        id={selectId}
         className={styles.select}
         value={value}
         onChange={(e) => onChange(e.target.value)}

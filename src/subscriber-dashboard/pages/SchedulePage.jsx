@@ -33,6 +33,7 @@ export default function SchedulePage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        variant="hero"
         title={isNew ? 'Set a schedule' : 'Tune your schedule'}
         subtitle="Frequency, amount, and the retirement/emergency split"
         fallback="/dashboard/save"

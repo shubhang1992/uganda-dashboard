@@ -96,72 +96,6 @@
   transform: scale(0.98);
 }
 
-/* ── Cover card ───────────────────────────────────────── */
-.coverCard {
-  background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
-  color: var(--color-white);
-  border-radius: var(--radius-xl);
-  padding: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  box-shadow: 0 10px 24px rgba(27, 26, 74, 0.18);
-}
-
-.coverEyebrow {
-  font-family: var(--font-display);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(217, 220, 242, 0.7);
-}
-
-.coverValue {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: var(--text-3xl);
-  letter-spacing: -0.03em;
-  color: var(--color-white);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.coverMeta {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-3);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: var(--space-3);
-}
-
-.coverMetaItem {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.coverMetaLabel {
-  font-family: var(--font-body);
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: rgba(217, 220, 242, 0.7);
-  font-weight: 600;
-}
-
-.coverMetaValue {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 12px;
-  color: var(--color-white);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* ── Section ──────────────────────────────────────────── */
 .section {
   background: var(--color-white);
@@ -242,6 +176,12 @@
   outline: none;
 }
 
+.slider:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 4px;
+  border-radius: var(--radius-full);
+}
+
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -271,6 +211,9 @@
 
 .tierMark {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   background: transparent;
   border: none;
   color: var(--color-indigo-soft);
@@ -360,6 +303,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 44px;
   background: transparent;
   border: none;
   color: var(--color-indigo-soft);
@@ -423,10 +367,10 @@
 
 /* Confirming state during a two-tap downgrade — softer tone signals destructive action. */
 .primaryBtn[data-confirming] {
-  background: #c47c00;
+  background: var(--color-kyc-warning-amber);
 }
 .primaryBtn[data-confirming]:hover:not(:disabled) {
-  background: #a86a00;
+  background: color-mix(in srgb, var(--color-kyc-warning-amber) 82%, black);
 }
 
 .downgradeNote {

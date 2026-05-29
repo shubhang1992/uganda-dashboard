@@ -25,22 +25,25 @@
 }
 
 /* ── Profile card ─────────────────────────────────────── */
+/* The indigo dome (hero header) now carries the brand block, so this card is a
+   clean white surface to avoid a double-indigo stack directly beneath it. */
 .profile {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
-  color: var(--color-white);
+  background: var(--color-white);
+  color: var(--color-indigo);
+  border: 1px solid var(--color-lavender);
   border-radius: var(--radius-xl);
   padding: var(--space-4) var(--space-5);
-  box-shadow: 0 10px 24px rgba(27, 26, 74, 0.18);
+  box-shadow: var(--shadow-sm);
 }
 
 .avatar {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
+  background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
   color: var(--color-white);
   font-family: var(--font-display);
   font-weight: 800;
@@ -65,7 +68,7 @@
   font-weight: 800;
   font-size: var(--text-lg);
   letter-spacing: -0.02em;
-  color: var(--color-white);
+  color: var(--color-indigo);
 }
 
 .profileMeta {
@@ -75,10 +78,10 @@
   gap: 4px;
   font-family: var(--font-body);
   font-size: 12px;
-  color: rgba(217, 220, 242, 0.85);
+  color: var(--color-indigo-soft);
 }
 
-.profileDot { color: rgba(217, 220, 242, 0.4); }
+.profileDot { color: var(--color-lavender); }
 
 /* ── Stats strip ──────────────────────────────────────── */
 .stats {
@@ -132,27 +135,32 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .sectionRow {
   width: 100%;
+  min-height: 60px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   background: var(--color-white);
   border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  padding: 12px 16px;
   cursor: pointer;
   text-align: left;
   touch-action: manipulation;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.18s var(--ease-out-expo), box-shadow 0.18s var(--ease-out-expo), transform 0.18s var(--ease-out-expo);
 }
 
 .sectionRow:hover {
   border-color: var(--color-indigo-soft);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.sectionRow:active {
+  transform: scale(0.99);
 }
 
 /* "Coming soon" rows are non-interactive and visually muted so users don't
@@ -167,14 +175,18 @@
   box-shadow: none;
 }
 
+.sectionRow[data-soon]:active {
+  transform: none;
+}
+
 .sectionIcon {
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
+  background: color-mix(in srgb, var(--color-indigo) 7%, transparent);
   border-radius: var(--radius-md);
   color: var(--color-indigo);
 }
@@ -215,6 +227,8 @@
 }
 
 /* ── Logout ───────────────────────────────────────────── */
+/* Sign-out is a session action, not a data-destructive one — keep it on the
+   neutral indigo palette (brand reserves red strictly for errors). */
 .logoutBtn {
   display: inline-flex;
   align-items: center;
@@ -222,7 +236,7 @@
   gap: 8px;
   background: var(--color-white);
   border: 1px solid var(--color-lavender);
-  color: var(--color-status-poor);
+  color: var(--color-indigo);
   font-family: var(--font-display);
   font-weight: 700;
   font-size: var(--text-sm);
@@ -230,12 +244,12 @@
   border-radius: var(--radius-full);
   cursor: pointer;
   touch-action: manipulation;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.18s var(--ease-out-expo), border-color 0.18s var(--ease-out-expo);
 }
 
 .logoutBtn:hover {
-  border-color: var(--color-status-poor);
-  background: rgba(220, 53, 69, 0.04);
+  border-color: var(--color-indigo-soft);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
 }
 
 .versionLine {
@@ -253,8 +267,19 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-indigo-soft);
-  background: rgba(94, 99, 168, 0.10);
+  background: color-mix(in srgb, var(--color-indigo-soft) 12%, transparent);
   border-radius: var(--radius-full);
   padding: 2px 8px;
   flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sectionRow,
+  .logoutBtn {
+    transition: none;
+  }
+
+  .sectionRow:active {
+    transform: none;
+  }
 }

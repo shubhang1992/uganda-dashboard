@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGX, formatUGXExact } from '../../utils/finance';
 import { formatDate } from '../../utils/date';
 import { getInitials } from '../../utils/dashboard';
@@ -18,6 +18,7 @@ const COVER_TIERS = [
 
 export default function InsurancePage() {
   const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const updateCover = useUpdateInsuranceCover(sub?.id);
@@ -79,16 +80,31 @@ export default function InsurancePage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Insurance cover" subtitle="Premium and policy level" fallback="/dashboard/settings" />
+      <PageHeader
+        variant="hero"
+        title="Insurance cover"
+        eyebrow={noPolicy ? undefined : 'CURRENT COVER'}
+        prefix={noPolicy ? undefined : 'UGX'}
+        amount={noPolicy ? undefined : formatUGXExact(insurance.cover || 0).replace('UGX ', '')}
+        subtitle={noPolicy ? 'Premium and policy level' : undefined}
+        statRow={noPolicy ? undefined : (
+          <>
+            <span><strong>{formatUGXExact(insurance.premiumMonthly)}</strong> / mo</span>
+            <span>Started <strong>{formatDate(insurance.policyStart)}</strong></span>
+            <span>Renews <strong>{formatDate(insurance.renewalDate)}</strong></span>
+          </>
+        )}
+        fallback="/dashboard/settings"
+      />
 
       <div className={styles.body}>
         <motion.div
           className={styles.step}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+          animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
-          {noPolicy ? (
+          {noPolicy && (
             <section className={styles.emptyCoverCard}>
               <div className={styles.shieldIcon} aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="28" height="28" fill="none">
@@ -103,25 +119,6 @@ export default function InsurancePage() {
               <button type="button" className={styles.emptyCta} onClick={scrollToPicker}>
                 Pick your cover
               </button>
-            </section>
-          ) : (
-            <section className={styles.coverCard}>
-              <span className={styles.coverEyebrow}>Current cover</span>
-              <div className={styles.coverValue}>{formatUGX(insurance.cover)}</div>
-              <div className={styles.coverMeta}>
-                <div className={styles.coverMetaItem}>
-                  <span className={styles.coverMetaLabel}>Premium</span>
-                  <span className={styles.coverMetaValue}>{formatUGXExact(insurance.premiumMonthly)} / mo</span>
-                </div>
-                <div className={styles.coverMetaItem}>
-                  <span className={styles.coverMetaLabel}>Started</span>
-                  <span className={styles.coverMetaValue}>{formatDate(insurance.policyStart)}</span>
-                </div>
-                <div className={styles.coverMetaItem}>
-                  <span className={styles.coverMetaLabel}>Renewal</span>
-                  <span className={styles.coverMetaValue}>{formatDate(insurance.renewalDate)}</span>
-                </div>
-              </div>
             </section>
           )}
 
@@ -151,6 +148,7 @@ export default function InsurancePage() {
               className={styles.slider}
               style={{ '--pct': `${(coverIdx / (COVER_TIERS.length - 1)) * 100}%` }}
               aria-label="Cover tier"
+              aria-valuetext={`${formatUGX(selectedTier.cover)} cover, ${formatUGXExact(selectedTier.premium)} per month`}
             />
 
             <div className={styles.tierMarks}>

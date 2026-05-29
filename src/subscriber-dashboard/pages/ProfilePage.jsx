@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { formatDate } from '../../utils/date';
 import { isValidUGPhone } from '../../utils/phone';
@@ -36,6 +36,7 @@ function titleCase(s) {
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
   const { data: sub } = useCurrentSubscriber();
   const { data: districts = [] } = useAllEntities('district');
   const { addToast } = useToast();
@@ -102,13 +103,13 @@ export default function ProfilePage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Profile" subtitle="Edit your personal details" fallback="/dashboard/settings" />
+      <PageHeader variant="hero" title="Profile" subtitle="Edit your personal details" fallback="/dashboard/settings" />
 
       <div className={styles.body}>
         <motion.div
           className={styles.step}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+          animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
           <section className={styles.section}>

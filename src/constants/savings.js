@@ -16,3 +16,10 @@ export const INSURANCE_COVER = 1_000_000;
 
 /** Quick-pick contribution amounts shown on Save / Schedule pages. */
 export const QUICK_CONTRIBUTION_AMOUNTS = [10_000, 25_000, 50_000, 100_000, 250_000];
+
+/**
+ * Quick-pick contribution amounts for the subscriber mobile Save (top-up) page.
+ * Laid out as a 2×3 grid of PillChips. Distinct from the signup/schedule set
+ * above so the mobile redesign can tune its own presets independently.
+ */
+export const MOBILE_QUICK_CONTRIBUTION_AMOUNTS = [5_000, 10_000, 25_000, 50_000, 100_000, 200_000];

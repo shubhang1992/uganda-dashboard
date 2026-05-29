@@ -214,7 +214,7 @@ Shell file: `src/agent-dashboard/AgentDashboardShell.jsx`. Sub-areas: `shell/` (
 | `/dashboard/withdraw/claim` | `pages/ClaimPage` (lazy) |
 | `/dashboard/claim` | `Navigate to="/dashboard/withdraw/claim"` |
 | `/dashboard/projection` | `pages/ProjectionPage` (lazy) |
-| `/dashboard/activity` | `Navigate to="/dashboard/reports/all-transactions"` |
+| `/dashboard/activity` | `pages/ActivityPage` (lazy) — first-class Activity tab (Phase 6; no longer a redirect) |
 | `/dashboard/reports` and `/dashboard/reports/:reportId` | `pages/ReportsPage` (lazy) |
 | `/dashboard/help` | `pages/HelpPage` (lazy) |
 | `/dashboard/agent` | `pages/AgentPage` (lazy) |
@@ -952,6 +952,7 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 --color-green:         #2E8B57;
 --color-teal:          #2F8F9D;
 --color-white:         #FFFFFF;      /* Phase 5E (56c4839) */
+--color-on-indigo-muted: rgba(255,255,255,0.78);  /* Phase 6 — muted caption/eyebrow over the indigo hero dome (≥4.5:1 AA) */
 
 /* Status */
 --color-status-good:     #2E8B57;
@@ -996,9 +997,13 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 /* Easing */
 --ease-out-expo:         cubic-bezier(0.16, 1, 0.3, 1);
 --ease-in-out:           cubic-bezier(0.4, 0, 0.2, 1);
+
+/* Subscriber-mobile redesign (Phase 6) — see also --color-on-indigo-muted in the Brand block */
+--radius-capsule:        3rem;                                                        /* elliptical bottom-curve depth of the hero dome */
+--gradient-hero:         linear-gradient(180deg, var(--color-indigo-deep), var(--color-indigo));  /* paints the HeroCapsule dome — indigo-deep → brand indigo */
 ```
 
-Plus full scales for `--text-xs`…`--text-7xl`, `--space-1`…`--space-32`, `--radius-sm/md/lg/xl/full`, `--shadow-sm/md/lg/xl`. The shared easing curve `EASE_OUT_EXPO = [0.16, 1, 0.3, 1]` is exported from `src/utils/motion.js` (re-exported from `src/utils/finance.js` for backwards compat) and mirrored as `--ease-out-expo`.
+Plus full scales for `--text-xs`…`--text-7xl`, `--space-1`…`--space-32`, `--radius-sm/md/lg/xl/full/capsule`, `--shadow-sm/md/lg/xl`. The shared easing curve `EASE_OUT_EXPO = [0.16, 1, 0.3, 1]` is exported from `src/utils/motion.js` (re-exported from `src/utils/finance.js` for backwards compat) and mirrored as `--ease-out-expo`. The three subscriber-mobile tokens (`--color-on-indigo-muted`, `--radius-capsule`, `--gradient-hero`) are documented in §16.9.
 
 ### 16.3 Breakpoint scale (Phase 5C `ee78074`)
 
@@ -1055,6 +1060,47 @@ Slide-in panel conventions live in §12.2.
 **Icon system.** Inline SVG line icons, `stroke="currentColor"`, `strokeWidth="1.75"`, 24×24 viewBox. Containers: `background: rgba(41,40,103,0.06); border: 1px solid var(--color-lavender); border-radius: var(--radius-md)`. Shared icon set in `src/dashboard/shared/Icons.jsx`. Some icons live in the SVG sprite at `public/icons.svg` and are referenced via `<use href="/icons.svg#name" />`. Never emojis, icon fonts, or icon libraries. Decorative SVGs next to text labels must have `aria-hidden="true"`.
 
 **Map (Distributor).** Full-bleed `react-leaflet` + CartoDB Positron tiles. GeoJSON in `public/uganda-districts.geojson` (clipped to region polygons via `scripts/clip-districts.mjs` using `@turf/turf`) + `public/uganda-regions.geojson`. Region colours: Central `#5E63A8`, Eastern `#2F8F9D`, Northern `#3D3C80`, Western `#7B7FC4`. Soft bokeh glow halos at region centroids. `flyTo`/`fitBounds` on drill-down. Lazy-load + WeakMap style cache applied in Phase 4F (`c3c28c3`) — F10 / F11 addressed.
+
+### 16.9 Subscriber-mobile redesign (Phase 6 — shared primitives + tokens + nav)
+
+The subscriber dashboard below 1024px was redesigned around a curved indigo "dome" header, capsule selection chips, and a 5-tab bottom bar with a centre Save FAB. Three shared primitives and three tokens back it; all are **role-agnostic** and live in `src/components/` / `src/index.css` so the agent shell (or future roles) can adopt them.
+
+**New tokens (`src/index.css`).** Excerpted in §16.2.
+
+| Token | Value | Role |
+| --- | --- | --- |
+| `--gradient-hero` | `linear-gradient(180deg, var(--color-indigo-deep), var(--color-indigo))` | Background fill of the `HeroCapsule` dome. CTAs/FAB reuse `--shadow-lg` (indigo-tinted) — **no** mint-glow. |
+| `--radius-capsule` | `3rem` | Elliptical bottom-curve depth of the dome. |
+| `--color-on-indigo-muted` | `rgba(255,255,255,0.78)` | Muted caption / eyebrow / subtitle text over the dome (resolves ~8.5:1 over `--color-indigo`, ~10:1 over `--color-indigo-deep` — clears AA). The big hero amount stays solid `--color-white`. |
+
+**`HeroCapsule` (`src/components/HeroCapsule.jsx` + `.module.css`).** Presentational curved indigo dome header — no router knowledge (pass a resolved `onBack`/`onMenu`). Props:
+
+| Prop | Effect |
+| --- | --- |
+| `title` | Optically-centred `<h1>` in the 3-column top bar (a spacer reserves width where a button is absent, keeping the title centred). |
+| `eyebrow` | Small uppercase caption above the amount (`--color-on-indigo-muted`). |
+| `prefix` + `amount` | `prefix` (e.g. `"UGX"`) + the big white display number. The amount line reserves its height so the Plus Jakarta Sans swap doesn't shift layout (no CLS). |
+| `subtitle` | Muted supporting line. |
+| `statRow` | Arbitrary node (units · invested · growth). |
+| `onBack` | Renders a back chevron (≥44px icon button, `aria-label="Back"`). **Omit on tab-root pages** so no chevron renders. |
+| `onMenu` | Renders the ⋮ button (`aria-label="More options"`). Omit to hide. |
+| `variant` | `'default'` renders the full big-number block; `'compact'` drops it (renders just the top bar + an optional muted subtitle) for dense pages like Reports, so tables keep their vertical budget. |
+
+The dome is painted with `--gradient-hero` + `--radius-capsule`; decorative SVGs carry `aria-hidden="true"`. The entrance is pure CSS (neutralised by the global `prefers-reduced-motion` reset).
+
+**`PillChip` / `PillChipGroup` (`src/components/PillChip.jsx` + `.module.css`).** Capsule selection chips (amount presets, cadence, type/status filters). **Selected** = filled indigo + white; **idle** = lavender-outline + indigo text — brand-only, never mint. Each chip is ≥44pt tall.
+
+- `PillChip` is a `<button role="radio" aria-checked={selected}>` taking `selected`, `onClick`, `children` (+ passthrough props).
+- `PillChipGroup` (`label`, `layout='row'|'grid'`, `columns=3`) wraps chips in a single `role="radiogroup"` with `aria-label={label}` — **the label is required** for the group. It manages a **roving tabindex** (exactly one tab stop — the checked chip, or the first when none is checked) via a `useEffect` that runs each render, and `handleKeyDown` moves focus with Arrow keys (Right/Down forward, Left/Up back, wrapping) and activates the chip under focus, matching the native radio pattern. Grid layout passes `--pill-cols` for the column count.
+
+**`PageHeader` `variant="hero"` (`src/components/PageHeader.jsx`).** The shared back-aware header (22 files across subscriber + agent) gained a `variant="hero"` that renders a `HeroCapsule` instead of the flat bar, so any page opts into the dome cheaply. Default variant is unchanged. New passthrough props (`eyebrow`, `prefix`, `amount`, `statRow`, `onMenu`) are forwarded to the capsule and ignored by the default variant; `showBack={false}` suppresses the back chevron on tab-root pages. Back resolution is unchanged (`onBack` → `backTo` → `goBackOrFallback(navigate, fallback)`).
+
+**Subscriber mobile nav / route changes (`<1024px`).**
+
+- **5-tab `BottomTabBar`** (`src/subscriber-dashboard/shell/BottomTabBar.jsx`) — Home · Activity · **[centre Save FAB]** · Withdraw · Goals · Profile, as `NavLink`s with `aria-current` active styling under `<nav aria-label="Quick navigation">`. Tabs are 52px tall; the centre FAB is the indigo Save action (`aria-label="Save"`, ≥44px, indigo — never mint, no mint-glow) with reduced-motion handling on its `transform`/`box-shadow` transitions. The bar is hidden at `min-width: 1024px` (mobile-only; desktop keeps the SideNav).
+- **The mobile "More" menu was removed** — there are no `MoreMenu` / `moreOpen` references left in `shell/`. Destinations that used to live there are re-homed (below).
+- **`/dashboard/activity` now renders `ActivityPage`** (lazy) instead of redirecting. It is no longer `Navigate to="/dashboard/reports/all-transactions"`; the Activity tab is a first-class page. (Update §2.4: the row now reads `pages/ActivityPage (lazy)`.)
+- **Reports / Agent / Help / Security re-homed as `SettingsPage` rows** (`src/subscriber-dashboard/pages/SettingsPage.jsx`). The Profile tab's settings list now also carries: *Reports & statements* → `/dashboard/reports`, *Your agent* → `/dashboard/agent`, *Help* → `/dashboard/help`, and *Password & security* — which opens the shared `<Settings />` slide-in panel via `setSettingsOpen(true)` from `useDashboard()` rather than routing (it's the only surface exposing the password card on this page). *Notifications* is present but `disabled` with a "Soon" badge (the `/settings/notifications` + `/settings/security` `StubPage`s still exist — §16b).
 
 ---
 

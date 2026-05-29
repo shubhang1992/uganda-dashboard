@@ -14,7 +14,11 @@
 
 .body {
   flex: 1;
+  /* Pull the first card up so it tucks under the hero dome's curved base. */
+  margin-top: calc(var(--space-5) * -1);
   padding: var(--space-2) var(--space-4) var(--space-6);
+  position: relative;
+  z-index: 1;
 }
 
 .grid {
@@ -33,12 +37,13 @@
 
 .card {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 14px;
+  min-height: 76px;
   background: var(--color-white);
-  border: 1px solid var(--color-lavender);
+  border: 1.5px solid var(--color-lavender);
   border-radius: var(--radius-xl);
-  padding: var(--space-5);
+  padding: var(--space-4) var(--space-5);
   cursor: pointer;
   text-align: left;
   touch-action: manipulation;
@@ -47,19 +52,29 @@
 
 .card:hover {
   border-color: var(--color-indigo-soft);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.card:active {
+  transform: scale(0.99);
+}
+
+.card:focus-visible {
+  outline: none;
+  border-color: var(--color-indigo);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 28%, transparent);
 }
 
 .cardIcon {
   flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
   border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   color: var(--color-indigo);
 }
 
@@ -97,10 +112,19 @@
 .cardArrow {
   flex: 0 0 auto;
   color: var(--color-indigo-soft);
-  margin-top: 8px;
   transition: transform 0.18s ease;
 }
 
 .card:hover .cardArrow {
   transform: translateX(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .cardArrow {
+    transition: none;
+  }
+  .card:active {
+    transform: none;
+  }
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -7,10 +7,15 @@ import {
 import { EASE_OUT_EXPO, formatUGX, formatUGXExact, calcFV, MONTHLY_RATE, monthlyEquivalent } from '../../utils/finance';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import { RETIREMENT_AGE } from '../../constants/savings';
+import { goBackOrFallback } from '../shell/navigation';
 import PageHeader from '../../components/PageHeader';
+import { PillChip, PillChipGroup } from '../../components/PillChip';
 import styles from './ProjectionPage.module.css';
 
 const FALLBACK_AGE = 30;
+
+// Annual growth rate the projection assumes (MONTHLY_RATE compounds to this).
+const ANNUAL_GROWTH_PCT = Math.round(MONTHLY_RATE * 12 * 100);
 
 const GOALS = [
   { id: 'emergency',  label: 'Emergency fund',         hint: '6 months of income',            target: 3_000_000 },
@@ -27,10 +32,40 @@ function requiredMonthly(target, years) {
   return factor > 0 ? target / factor : 0;
 }
 
+// Recharts SVG <stop> needs a literal colour value (it can't resolve a CSS var
+// in a gradient stop), so read the brand tokens off :root at runtime with the
+// current hex as a fallback. Token map:
+//   --color-indigo-soft  (#5E63A8) → area fill gradient top
+//   --color-indigo       (#292867) → area stroke
+//   --color-green        (#2E8B57) → goal-target reference line
+function readToken(name, fallback) {
+  if (typeof window === 'undefined') return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
 export default function ProjectionPage() {
   const navigate = useNavigate();
   const { data: subscriber } = useCurrentSubscriber();
   const [goalId, setGoalId] = useState('house');
+
+  // Resolve brand tokens once for the Recharts SVG (see readToken note above).
+  const chartColors = useMemo(() => ({
+    fill: readToken('--color-indigo-soft', '#5E63A8'),
+    stroke: readToken('--color-indigo', '#292867'),
+    target: readToken('--color-green', '#2E8B57'),
+  }), []);
+
+  // Disable chart animation when the user prefers reduced motion.
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReduceMotion(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   const age = typeof subscriber?.age === 'number' ? subscriber.age : FALLBACK_AGE;
   const yearsToRetirement = Math.max(0, RETIREMENT_AGE - age);
@@ -67,23 +102,36 @@ export default function ProjectionPage() {
     return points;
   }, [age, balance, monthlyCurrent, yearsToRetirement]);
 
+  function handleBack() {
+    goBackOrFallback(navigate, '/dashboard');
+  }
+
   return (
     <div className={styles.page}>
       <PageHeader
+        variant="hero"
         title="Goal projection"
+        eyebrow="AT YOUR PACE, BY 60"
+        prefix={atOrPastRetirement ? undefined : 'UGX'}
+        amount={atOrPastRetirement ? undefined : formatUGX(projectedAtRetirement).replace(/^UGX\s*/, '')}
         subtitle={
           atOrPastRetirement
             ? `You're at retirement age — current balance ${formatUGX(balance)}`
             : `Retirement at ${RETIREMENT_AGE} · ${yearsToRetirement} yrs to go`
         }
-        fallback="/dashboard"
+        statRow={
+          atOrPastRetirement || monthlyCurrent <= 0 ? undefined : (
+            <span>≈ <strong>{formatUGX(monthlyCurrent)}</strong> / month for life</span>
+          )
+        }
+        onBack={handleBack}
       />
 
       <div className={styles.body}>
         <motion.div
           className={styles.step}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+          animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
           {/* 01 Goal picker */}
@@ -92,21 +140,17 @@ export default function ProjectionPage() {
               <span className={styles.sectionIdx}>01</span>
               <h2 className={styles.sectionTitle}>Pick a goal</h2>
             </div>
-            <div className={styles.goalChipRow} role="radiogroup" aria-label="Savings goal">
+            <PillChipGroup label="Savings goal" layout="grid" columns={2} className={styles.goalChipRow}>
               {GOALS.map((g) => (
-                <button
+                <PillChip
                   key={g.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={g.id === goalId}
-                  className={styles.goalChip}
-                  data-active={g.id === goalId}
+                  selected={g.id === goalId}
                   onClick={() => setGoalId(g.id)}
                 >
                   {g.label}
-                </button>
+                </PillChip>
               ))}
-            </div>
+            </PillChipGroup>
 
             <div className={styles.goalSummary}>
               <div className={styles.goalSummaryText}>
@@ -141,69 +185,85 @@ export default function ProjectionPage() {
             <>
               {/* 02 Current pace */}
               <section className={styles.paceCard}>
-                <div className={styles.paceRow}>
-                  <span className={styles.paceLabel}>You contribute</span>
-                  <span className={styles.paceValue}>
-                    {formatUGX(monthlyCurrent)} <span className={styles.paceUnit}>/ month</span>
-                  </span>
-                </div>
-
-                <div className={styles.paceProjection}>
-                  <span className={styles.paceProjectionLabel}>Projected at age {RETIREMENT_AGE}</span>
-                  <span className={styles.paceProjectionValue}>{formatUGX(projectedAtRetirement)}</span>
+                <div className={styles.sectionHead}>
+                  <span className={styles.sectionIdx}>02</span>
+                  <h2 className={styles.sectionTitle}>Your trajectory</h2>
                 </div>
 
                 {trajectory.length > 1 && (
-                  <div className={styles.chartWrap} aria-hidden="true">
-                    <ResponsiveContainer width="100%" height={140}>
-                      <AreaChart data={trajectory} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="proj-fill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#5E63A8" stopOpacity={0.35} />
-                            <stop offset="100%" stopColor="#5E63A8" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <XAxis
-                          dataKey="age"
-                          tick={{ fontSize: 10, fill: 'var(--color-gray)' }}
-                          tickLine={false}
-                          axisLine={false}
-                          interval="preserveStartEnd"
-                        />
-                        <YAxis hide domain={[0, Math.max(goal.target, projectedAtRetirement) * 1.1]} />
-                        <ReferenceLine
-                          y={goal.target}
-                          stroke="#2E8B57"
-                          strokeDasharray="4 4"
-                          strokeWidth={1.25}
-                        />
-                        <Tooltip
-                          formatter={(v) => formatUGX(v)}
-                          labelFormatter={(label) => `Age ${label}`}
-                          contentStyle={{
-                            background: 'var(--color-white)',
-                            border: '1px solid var(--color-lavender)',
-                            borderRadius: 'var(--radius-md)',
-                            fontFamily: 'var(--font-body)',
-                            fontSize: '0.8rem',
-                          }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="balance"
-                          stroke="#292867"
-                          strokeWidth={2}
-                          fill="url(#proj-fill)"
-                          isAnimationActive={false}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                  <div className={styles.chartWrap}>
+                    <div className={styles.chartFrame} aria-hidden="true">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={trajectory} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="proj-fill" x1="0" y1="0" x2="0" y2="1">
+                              {/* --color-indigo-soft */}
+                              <stop offset="0%" stopColor={chartColors.fill} stopOpacity={0.35} />
+                              <stop offset="100%" stopColor={chartColors.fill} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis
+                            dataKey="age"
+                            tick={{ fontSize: 10, fill: 'var(--color-gray)' }}
+                            tickLine={false}
+                            axisLine={false}
+                            interval="preserveStartEnd"
+                          />
+                          <YAxis hide domain={[0, Math.max(goal.target, projectedAtRetirement) * 1.1]} />
+                          <ReferenceLine
+                            y={goal.target}
+                            stroke={chartColors.target /* --color-green */}
+                            strokeDasharray="4 4"
+                            strokeWidth={1.25}
+                          />
+                          <Tooltip
+                            formatter={(v) => formatUGX(v)}
+                            labelFormatter={(label) => `Age ${label}`}
+                            contentStyle={{
+                              background: 'var(--color-white)',
+                              border: '1px solid var(--color-lavender)',
+                              borderRadius: 'var(--radius-md)',
+                              fontFamily: 'var(--font-body)',
+                              fontSize: '0.8rem',
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="balance"
+                            stroke={chartColors.stroke /* --color-indigo */}
+                            strokeWidth={2}
+                            fill="url(#proj-fill)"
+                            isAnimationActive={!reduceMotion}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
                     <span className={styles.chartLegend}>
                       <span className={styles.chartLegendDot} data-tone="indigo" /> Projected balance
                       <span className={styles.chartLegendDot} data-tone="green" /> {goal.label} target
                     </span>
                   </div>
                 )}
+
+                {/* Stat grid */}
+                <div className={styles.statGrid}>
+                  <div className={styles.stat}>
+                    <span className={styles.statLabel}>Today</span>
+                    <span className={styles.statValue}>{formatUGX(balance)}</span>
+                  </div>
+                  <div className={styles.stat}>
+                    <span className={styles.statLabel}>Years to {RETIREMENT_AGE}</span>
+                    <span className={styles.statValue}>{yearsToRetirement}</span>
+                  </div>
+                  <div className={styles.stat}>
+                    <span className={styles.statLabel}>Monthly</span>
+                    <span className={styles.statValue}>{formatUGX(monthlyCurrent)}</span>
+                  </div>
+                  <div className={styles.stat}>
+                    <span className={styles.statLabel}>Growth</span>
+                    <span className={styles.statValue} data-tone="green">+{ANNUAL_GROWTH_PCT}% / yr</span>
+                  </div>
+                </div>
 
                 <div className={styles.progressWrap} data-on-track={onTrack || undefined}>
                   <div className={styles.progressBar}>
@@ -212,7 +272,7 @@ export default function ProjectionPage() {
                       data-on-track={onTrack || undefined}
                       initial={{ width: 0 }}
                       animate={{ width: `${progressPct}%` }}
-                      transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
+                      transition={{ duration: reduceMotion ? 0 : 0.6, ease: EASE_OUT_EXPO }}
                     />
                   </div>
                   <div className={styles.progressMeta}>

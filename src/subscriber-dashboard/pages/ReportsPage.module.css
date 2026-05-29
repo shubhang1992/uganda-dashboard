@@ -14,7 +14,7 @@
 
 .body {
   flex: 1;
-  padding: var(--space-2) var(--space-4) var(--space-6);
+  padding: var(--space-4) var(--space-4) var(--space-6);
 }
 
 /* ── Card grid ────────────────────────────────────────── */
@@ -36,6 +36,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  min-height: 64px;
   background: var(--color-white);
   border: 1px solid var(--color-lavender);
   border-radius: var(--radius-xl);
@@ -49,6 +50,12 @@
 .card:hover {
   border-color: var(--color-indigo-soft);
   box-shadow: var(--shadow-sm);
+}
+
+.card:focus-visible {
+  outline: none;
+  border-color: var(--color-indigo);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 28%, transparent);
 }
 
 .cardIcon {

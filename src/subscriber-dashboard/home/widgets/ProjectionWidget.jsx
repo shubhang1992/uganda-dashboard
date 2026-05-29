@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGX, calcFV, monthlyEquivalent } from '../../../utils/finance';
 import { RETIREMENT_AGE } from '../../../constants/savings';
 import styles from './ProjectionWidget.module.css';
@@ -33,6 +33,7 @@ function readSignupDob() {
 
 export default function ProjectionWidget({ subscriber }) {
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
 
   const dob = useMemo(() => readSignupDob(), []);
   const ageFromSignup = useMemo(() => ageFromDob(dob), [dob]);
@@ -68,11 +69,11 @@ export default function ProjectionWidget({ subscriber }) {
       {canProject ? (
         <>
           <motion.div
-            key={selectedAge}
+            key={reduceMotion ? 'featured' : selectedAge}
             className={styles.featured}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
+            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.32, ease: EASE_OUT_EXPO }}
           >
             <span className={styles.featuredMesh} aria-hidden="true" />
             <span className={styles.featuredGrain} aria-hidden="true" />

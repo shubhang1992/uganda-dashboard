@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { isValidUGPhone } from '../../utils/phone';
 import { getInitials } from '../../utils/dashboard';
@@ -16,7 +16,7 @@ function genId(tab) {
   return `nom-new-${tab}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
-function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle }) {
+function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle, reducedMotion }) {
   function updateField(field, value) {
     onChange({ ...nominee, [field]: value });
   }
@@ -50,10 +50,10 @@ function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle
         {expanded && (
           <motion.div
             className={styles.rowBody}
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+            initial={reducedMotion ? false : { height: 0, opacity: 0 }}
+            animate={reducedMotion ? { opacity: 1 } : { height: 'auto', opacity: 1 }}
+            exit={reducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+            transition={{ duration: reducedMotion ? 0 : 0.25, ease: EASE_OUT_EXPO }}
           >
             <div className={styles.rowBodyInner}>
               <label className={styles.field}>
@@ -152,6 +152,7 @@ function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle
 }
 
 export default function NomineesPage() {
+  const reducedMotion = useReducedMotion();
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const updateNominees = useUpdateNominees(sub?.id);
@@ -243,6 +244,7 @@ export default function NomineesPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        variant="hero"
         title="Nominees"
         subtitle="Who inherits your savings if anything happens"
         fallback="/dashboard/settings"
@@ -251,15 +253,17 @@ export default function NomineesPage() {
       <div className={styles.body}>
         <motion.div
           className={styles.step}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+          animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
-          <div className={styles.tabs} role="tablist">
+          <div className={styles.tabs} role="tablist" aria-label="Nominee category">
             <button
               type="button"
               role="tab"
+              id="nominees-tab-pension"
               aria-selected={tab === 'pension'}
+              aria-controls="nominees-panel"
               className={styles.tab}
               data-active={tab === 'pension'}
               onClick={() => setTab('pension')}
@@ -270,7 +274,9 @@ export default function NomineesPage() {
             <button
               type="button"
               role="tab"
+              id="nominees-tab-insurance"
               aria-selected={tab === 'insurance'}
+              aria-controls="nominees-panel"
               className={styles.tab}
               data-active={tab === 'insurance'}
               onClick={() => setTab('insurance')}
@@ -280,6 +286,12 @@ export default function NomineesPage() {
             </button>
           </div>
 
+          <div
+            role="tabpanel"
+            id="nominees-panel"
+            aria-labelledby={tab === 'pension' ? 'nominees-tab-pension' : 'nominees-tab-insurance'}
+            className={styles.panel}
+          >
           <div className={styles.shareBanner} data-valid={shareValid || undefined}>
             <div className={styles.shareBannerText}>
               <span className={styles.shareBannerLabel}>Total share</span>
@@ -314,6 +326,7 @@ export default function NomineesPage() {
                   canRemove={currentList.length > 1}
                   expanded={expandedId === n.id}
                   onToggle={() => setExpandedId(expandedId === n.id ? null : n.id)}
+                  reducedMotion={reducedMotion}
                 />
               ))}
             </AnimatePresence>
@@ -343,6 +356,7 @@ export default function NomineesPage() {
             Add nominee
             {currentList.length >= MAX_NOMINEES && <span className={styles.addBtnNote}>(max {MAX_NOMINEES})</span>}
           </button>
+          </div>
         </motion.div>
       </div>
 

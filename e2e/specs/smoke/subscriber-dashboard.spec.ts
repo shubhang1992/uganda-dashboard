@@ -34,7 +34,10 @@ test.describe('subscriber dashboard smoke', () => {
   test('Save loads (/dashboard/save)', async ({ page }) => {
     await page.goto('/dashboard/save');
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
-    await expect(page.getByRole('heading', { level: 1, name: /top up/i })).toBeVisible();
+    // Redesign: SavePage's hero <h1> is "Save" (eyebrow "TOP UP AMOUNT");
+    // "Top up" now lives only on the footer CTA, not the heading. Anchor on
+    // the stable hero title — verified in SavePage.jsx (title="Save").
+    await expect(page.getByRole('heading', { level: 1, name: /^save$/i })).toBeVisible();
   });
 
   test('Schedule loads (/dashboard/save/schedule)', async ({ page }) => {
@@ -79,11 +82,20 @@ test.describe('subscriber dashboard smoke', () => {
     await expect(page.getByRole('heading', { level: 1, name: /goal projection/i })).toBeVisible();
   });
 
-  test('Activity redirect resolves (/dashboard/activity -> /dashboard/reports/all-transactions)', async ({ page }) => {
+  test('Activity loads (/dashboard/activity)', async ({ page }) => {
+    // Redesign: /dashboard/activity no longer redirects to
+    // /dashboard/reports/all-transactions — it now renders ActivityPage
+    // (SubscriberDashboardShell.jsx routes "activity" → <ActivityPage />).
+    // Anchor on ActivityPage's identity surface: the hero <h1> "Activity",
+    // the "THIS YEAR" eyebrow, and the All/Incoming/Outgoing sign filters
+    // (PillChip labels) — all verified in ActivityPage.jsx.
     await page.goto('/dashboard/activity');
-    await expect(page).toHaveURL(/\/dashboard\/reports\/all-transactions$/);
+    await expect(page).toHaveURL(/\/dashboard\/activity$/);
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
-    await expect(page.getByRole('heading', { level: 1, name: /all transactions/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /^activity$/i })).toBeVisible();
+    await expect(page.getByText(/this year/i).first()).toBeVisible();
+    await expect(page.getByText(/^incoming$/i).first()).toBeVisible();
+    await expect(page.getByText(/^outgoing$/i).first()).toBeVisible();
   });
 
   test('Reports loads (/dashboard/reports)', async ({ page }) => {
@@ -122,15 +134,26 @@ test.describe('subscriber dashboard smoke', () => {
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
   });
 
-  test('Settings loads (/dashboard/settings)', async ({ page }) => {
+  test('Profile tab loads (/dashboard/settings)', async ({ page }) => {
+    // Redesign: the /dashboard/settings tab is now the account/Profile hub —
+    // SettingsPage.jsx renders a hero <h1> "Profile" (NOT "Settings") plus a
+    // "Sign out" action. The old /^settings$/ heading no longer exists; the
+    // shared Settings panel opens from a row inside this page instead.
     await page.goto('/dashboard/settings');
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
-    await expect(page.getByRole('heading', { level: 1, name: /^settings$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /^profile$/i })).toBeVisible();
+    // Distinguishes the account hub from the ProfilePage edit form below.
+    await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
   });
 
-  test('Profile loads (/dashboard/settings/profile)', async ({ page }) => {
+  test('Profile edit form loads (/dashboard/settings/profile)', async ({ page }) => {
     await page.goto('/dashboard/settings/profile');
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(page.getByRole('heading', { level: 1, name: /^profile$/i })).toBeVisible();
+    // ProfilePage is the editable form. The "Full name" textbox is its
+    // distinguishing surface vs the account hub above (the footer CTA reads
+    // "No changes to save" until the form is dirty, so it is not a stable
+    // anchor — verified in ProfilePage.jsx:205).
+    await expect(page.getByRole('textbox', { name: /full name/i })).toBeVisible();
   });
 });

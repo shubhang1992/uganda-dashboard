@@ -1,14 +1,55 @@
 import { useNavigate } from 'react-router-dom';
 import { goBackOrFallback } from '../utils/navigation';
+import HeroCapsule from './HeroCapsule';
 import styles from './PageHeader.module.css';
 
-export default function PageHeader({ title, subtitle, backTo, onBack, fallback = '/dashboard' }) {
+/**
+ * PageHeader — shared back-aware page title bar (used by 22 files across the
+ * subscriber + agent dashboards).
+ *
+ * The default variant renders the flat header (existing behaviour — unchanged).
+ * `variant="hero"` renders the subscriber mobile <HeroCapsule> instead, so any
+ * page can opt into the curved indigo dome cheaply. The hero-only props
+ * (eyebrow/prefix/amount/statRow/onMenu) are ignored by the default variant.
+ * Pass `showBack={false}` to suppress the back chevron on tab-root pages.
+ */
+export default function PageHeader({
+  title,
+  subtitle,
+  backTo,
+  onBack,
+  fallback = '/dashboard',
+  variant = 'default',
+  showBack = true,
+  // hero-only passthrough
+  eyebrow,
+  prefix,
+  amount,
+  statRow,
+  onMenu,
+}) {
   const navigate = useNavigate();
   function handleBack() {
     if (onBack) return onBack();
     if (backTo !== undefined) return navigate(backTo);
     goBackOrFallback(navigate, fallback);
   }
+
+  if (variant === 'hero') {
+    return (
+      <HeroCapsule
+        title={title}
+        eyebrow={eyebrow}
+        prefix={prefix}
+        amount={amount}
+        subtitle={subtitle}
+        statRow={statRow}
+        onBack={showBack ? handleBack : undefined}
+        onMenu={onMenu}
+      />
+    );
+  }
+
   return (
     <header className={styles.header}>
       <button

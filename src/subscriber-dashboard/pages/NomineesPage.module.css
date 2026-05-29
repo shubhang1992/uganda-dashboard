@@ -24,6 +24,12 @@
   gap: var(--space-3);
 }
 
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 /* ── Tabs ─────────────────────────────────────────────── */
 .tabs {
   display: flex;
@@ -47,6 +53,7 @@
   font-size: var(--text-sm);
   color: var(--color-indigo-soft);
   padding: 9px 14px;
+  min-height: 44px;
   border-radius: var(--radius-full);
   cursor: pointer;
   touch-action: manipulation;
@@ -142,7 +149,8 @@
   font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  padding: 6px 12px;
+  padding: 6px 14px;
+  min-height: 44px;
   border-radius: var(--radius-full);
   cursor: pointer;
 }
@@ -375,7 +383,8 @@
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 12px;
-  padding: 8px 12px;
+  padding: 8px 14px;
+  min-height: 44px;
   border-radius: var(--radius-full);
   cursor: pointer;
   touch-action: manipulation;
@@ -383,7 +392,7 @@
 
 .removeBtn:hover:not(:disabled) {
   border-color: var(--color-status-poor);
-  background: rgba(220, 53, 69, 0.04);
+  background: color-mix(in srgb, var(--color-status-poor) 4%, transparent);
 }
 
 .removeBtn:disabled {

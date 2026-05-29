@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { formatNumber } from '../../utils/currency';
 import styles from './ReportTable.module.css';
@@ -27,6 +27,7 @@ export default function ReportTable({
   rowKey = 'id',
   loading = false,
 }) {
+  const reducedMotion = useReducedMotion();
   const [sortKey, setSortKey] = useState(defaultSort || columns[0]?.key);
   const [sortDir, setSortDir] = useState(defaultDir);
   const [page, setPage] = useState(0);
@@ -143,10 +144,10 @@ export default function ReportTable({
                   className={styles.tr}
                   data-clickable={!!onRowClick}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.15, delay: Math.min(idx * 0.01, 0.2) }}
-                  layout
+                  initial={reducedMotion ? false : { opacity: 0 }}
+                  animate={reducedMotion ? undefined : { opacity: 1 }}
+                  transition={{ duration: 0.15, delay: reducedMotion ? 0 : Math.min(idx * 0.01, 0.2), ease: EASE_OUT_EXPO }}
+                  layout={!reducedMotion}
                 >
                   <td className={styles.rowNum}>{page * pageSize + idx + 1}</td>
                   {columns.map((col) => (

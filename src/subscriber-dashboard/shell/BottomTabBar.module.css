@@ -62,53 +62,70 @@
   line-height: 1;
 }
 
-.moreWrap {
-  position: relative;
+/* Center Save FAB — occupies its own flex slot so it stays within the bar
+   footprint and never overlaps a screen's bottom CTA. The button itself is
+   lifted above the bar surface via translateY + z-index. */
+.fab {
   flex: 1;
-  display: flex;
-}
-
-.moreWrap > .tab {
-  width: 100%;
-}
-
-.moreMenu {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  right: 0;
-  min-width: 180px;
-  background: var(--color-white);
-  border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  padding: 6px;
+  position: relative;
   display: flex;
   flex-direction: column;
-}
-
-.moreItem {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
   background: transparent;
   border: none;
-  text-align: left;
   text-decoration: none;
-  color: var(--color-slate);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
   cursor: pointer;
+  padding-top: 4px;
   touch-action: manipulation;
 }
 
-.moreItem:hover,
-.moreItem:active {
-  background: var(--color-cloud);
+.fabIcon {
+  position: relative;
+  z-index: 51;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-top: -22px;
+  border-radius: var(--radius-full);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  box-shadow: var(--shadow-lg);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.moreItemDanger {
-  color: var(--color-status-poor);
-  border-top: 1px solid var(--color-lavender);
-  margin-top: 4px;
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
+.fab:active .fabIcon {
+  transform: scale(0.94);
+}
+
+/* Active-on-Save = ring + elevation + scale, NOT a hue change (no mint). */
+.fabActive .fabIcon {
+  transform: scale(1.06);
+  box-shadow: var(--shadow-xl), 0 0 0 4px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+}
+
+.fabLabel {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: -0.005em;
+  line-height: 1;
+  color: var(--color-gray);
+  transition: color 0.18s ease;
+}
+
+.fabActive .fabLabel {
+  color: var(--color-indigo);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fabIcon,
+  .fab:active .fabIcon,
+  .fabActive .fabIcon {
+    transition: none;
+    transform: none;
+  }
 }

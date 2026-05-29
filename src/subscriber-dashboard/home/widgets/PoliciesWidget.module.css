@@ -1,0 +1,198 @@
+.card {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Header ──────────────────────────────────────────── */
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+}
+
+.eyebrowDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-indigo-soft);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+  margin: 0;
+}
+
+.viewAll {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  background: transparent;
+  border: none;
+  color: var(--color-indigo);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  padding: 4px 0;
+  touch-action: manipulation;
+  transition: color 0.15s ease;
+}
+
+.viewAll:hover {
+  color: var(--color-indigo-deep);
+}
+
+/* ── Document rows ───────────────────────────────────── */
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 40px 1fr 36px;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-align: left;
+  touch-action: manipulation;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.row:hover {
+  background: var(--color-cloud);
+  border-color: var(--color-indigo-soft);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--color-indigo) 8%, transparent);
+}
+
+.row:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-indigo) 8%, transparent);
+}
+
+.row:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.row:disabled:hover {
+  background: var(--color-white);
+  border-color: var(--color-lavender);
+  transform: none;
+  box-shadow: none;
+}
+
+.docIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
+  color: var(--color-indigo);
+  border: 1px solid color-mix(in srgb, var(--color-indigo) 6%, transparent);
+}
+
+.rowBody {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  color: var(--color-indigo);
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowMeta {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-gray);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.rowAction {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
+  color: var(--color-indigo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.row:hover:not(:disabled) .rowAction {
+  background: var(--color-indigo);
+  color: var(--color-white);
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .rowAction,
+  .viewAll {
+    transition: none;
+  }
+  .row:hover {
+    transform: none;
+  }
+}

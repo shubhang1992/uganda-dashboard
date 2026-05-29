@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGX, formatUGXExact } from '../../utils/finance';
 import { formatDate } from '../../utils/date';
 import { useAuth } from '../../contexts/AuthContext';
@@ -61,6 +61,45 @@ const SECTIONS = [
     to: '/dashboard/save/schedule',
   },
   {
+    id: 'reports',
+    icon: (
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+        <path d="M7 3h7l4 4v14a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+        <path d="M13 3v5h5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+        <path d="M9 13h6M9 17h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+      </svg>
+    ),
+    label: 'Reports & statements',
+    helper: 'Certificates, statements, exports',
+    to: '/dashboard/reports',
+  },
+  {
+    id: 'agent',
+    icon: (
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+        <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.6"/>
+        <path d="M5 20a7 7 0 0114 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+        <path d="M17.5 5.5l1.8-1.8M19.5 9h2.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+      </svg>
+    ),
+    label: 'Your agent',
+    helper: 'Contact and support details',
+    to: '/dashboard/agent',
+  },
+  {
+    id: 'help',
+    icon: (
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6"/>
+        <path d="M9.5 9.5a2.5 2.5 0 014.4 1.6c0 1.7-2.4 2-2.4 3.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+        <circle cx="11.9" cy="17" r="0.9" fill="currentColor"/>
+      </svg>
+    ),
+    label: 'Help',
+    helper: 'FAQs and getting in touch',
+    to: '/dashboard/help',
+  },
+  {
     id: 'notifications',
     icon: (
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
@@ -92,6 +131,7 @@ const SECTIONS = [
 
 export default function SettingsPage() {
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
   const { logout } = useAuth();
   const { setSettingsOpen } = useDashboard();
   const { data: sub } = useCurrentSubscriber();
@@ -109,14 +149,14 @@ export default function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Settings" fallback="/dashboard" />
+      <PageHeader variant="hero" title="Profile" fallback="/dashboard" />
 
       <div className={styles.body}>
         <motion.div
           className={styles.step}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
+          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+          animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.32, ease: EASE_OUT_EXPO }}
         >
           {/* Profile card */}
           <section className={styles.profile}>

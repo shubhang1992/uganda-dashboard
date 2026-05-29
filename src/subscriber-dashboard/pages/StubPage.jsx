@@ -6,7 +6,7 @@ export default function StubPage({ title, fallback = '/dashboard/settings' }) {
   const navigate = useNavigate();
   return (
     <div className={styles.page}>
-      <PageHeader title={title} fallback={fallback} />
+      <PageHeader variant="hero" title={title} fallback={fallback} />
       <div className={styles.body}>
         <div className={styles.icon} aria-hidden="true">
           <svg viewBox="0 0 24 24" width="32" height="32" fill="none">

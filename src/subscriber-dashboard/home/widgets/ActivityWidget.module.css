@@ -53,6 +53,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 44px;
   background: transparent;
   border: none;
   color: var(--color-indigo);
@@ -61,6 +62,7 @@
   font-size: var(--text-xs);
   cursor: pointer;
   padding: 6px 0;
+  touch-action: manipulation;
 }
 
 .empty {

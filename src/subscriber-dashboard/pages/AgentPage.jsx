@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { formatNumber } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
@@ -54,6 +54,7 @@ const SUGGESTED_QUERIES = [
 ];
 
 export default function AgentPage() {
+  const reducedMotion = useReducedMotion();
   const { data: sub } = useCurrentSubscriber();
   const subId = sub?.id;
   const { data: agent } = useSubscriberAgent(subId);
@@ -139,6 +140,7 @@ export default function AgentPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        variant="hero"
         title={agent?.name || 'Your agent'}
         subtitle={agent?.branchName ? `${agent.branchName} branch` : null}
         fallback="/dashboard"
@@ -152,8 +154,8 @@ export default function AgentPage() {
         ) : (
           <motion.div
             className={styles.step}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+            animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
           >
             <section className={styles.profile}>

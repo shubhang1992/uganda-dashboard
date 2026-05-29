@@ -20,6 +20,13 @@
   --color-teal:          #2F8F9D;
   --color-white:         #FFFFFF;
 
+  /* On-indigo foreground (subscriber mobile hero — HeroCapsule).
+     Muted caption / eyebrow over the indigo hero dome. White @78% resolves to
+     ~8.5:1 over --color-indigo (#292867) and ~10:1 over --color-indigo-deep
+     (#1B1A4A) — both clear the ≥4.5:1 AA bar. The big hero amount stays solid
+     --color-white. */
+  --color-on-indigo-muted: rgba(255, 255, 255, 0.78);
+
   /* Typography */
   --font-display: 'Plus Jakarta Sans', sans-serif;
   --font-body:    'Inter', sans-serif;
@@ -58,12 +65,19 @@
   --radius-lg:  1.25rem;
   --radius-xl:  1.75rem;
   --radius-full: 9999px;
+  --radius-capsule: 3rem;  /* hero dome bottom-curve depth (elliptical) — subscriber mobile redesign */
 
   /* Shadows */
   --shadow-sm:  0 1px 3px rgba(41,40,103,0.08);
   --shadow-md:  0 4px 16px rgba(41,40,103,0.12);
   --shadow-lg:  0 12px 40px rgba(41,40,103,0.16);
   --shadow-xl:  0 24px 64px rgba(41,40,103,0.20);
+
+  /* Gradients. --gradient-hero paints the subscriber mobile hero dome
+     (HeroCapsule): indigo-deep at the top fading to brand indigo at the curve.
+     CTAs/FAB intentionally reuse --shadow-lg (indigo-tinted) — no mint-glow
+     shadow, no mint-bright accent. */
+  --gradient-hero: linear-gradient(180deg, var(--color-indigo-deep), var(--color-indigo));
 
   /* Dashboard — Glassmorphism */
   --glass-bg:       rgba(255, 255, 255, 0.82);

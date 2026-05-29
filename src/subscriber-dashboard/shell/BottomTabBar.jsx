@@ -1,9 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
-import { useState, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
-import { useAuth } from '../../contexts/AuthContext';
-import { useOutsideClick } from '../../hooks/useOutsideClick';
+import { NavLink } from 'react-router-dom';
 import styles from './BottomTabBar.module.css';
 
 const TABS = [
@@ -18,117 +13,100 @@ const TABS = [
     ),
   },
   {
-    to: '/dashboard/save',
-    label: 'Save',
+    to: '/dashboard/activity',
+    label: 'Activity',
     icon: (
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
-        <rect x="2" y="6" width="20" height="13" rx="2" stroke="currentColor" strokeWidth="1.75"/>
-        <path d="M2 10h20" stroke="currentColor" strokeWidth="1.75"/>
-        <path d="M12 16v-4M10 14h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+        <path d="M3 12h4l3 7 4-14 3 7h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     ),
   },
   {
     to: '/dashboard/withdraw',
-    label: 'Withdrawals',
+    label: 'Withdraw',
     icon: (
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
-        <path d="M12 3v12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-        <path d="M7 8l5-5 5 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+        <path d="M12 4v11" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+        <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
+    to: '/dashboard/projection',
+    label: 'Goals',
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
+        <path d="M4 19V5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+        <path d="M4 8l5 4 4-5 7 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    to: '/dashboard/settings',
+    label: 'Profile',
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
+        <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.75"/>
+        <path d="M5 20a7 7 0 0114 0" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
       </svg>
     ),
   },
 ];
 
-const MORE_ITEMS = [
-  { to: '/dashboard/reports', label: 'Reports' },
-  { to: '/dashboard/projection', label: 'Goal projection' },
-  { to: '/dashboard/agent', label: 'Your agent' },
-  { to: '/dashboard/help', label: 'Help' },
-  { to: '/dashboard/settings', label: 'Settings' },
-];
-
 export default function BottomTabBar() {
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreRef = useRef(null);
-  const { logout } = useAuth();
-  const navigate = useNavigate();
-
-  const closeMore = useCallback(() => setMoreOpen(false), []);
-
-  useOutsideClick(moreOpen, closeMore, [moreRef]);
-
-  function handleLogout() {
-    closeMore();
-    logout();
-    navigate('/');
-  }
-
   return (
     <nav className={styles.bar} aria-label="Quick navigation">
-      {TABS.map((tab) => (
-        <NavLink
-          key={tab.to || 'home'}
-          to={tab.to}
-          end={tab.end}
-          className={({ isActive }) => `${styles.tab} ${isActive ? styles.tabActive : ''}`}
-        >
-          <span className={styles.tabIcon}>{tab.icon}</span>
-          <span className={styles.tabLabel}>{tab.label}</span>
-        </NavLink>
-      ))}
-      <div className={styles.moreWrap} ref={moreRef}>
-        <button
-          type="button"
-          className={`${styles.tab} ${moreOpen ? styles.tabActive : ''}`}
-          onClick={() => setMoreOpen((v) => !v)}
-          aria-haspopup="menu"
-          aria-expanded={moreOpen}
-          aria-label="More options"
-        >
-          <span className={styles.tabIcon}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
-              <circle cx="5" cy="12" r="1.6" fill="currentColor"/>
-              <circle cx="12" cy="12" r="1.6" fill="currentColor"/>
-              <circle cx="19" cy="12" r="1.6" fill="currentColor"/>
-            </svg>
-          </span>
-          <span className={styles.tabLabel}>More</span>
-        </button>
-        <AnimatePresence>
-          {moreOpen && (
-            <motion.div
-              role="menu"
-              className={styles.moreMenu}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ duration: 0.22, ease: EASE_OUT_EXPO }}
-            >
-              {MORE_ITEMS.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={styles.moreItem}
-                  onClick={closeMore}
-                  role="menuitem"
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-              <button
-                type="button"
-                className={`${styles.moreItem} ${styles.moreItemDanger}`}
-                onClick={handleLogout}
-                role="menuitem"
-              >
-                Log out
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <NavLink
+        to="/dashboard"
+        end
+        className={({ isActive }) => `${styles.tab} ${isActive ? styles.tabActive : ''}`}
+      >
+        <span className={styles.tabIcon}>{TABS[0].icon}</span>
+        <span className={styles.tabLabel}>{TABS[0].label}</span>
+      </NavLink>
+      <NavLink
+        to={TABS[1].to}
+        className={({ isActive }) => `${styles.tab} ${isActive ? styles.tabActive : ''}`}
+      >
+        <span className={styles.tabIcon}>{TABS[1].icon}</span>
+        <span className={styles.tabLabel}>{TABS[1].label}</span>
+      </NavLink>
+
+      <NavLink
+        to="/dashboard/save"
+        className={({ isActive }) => `${styles.fab} ${isActive ? styles.fabActive : ''}`}
+        aria-label="Save"
+      >
+        <span className={styles.fabIcon}>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="26" height="26">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round"/>
+          </svg>
+        </span>
+        <span className={styles.fabLabel}>Save</span>
+      </NavLink>
+
+      <NavLink
+        to={TABS[2].to}
+        className={({ isActive }) => `${styles.tab} ${isActive ? styles.tabActive : ''}`}
+      >
+        <span className={styles.tabIcon}>{TABS[2].icon}</span>
+        <span className={styles.tabLabel}>{TABS[2].label}</span>
+      </NavLink>
+      <NavLink
+        to={TABS[3].to}
+        className={({ isActive }) => `${styles.tab} ${isActive ? styles.tabActive : ''}`}
+      >
+        <span className={styles.tabIcon}>{TABS[3].icon}</span>
+        <span className={styles.tabLabel}>{TABS[3].label}</span>
+      </NavLink>
+      <NavLink
+        to={TABS[4].to}
+        className={({ isActive }) => `${styles.tab} ${isActive ? styles.tabActive : ''}`}
+      >
+        <span className={styles.tabIcon}>{TABS[4].icon}</span>
+        <span className={styles.tabLabel}>{TABS[4].label}</span>
+      </NavLink>
     </nav>
   );
 }

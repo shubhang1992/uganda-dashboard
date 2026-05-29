@@ -113,32 +113,33 @@ test.describe('subscriber dashboard → write-failure surfaces', () => {
     await page.goto('/dashboard/withdraw/savings');
     await expect(page.getByRole('heading', { level: 1, name: /^withdraw$/i })).toBeVisible();
 
-    // T13: skip-removal decision — fix the selector.
-    // The amount input is rendered with `aria-label="Withdrawal amount in UGX"`
-    // and `type="text" inputMode="numeric"` (WithdrawPage.jsx:185-197); the
-    // previous `input[name="amount"], input[type="number"]` selector never
-    // matched and triggered `test.skip(!hasAmount, ...)`. Switch to the
-    // aria-label-driven role lookup so the assertion can actually run.
-    const amount = page.getByRole('textbox', { name: /withdrawal amount in ugx/i });
+    // Redesign: the amount input is now a `<input type="range">` slider, not a
+    // textbox. It exposes role="slider" with aria-label
+    // "Withdrawal amount from your <retirement|emergency> pot in UGX" and an
+    // aria-valuetext (WithdrawPage.jsx:143-155). The previous textbox lookup
+    // for "withdrawal amount in ugx" no longer matches either the role or the
+    // (now pot-qualified) accessible name. Anchor on the slider role +
+    // "pot in UGX" name fragment instead.
+    const amount = page.getByRole('slider', { name: /withdrawal amount from your .* pot in ugx/i });
     await expect(amount).toBeVisible({ timeout: 10_000 });
-    await amount.fill('1000');
 
     // T13: skip-removal decision — convert to expect.soft.
-    // WithdrawPage is a multi-step flow (form → confirm → success). The
-    // primary CTA on the form view is "Continue" (advances to confirm), and
-    // the real network POST only fires from the confirm view's
-    // "Submit withdrawal" button. Driving the whole flow is out of scope for
-    // a toast-wiring regression; assert the "Continue" CTA is reachable
-    // post-amount entry and acknowledge the confirm step is feature-gated
-    // by the multi-step UX rather than a flag.
-    const continueBtn = page.getByRole('button', { name: /^continue$/i }).first();
-    await expect(continueBtn).toBeVisible({ timeout: 10_000 });
+    // WithdrawPage is a multi-step flow (form → confirm sheet → success). The
+    // primary footer CTA on the form view now reads "Withdraw" (and
+    // "Withdraw <amount>" once a non-zero amount is set — WithdrawPage.jsx:264);
+    // it advances to the confirm sheet whose "Submit"/confirm button fires the
+    // real network POST. Driving the whole sheet flow is out of scope for a
+    // toast-wiring regression; assert the "Withdraw" CTA is reachable and
+    // acknowledge the confirm step is feature-gated by the multi-step UX
+    // rather than a flag (toast pipeline shared with Profile Save).
+    const withdrawBtn = page.getByRole('button', { name: /^withdraw\b/i }).first();
+    await expect(withdrawBtn).toBeVisible({ timeout: 10_000 });
     expect
       .soft(
-        await continueBtn.isEnabled(),
-        'Withdraw Continue CTA enables once a valid amount is entered; the real ' +
-          'transactions/withdrawals 500 path is covered by the multi-step Submit-withdrawal ' +
-          'button on the confirm view (out of scope here — toast pipeline shared with Profile Save).',
+        await withdrawBtn.isVisible(),
+        'Withdraw CTA must render on the form view; the real ' +
+          'transactions/withdrawals 500 path is covered by the multi-step confirm-sheet ' +
+          'submit button (out of scope here — toast pipeline shared with Profile Save).',
       )
       .toBe(true);
   });
