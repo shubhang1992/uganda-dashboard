@@ -14,9 +14,9 @@
 
 .body {
   flex: 1;
-  /* Pull the first card up so it tucks under the hero dome's curved base. */
-  margin-top: calc(var(--space-5) * -1);
-  padding: var(--space-2) var(--space-4) var(--space-6);
+  /* Sit the cards clear below the hero dome's curved base — the prior negative
+     pull made them clash with the curve's centre dip. */
+  padding: var(--space-4) var(--space-4) var(--space-6);
   position: relative;
   z-index: 1;
 }

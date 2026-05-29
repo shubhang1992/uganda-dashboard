@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO, formatUGXExact, formatUGX, calcFV, parseAmount } from '../../utils/finance';
@@ -266,8 +267,11 @@ export default function WithdrawPage() {
         </button>
       </footer>
 
-      {/* Confirm → success sheet */}
-      <AnimatePresence>
+      {/* Confirm → success sheet — portaled to <body> so it escapes the page's
+          animated (transformed) ancestor and layers ABOVE the fixed BottomTabBar
+          instead of being trapped beneath it (z-index then works against root). */}
+      {createPortal(
+        <AnimatePresence>
         {sheetView && (
           <motion.div
             className={styles.sheetScrim}
@@ -391,7 +395,9 @@ export default function WithdrawPage() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

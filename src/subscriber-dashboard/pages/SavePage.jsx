@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -386,8 +387,11 @@ export default function SavePage() {
         </button>
       </footer>
 
-      {/* Confirm → success sheet (state-based, not routed). */}
-      <AnimatePresence>
+      {/* Confirm → success sheet (state-based, not routed) — portaled to <body>
+          so it escapes the page's animated (transformed) ancestor and layers
+          ABOVE the fixed BottomTabBar instead of being trapped beneath it. */}
+      {createPortal(
+        <AnimatePresence>
         {(view === 'confirm' || view === 'success') && (
           <motion.div
             className={styles.sheetScrim}
@@ -522,7 +526,9 @@ export default function SavePage() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }
