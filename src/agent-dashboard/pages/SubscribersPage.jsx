@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { formatUGX } from '../../utils/finance';
+import { motion, useReducedMotion } from 'framer-motion';
+import { EASE_OUT_EXPO, formatUGX } from '../../utils/finance';
 import { getInitials } from '../../utils/dashboard';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../../components/PageHeader';
+import { PillChip, PillChipGroup } from '../../components/PillChip';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
 import styles from './SubscribersPage.module.css';
@@ -34,6 +36,7 @@ function StatusPill({ status }) {
 
 export default function SubscribersPage() {
   const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
   const { agentId } = useAgentScope();
   const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
 
@@ -64,113 +67,137 @@ export default function SubscribersPage() {
     };
   }, [subscribers]);
 
-  const subtitle = `${counts.all} total · ${counts.active} active · ${counts.dormant} dormant`;
+  const loading = isLoading && subscribers.length === 0;
+  const activePct = counts.all ? Math.round((counts.active / counts.all) * 100) : 0;
 
   return (
     <div className={styles.page}>
-      <PageHeader title="My subscribers" subtitle={subtitle} fallback="/dashboard" />
-
-      <div className={styles.toolbar}>
-        <div className={styles.searchWrap}>
-          <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
-            <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          <input
-            className={styles.search}
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, ID or phone…"
-            aria-label="Search subscribers"
-            spellCheck={false}
-          />
-          <select
-            className={styles.sortSelect}
-            value={sortKey}
-            onChange={(e) => setSortKey(e.target.value)}
-            aria-label="Sort by"
-          >
-            {SORT_OPTIONS.map((o) => (
-              <option key={o.key} value={o.key}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-        <div className={styles.filterRow} role="tablist" aria-label="Filter subscribers">
-          {FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              role="tab"
-              aria-selected={filter === f.id}
-              className={styles.filterBtn}
-              data-active={filter === f.id}
-              onClick={() => setFilter(f.id)}
-            >
-              {f.label}
-              <span className={styles.filterCount}>{counts[f.id]}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className={styles.list}>
-        {isLoading && subscribers.length === 0 && (
-          // Cold-load skeleton — keeps the list area feeling responsive
-          // instead of a bare spinner that doesn't hint at row geometry.
-          <SkeletonRow count={6} label="Loading your subscribers" />
+      <PageHeader
+        variant="hero"
+        title="My subscribers"
+        showBack={false}
+        eyebrow="YOUR PORTFOLIO"
+        amount={loading ? '—' : counts.all}
+        subtitle={loading ? undefined : 'subscribers onboarded'}
+        statRow={loading ? (
+          <span style={{ opacity: 0.6 }}>Loading your portfolio…</span>
+        ) : (
+          <>
+            <span>
+              <strong style={{ color: 'var(--color-positive)' }}>{counts.active}</strong> active
+            </span>
+            <span>
+              <strong style={{ color: 'var(--color-amber)' }}>{counts.dormant}</strong> dormant
+            </span>
+            <span><strong>{activePct}%</strong> active</span>
+          </>
         )}
-        {isError && !isLoading && (
-          <div className={styles.empty}>
-            <ErrorCard
-              title="We couldn't load your subscribers"
-              message={error}
-              onRetry={refetch}
-            />
+      />
+
+      <div className={styles.body}>
+        <motion.div
+          className={styles.stack}
+          initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+          animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
+          transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
+        >
+          <div className={styles.toolbar}>
+            <div className={styles.searchWrap}>
+              <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+                <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              <input
+                className={styles.search}
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, ID or phone…"
+                aria-label="Search subscribers"
+                spellCheck={false}
+              />
+              <select
+                className={styles.sortSelect}
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value)}
+                aria-label="Sort by"
+              >
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <PillChipGroup label="Filter subscribers" layout="row" className={styles.filters}>
+              {FILTERS.map((f) => (
+                <PillChip
+                  key={f.id}
+                  selected={filter === f.id}
+                  onClick={() => setFilter(f.id)}
+                >
+                  {f.label}
+                  <span className={styles.filterCount}>{counts[f.id]}</span>
+                </PillChip>
+              ))}
+            </PillChipGroup>
           </div>
-        )}
-        {!isLoading && !isError && filtered.length === 0 && (
-          // Differentiate: clean state ("no subscribers onboarded yet") vs
-          // filter mismatch ("widen your filter"). The agent has no list-only
-          // way to add subscribers from here; onboarding is its own flow.
-          search.trim() === '' && filter === 'all' ? (
-            <EmptyState
-              kind="no-data"
-              title="No subscribers yet."
-              body="Once you onboard your first subscriber, they'll appear here."
-            />
-          ) : (
-            <EmptyState
-              kind="no-match"
-              title="No subscribers match"
-              body="Try clearing the search or switching the filter."
-            />
-          )
-        )}
-        {filtered.map((sub) => (
-          <button
-            key={sub.id}
-            type="button"
-            className={styles.row}
-            onClick={() => navigate(`/dashboard/subscribers/${sub.id}`)}
-          >
-            <span className={styles.avatar} data-gender={sub.gender} aria-hidden="true">{getInitials(sub.name)}</span>
-            <div className={styles.rowBody}>
-              <div className={styles.rowName}>
-                <span>{sub.name}</span>
-              </div>
-              <div className={styles.rowMeta}>
-                <span>{sub.phone}</span>
-                <span aria-hidden="true">·</span>
-                <StatusPill status={sub.isActive ? 'active' : 'dormant'} />
-              </div>
-            </div>
-            <div className={styles.rowAmount}>
-              <span className={styles.rowAmountValue}>{formatUGX(sub.totalContributions)}</span>
-              <span className={styles.rowAmountLabel}>contributed</span>
-            </div>
-          </button>
-        ))}
+
+          <div className={styles.list}>
+            {loading && (
+              // Cold-load skeleton — keeps the list area feeling responsive
+              // instead of a bare spinner that doesn't hint at row geometry.
+              <SkeletonRow count={6} label="Loading your subscribers" />
+            )}
+            {isError && !isLoading && (
+              <ErrorCard
+                title="We couldn't load your subscribers"
+                message={error}
+                onRetry={refetch}
+              />
+            )}
+            {!isLoading && !isError && filtered.length === 0 && (
+              // Differentiate: clean state ("no subscribers onboarded yet") vs
+              // filter mismatch ("widen your filter"). The agent has no list-only
+              // way to add subscribers from here; onboarding is its own flow.
+              search.trim() === '' && filter === 'all' ? (
+                <EmptyState
+                  kind="no-data"
+                  title="No subscribers yet."
+                  body="Once you onboard your first subscriber, they'll appear here."
+                />
+              ) : (
+                <EmptyState
+                  kind="no-match"
+                  title="No subscribers match"
+                  body="Try clearing the search or switching the filter."
+                />
+              )
+            )}
+            {filtered.map((sub) => (
+              <button
+                key={sub.id}
+                type="button"
+                className={styles.row}
+                onClick={() => navigate(`/dashboard/subscribers/${sub.id}`)}
+              >
+                <span className={styles.avatar} data-gender={sub.gender} aria-hidden="true">{getInitials(sub.name)}</span>
+                <div className={styles.rowBody}>
+                  <div className={styles.rowName}>
+                    <span>{sub.name}</span>
+                  </div>
+                  <div className={styles.rowMeta}>
+                    <span>{sub.phone}</span>
+                    <span aria-hidden="true">·</span>
+                    <StatusPill status={sub.isActive ? 'active' : 'dormant'} />
+                  </div>
+                </div>
+                <div className={styles.rowAmount}>
+                  <span className={styles.rowAmountValue}>{formatUGX(sub.totalContributions)}</span>
+                  <span className={styles.rowAmountLabel}>contributed</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </motion.div>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { formatUGX, formatUGXExact, normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
+import { motion, useReducedMotion } from 'framer-motion';
+import { EASE_OUT_EXPO, formatUGX, formatUGXExact, normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
 import { formatDate } from '../../utils/date';
 import { getInitials } from '../../utils/dashboard';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
@@ -63,6 +64,7 @@ function SparkBars({ values }) {
 export default function SubscriberDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
   const { agentId } = useAgentScope();
   const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
 
@@ -129,7 +131,12 @@ export default function SubscriberDetailPage() {
         fallback="/dashboard/subscribers"
       />
 
-      <div className={styles.body}>
+      <motion.div
+        className={styles.body}
+        initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+        animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
+        transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
+      >
         <div className={styles.profileCard}>
           <div className={styles.profileAvatar} data-gender={subscriber.gender}>
             {getInitials(subscriber.name)}
@@ -239,7 +246,7 @@ export default function SubscriberDetailPage() {
             </div>
           </section>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }
