@@ -23,198 +23,28 @@ import {
   MOCK_NOW,
 } from '../data/mockData';
 import { nextCycleEnd } from '../utils/settlementCycle';
+import {
+  VALID_CADENCES,
+  isPaid,
+  isOutstanding,
+  fmtDate,
+  _rpcError,
+  _rowToCommission,
+  _rowToRun,
+  _enrichRun,
+} from './_lib/commission-mappers';
 
-/* ─── Shared helpers ─────────────────────────────────────────────────────── */
+/* ─── Settings bucket (extracted) ────────────────────────────────────────── */
 
-const VALID_CADENCES = new Set(['weekly-friday', 'biweekly-friday', 'monthly-first']);
-
-const STATUSES_PAID = new Set(['released', 'confirmed']);
-const STATUSES_OUTSTANDING = new Set(['due', 'in_run', 'held']);
-const isPaid = (c) => STATUSES_PAID.has(c.status);
-const isOutstanding = (c) => STATUSES_OUTSTANDING.has(c.status);
-
-function fmtDate(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function _rpcError(err, fnName) {
-  const message = err?.message || `RPC ${fnName} failed`;
-  const wrapped = new Error(message);
-  wrapped.code = err?.code || 'rpc_error';
-  wrapped.details = err?.details;
-  wrapped.hint = err?.hint;
-  return wrapped;
-}
-
-/** Map a snake_case DB commission row to the camelCase shape the UI expects. */
-function _rowToCommission(row) {
-  if (!row) return row;
-  return {
-    id: row.id,
-    agentId: row.agent_id,
-    branchId: row.branch_id,
-    subscriberId: row.subscriber_id,
-    subscriberName: row.subscriber_name,
-    amount: Number(row.amount),
-    status: row.status,
-    firstContributionDate: row.first_contribution_date,
-    dueDate: row.due_date,
-    paidDate: row.paid_date,
-    runId: row.run_id,
-    txnRef: row.txn_ref,
-    agentConfirmed: row.agent_confirmed,
-    previousStatus: row.previous_status,
-    disputeReason: row.dispute_reason,
-    disputedAt: row.disputed_at,
-    disputedBy: row.disputed_by,
-    resolvedAt: row.resolved_at,
-    resolvedBy: row.resolved_by,
-    outcomeReason: row.outcome_reason,
-    holdReason: row.hold_reason,
-  };
-}
-
-/** Map a snake_case settlement_runs row + reviews to the camelCase run object. */
-function _rowToRun(row, reviewRows = []) {
-  if (!row) return null;
-  const branchReviews = {};
-  for (const r of reviewRows) {
-    branchReviews[r.branch_id] = {
-      state: r.state,
-      reviewedBy: r.reviewed_by ?? null,
-      reviewedAt: r.reviewed_at ?? null,
-      releasedAt: r.released_at ?? null,
-    };
-  }
-  return {
-    id: row.id,
-    cadence: row.cadence,
-    openedAt: row.opened_at,
-    closesAt: row.closes_at,
-    state: row.state,
-    totalAmount: Number(row.total_amount ?? 0),
-    commissionCount: row.commission_count ?? 0,
-    branchReviews,
-    releasedAt: row.released_at,
-    releasedBy: row.released_by,
-    notes: row.notes ?? '',
-  };
-}
-
-/**
- * Derive UI summary fields on top of a run object (matches the shape the
- * legacy JS exposed via _runWithDerivedFields). `lines` is the full set of
- * commission rows attached to the run (already mapped to camelCase).
- */
-function _enrichRun(run, lines = []) {
-  if (!run) return null;
-  const reviews = Object.values(run.branchReviews || {});
-  const approvedCount = reviews.filter((r) => r.state === 'approved').length;
-  const pendingCount = reviews.filter((r) => r.state === 'pending').length;
-  const releasedCount = reviews.filter((r) => r.state === 'released').length;
-
-  const approvedBranchIds = new Set(
-    Object.entries(run.branchReviews || {})
-      .filter(([, r]) => r.state === 'approved')
-      .map(([bid]) => bid)
-  );
-  const distinctAgents = new Set();
-  let approvedAmount = 0;
-  for (const c of lines) {
-    if (c.agentId) distinctAgents.add(c.agentId);
-    if (c.status === 'in_run' && approvedBranchIds.has(c.branchId)) {
-      approvedAmount += c.amount;
-    }
-  }
-
-  return {
-    ...run,
-    branchCount: reviews.length,
-    branchApprovedCount: approvedCount,
-    branchPendingCount: pendingCount,
-    branchReleasedCount: releasedCount,
-    agentCount: distinctAgents.size,
-    approvedAmount,
-    canReleaseAny: run.state === 'branch_review' && approvedCount > 0,
-  };
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
- * NETWORK CADENCE + COMMISSION RATE
- * ═══════════════════════════════════════════════════════════════════════════ */
-
-/**
- * @endpoint GET commission_config (table)
- * @returns {Promise<{cadence: string, nextRunDate: string}>}
- * @cache ['networkCadence']
- */
-export async function getNetworkCadence() {
-  if (!IS_SUPABASE_ENABLED) return _legacy_mock_getNetworkCadence();
-  const { data, error } = await supabase
-    .from('commission_config')
-    .select('cadence, next_run_date')
-    .eq('id', 'default')
-    .maybeSingle();
-  if (error) throw _rpcError(error, 'getNetworkCadence');
-  return {
-    cadence: data?.cadence ?? 'monthly-first',
-    nextRunDate: data?.next_run_date ?? null,
-  };
-}
-
-/**
- * @endpoint PUT commission_config (table)
- * @scope Distributor only — RLS allows distributor UPDATE on commission_config.
- */
-export async function setNetworkCadence(cadence) {
-  if (!IS_SUPABASE_ENABLED) return _legacy_mock_setNetworkCadence(cadence);
-  if (!VALID_CADENCES.has(cadence)) {
-    throw new Error(`Invalid cadence: ${cadence}`);
-  }
-  const nextRunDate = fmtDate(nextCycleEnd(cadence, new Date()));
-  const { data, error } = await supabase
-    .from('commission_config')
-    .update({ cadence, next_run_date: nextRunDate, updated_at: new Date().toISOString() })
-    .eq('id', 'default')
-    .select('cadence, next_run_date')
-    .maybeSingle();
-  if (error) throw _rpcError(error, 'setNetworkCadence');
-  return {
-    cadence: data?.cadence ?? cadence,
-    nextRunDate: data?.next_run_date ?? nextRunDate,
-  };
-}
-
-/**
- * @endpoint GET commission_config.rate
- * @cache ['commissionRate']
- */
-export async function getCommissionRate() {
-  if (!IS_SUPABASE_ENABLED) return _legacy_mock_getCommissionRate();
-  const { data, error } = await supabase
-    .from('commission_config')
-    .select('rate')
-    .eq('id', 'default')
-    .maybeSingle();
-  if (error) throw _rpcError(error, 'getCommissionRate');
-  return data?.rate != null ? Number(data.rate) : 0;
-}
-
-/**
- * @endpoint PUT commission_config.rate
- * @scope Distributor only.
- */
-export async function setCommissionRate(amount) {
-  if (!IS_SUPABASE_ENABLED) return _legacy_mock_setCommissionRate(amount);
-  const { data, error } = await supabase
-    .from('commission_config')
-    .update({ rate: amount, updated_at: new Date().toISOString() })
-    .eq('id', 'default')
-    .select('rate')
-    .maybeSingle();
-  if (error) throw _rpcError(error, 'setCommissionRate');
-  return data?.rate != null ? Number(data.rate) : amount;
-}
+// `getNetworkCadence`, `setNetworkCadence`, `getCommissionRate`,
+// `setCommissionRate` live in `./commission-config.js`. Re-exported here so
+// `useCommission.js` continues to find them on this module.
+export {
+  getNetworkCadence,
+  setNetworkCadence,
+  getCommissionRate,
+  setCommissionRate,
+} from './commission-config.js';
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * SUMMARIES
@@ -943,31 +773,6 @@ export function invalidateSummaryCache() {
  * LEGACY MOCK IMPLEMENTATIONS — preserved verbatim under IS_SUPABASE_ENABLED=false
  * (Plan §"Rollback strategy" requires the prior behaviour to remain reachable.)
  * ═══════════════════════════════════════════════════════════════════════════ */
-
-function _legacy_mock_getNetworkCadence() {
-  return Promise.resolve({
-    cadence: COMMISSION_CONFIG.cadence,
-    nextRunDate: COMMISSION_CONFIG.nextRunDate,
-  });
-}
-
-function _legacy_mock_setNetworkCadence(cadence) {
-  if (!VALID_CADENCES.has(cadence)) {
-    return Promise.reject(new Error(`Invalid cadence: ${cadence}`));
-  }
-  COMMISSION_CONFIG.cadence = cadence;
-  COMMISSION_CONFIG.nextRunDate = fmtDate(nextCycleEnd(cadence, MOCK_NOW));
-  return _legacy_mock_getNetworkCadence();
-}
-
-function _legacy_mock_getCommissionRate() {
-  return Promise.resolve(COMMISSION_CONFIG.ratePerSubscriber);
-}
-
-function _legacy_mock_setCommissionRate(amount) {
-  COMMISSION_CONFIG.ratePerSubscriber = amount;
-  return Promise.resolve(amount);
-}
 
 function _legacy_mock_getCommissionSummary(branchId = null) {
   const all = branchId

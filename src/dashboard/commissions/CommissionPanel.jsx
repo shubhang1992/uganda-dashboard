@@ -1,11 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '../../components/Modal';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
@@ -26,8 +25,12 @@ import {
   useMarkBranchReviewed, useReleaseRun, useReleaseBranch,
 } from '../../hooks/useCommission';
 import { getInitials } from '../../utils/dashboard';
-import SkeletonRow from '../../components/SkeletonRow';
-import EmptyState from '../../components/EmptyState';
+import { Icons } from './icons.jsx';
+import CommissionGrid from './CommissionGrid.jsx';
+import SettlementRunStepper from './SettlementRunStepper.jsx';
+import DisputeManager from './DisputeManager.jsx';
+import { useCommissionPanelState } from './useCommissionPanelState.js';
+import { useCommissionFilters } from './useCommissionFilters.js';
 import styles from './CommissionPanel.module.css';
 
 function formatRunRange(start, end) {
@@ -48,61 +51,6 @@ const CADENCE_OPTIONS = [
   { value: CADENCES.MONTHLY_FIRST, label: 'Monthly · 1st of every month' },
 ];
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Icons                                                                     */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-const Icons = {
-  close: (
-    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
-      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-    </svg>
-  ),
-  back: (
-    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
-      <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  ),
-  search: (
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
-      <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.5"/>
-      <path d="M13 13l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  ),
-  edit: (
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="14" height="14">
-      <path d="M13.586 3.586a2 2 0 112.828 2.828L7 15.828 3 17l1.172-4L13.586 3.586z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-    </svg>
-  ),
-  download: (
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
-      <path d="M10 3v10M10 13l-3-3M10 13l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3 15v2h14v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  ),
-  wallet: (
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
-      <rect x="2" y="4" width="16" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-      <path d="M2 8h16" stroke="currentColor" strokeWidth="1.5"/>
-      <circle cx="14" cy="12" r="1" fill="currentColor"/>
-    </svg>
-  ),
-  approve: (
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
-      <path d="M5 10l3 3 7-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  ),
-  reject: (
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
-      <path d="M14 6L6 14M6 6l8 8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-    </svg>
-  ),
-  chev: (
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
-      <path d="M7 4l6 6-6 6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  ),
-};
-
 const viewAnim = {
   initial: { opacity: 0, x: 24 },
   animate: { opacity: 1, x: 0 },
@@ -121,29 +69,31 @@ export default function CommissionPanel({ splitMode = false }) {
   const isBranch = !!branchId;
   const isDistributor = !branchId;
 
-  // View state
-  const [view, setView] = useState('home');
-  const [statusFocus, setStatusFocus] = useState(null);
-  const [selectedAgentId, setSelectedAgentId] = useState(null);
-  const [subFilter, setSubFilter] = useState(null);
-  const [search, setSearch] = useState('');
-  const [editingRate, setEditingRate] = useState(false);
-  const [rateInput, setRateInput] = useState('');
-  const [editingCadence, setEditingCadence] = useState(false);
-  const [selectedDisputeAgent, setSelectedDisputeAgent] = useState(null);
-  const [selectedIds, setSelectedIds] = useState(() => new Set());
-  const [releaseModalOpen, setReleaseModalOpen] = useState(false);
-  const [releaseScope, setReleaseScope] = useState('approved'); // 'approved' (bulk) | 'branch'
-  const [selectedRunBranchId, setSelectedRunBranchId] = useState(null);
-
-  // Resolution modal — used by both single-row + bulk approve/reject.
-  // target: { ids: string[], action: 'approve'|'reject', label: string }
-  const [resolutionTarget, setResolutionTarget] = useState(null);
-  const [resolutionReason, setResolutionReason] = useState('');
-  // Branch-side hold/dispute line action modal.
-  // target: { line, action: 'hold'|'dispute' }
-  const [lineActionTarget, setLineActionTarget] = useState(null);
-  const [lineActionReason, setLineActionReason] = useState('');
+  // Local UI state + debouncing + close/escape effects live in this hook.
+  // Mutations + React Query cache invalidation stay in the parent so toast
+  // wiring is centralised.
+  const ps = useCommissionPanelState({ commissionsOpen, setCommissionsOpen });
+  const {
+    view, setView,
+    statusFocus, setStatusFocus,
+    selectedAgentId, setSelectedAgentId,
+    subFilter, setSubFilter,
+    search, setSearch,
+    debouncedSearch,
+    editingRate, setEditingRate,
+    rateInput, setRateInput,
+    editingCadence, setEditingCadence,
+    selectedDisputeAgent, setSelectedDisputeAgent,
+    selectedIds, setSelectedIds,
+    releaseModalOpen, setReleaseModalOpen,
+    releaseScope, setReleaseScope,
+    selectedRunBranchId, setSelectedRunBranchId,
+    resolutionTarget, setResolutionTarget,
+    resolutionReason, setResolutionReason,
+    lineActionTarget, setLineActionTarget,
+    lineActionReason, setLineActionReason,
+    toggleSelect, selectAll, clearSelection,
+  } = ps;
 
   // Data hooks
   const { data: rate } = useCommissionRate();
@@ -179,45 +129,6 @@ export default function CommissionPanel({ splitMode = false }) {
     selectedRunBranchId
   );
 
-  // Reset state when panel closes
-  useEffect(() => {
-    if (commissionsOpen) return;
-    const t = setTimeout(() => {
-      setView('home');
-      setStatusFocus(null);
-      setSelectedAgentId(null);
-      setSubFilter(null);
-      setSearch('');
-      setEditingRate(false);
-      setEditingCadence(false);
-      setSelectedDisputeAgent(null);
-      setSelectedIds(new Set());
-      setReleaseModalOpen(false);
-      setReleaseScope('approved');
-      setSelectedRunBranchId(null);
-      setResolutionTarget(null);
-      setResolutionReason('');
-      setLineActionTarget(null);
-      setLineActionReason('');
-    }, 400);
-    return () => clearTimeout(t);
-  }, [commissionsOpen]);
-
-  // Escape closes the panel. The shared <Modal> primitive stops propagation
-  // when a child modal is open, so this handler never fires while a modal
-  // is active — the modal closes first, then a second Escape closes the
-  // panel.
-  useEffect(() => {
-    if (!commissionsOpen) return;
-    function onKey(e) {
-      if (e.key === 'Escape') {
-        setCommissionsOpen(false);
-      }
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [commissionsOpen, setCommissionsOpen]);
-
   // Branch-scoped lists
   const scopedAgentList = useMemo(
     () => isBranch ? agentList.filter(a => a.branchId === branchId) : agentList,
@@ -228,28 +139,19 @@ export default function CommissionPanel({ splitMode = false }) {
     [disputedAgents, branchId, isBranch]
   );
 
-  // Debounce the search input — the filter memos below run a full
-  // `.toLowerCase()` + `.includes()` pass over the agent list on every
-  // keystroke. With 2k+ agents that's enough work to drop a frame on every
-  // letter. 200ms aligns with the OverlayPanel debounce so the two search
-  // surfaces feel uniform.
-  const debouncedSearch = useDebouncedValue(search, 200);
-
-  const filteredAgents = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
-    if (!q) return scopedAgentList;
-    return scopedAgentList.filter((a) =>
-      a.agentName.toLowerCase().includes(q) || a.branchName.toLowerCase().includes(q)
-    );
-  }, [scopedAgentList, debouncedSearch]);
-
-  const filteredDisputed = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
-    if (!q) return scopedDisputedAgents;
-    return scopedDisputedAgents.filter((a) =>
-      a.agentName.toLowerCase().includes(q) || a.branchName.toLowerCase().includes(q)
-    );
-  }, [scopedDisputedAgents, debouncedSearch]);
+  // Derived/filtered data + branch-review derivations.
+  const {
+    filteredAgents,
+    filteredDisputed,
+    branchSliceTotal,
+    branchPendingLines,
+    branchHeldLines,
+  } = useCommissionFilters({
+    scopedAgentList,
+    scopedDisputedAgents,
+    debouncedSearch,
+    branchReview,
+  });
 
   // Cold-load guards — skeleton only fires when the query is pending AND
   // no rows have ever been seen yet. Background refetches keep the live
@@ -257,57 +159,34 @@ export default function CommissionPanel({ splitMode = false }) {
   const agentsCold = agentListLoading && scopedAgentList.length === 0;
   const disputedCold = disputedLoading && scopedDisputedAgents.length === 0;
 
-  // Branch view of the open run — memoize the three derivations off
-  // `branchReview.lines` so they only recompute when the underlying lines
-  // change. Without this, the parent re-renders triggered by any unrelated
-  // state setter (toolbar focus, search, modal open) would re-run all three
-  // O(n) passes even though the lines themselves haven't changed.
-  const branchSliceTotal = useMemo(
-    () => branchReview?.lines?.reduce((s, c) => s + (c.amount || 0), 0) || 0,
-    [branchReview?.lines]
-  );
-  const branchPendingLines = useMemo(
-    () => branchReview?.lines?.filter((c) => c.status === 'in_run') || [],
-    [branchReview?.lines]
-  );
-  const branchHeldLines = useMemo(
-    () => branchReview?.lines?.filter((c) => c.status === 'held') || [],
-    [branchReview?.lines]
-  );
-
   // Navigation
-  function goHome() {
+  const goHome = useCallback(() => {
     setView('home');
     setStatusFocus(null);
     setSelectedAgentId(null);
     setSubFilter(null);
     setSearch('');
     setSelectedIds(new Set());
-  }
+  }, [setView, setStatusFocus, setSelectedAgentId, setSubFilter, setSearch, setSelectedIds]);
   function goAgents(focus) { setStatusFocus(focus); setView('agents'); setSearch(''); }
-  function goAgentDetail(agentId) { setSelectedAgentId(agentId); setView('agent-detail'); setSubFilter(null); }
+  const goAgentDetail = useCallback((agentId) => {
+    setSelectedAgentId(agentId);
+    setView('agent-detail');
+    setSubFilter(null);
+  }, [setSelectedAgentId, setView, setSubFilter]);
   function goSubscribers(filter) { setSubFilter(filter); setView('subscribers'); }
   function goDisputed() { setView('disputed'); setSearch(''); setSelectedIds(new Set()); }
-  function goDisputeDetail(agent) { setSelectedDisputeAgent(agent); setView('dispute-detail'); }
+  const goDisputeDetail = useCallback((agent) => {
+    setSelectedDisputeAgent(agent);
+    setView('dispute-detail');
+  }, [setSelectedDisputeAgent, setView]);
   function goRunDetail() { setView('run-detail'); }
   function goBranchReview() { setView('branch-review'); setSelectedIds(new Set()); }
   function goRunsHistory() { setView('runs-history'); }
-  function goRunBranchDetail(branchId) {
-    setSelectedRunBranchId(branchId);
+  const goRunBranchDetail = useCallback((id) => {
+    setSelectedRunBranchId(id);
     setView('run-branch-detail');
-  }
-
-  // Multi-select
-  function toggleSelect(id) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-  function selectAll(ids) { setSelectedIds(new Set(ids)); }
-  function clearSelection() { setSelectedIds(new Set()); }
+  }, [setSelectedRunBranchId, setView]);
 
   function handleBack() {
     if (view === 'subscribers') setView('agent-detail');
@@ -361,20 +240,20 @@ export default function CommissionPanel({ splitMode = false }) {
     }
   }
 
-  function openBulkReleaseModal() {
+  const openBulkReleaseModal = useCallback(() => {
     setReleaseScope('approved');
     setReleaseModalOpen(true);
-  }
+  }, [setReleaseScope, setReleaseModalOpen]);
 
-  function openBranchReleaseModal(branchId) {
+  const openBranchReleaseModal = useCallback((id) => {
     setReleaseScope('branch');
-    setSelectedRunBranchId(branchId);
+    setSelectedRunBranchId(id);
     setReleaseModalOpen(true);
-  }
+  }, [setReleaseScope, setSelectedRunBranchId, setReleaseModalOpen]);
 
   // disputes is the list of dispute records (each with { id, previousStatus, ... }).
   // contextLabel is a short human description, e.g. 'Diana Musinguzi' or 'across 5 agents'.
-  function openResolutionModal(action, disputes, contextLabel) {
+  const openResolutionModal = useCallback((action, disputes, contextLabel) => {
     const POST_PAYMENT = new Set(['released', 'confirmed']);
     const ids = disputes.map((d) => d.id);
     let prePaymentCount = 0;
@@ -385,7 +264,7 @@ export default function CommissionPanel({ splitMode = false }) {
     }
     setResolutionTarget({ action, ids, contextLabel, prePaymentCount, postPaymentCount });
     setResolutionReason('');
-  }
+  }, [setResolutionTarget, setResolutionReason]);
 
   async function submitResolution() {
     if (!resolutionTarget) return;
@@ -410,10 +289,10 @@ export default function CommissionPanel({ splitMode = false }) {
     }
   }
 
-  function openLineAction(action, line) {
+  const openLineAction = useCallback((action, line) => {
     setLineActionTarget({ action, line });
     setLineActionReason('');
-  }
+  }, [setLineActionTarget, setLineActionReason]);
 
   async function submitLineAction() {
     if (!lineActionTarget) return;
@@ -446,6 +325,10 @@ export default function CommissionPanel({ splitMode = false }) {
       addToast('error', 'Could not submit sign-off.');
     }
   }
+
+  const handleApproveHeldLine = useCallback((id) => {
+    branchApproveLineMutation.mutate(id);
+  }, [branchApproveLineMutation]);
 
   // ── Agent commission detail CSV download ──────────────────────────────────
   // Wires the "Download" button at the bottom of the agent-detail view to a
@@ -861,228 +744,27 @@ export default function CommissionPanel({ splitMode = false }) {
                   </motion.div>
                 )}
 
-                {/* ─── RUN DETAIL VIEW (distributor) ─────────────────── */}
-                {view === 'run-detail' && currentRun && (
-                  <motion.div key="run-detail" {...viewAnim}>
-                    <div className={styles.runHeader}>
-                      <div className={styles.runHeaderRow}>
-                        <div className={styles.runHeaderStat}>
-                          <span className={styles.runMetricLabel}>Total</span>
-                          <span className={styles.runHeaderValue}>{formatUGX(currentRun.totalAmount)}</span>
-                        </div>
-                        <div className={styles.runHeaderStat}>
-                          <span className={styles.runMetricLabel}>Commissions</span>
-                          <span className={styles.runHeaderValue}>{formatNumber(currentRun.commissionCount)}</span>
-                        </div>
-                        <div className={styles.runHeaderStat}>
-                          <span className={styles.runMetricLabel}>Approved</span>
-                          <span className={styles.runHeaderValue}>{currentRun.branchApprovedCount} / {currentRun.branchCount}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className={styles.section}>
-                      <div className={styles.sectionHeader}>
-                        <span className={styles.sectionTitle}>Branches in this run</span>
-                      </div>
-                      {runBranches.map((row) => (
-                        <button
-                          key={row.branchId}
-                          className={styles.runBranchRow}
-                          onClick={() => goRunBranchDetail(row.branchId)}
-                        >
-                          <div className={styles.runBranchMain}>
-                            <div className={styles.runBranchName}>{row.branchName}</div>
-                            <div className={styles.runBranchSub}>
-                              {row.branchId} · {row.count} commission{row.count === 1 ? '' : 's'}
-                              {row.reviewedAt ? ` · approved ${formatDate(row.reviewedAt)}` : ''}
-                              {row.releasedAt ? ` · released ${formatDate(row.releasedAt)}` : ''}
-                            </div>
-                          </div>
-                          <div className={styles.runBranchAmount}>{formatUGX(row.amount)}</div>
-                          <span className={styles.runStateBadge} data-state={row.state}>
-                            {row.state}
-                          </span>
-                          <span className={styles.runBranchChev} aria-hidden="true">{Icons.chev}</span>
-                        </button>
-                      ))}
-                    </div>
-
-                    <button
-                      className={styles.settleAllBtn}
-                      onClick={openBulkReleaseModal}
-                      disabled={!currentRun.canReleaseAny}
-                    >
-                      {Icons.wallet}
-                      {currentRun.canReleaseAny
-                        ? `Release ${currentRun.branchApprovedCount} approved · ${formatUGX(currentRun.approvedAmount || 0)}`
-                        : 'No branches ready to release'}
-                    </button>
-                  </motion.div>
-                )}
-
-                {/* ─── RUN BRANCH DETAIL (distributor) ───────────────── */}
-                {view === 'run-branch-detail' && currentRun && selectedRunBranchId && (() => {
-                  const branchRow = runBranches.find((b) => b.branchId === selectedRunBranchId);
-                  if (!branchRow) return null;
-                  const canReleaseThis = branchRow.state === 'approved';
-                  return (
-                    <motion.div key="run-branch-detail" {...viewAnim}>
-                      <div className={styles.runHeader}>
-                        <div className={styles.runHeaderRow}>
-                          <div className={styles.runHeaderStat}>
-                            <span className={styles.runMetricLabel}>Branch total</span>
-                            <span className={styles.runHeaderValue}>{formatUGX(branchRow.amount)}</span>
-                          </div>
-                          <div className={styles.runHeaderStat}>
-                            <span className={styles.runMetricLabel}>Commissions</span>
-                            <span className={styles.runHeaderValue}>{formatNumber(branchRow.count)}</span>
-                          </div>
-                          <div className={styles.runHeaderStat}>
-                            <span className={styles.runMetricLabel}>State</span>
-                            <span className={styles.runHeaderValue}>{RUN_STATE_LABEL[branchRow.state] || branchRow.state}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className={styles.section}>
-                        <div className={styles.sectionHeader}>
-                          <span className={styles.sectionTitle}>Agents in this branch</span>
-                        </div>
-                        {runBranchAgents.length === 0 ? (
-                          <div className={styles.empty}>No commissions in this branch for this run</div>
-                        ) : (
-                          runBranchAgents.map((agent) => (
-                            <div key={agent.agentId} className={styles.agentBlock}>
-                              <div className={styles.agentBlockHead}>
-                                <div className={styles.agentAvatar}>{getInitials(agent.agentName)}</div>
-                                <div className={styles.agentInfo}>
-                                  <div className={styles.agentName}>{agent.agentName}</div>
-                                  <div className={styles.agentBranch}>
-                                    {agent.employeeId || agent.agentId} · {agent.count} commission{agent.count === 1 ? '' : 's'}
-                                  </div>
-                                </div>
-                                <div className={styles.agentBlockAmount}>{formatUGX(agent.amount)}</div>
-                              </div>
-                              <div className={styles.agentLineList}>
-                                {agent.commissions.map((c) => (
-                                  <div key={c.id} className={styles.agentLineRow}>
-                                    <span className={styles.agentLineName}>{c.subscriberName}</span>
-                                    <span className={styles.agentLineAmount}>{formatUGX(c.amount)}</span>
-                                    <span className={styles.runStateBadge} data-state={c.status === 'in_run' ? 'branch_review' : c.status === 'released' || c.status === 'confirmed' ? 'released' : 'cancelled'}>
-                                      {c.status.replace('_', ' ')}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-
-                      <button
-                        className={styles.settleAllBtn}
-                        onClick={() => openBranchReleaseModal(branchRow.branchId)}
-                        disabled={!canReleaseThis}
-                      >
-                        {Icons.wallet}
-                        {branchRow.state === 'released'
-                          ? 'Already released'
-                          : canReleaseThis
-                            ? `Release this branch (${formatUGX(branchRow.amount)})`
-                            : 'Waiting for branch sign-off'}
-                      </button>
-                    </motion.div>
-                  );
-                })()}
-
-                {/* ─── BRANCH REVIEW VIEW ────────────────────────────── */}
-                {view === 'branch-review' && branchReview && (
-                  <motion.div key="branch-review" {...viewAnim}>
-                    <div className={styles.runHeader}>
-                      <div className={styles.runHeaderRow}>
-                        <div className={styles.runHeaderStat}>
-                          <span className={styles.runMetricLabel}>Pending review</span>
-                          <span className={styles.runHeaderValue}>{branchPendingLines.length}</span>
-                        </div>
-                        <div className={styles.runHeaderStat}>
-                          <span className={styles.runMetricLabel}>On hold</span>
-                          <span className={styles.runHeaderValue}>{branchHeldLines.length}</span>
-                        </div>
-                        <div className={styles.runHeaderStat}>
-                          <span className={styles.runMetricLabel}>Branch total</span>
-                          <span className={styles.runHeaderValue}>{formatUGX(branchSliceTotal)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className={styles.section}>
-                      <div className={styles.sectionHeader}>
-                        <span className={styles.sectionTitle}>Lines in this run</span>
-                      </div>
-                      {branchReview.lines.map((line) => (
-                        <div key={line.id} className={styles.txRow}>
-                          <div className={styles.txName}>
-                            <div>{line.subscriberName}</div>
-                            <div style={{ fontSize: '10px', color: 'var(--color-gray)', marginTop: '2px' }}>
-                              {line.id} · agent {line.agentId}
-                            </div>
-                            {line.status === 'held' && line.holdReason && (
-                              <div style={{ fontSize: '10px', color: 'var(--color-status-warning)', marginTop: '2px' }}>
-                                Held: {line.holdReason}
-                              </div>
-                            )}
-                          </div>
-                          <div className={styles.txAmount} data-status={line.status === 'in_run' ? 'due' : 'paid'}>
-                            {formatUGX(line.amount)}
-                          </div>
-                          <div className={styles.txActions}>
-                            {line.status === 'in_run' && (
-                              <>
-                                <button
-                                  className={styles.holdBtn}
-                                  onClick={() => openLineAction('hold', line)}
-                                  aria-label={`Hold ${line.subscriberName}`}
-                                  title="Hold for next run"
-                                >
-                                  Hold
-                                </button>
-                                <button
-                                  className={styles.rejectBtn}
-                                  onClick={() => openLineAction('dispute', line)}
-                                  aria-label={`Flag dispute on ${line.subscriberName}`}
-                                  title="Flag a dispute"
-                                >
-                                  {Icons.reject}
-                                </button>
-                              </>
-                            )}
-                            {line.status === 'held' && (
-                              <button
-                                className={styles.approveBtn}
-                                onClick={() => branchApproveLineMutation.mutate(line.id)}
-                                aria-label={`Restore ${line.subscriberName}`}
-                                title="Restore into run"
-                              >
-                                {Icons.approve}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {branchReview.reviewState !== 'approved' && (
-                      <button
-                        className={styles.settleAllBtn}
-                        onClick={handleBranchSignOff}
-                        disabled={branchApproveAllMutation.isPending || markReviewedMutation.isPending}
-                      >
-                        {Icons.approve}
-                        Submit branch sign-off
-                      </button>
-                    )}
-                  </motion.div>
+                {/* ─── RUN DETAIL / RUN BRANCH DETAIL / BRANCH REVIEW ── */}
+                {(view === 'run-detail' || view === 'run-branch-detail' || view === 'branch-review') && (
+                  <SettlementRunStepper
+                    view={view}
+                    currentRun={currentRun}
+                    branchReview={branchReview}
+                    runBranches={runBranches}
+                    runBranchAgents={runBranchAgents}
+                    selectedRunBranchId={selectedRunBranchId}
+                    branchPendingLines={branchPendingLines}
+                    branchHeldLines={branchHeldLines}
+                    branchSliceTotal={branchSliceTotal}
+                    onOpenBulkRelease={openBulkReleaseModal}
+                    onOpenBranchRelease={openBranchReleaseModal}
+                    onGoRunBranchDetail={goRunBranchDetail}
+                    onApproveHeldLine={handleApproveHeldLine}
+                    onOpenLineAction={openLineAction}
+                    onBranchSignOff={handleBranchSignOff}
+                    branchApproveAllPending={branchApproveAllMutation.isPending}
+                    markReviewedPending={markReviewedMutation.isPending}
+                  />
                 )}
 
                 {/* ─── RUNS HISTORY VIEW ─────────────────────────────── */}
@@ -1114,76 +796,15 @@ export default function CommissionPanel({ splitMode = false }) {
 
                 {/* ─── AGENTS VIEW ───────────────────────────────────── */}
                 {view === 'agents' && (
-                  <motion.div key="agents" {...viewAnim}>
-                    <div className={styles.toolbar}>
-                      <div className={styles.searchWrap}>
-                        <span className={styles.searchIcon}>{Icons.search}</span>
-                        <input
-                          className={styles.searchInput}
-                          placeholder="Search agents…"
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          aria-label="Search agents"
-                          spellCheck={false}
-                        />
-                        {search && (
-                          <button className={styles.searchClear} onClick={() => setSearch('')} aria-label="Clear search">
-                            {Icons.close}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {agentsCold ? (
-                      <SkeletonRow count={6} label="Loading commission ledger" />
-                    ) : filteredAgents.length === 0 ? (
-                      // Differentiated empty: clean state ("no commissions
-                      // recorded yet") vs filter mismatch ("widen your search").
-                      debouncedSearch.trim() === '' ? (
-                        <EmptyState
-                          kind="no-data"
-                          title={
-                            statusFocus === 'paid'
-                              ? 'No commissions paid yet.'
-                              : statusFocus === 'due'
-                                ? 'No commissions due.'
-                                : 'No commissions yet.'
-                          }
-                          body="Commission activity will appear here as soon as it's recorded."
-                        />
-                      ) : (
-                        <EmptyState
-                          kind="no-match"
-                          title="No agents match"
-                          body="Try adjusting your search."
-                        />
-                      )
-                    ) : (
-                      filteredAgents.map((agent) => (
-                        <button
-                          key={agent.agentId}
-                          className={styles.agentRow}
-                          onClick={() => goAgentDetail(agent.agentId)}
-                        >
-                          <div className={styles.agentAvatar}>{getInitials(agent.agentName)}</div>
-                          <div className={styles.agentInfo}>
-                            <div className={styles.agentName}>{agent.agentName}</div>
-                            <div className={styles.agentBranch}>{agent.branchName}{agent.employeeId ? ` · ${agent.employeeId}` : ''}</div>
-                          </div>
-                          <div>
-                            <div className={styles.agentAmount}>
-                              {statusFocus === 'paid' ? formatUGXShort(agent.totalPaid) :
-                               statusFocus === 'due' ? formatUGXShort(agent.totalDue) :
-                               formatUGXShort(agent.totalCommissions)}
-                            </div>
-                            <div className={styles.agentAmountLabel}>
-                              {agent.subscribersOnboarded} subscribers
-                            </div>
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </motion.div>
+                  <CommissionGrid
+                    filteredAgents={filteredAgents}
+                    agentsCold={agentsCold}
+                    statusFocus={statusFocus}
+                    search={search}
+                    debouncedSearch={debouncedSearch}
+                    onSearchChange={setSearch}
+                    onSelectAgent={goAgentDetail}
+                  />
                 )}
 
                 {/* ─── AGENT DETAIL VIEW ─────────────────────────────── */}
@@ -1301,243 +922,23 @@ export default function CommissionPanel({ splitMode = false }) {
                   </motion.div>
                 )}
 
-                {/* ─── DISPUTED AGENTS VIEW ──────────────────────────── */}
-                {view === 'disputed' && (
-                  <motion.div key="disputed" {...viewAnim}>
-                    <div className={styles.toolbar}>
-                      <div className={styles.searchWrap}>
-                        <span className={styles.searchIcon}>{Icons.search}</span>
-                        <input
-                          className={styles.searchInput}
-                          placeholder="Search agents…"
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          aria-label="Search disputed agents"
-                          spellCheck={false}
-                        />
-                        {search && (
-                          <button className={styles.searchClear} onClick={() => setSearch('')} aria-label="Clear search">
-                            {Icons.close}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {filteredDisputed.length > 0 && (
-                      <div className={styles.selectBar}>
-                        <button
-                          className={styles.selectAllBtn}
-                          role="checkbox"
-                          aria-checked={
-                            selectedIds.size === 0
-                              ? 'false'
-                              : selectedIds.size === filteredDisputed.length
-                                ? 'true'
-                                : 'mixed'
-                          }
-                          aria-label={
-                            selectedIds.size === filteredDisputed.length
-                              ? `Deselect all ${filteredDisputed.length} disputed agents`
-                              : `Select all ${filteredDisputed.length} disputed agents`
-                          }
-                          onClick={() => {
-                            if (selectedIds.size === filteredDisputed.length) clearSelection();
-                            else selectAll(filteredDisputed.map((a) => a.agentId));
-                          }}
-                        >
-                          <span className={styles.checkbox} data-checked={selectedIds.size === filteredDisputed.length && filteredDisputed.length > 0} aria-hidden="true">
-                            {selectedIds.size === filteredDisputed.length && filteredDisputed.length > 0 && Icons.approve}
-                          </span>
-                          {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
-                        </button>
-                        {selectedIds.size > 0 && (
-                          <button className={styles.selectClearBtn} onClick={clearSelection}>Clear</button>
-                        )}
-                      </div>
-                    )}
-
-                    {disputedCold ? (
-                      <SkeletonRow count={5} label="Loading disputes" />
-                    ) : filteredDisputed.length === 0 ? (
-                      debouncedSearch.trim() === '' ? (
-                        <EmptyState
-                          kind="no-data"
-                          title="No disputed settlements"
-                          body="Disputes raised by agents will appear here for review."
-                        />
-                      ) : (
-                        <EmptyState
-                          kind="no-match"
-                          title="No agents match"
-                          body="Try adjusting your search."
-                        />
-                      )
-                    ) : (
-                      filteredDisputed.map((agent) => (
-                        <div key={agent.agentId} className={styles.selectableRow} data-selected={selectedIds.has(agent.agentId)}>
-                          <button
-                            className={styles.checkbox}
-                            data-checked={selectedIds.has(agent.agentId)}
-                            onClick={() => toggleSelect(agent.agentId)}
-                            aria-label={`Select ${agent.agentName}`}
-                          >
-                            {selectedIds.has(agent.agentId) && Icons.approve}
-                          </button>
-                          <button
-                            className={styles.selectableContent}
-                            onClick={() => goDisputeDetail(agent)}
-                          >
-                            <div className={styles.agentAvatar}>{getInitials(agent.agentName)}</div>
-                            <div className={styles.agentInfo}>
-                              <div className={styles.agentName}>{agent.agentName}</div>
-                              <div className={styles.agentBranch}>{agent.branchName}{agent.employeeId ? ` · ${agent.employeeId}` : ''}</div>
-                            </div>
-                            <div>
-                              <div className={styles.agentAmount} style={{ color: 'var(--color-status-poor)' }}>
-                                {agent.disputedCount} disputed
-                              </div>
-                              <div className={styles.agentAmountLabel}>
-                                {formatUGX(agent.disputedAmount)}
-                              </div>
-                            </div>
-                          </button>
-                        </div>
-                      ))
-                    )}
-
-                    <AnimatePresence>
-                      {selectedIds.size > 0 && (
-                        <motion.div
-                          className={styles.floatingBar}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 20 }}
-                          transition={{ duration: 0.2, ease: EASE_OUT_EXPO }}
-                        >
-                          <div className={styles.floatingInfo}>
-                            <span className={styles.floatingCount}>{selectedIds.size}</span> agents
-                          </div>
-                          <div className={styles.floatingActions}>
-                            <button
-                              className={styles.floatingApprove}
-                              onClick={() => {
-                                const disputes = filteredDisputed
-                                  .filter((a) => selectedIds.has(a.agentId))
-                                  .flatMap((a) => a.disputes);
-                                openResolutionModal('approve', disputes, `across ${selectedIds.size} agent${selectedIds.size === 1 ? '' : 's'}`);
-                                clearSelection();
-                              }}
-                            >
-                              {Icons.approve} Approve
-                            </button>
-                            <button
-                              className={styles.floatingReject}
-                              onClick={() => {
-                                const disputes = filteredDisputed
-                                  .filter((a) => selectedIds.has(a.agentId))
-                                  .flatMap((a) => a.disputes);
-                                openResolutionModal('reject', disputes, `across ${selectedIds.size} agent${selectedIds.size === 1 ? '' : 's'}`);
-                                clearSelection();
-                              }}
-                            >
-                              {Icons.reject} Reject
-                            </button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                )}
-
-                {/* ─── DISPUTE DETAIL VIEW ───────────────────────────── */}
-                {view === 'dispute-detail' && selectedDisputeAgent && (
-                  <motion.div key="dispute-detail" {...viewAnim}>
-                    <div className={styles.detailHeader}>
-                      <div className={styles.detailAvatar}>{getInitials(selectedDisputeAgent.agentName)}</div>
-                      <div className={styles.detailInfo}>
-                        <div className={styles.detailName}>{selectedDisputeAgent.agentName}</div>
-                        <div className={styles.detailBranch}>{selectedDisputeAgent.branchName}{selectedDisputeAgent.employeeId ? ` · ${selectedDisputeAgent.employeeId}` : ''}</div>
-                      </div>
-                    </div>
-
-                    <div className={styles.detailStats}>
-                      <div className={styles.detailStat}>
-                        <div className={styles.detailStatLabel}>Disputed</div>
-                        <div className={styles.detailStatValue} style={{ color: 'var(--color-status-poor)' }}>{selectedDisputeAgent.disputedCount}</div>
-                      </div>
-                      <div className={styles.detailStat}>
-                        <div className={styles.detailStatLabel}>Amount</div>
-                        <div className={styles.detailStatValue}>{formatUGXShort(selectedDisputeAgent.disputedAmount)}</div>
-                      </div>
-                    </div>
-
-                    {selectedDisputeAgent.disputes.length > 1 && (
-                      <div className={styles.bulkActions}>
-                        <button
-                          className={styles.bulkApproveBtn}
-                          onClick={() => openResolutionModal(
-                            'approve',
-                            selectedDisputeAgent.disputes,
-                            `all ${selectedDisputeAgent.disputes.length} disputes for ${selectedDisputeAgent.agentName}`
-                          )}
-                        >
-                          {Icons.approve}
-                          Approve all ({selectedDisputeAgent.disputes.length})
-                        </button>
-                        <button
-                          className={styles.bulkRejectBtn}
-                          onClick={() => openResolutionModal(
-                            'reject',
-                            selectedDisputeAgent.disputes,
-                            `all ${selectedDisputeAgent.disputes.length} disputes for ${selectedDisputeAgent.agentName}`
-                          )}
-                        >
-                          {Icons.reject}
-                          Reject all ({selectedDisputeAgent.disputes.length})
-                        </button>
-                      </div>
-                    )}
-
-                    <div className={styles.section}>
-                      <div className={styles.sectionHeader}>
-                        <span className={styles.sectionTitle}>Disputed Commissions</span>
-                      </div>
-                      {selectedDisputeAgent.disputes.map((d) => (
-                        <div key={d.id} className={styles.txRow}>
-                          <div className={styles.txDate}>
-                            {d.disputedAt ? `Filed ${formatDate(d.disputedAt)}` : `Due ${formatDate(d.dueDate)}`}
-                            {d.disputedBy && (
-                              <div style={{ fontSize: '10px', color: 'var(--color-gray)', marginTop: '2px' }}>
-                                by {d.disputedBy}
-                                {d.previousStatus === 'released' || d.previousStatus === 'confirmed' ? ' · post-payment' : ''}
-                              </div>
-                            )}
-                          </div>
-                          <div className={styles.txName}>
-                            <div>{d.subscriberName}</div>
-                            <div style={{ fontSize: '10px', color: 'var(--color-status-poor)', marginTop: '2px' }}>{d.reason}</div>
-                          </div>
-                          <div className={styles.txAmount} style={{ color: 'var(--color-status-poor)' }}>{formatUGX(d.amount)}</div>
-                          <div className={styles.txActions}>
-                            <button
-                              className={styles.approveBtn}
-                              onClick={() => openResolutionModal('approve', [d], `the dispute on ${d.subscriberName}`)}
-                              aria-label={`Approve ${d.subscriberName}`}
-                            >
-                              {Icons.approve}
-                            </button>
-                            <button
-                              className={styles.rejectBtn}
-                              onClick={() => openResolutionModal('reject', [d], `the dispute on ${d.subscriberName}`)}
-                              aria-label={`Reject ${d.subscriberName}`}
-                            >
-                              {Icons.reject}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
+                {/* ─── DISPUTED / DISPUTE DETAIL ─────────────────────── */}
+                {(view === 'disputed' || view === 'dispute-detail') && (
+                  <DisputeManager
+                    view={view}
+                    filteredDisputed={filteredDisputed}
+                    selectedDisputeAgent={selectedDisputeAgent}
+                    disputedCold={disputedCold}
+                    search={search}
+                    debouncedSearch={debouncedSearch}
+                    selectedIds={selectedIds}
+                    onSearchChange={setSearch}
+                    onToggleSelect={toggleSelect}
+                    onSelectAll={selectAll}
+                    onClearSelection={clearSelection}
+                    onGoDisputeDetail={goDisputeDetail}
+                    onOpenResolution={openResolutionModal}
+                  />
                 )}
               </AnimatePresence>
             </div>
@@ -1800,3 +1201,4 @@ export default function CommissionPanel({ splitMode = false }) {
     </AnimatePresence>
   );
 }
+

@@ -18,6 +18,9 @@ import Demographics from '../shared/Demographics';
 import Modal from '../../components/Modal';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
+import AgentListTable from './AgentListTable';
+import BranchEditForm from './BranchEditForm';
+import { useBranchDrilldown } from './useBranchDrilldown';
 import styles from './ViewBranches.module.css';
 
 function getStatus(activeRate) {
@@ -121,7 +124,7 @@ function AgentDetail({ agent }) {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Branch Detail View                                                        */
 /* ═══════════════════════════════════════════════════════════════════════════ */
-function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch }) {
+function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch, selectedAgentId }) {
   const m = branch.metrics;
   const agents = useMemo(() => branchAgents(branch.id, agentsByBranch), [branch.id, agentsByBranch]);
   const { data: commission } = useEntityCommissionSummary('branch', branch.id);
@@ -270,90 +273,12 @@ function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch }) {
       </div>
 
       {/* Agents list */}
-      <div className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <span className={styles.sectionTitle}>Agents ({agents.length})</span>
-        </div>
-        <div className={styles.agentList}>
-          {agents.map((agent) => {
-            const level = perfLevel(agent.performance);
-            return (
-              <button key={agent.id} className={styles.agentItem} onClick={() => onSelectAgent(agent)}>
-                <div className={styles.agentAvatar}>{getInitials(agent.name)}</div>
-                <div className={styles.agentInfo}>
-                  <div className={styles.agentName}>{agent.name}</div>
-                  <div className={styles.agentMeta}>
-                    <span className={styles.agentStatus} data-status={agent.status} />
-                    <span>{agent.metrics.totalSubscribers} subs</span>
-                    <span>&middot;</span>
-                    <Stars rating={agent.rating} />
-                  </div>
-                </div>
-                <span className={styles.agentPerf} data-level={level}>{agent.performance}%</span>
-                <span className={styles.chevronAgent}>
-                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="14" height="14">
-                    <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <AgentListTable
+        agents={agents}
+        selectedAgentId={selectedAgentId}
+        onSelectAgent={onSelectAgent}
+      />
     </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Edit Branch Panel                                                         */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-function EditBranch({ branch, section, onSave, onCancel }) {
-  const [name, setName] = useState(branch.managerName);
-  const [phone, setPhone] = useState(branch.managerPhone);
-  const [email, setEmail] = useState(branch.managerEmail);
-  const [branchName, setBranchName] = useState(branch.name);
-
-  function handleSave() {
-    if (section === 'admin') {
-      onSave({ managerName: name, managerPhone: phone, managerEmail: email });
-    } else {
-      onSave({ name: branchName });
-    }
-  }
-
-  return (
-    <>
-      <div className={styles.detailContent}>
-        <div className={styles.editForm}>
-          {section === 'admin' ? (
-            <>
-              <div className={styles.field}>
-                <label className={styles.label}>Full Name</label>
-                <input className={styles.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Manager name" name="managerName" autoComplete="name" />
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label}>Phone Number</label>
-                <input className={styles.input} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+256…" name="phone" type="tel" autoComplete="tel" />
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label}>Email Address</label>
-                <input className={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" name="email" type="email" autoComplete="email" />
-              </div>
-            </>
-          ) : (
-            <div className={styles.field}>
-              <label className={styles.label}>Branch Name</label>
-              <input className={styles.input} value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="Branch name" name="branchName" autoComplete="off" />
-            </div>
-          )}
-        </div>
-      </div>
-      <div className={styles.footer}>
-        <button className={styles.cancelBtn} onClick={onCancel}>Cancel</button>
-        <div className={styles.footerSpacer} />
-        <button className={styles.saveBtn} onClick={handleSave}>Save Changes</button>
-      </div>
-    </>
   );
 }
 
@@ -374,10 +299,6 @@ export default function ViewBranches() {
   const updateBranchMutation = useUpdateBranch();
   const setBranchStatusMutation = useSetBranchStatus();
 
-  const [view, setView] = useState('list');
-  const [selectedBranch, setSelectedBranch] = useState(null);
-  const [selectedAgent, setSelectedAgent] = useState(null);
-  const [editSection, setEditSection] = useState(null);
   const [confirmStatusOpen, setConfirmStatusOpen] = useState(false);
 
   const [search, setSearch] = useState('');
@@ -436,22 +357,22 @@ export default function ViewBranches() {
     [allBranchesRaw, branchMetricsMap],
   );
 
-  // Auto-select branch when opened via map drill-down. Reads from the
-  // metrics-overlaid `allBranches`, not `allBranchesRaw` (which has
-  // EMPTY_METRICS), so the BranchDetail KPI cards bind to real numbers.
-  useEffect(() => {
-    if (!viewBranchesOpen || !drillTargetBranchId || allBranches.length === 0) return;
-    const branch = allBranches.find(b => b.id === drillTargetBranchId);
-    if (!branch) return;
-    setSelectedBranch(branch);
-    // Only snap to 'detail' on the first auto-select for this drill target;
-    // later metrics-overlay updates refresh selectedBranch in place without
-    // overwriting a user-initiated nav to an agent / edit pane.
-    if (!selectedBranch || selectedBranch.id !== drillTargetBranchId) {
-      setView('detail');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedBranch intentionally excluded to avoid self-triggered loop
-  }, [viewBranchesOpen, drillTargetBranchId, allBranches]);
+  // View state machine (list | detail | agent | edit) + auto-select on map
+  // drill-down + soft reset on close are all owned by the drilldown hook.
+  const {
+    view,
+    selectedBranch,
+    selectedAgent,
+    editSection,
+    setSelectedBranch,
+    setSelectedAgent,
+    setEditSection,
+    setView,
+  } = useBranchDrilldown({
+    drillTargetBranchId,
+    isOpen: viewBranchesOpen,
+    allBranches,
+  });
 
   const handleClose = useCallback(() => {
     if (drillTargetBranchId) closeDrillPanel();
@@ -515,13 +436,12 @@ export default function ViewBranches() {
     scrollMargin: virtualListRef.current?.offsetTop ?? 0,
   });
 
+  // Filter/search soft reset on close. View/branch/agent state reset lives
+  // inside useBranchDrilldown — keep them in sync (same 400ms delay so the
+  // slide-out animation doesn't reveal stale state).
   useEffect(() => {
     if (viewBranchesOpen) return;
     const t = setTimeout(() => {
-      setView('list');
-      setSelectedBranch(null);
-      setSelectedAgent(null);
-      setEditSection(null);
       setSearch('');
       setRegionFilter(null);
       setSortKey('subscribers');
@@ -930,7 +850,7 @@ export default function ViewBranches() {
                     exit={{ opacity: 0, x: -24 }}
                     transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
                   >
-                    <BranchDetail branch={selectedBranch} onSelectAgent={handleSelectAgent} onEdit={handleEdit} agentsByBranch={AGENTS_BY_BRANCH} />
+                    <BranchDetail branch={selectedBranch} onSelectAgent={handleSelectAgent} onEdit={handleEdit} agentsByBranch={AGENTS_BY_BRANCH} selectedAgentId={selectedAgent?.id} />
                   </motion.div>
                 )}
 
@@ -957,7 +877,7 @@ export default function ViewBranches() {
                     transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
                     style={{ display: 'flex', flexDirection: 'column', flex: 1 }}
                   >
-                    <EditBranch branch={selectedBranch} section={editSection} onSave={handleSaveEdit} onCancel={handleBack} />
+                    <BranchEditForm branch={selectedBranch} section={editSection} onSave={handleSaveEdit} onCancel={handleBack} />
                   </motion.div>
                 )}
               </AnimatePresence>
