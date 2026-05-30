@@ -180,10 +180,10 @@ See `FRONTEND.md §16a` and `BACKEND.md §14a` for the role-specific demo-scope 
 
 ### 10b. Awareness items (worth knowing, not urgent)
 
-- **`MOCK_NOW = new Date(2026, 3, 8)`** in `src/data/mockData.js` anchors "due in N days" demos. Slide it forward (or flip to `new Date()`) when the demo's relative dates start looking stale.
+- **`MOCK_NOW = new Date(2026, 4, 26)`** in `src/data/mockData.js` anchors "due in N days" demos. Slide it forward (or flip to `new Date()`) when the demo's relative dates start looking stale.
 - **README.md is stale** — currently 87 lines, only documents the landing page, claims "Vite 8" (actually Vite 6.3), no mention of dashboards or backend. Flagged here; a ~30-min refresh is a separate follow-up.
 - **NPM deps inventory (verified 2026-05-22 in audit Phase 6):** every direct dep in `package.json` is actually used. `dotenv` is used by `e2e/fixtures/db.ts:13` + `playwright.config.ts:16` (NOT unused). `react-is` is required transitively by `recharts` (build fails without it). `jose` is used in `api/_lib/jwt.ts`; `pg` is used in `scripts/seed-supabase.mjs`. None should be removed.
-- **Real bugs in the demo experience** (not demo-scope) are catalogued in `FRONTEND.md §16b` (agent-side `disputeCommission` returns "not built", subscriber Settings/notifications + Settings/security are `StubPage` placeholders) and `BACKEND.md §14b` (`agent_dispute_line` RPC missing, nominee shares can sum >100%, first-contribution commission lacks `UNIQUE(agent_id, subscriber_id)`, employer/admin roles unbuilt).
+- **Real bugs in the demo experience** (not demo-scope) are catalogued in `FRONTEND.md §16b` (subscriber Settings/notifications + Settings/security are `StubPage` placeholders; residual indigo / breakpoint drift) and `BACKEND.md §15b` (nominees table lacks `UNIQUE(subscriber_id, type, …)` so duplicate beneficiaries are possible at the table level; TEXT status columns lack `CHECK` constraints; employer/admin roles unbuilt). Note: prior versions of this bullet listed the `agent_dispute_line` RPC and `UNIQUE(agent_id, subscriber_id)` on `commissions` as missing — both shipped (0014 and 0017 respectively); the agent-side dispute flow is live.
 
 ---
 
