@@ -4,7 +4,7 @@ Deep backend reference. Pair with `CLAUDE.md` (slim index) and `FRONTEND.md` (de
 
 Covers the Express + TypeScript routes under `api/**` (mounted by `server/index.ts` and hosted on **Render** — Singapore region, Node 22, free tier), the Supabase Postgres schema + RPCs + RLS in `supabase/migrations/*.sql`, the seed and utility scripts under `scripts/`, and the operational runbook for local + hosted environments. The frontend ships from **Vercel** (Vite preset, no functions); see `docs/render-operational.md` for the post-migration runbook and `renderplan.md` for the migration plan.
 
-> **Scope note.** This platform is a sales-rep **demo**, not a production fintech. Many behaviours (any-6-digit OTP, hardcoded UGX 1,000 unit price, fixed 24h JWT TTL, no refresh, `demo_personas` fallback IDs, mocked KYC, mocked chat, per-session mutation stores) are intentional. See §14a — never reframe them as production-prep TODOs.
+> **Scope note.** This platform is a sales-rep **demo**, not a production fintech. Many behaviours (any-6-digit OTP, hardcoded UGX 1,000 unit price, fixed 24h JWT TTL, no refresh, `demo_personas` fallback IDs, mocked KYC, mocked chat, per-session mutation stores) are intentional. See §15a — never reframe them as production-prep TODOs.
 
 ---
 
@@ -50,12 +50,12 @@ The canonical template is `.env.local.example`. Three keys are public (`VITE_*` 
 | Variable | Scope | Read by | Purpose | In `.env.local.example` |
 |---|---|---|---|---|
 | `VITE_SUPABASE_URL` | Public (Vercel frontend) | `src/services/supabaseClient.js` | Supabase project URL (`https://<ref>.supabase.co`) | Yes |
-| `SUPABASE_URL` | **Server-only (Render)** | `api/_lib/supabase-admin.ts` | Supabase project URL — server-side rename of `VITE_SUPABASE_URL` (G19). For backwards compat the admin client reads `SUPABASE_URL ?? VITE_SUPABASE_URL`. | Yes |
+| `SUPABASE_URL` | **Server-only (Render)** | `api/_lib/supabase-admin.ts` | Supabase project URL — server-side rename of `VITE_SUPABASE_URL`. For backwards compat the admin client reads `SUPABASE_URL ?? VITE_SUPABASE_URL`. | Yes |
 | `VITE_SUPABASE_ANON_KEY` | Public (Vercel frontend) | `src/services/supabaseClient.js` | PostgREST anon-tier key (default RLS-restricted) | Yes |
 | `VITE_USE_SUPABASE` | Public (Vercel frontend) | `src/config/env.js` + every service file | Rollback flag — when `'false'`, services fall back to mockData (FRONTEND.md §4) | Yes |
 | `VITE_API_BASE_URL` | Public (Vercel frontend, all 3 scopes) | `src/config/env.js` → `src/services/api.js` | Absolute backend URL baked into the bundle at Vite build time. Local: `http://localhost:3001/api`. Prod: `https://uganda-dashboard-api.onrender.com/api`. | Yes |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Server-only (Render)** | `api/_lib/supabase-admin.ts` | Admin client used by all Express routes (bypasses RLS) | Yes |
-| `SUPABASE_JWT_SECRET` | **Server-only (Render)** | `api/_lib/jwt.ts` | HS256 signing secret; same secret PostgREST uses to verify JWTs. **Copy verbatim from Supabase Dashboard → API → JWT Settings.** Do NOT regenerate during the Render migration (B21) — `withOptionalAuth` swallows verification errors and fails open. | Yes |
+| `SUPABASE_JWT_SECRET` | **Server-only (Render)** | `api/_lib/jwt.ts` | HS256 signing secret; same secret PostgREST uses to verify JWTs. **Copy verbatim from Supabase Dashboard → API → JWT Settings.** Do NOT regenerate without coordinated user logout — `withOptionalAuth` swallows verification errors and fails open. | Yes |
 | `SENTRY_DSN` | **Server-only (Render)** | `server/index.ts` | Optional. Sentry error aggregation (free 5k events/mo). | Yes (commented placeholder) |
 | `VITE_SENTRY_DSN` | Public (Vercel frontend, optional) | `src/main.jsx` | Same Sentry project, frontend-side capture. | Yes (commented placeholder) |
 | `SUPABASE_DB_URL` | **Local-only** | `scripts/seed-supabase.mjs` | Postgres pooler URL (port 6543) for `npm run seed` | Yes |
@@ -63,7 +63,7 @@ The canonical template is `.env.local.example`. Three keys are public (`VITE_*` 
 
 ### Frontend-only keys consumed by `src/config/env.js`
 
-These keys are read by the frontend but **missing from `.env.local.example`** (audit X5). Defaults are baked into `src/config/env.js`, so the demo runs without them — list and add as needed:
+These keys are read by the frontend but missing from `.env.local.example`. Defaults are baked into `src/config/env.js`, so the demo runs without them — list and add as needed:
 
 | Variable | Default fallback |
 |---|---|
@@ -79,14 +79,14 @@ These keys are read by the frontend but **missing from `.env.local.example`** (a
 - **Never run `vercel env pull`** — it overwrites `.env.local` and wipes `SUPABASE_DB_URL`, which is local-only by design and not stored in Vercel.
 - `VITE_*` keys are inlined into the client bundle at build time. Don't put a service-role key behind a `VITE_` prefix even by accident — it would ship to every browser.
 - `api/_lib/jwt.ts` treats `SUPABASE_JWT_SECRET` as **raw UTF-8** (`new TextEncoder().encode(raw)`). PostgREST / GoTrue verify HS256 with the same UTF-8 byte interpretation; base64-decoding would mint tokens PostgREST rejects (`PGRST301`).
-- `api/_lib/supabase-admin.ts` and `api/_lib/jwt.ts` both hard-fail at first invocation if their env vars are missing (no deploy-time preflight — audit X14). Cold-boot 500s with a "X is not set" message are diagnostic.
-- `src/services/supabaseClient.js` falls back silently to `http://localhost:54321` / `'public-anon-key'` if the `VITE_*` keys are absent (audit X6); a misconfigured Vercel preview ships a broken-but-running app.
+- `api/_lib/supabase-admin.ts` and `api/_lib/jwt.ts` both hard-fail at first invocation if their env vars are missing (no deploy-time preflight). Cold-boot 500s with a "X is not set" message are diagnostic.
+- `src/services/supabaseClient.js` falls back silently to `http://localhost:54321` / `'public-anon-key'` if the `VITE_*` keys are absent; a misconfigured Vercel preview ships a broken-but-running app.
 
 ---
 
 ## §3. API route inventory
 
-**14 routes** live under `api/`. They were originally written as Vercel serverless functions; post-Render-migration `server/index.ts` mounts each one via a thin `toExpress(handler)` adapter (`server/adapter.ts`) using `app.all('/api/.../<route>', toExpress(<handler>))`. `app.all` (not `app.post`) preserves the per-handler manual 405 contract (B5). All routes accept only `POST`; non-POST returns 405 `{ code: 'method_not_allowed' }` with `Allow: POST`. Breakdown:
+**14 routes** live under `api/`. They were originally written as Vercel serverless functions; post-Render-migration `server/index.ts` mounts each one via a thin `toExpress(handler)` adapter (`server/adapter.ts`) using `app.all('/api/.../<route>', toExpress(<handler>))`. `app.all` (not `app.post`) preserves the per-handler manual 405 contract. All routes accept only `POST`; non-POST returns 405 `{ code: 'method_not_allowed' }` with `Allow: POST`. Breakdown:
 
 - **4 auth routes** — `send-otp`, `verify-otp`, `verify-password`, `change-password`
 - **8 KYC routes** — `otp-send`, `otp-verify`, `id-ocr`, `id-quality`, `face-match`, `aml-screen`, `nira-verify`, `agent-referral`
@@ -125,7 +125,7 @@ The 3 phone-accepting KYC routes (`otp-send`, `otp-verify`, `agent-referral`) no
 
 ### KYC verification refusals stay 200 (demo scope)
 
-The 3 verifier routes — `nira-verify`, `aml-screen`, `face-match` — return HTTP 200 with a body-field refusal (`result: 'partial' | 'no-match'`, `outcome: 'flagged'`, `match: false`) rather than 4xx. Each carries an inline `// B16 demo-scope intentional: …` comment confirming the intent. Clients inspect body fields, not status (Phase 1D `43f67e5`).
+The 3 verifier routes — `nira-verify`, `aml-screen`, `face-match` — return HTTP 200 with a body-field refusal (`result: 'partial' | 'no-match'`, `outcome: 'flagged'`, `match: false`) rather than 4xx. Each carries an inline `// demo-scope intentional: …` comment confirming the intent. Clients inspect body fields, not status (Phase 1D `43f67e5`).
 
 ---
 
@@ -139,12 +139,12 @@ Server-only. Three layers: top-level `api/_lib/` for cross-domain helpers, `api/
 |---|---|---|
 | `api/_lib/jwt.ts` | HS256 sign/verify via `jose`. UTF-8 secret interpretation (PGRST301-correct). | `signJwt(claims) → Promise<string>`, `verifyJwt(token) → Promise<JwtClaims>`, types |
 | `api/_lib/supabase-admin.ts` | Singleton service-role client (RLS-bypassing). Proxy-deferred init. | default `supabaseAdmin` |
-| `api/_lib/bearer.ts` | `Bearer <token>` header extractor; canonical parse for the three callers below. Phase 1A `aab34e9`. | `extractBearer(req: VercelRequest) → string \| null` (default + named) |
-| `api/_lib/phone.ts` | UG-phone canonicalization to `+256XXXXXXXXX`. `parseUGPhoneLocal` and `isValidUGPhone` were removed in Phase 1H `b91f6eb` (dead exports). | `toCanonicalUGPhone(raw) → string` |
-| `api/_lib/withAuth.ts` | Bearer-JWT middleware; 401 `{ error: 'unauthorized' }` on missing/invalid. Reserved for future Employer/Admin role rollouts (commented inline at the export site, Phase 1H `b91f6eb`). | `withAuth(handler) → VercelHandler`, types `AuthedRequest` / `AuthedHandler` |
-| `api/_lib/withOptionalAuth.ts` | Bearer-JWT middleware; attaches `req.user: null` on miss. Used by `/api/chat`. | `withOptionalAuth(handler) → VercelHandler`, types `MaybeAuthedRequest` / `MaybeAuthedHandler` |
+| `api/_lib/bearer.ts` | `Bearer <token>` header extractor; canonical parse for the three callers below. | `extractBearer(req) → string \| null` (default + named) |
+| `api/_lib/phone.ts` | UG-phone canonicalization to `+256XXXXXXXXX`. | `toCanonicalUGPhone(raw) → string` |
+| `api/_lib/withAuth.ts` | Bearer-JWT middleware; 401 `{ error: 'unauthorized' }` on missing/invalid. **Currently wraps no routes** — reserved for future Employer/Admin endpoints. | `withAuth(handler)`, `AuthedRequest`, `AuthedHandler` |
+| `api/_lib/withOptionalAuth.ts` | Bearer-JWT middleware; attaches `req.user: null` on miss. Used by `/api/chat`. | `withOptionalAuth(handler)`, `MaybeAuthedRequest`, `MaybeAuthedHandler` |
 
-Both middlewares delegate header parsing to `extractBearer` from `bearer.ts` — no inline duplication remains.
+Both middlewares delegate header parsing to `extractBearer` from `bearer.ts`. `change-password.ts` does inline `extractBearer` + `verifyJwt` rather than going through `withAuth` because its 401 payload uses `{ code: 'unauthorized' }` (the route's unified error envelope) and `withAuth`'s `{ error }` literal would diverge.
 
 ### `api/auth/_lib/` (3 modules)
 
@@ -152,37 +152,19 @@ Auth-only helpers, owned by `verify-otp` / `verify-password` / `change-password`
 
 | File | Purpose | Exports |
 |---|---|---|
-| `api/auth/_lib/password.ts` | Sole consumer of `bcryptjs`. Pre-existing (untouched by Phase 1). | `validatePasswordShape`, `hashPassword`, `verifyPassword` |
-| `api/auth/_lib/personas.ts` | Persona resolution shared between `verify-otp` and `verify-password`. Phase 1C `c3b54a3`. | `ROLE_DEFAULTS`, `resolveSubscriber`, `resolveDemoPersona`, `ResolvedIdentity` type |
-| `api/auth/_lib/claims.ts` | JWT-claim + response-DTO assembly. Phase 1C `c3b54a3`. | `buildJwtClaims`, `buildAuthResponseUser`, `buildAuthResponseDto`, `AuthResponse` / `AuthResponseUser` types |
+| `api/auth/_lib/password.ts` | Sole consumer of `bcryptjs`. | `validatePasswordShape`, `hashPassword`, `verifyPassword` |
+| `api/auth/_lib/personas.ts` | Persona resolution shared between `verify-otp` and `verify-password`. | `ROLE_DEFAULTS`, `resolveSubscriber`, `resolveDemoPersona`, `ResolvedIdentity` |
+| `api/auth/_lib/claims.ts` | JWT-claim + response-DTO assembly. | `buildJwtClaims`, `buildAuthResponseUser`, `buildAuthResponseDto`, `AuthResponse`, `AuthResponseUser` |
 
-**`password.ts` API (unchanged from pre-Phase-1):**
+`password.ts` ships three functions: `validatePasswordShape(plain)` (synchronous; returns `null` on pass, or one of: `password_required`, `password_too_short`, `password_too_long` (72-**byte** cap — bcrypt's hard limit), `password_too_weak` (must contain letter + digit)); `hashPassword(plain)` (bcrypt `COST = 10`, ~80ms); `verifyPassword(plain, hash)` (returns `false` — never throws — for any failure mode: missing hash, malformed hash, mismatch).
 
-- `validatePasswordShape(plain)` — synchronous; returns `null` on pass, or one of: `password_required`, `password_too_short`, `password_too_long` (72-**byte** cap — bcrypt's hard limit), `password_too_weak` (must contain letter + digit).
-- `hashPassword(plain)` — bcrypt `COST = 10` (~80ms).
-- `verifyPassword(plain, hash)` — returns `false` (never throws) for any failure mode: missing hash, malformed hash, mismatch.
+`personas.ts` ships `ROLE_DEFAULTS` (the demo-stable fallback entity IDs `subscriber → 's-0001'`, `agent → 'a-001'`, `branch → 'b-kam-015'`, `distributor → 'd-001'` — mirrors the seed personas; sync is manual); `resolveSubscriber(supabaseAdmin, phone)` (newest-wins lookup on `subscribers (phone)`; returns `null` on no match or DB error — caller falls back to `ROLE_DEFAULTS.subscriber`); `resolveDemoPersona(supabaseAdmin, phone, role)` (`(phone, role)` lookup on `demo_personas`; always returns an identity, falling back to `ROLE_DEFAULTS[role]`).
 
-**`personas.ts` API:**
-
-- `ROLE_DEFAULTS: Record<JwtRole, string>` — the demo-stable fallback entity IDs (`subscriber → 's-0001'`, `agent → 'a-001'`, `branch → 'b-kam-015'`, `distributor → 'd-001'`). Mirrors the seed personas; sync is manual (audit D18).
-- `resolveSubscriber(supabaseAdmin, phone)` — newest-wins lookup on `subscribers (phone)`. Returns `null` when no match OR the lookup errored (the caller falls back to `ROLE_DEFAULTS.subscriber`). DB errors are logged with the `[auth/personas]` tag and treated as non-fatal at the helper layer; the route catches them via `DbError` for the upsert path only.
-- `resolveDemoPersona(supabaseAdmin, phone, role)` — `(phone, role)` lookup on `demo_personas`; always returns an identity (falls back to `ROLE_DEFAULTS[role]` when no row matches). Used for the 3 non-subscriber roles.
-
-**`claims.ts` API:**
-
-- `buildJwtClaims({ role, phone, entityId }) → JwtSignInput` — assembles `sub`, `role: 'authenticated'`, `app_role`, `phone`, and the role-scoped `subscriberId` / `agentId` / `branchId` / `distributorId` claim.
-- `buildAuthResponseUser({ role, phone, entityId, hasPassword, name? }) → AuthResponseUser` — assembles the `user` half of the response body.
-- `buildAuthResponseDto({ token, role, phone, entityId, hasPassword, name? }) → { token, user }` — convenience wrapper. Both `verify-otp` and `verify-password` call this exactly before `res.status(200).json(...)`, so the two routes mint byte-identical payloads.
-
-Phase 1C lifted these from verbatim duplicates inside `verify-otp.ts` and `verify-password.ts`. The OTP-vs-password parity (`AuthContext.login` consumes either) is now enforced by a shared module rather than by hand-syncing two files.
+`claims.ts` ships `buildJwtClaims` (assembles `sub`, `role: 'authenticated'`, `app_role`, `phone`, and the role-scoped `subscriberId`/`agentId`/`branchId`/`distributorId` claim) and `buildAuthResponseDto` (convenience wrapper that both `verify-otp` and `verify-password` call right before `res.status(200).json(...)`, so the two routes mint byte-identical `{ token, user }` payloads).
 
 ### `api/kyc/_lib/` (1 module)
 
-| File | Purpose | Exports |
-|---|---|---|
-| `api/kyc/_lib/mocks.ts` | Smile ID v2 tracking-id shape generator. Phase 1B `92cada2`. | `mockTrackingId(prefix?: string) → string` (defaults to `'smile'`) |
-
-Returns `${prefix}_${ts36}_${rand36}` (e.g. `smile_lwxa3y2k_4f9q2z`). Consumed by `face-match.ts`, `aml-screen.ts`, `nira-verify.ts`. The separator (`_`, not `-`) and prefix default are deliberate — QA fixtures hard-code the shape. Keep stable.
+`api/kyc/_lib/mocks.ts` ships `mockTrackingId(prefix?: string) → string` (defaults to `'smile'`). Returns `${prefix}_${ts36}_${rand36}` (e.g. `smile_lwxa3y2k_4f9q2z`). Consumed by `face-match.ts`, `aml-screen.ts`, `nira-verify.ts`. The separator (`_`, not `-`) and prefix default are deliberate — QA fixtures hard-code the shape. Keep stable.
 
 ### JWT claim shape (single source of truth)
 
@@ -207,20 +189,14 @@ type JwtClaims = {
 
 - `signJwt` defaults `iss/aud/iat/exp/role` when omitted and signs via `new SignJWT(...).setProtectedHeader({ alg: 'HS256', typ: 'JWT' })`.
 - `verifyJwt` validates signature + audience + issuer + expiry. Any failure throws — callers map to 401.
-- TTL: `DEFAULT_EXPIRY_SECONDS = 60 * 60 * 24` (24h, single source — audit B20). No refresh path.
+- TTL: `DEFAULT_EXPIRY_SECONDS = 60 * 60 * 24` (24h, single source). No refresh path.
 - Secret bytes are cached on first decode (`getSecretKey()`).
 
 ### Supabase admin client
 
-`supabase-admin.ts` returns a Proxy that lazy-instantiates the client on first property access, so unit tests + type-check passes don't throw when env vars are missing. The real client is built with `auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }` — critical under the **long-lived Render Express process** (G66). The previous Vercel topology rebuilt the client per invocation, masking any session-related drift; under a singleton, leaving these flags unset would leak token-refresh timers across requests. If any future code path imports the admin client with different `auth` options, an internal refresh timer could fire on a stale token and break authenticated reads silently.
+`supabase-admin.ts` returns a Proxy that lazy-instantiates the client on first property access, so unit tests + type-check passes don't throw when env vars are missing. The real client is built with `auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }` — critical under the **long-lived Render Express process**. The previous Vercel topology rebuilt the client per invocation, masking any session-related drift; under a singleton, leaving these flags unset would leak token-refresh timers across requests. If any future code path imports the admin client with different `auth` options, an internal refresh timer could fire on a stale token and break authenticated reads silently.
 
-**Role claim is frozen at JWT mint time (G57).** `api/auth/_lib/claims.ts:50-66` encodes `app_role` when the token is minted. If the underlying `users.role` row changes in the database (e.g. admin manually re-roles a user), the change does NOT propagate until the user re-logs in. There is no refresh path. Doc-only awareness item; no code change.
-
-### `withAuth` vs `withOptionalAuth`
-
-- `withAuth` rejects with `401 { error: 'unauthorized' }` if Bearer is missing or invalid. **Currently wraps no routes** — reserved for future Employer/Admin endpoints (commented inline at the export site, Phase 1H `b91f6eb`). `change-password.ts` still does inline `extractBearer` + `verifyJwt` because its 401 payload uses `{ code: 'unauthorized' }` (the rest of the route's vocabulary) and the unified error envelope post-Phase-1D would diverge from `withAuth`'s `{ error }` literal.
-- `withOptionalAuth` swallows invalid tokens and attaches `req.user = null`. Used by `/api/chat` so the landing-page chat works for unauthenticated visitors while signed-in users get role-aware replies.
-- Both middlewares delegate header parsing to `extractBearer` from `api/_lib/bearer.ts` — Phase 1A removed the previous 3× inline duplication.
+**Role claim is frozen at JWT mint time.** `api/auth/_lib/claims.ts:50-66` encodes `app_role` when the token is minted. If the underlying `users.role` row changes in the database (e.g. admin manually re-roles a user), the change does NOT propagate until the user re-logs in. There is no refresh path. Doc-only awareness item; no code change.
 
 ---
 
@@ -300,23 +276,62 @@ Because we never go through Supabase Auth (no `auth.users` row, no `sub` = a Sup
 
 ### The `auth.jwt() ->> 'app_role'` vs `'role'` trap (canonical citation)
 
-Hard anti-pattern: **never read `auth.jwt() ->> 'role'` and compare against application role values** (`'distributor'`, `'agent'`, `'branch'`, `'subscriber'`).
+Hard anti-pattern: **never read `auth.jwt() ->> 'role'` and compare against application role values** (`'distributor'`, `'agent'`, `'branch'`, `'subscriber'`). This single trap has caused at least **two production-grade incidents** in this repo's history (callouts below). It is the highest-stakes correctness rule in the backend.
 
 - PostgREST requires the JWT to carry `role: 'authenticated'` (the Postgres role) so it can issue `SET ROLE authenticated`. With JWTs minted by `signJwt`, **every** `auth.jwt() ->> 'role'` returns the literal string `'authenticated'`.
 - The application role lives in a separate `app_role` claim. RLS + RPCs MUST read `auth.jwt() ->> 'app_role'`.
 
-Historical incidents this exact mistake produced:
+#### Historical incidents (boxed callouts)
 
-- **0018 rollup-zero regression.** `get_entity_metrics_rollup` read `'role'` for its role gate; every drill-down rendered `0` subscribers / `—` AUM. Fixed in 0020 (after an abandoned 0019 raw-psql hotfix and a remote-only `fix_metrics_rollup_app_role` migration — see §7).
-- **0004 commission-RPC silent failures.** The 13 state-machine RPCs read `'role'`; every branch/agent action raised `role_not_permitted`. Fixed by 0007 (DO block + `pg_get_functiondef` literal-string swap) and again by 0021 (re-emitted bodies as canonical).
+> **Incident 2026-04-12 — 0018 metrics-rollup zero regression.** A newly-shipped
+> `get_entity_metrics_rollup(p_level, p_entity_ids)` RPC gated on
+> `auth.jwt() ->> 'role'` (which returns the Postgres role `'authenticated'`)
+> instead of `auth.jwt() ->> 'app_role'` (which returns the application role
+> `'subscriber'` / `'agent'` / `'branch'` / `'distributor'`). Effect: **every
+> drill-down on the distributor dashboard rendered `0` subscribers and `—` AUM**
+> — the role gate raised `role_not_permitted` on every call, the rollup
+> returned an empty payload, and the UI silently filled zeros. An abandoned
+> 0019 raw-psql hotfix was applied to remote but never landed in git; a
+> targeted remote-only migration `fix_metrics_rollup_app_role` (timestamp
+> `20260519165115`) patched the role-gate string but is not in the local tree
+> either. The canonical fix landed as `0020_entity_metrics_rollup_v3.sql`,
+> which re-emits the body reading `'app_role'`. See §7 for the supersession
+> narrative.
 
-Contract-enforced by `src/tests/jwt-claim-contract.test.js`. The audit (D1) confirmed all 65 active policies + all 29 RPCs read `app_role` correctly in live state.
+> **Incident 2026-03 — 0004 commission state-machine silent failure.** The
+> first cut of `0004_commission_run_rpcs.sql` shipped 13 SECURITY DEFINER
+> state-machine RPCs (`open_run`, `release_run`, `branch_approve_line`,
+> `branch_dispute_line`, etc.) — all of which gated on
+> `auth.jwt() ->> 'role'` against application role values (`'distributor'`,
+> `'branch'`, `'agent'`). Effect: **every branch and agent action on the
+> commission queue raised `role_not_permitted`**; the distributor "Open Run"
+> button worked only because the role compared against literally was
+> `'authenticated'` by coincidence in one of the early local tests. The fix
+> arrived as `0007_rls_use_app_role.sql` (DO block + `pg_get_functiondef`
+> literal-string swap, which rewrote every policy + RPC body in-place). The
+> RPCs were then re-emitted canonically in `0021_commission_rpcs_app_role.sql`
+> so the bodies match the source rather than depending on a one-time runtime
+> rewrite.
+
+**Why the trap is so easy to make.** Both `'role'` and `'app_role'` are valid string claims; nothing in PostgREST, jose, or the Supabase JS client warns when a policy compares the wrong one. The mistake produces no exception — just an empty result set. A policy that reads `'role'` and gates on `'agent'` will simply never return rows; a `SECURITY DEFINER` RPC that does the same raises a generic role-mismatch on every call.
+
+**How the trap is contract-enforced today.** `src/tests/jwt-claim-contract.test.js` asserts that every minted JWT carries the canonical `app_role` claim with one of the four legal values; a backend audit confirmed all 65 active policies + all 29 RPCs read `'app_role'` correctly in live state. When you add a new RLS policy or `SECURITY DEFINER` function, the rule is:
+
+```sql
+-- WRONG — silently returns no rows / raises role_not_permitted:
+USING (auth.jwt() ->> 'role' = 'agent')
+
+-- RIGHT:
+USING ((SELECT auth.jwt()) ->> 'app_role' = 'agent')
+```
+
+(The `(SELECT auth.jwt())` wrap is for InitPlan hoisting — see `0008_rls_wrap_auth_jwt_initplan.sql`.)
 
 ---
 
 ## §7. Migration discipline
 
-Forward-only. Never edit a shipped migration. For schema fixes, add a new `00NN_*.sql`.
+Forward-only. Never edit a shipped migration. For schema fixes, add a new `00NN_*.sql`. The full 28-migration index with per-file one-liners and incident cross-references lives in [`docs/MIGRATIONS.md`](./docs/MIGRATIONS.md); the table below in this section is a short rollup of the high-impact ones plus the supersession narrative around `0018 → (0019 missing) → 0020`.
 
 ### Numbering
 
@@ -328,56 +343,38 @@ Newer migrations ship a `.down.sql` partner alongside the forward file (`0016`, 
 
 ### Idempotency
 
-Re-running migrations should be safe. The audit (D12) flagged **four** migrations as **missing idempotency guards** on at least one statement:
+Re-running migrations should be safe. **Four** migrations are missing idempotency guards on at least one statement: `0003` (bare `CREATE POLICY`, would error on re-run); `0006` (`ALTER FUNCTION ... SECURITY DEFINER` — pg-safe to re-run but no guards); `0010` (bare `ALTER FUNCTION ... SET search_path` — pg-safe); `0025` (`ALTER PUBLICATION ... DROP TABLE` does NOT accept `IF EXISTS`, would fail loudly if publication state drifted — documented in the file). All other migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE` consistently.
 
-- `0003_rls_policies.sql` — `CREATE POLICY` statements without `DROP POLICY IF EXISTS` (re-run would error on existing policy names).
-- `0006_trigger_security_definer.sql` — `ALTER FUNCTION ... SECURITY DEFINER` statements (re-run is idempotent in pg, but no guards exist; not strictly broken).
-- `0010_function_search_path.sql` — bare `ALTER FUNCTION ... SET search_path` (same as 0006 — pg-safe to re-run, but no guards).
-- `0025_drop_realtime_publication.sql` — `ALTER PUBLICATION ... DROP TABLE` does **not** accept `IF EXISTS`; sequential drops would fail loudly if the publication state has drifted (the file comment explicitly documents this).
+### High-impact migrations (rollup; full index in [`docs/MIGRATIONS.md`](./docs/MIGRATIONS.md))
 
-The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE` / `DROP ... IF EXISTS` guards consistently.
+| File | Scope |
+|---|---|
+| `0001_initial_schema.sql` | 21 tables · 4 ENUMs · `pg_trgm` extension |
+| `0002_rpc_functions.sql` | 4 trigger fns · 7 read RPCs · 2 atomic-write RPCs |
+| `0003_rls_policies.sql` | 65 policies · ENABLE + FORCE RLS on all 20 tables |
+| `0004_commission_run_rpcs.sql` | 13 SECURITY DEFINER state-machine RPCs (originally read `'role'` — see §6 incident callout) |
+| `0007_rls_use_app_role.sql` | Swaps every `'role'` → `'app_role'` across policies + RPC + trigger bodies (the 0004 incident fix) |
+| `0008_rls_wrap_auth_jwt_initplan.sql` | Wraps `auth.jwt()` in `(SELECT auth.jwt())` for InitPlan hoisting |
+| `0014_signup_phone_and_agent_dispute.sql` | `_canonical_ug_phone` · `_insert_subscriber_chain` rewrite · **`agent_dispute_line`** RPC |
+| `0018_entity_metrics_rollup.sql` | **Superseded by 0020** — left in tree, do not apply |
+| `0020_entity_metrics_rollup_v3.sql` | Canonical metrics rollup (the 0018 incident fix). `_demo_now() = '2026-05-18'` |
+| `0021_commission_rpcs_app_role.sql` | Re-emits all 13 commission RPCs reading `app_role` directly (canonical) |
+| `0024_upsert_nominees.sql` | `nominees_share_range_chk` + `upsert_nominees` RPC |
+| `0025_drop_realtime_publication.sql` | Drops 3 tables from `supabase_realtime` (zero `.channel()` subscribers in code) |
+| `0026_users_password_hash.sql` | Adds nullable `users.password_hash TEXT` for bcrypt digests |
 
-### Migration inventory
-
-| File | Lines | Scope |
-|---|---|---|
-| `0001_initial_schema.sql` | 494 | 21 tables · 4 ENUMs · 8 indexes · `pg_trgm` extension |
-| `0002_rpc_functions.sql` | 1,290 | 4 trigger fns · 7 read RPCs · 2 atomic-write RPCs · 2 private helpers |
-| `0003_rls_policies.sql` | 896 | 65 policies · ENABLE + FORCE RLS on all 20 tables · realtime tuning (later dropped by 0025) |
-| `0004_commission_run_rpcs.sql` | 1,055 | 13 SECURITY DEFINER state-machine RPCs |
-| `0005_subscriber_update_fix.sql` | 72 | Drops correlated-subquery WITH CHECK; adds `trg_subscribers_enforce_editable_cols` |
-| `0006_trigger_security_definer.sql` | 28 | Promotes 3 trigger fns to `SECURITY DEFINER` + pinned search_path |
-| `0007_rls_use_app_role.sql` | 715 | Swaps every `'role'` → `'app_role'` across policies + RPC + trigger bodies |
-| `0008_rls_wrap_auth_jwt_initplan.sql` | 638 | Wraps `auth.jwt()` in `(SELECT auth.jwt())` for InitPlan hoisting |
-| `0009_fk_covering_indexes.sql` | 33 | FK covering indexes |
-| `0010_function_search_path.sql` | 48 | Pins `search_path = public, pg_temp` on 11 INVOKER functions |
-| `0011_drop_unused_indexes.sql` | 28 | Drops unused indexes |
-| `0012_pg_trgm_into_extensions_schema.sql` | 35 | Moves `pg_trgm` to `extensions` schema |
-| `0013_fk_covering_indexes_followup.sql` | 33 | More FK indexes |
-| `0014_signup_phone_and_agent_dispute.sql` | 437 | `_canonical_ug_phone` · `_insert_subscriber_chain` rewrite · **`agent_dispute_line`** RPC |
-| `0015_signup_insurance_and_premium_tx.sql` | 312 | `_insert_subscriber_chain` insurance toggle + premium tx fix |
-| `0016_distributors_table.sql` (+ `.down.sql`) | 69 | `distributors` table + policies; seeds `d-001` |
-| `0017_unique_constraints.sql` | 53 | `ux_agents_email`, `ux_subscribers_nin`, `ux_commissions_agent_subscriber` |
-| `0018_entity_metrics_rollup.sql` | 532 | **Superseded by 0020** — left in tree (audit D4) |
-| `0020_entity_metrics_rollup_v3.sql` | 1,536 | Canonical metrics rollup. Reads `app_role` correctly. `_demo_now() = '2026-05-18'` |
-| `0021_commission_rpcs_app_role.sql` | 1,055 | Re-emits all 13 commission RPCs reading `app_role` directly (canonical) |
-| `0022_audit_perf.sql` (+ `.down.sql`) | 150 | `idx_transactions_type_date`, `idx_commissions_status`, `get_top_branch` rewrite |
-| `0023_rls_initplan_fixes.sql` (+ `.down.sql`) | 52 | Duplicate-index drop, `distributors_update_self` InitPlan wrap, `_demo_now` search_path lock |
-| `0024_upsert_nominees.sql` (+ `.down.sql`) | 147 | `nominees_share_range_chk` (`NOT VALID`) + `upsert_nominees` RPC |
-| `0025_drop_realtime_publication.sql` (+ `.down.sql`) | 18 | Drops 3 tables from `supabase_realtime` (zero subscribers — Phase 1+2 confirmed) |
-| `0026_users_password_hash.sql` (+ `.down.sql`) | 22 | Adds nullable `users.password_hash TEXT` for bcrypt digests |
+Every other migration (`0005`, `0006`, `0009–0013`, `0015–0017`, `0022`, `0023`) is a small targeted fix; see [`docs/MIGRATIONS.md`](./docs/MIGRATIONS.md) for the one-liner index.
 
 ### Supersession history: 0018 → 0019 (missing) → 0020
 
 - `0018_entity_metrics_rollup.sql` shipped the first body but the role gate read `auth.jwt() ->> 'role'`, raising `role_not_permitted` on every call (every drill-down rendered zeros).
 - A raw-psql v2 hotfix was applied to remote — never landed in git as `0019`.
-- A targeted remote-only migration `fix_metrics_rollup_app_role` (timestamp `20260519165115`, audit D5) was applied to remote between 0018 and 0020 — it patches the role gate string but is **not in the local git tree**.
+- A targeted remote-only migration `fix_metrics_rollup_app_role` (timestamp `20260519165115`) was applied to remote between 0018 and 0020 — it patches the role gate string but is **not in the local git tree**.
 - `0020_entity_metrics_rollup_v3.sql` is the canonical superseder — same `(p_level TEXT, p_entity_ids TEXT[]) → jsonb` signature, output keys are a superset of 0018, time-bucket fields + demographics + KYC counts all live here. **Apply only via the new file; 0018 is operationally stale.**
 
 ### Applying migrations
 
-- **Local**: `supabase db reset` (re-runs every `00NN_*.sql` from scratch).
-- **Hosted**: `supabase db push`, OR via the Supabase MCP tool `mcp__supabase__apply_migration`. The MCP path wraps DDL in a transaction by default — `0022`'s `CREATE INDEX CONCURRENTLY` statements cannot run inside a transaction, so the file documents splitting them into `execute_sql` calls outside the transaction. Most other migrations apply cleanly via the MCP wrapper.
+Local: `supabase db reset` (re-runs every `00NN_*.sql`). Hosted: `supabase db push` or the Supabase MCP tool `mcp__supabase__apply_migration` (note: the MCP path wraps DDL in a transaction by default — `0022`'s `CREATE INDEX CONCURRENTLY` must be split out via `execute_sql`; the file documents this inline).
 
 ---
 
@@ -396,7 +393,7 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 
 | Table | Purpose |
 |---|---|
-| `distributors` | National-singleton network operator. Seeded with `d-001`; seed script also inserts `d-002` (audit D15: `mockData.js` only knows `d-001`). Columns: `id TEXT PK`, `name`, `parent_id` (default `'ug'`), `manager_name`, `manager_phone`, `manager_email`, `status`, `created_at`, `updated_at`. Defined in `0016`. |
+| `distributors` | National-singleton network operator. Seeded with `d-001`; seed script also inserts `d-002` (`mockData.js` only knows `d-001`, so mock-backed mode misses `d-002`). Columns: `id TEXT PK`, `name`, `parent_id` (default `'ug'`), `manager_name`, `manager_phone`, `manager_email`, `status`, `created_at`, `updated_at`. Defined in `0016`. |
 | `branches` | ~314 rows; FK → `districts(id)`. Carries denorm `score`, `rank`, `district_rank`, `district_branch_count` (seeded once, never refreshed). |
 | `agents` | ~500–2,000 rows; FK → `branches(id)`. `languages` / `specialties` are JSONB arrays. `coverage_rate INT` added in 0018, backfilled from active proxy. |
 
@@ -405,10 +402,10 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 | Table | Purpose |
 |---|---|
 | `subscribers` | ~30k rows; FK → `agents(id)` + `districts(id)`. Partial `UNIQUE(phone) WHERE NOT is_demo_signup` lets demo signups collide-and-overwrite. |
-| `subscriber_balances` | One row per subscriber; maintained by trigger (§11). |
+| `subscriber_balances` | One row per subscriber; maintained by trigger (§12). |
 | `contribution_schedules` | One row per subscriber; UPSERTed at signup. `retirement_pct + emergency_pct = 100`. |
-| `insurance_policies` | One row per subscriber; nullable. `status` ∈ `'active' \| 'inactive'` (TEXT — see D8). |
-| `nominees` | Pension + insurance beneficiaries; per-row `CHECK (share BETWEEN 0 AND 100)`. **No `UNIQUE` per `(subscriber_id, type)`** (audit D9) — duplicate beneficiaries are possible at the table level; sum-to-100 enforcement now lives in `upsert_nominees` (0024). |
+| `insurance_policies` | One row per subscriber; nullable. `status` ∈ `'active' \| 'inactive'` (TEXT — see "Status columns" below). |
+| `nominees` | Pension + insurance beneficiaries; per-row `CHECK (share BETWEEN 0 AND 100)`. **No `UNIQUE` per `(subscriber_id, type)`** — duplicate beneficiaries are possible at the table level; sum-to-100 enforcement now lives in `upsert_nominees` (0024). |
 | `transactions` | Append-only ledger; triggers update balances + first-contribution commission. Includes `type` ∈ `'contribution' \| 'withdrawal' \| 'premium' \| …`. |
 | `claims` | Insurance claims; per-subscriber. |
 | `withdrawals` | Withdrawal records; per-subscriber. |
@@ -440,21 +437,15 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 | `settlement_run_branch_review_state` | `pending, approved, released` |
 | `nominee_type` | `pension, insurance` |
 
-### Status columns are TEXT with implicit enums (audit D8)
+### Status columns are TEXT with implicit enums
 
 `subscribers.kyc_status`, `withdrawals.status`, `claims.status`, `insurance_policies.status`, `agent_referrals.status`, `distributors.status` — all `TEXT` with documented value sets but no `CHECK` constraint. Discipline lives in client code (and the BEFORE-UPDATE trigger for `subscribers`). The four `commission_status` / `settlement_run_state` / `settlement_run_branch_review_state` / `nominee_type` enums are properly enforced.
 
 ### Indexes
 
-From `0001` (8): `subscribers (agent_id)`, partial `subscribers (phone) WHERE NOT is_demo_signup`, `transactions (subscriber_id, date DESC)`, `commissions (agent_id, status)`, `commissions (branch_id, status)`, `commissions (run_id)`, `settlement_run_branch_reviews (branch_id)`, plus `users (phone)` + `demo_personas (phone, role)`.
+`0001` ships 8 base indexes: `subscribers (agent_id)`, partial `subscribers (phone) WHERE NOT is_demo_signup`, `transactions (subscriber_id, date DESC)`, `commissions (agent_id, status)`, `commissions (branch_id, status)`, `commissions (run_id)`, `settlement_run_branch_reviews (branch_id)`, `users (phone)` + `demo_personas (phone, role)`. `0017` adds the 3 unique constraints (`ux_agents_email`, `ux_subscribers_nin`, `ux_commissions_agent_subscriber` — the last one closes the first-contribution race, see §15b). FK covering + perf indexes accrue across `0009`/`0013`/`0018`/`0020`/`0022` (including `idx_transactions_type_date` partial). `0011` + `0023` drop unused indexes including the duplicate `subscribers_agent_id_idx`.
 
-Added in `0017_unique_constraints.sql` (3 partial / full unique): `ux_agents_email`, `ux_subscribers_nin`, `ux_commissions_agent_subscriber` (closes the first-contribution race — see §11).
-
-Added in `0009`, `0013`, `0018`, `0020`, `0022`: FK covering indexes, `idx_transactions_date`, `idx_transactions_subscriber_id`, `idx_subscribers_registered`, `idx_subscribers_agent_id`, `idx_subscribers_gender`, `idx_subscribers_kyc`, `idx_transactions_type_date` (partial, `WHERE type IN ('contribution','withdrawal')`), `idx_commissions_status`.
-
-Dropped in `0011`, `0023`: unused indexes and the duplicate `subscribers_agent_id_idx` (728 KB → kept the smaller `idx_subscribers_agent_id` at 264 KB).
-
-### Denormalized columns seeded but never re-written (audit D11)
+### Denormalized columns seeded but never re-written
 
 Columns the seed populates but no API code path updates (some are read-only metric displays; some are entirely unused):
 
@@ -462,7 +453,7 @@ Columns the seed populates but no API code path updates (some are read-only metr
 - `branches.score`, `branches.rank`, `branches.district_rank`, `branches.district_branch_count`
 - `subscribers.products_held`, `subscribers.contribution_history`, `subscribers.current_unit_value`, `subscribers.occupation`, `subscribers.unit_value_as_of`
 - `transactions.status`, `transactions.method`, `transactions.split_retirement`, `transactions.split_emergency`
-- `commissions.subscriber_name` (denorm at insert; never updated when `subscribers.name` changes — audit D10)
+- `commissions.subscriber_name` (denorm at insert; never updated when `subscribers.name` changes)
 
 ---
 
@@ -471,7 +462,7 @@ Columns the seed populates but no API code path updates (some are read-only metr
 ### Discipline summary
 
 - Every JWT signed by `signJwt` carries `role: 'authenticated'` (Postgres role) + `app_role: <JwtRole>` (application role).
-- **Every active RLS policy reads `auth.jwt() ->> 'app_role'`** — never `'role'`. Audit D1 verified all 65 policies in live state are correct.
+- **Every active RLS policy reads `auth.jwt() ->> 'app_role'`** — never `'role'`. All 65 policies are verified correct in live state (see §6 for why this matters).
 - **0 policies use `auth.uid()`** — would return `NULL` for our custom JWTs.
 - Every table is both `ENABLE` and `FORCE` ROW LEVEL SECURITY — table owners are not exempt.
 - The `commissions`, `settlement_runs`, and `settlement_run_branch_reviews` tables have **no direct INSERT/UPDATE/DELETE policies**. Every write flows through the SECURITY DEFINER state-machine RPCs in `0004` / `0021` (§10).
@@ -517,20 +508,9 @@ Legend: R = SELECT, I = INSERT, U = UPDATE, D = DELETE. **Employer + admin roles
 
 ## §10. RPC inventory
 
-**29 functions** total (24 SECURITY DEFINER + 5 INVOKER), all with `SET search_path` pinned (audit D2). All 29 read `auth.jwt() ->> 'app_role'` (never `'role'`) — audit D2 verified zero `auth.uid()` usage.
+**29 functions** total (24 SECURITY DEFINER + 5 INVOKER), all with `SET search_path` pinned. All 29 read `auth.jwt() ->> 'app_role'` (never `'role'`); zero usage of `auth.uid()` across the codebase (see §6 for why both rules matter).
 
-Breakdown:
-
-- 4 trigger functions (0002) — see §11
-- 1 trigger function (0005) — `trg_subscribers_enforce_editable_cols`
-- 2 private helpers (0002, then rewritten in 0014 + 0015) — `_validate_signup_payload`, `_insert_subscriber_chain`
-- 1 helper (0014) — `_canonical_ug_phone`
-- 1 helper (0020 / 0023) — `_demo_now()` (IMMUTABLE; pinned search_path)
-- 7 read RPCs (0002, with `get_entity_metrics_rollup` introduced in 0018 and superseded in 0020, plus `get_top_branch` rewritten in 0022)
-- 2 atomic-write RPCs (0002) — `create_subscriber_from_signup`, `create_subscriber_from_agent_onboard`
-- 13 commission state-machine RPCs (0004 → re-emitted in 0021)
-- 1 agent-side dispute RPC (0014) — `agent_dispute_line`
-- 1 nominees upsert RPC (0024) — `upsert_nominees`
+Breakdown: 5 trigger functions (4 in 0002 + 1 in 0005 — see §12); 3 private/internal helpers (`_validate_signup_payload`, `_insert_subscriber_chain` in 0002 then rewritten 0014/0015; `_canonical_ug_phone` in 0014; `_demo_now()` IMMUTABLE in 0020/0023); 7 read RPCs (below); 2 atomic-write RPCs (below); 13 commission state-machine RPCs (0004 → re-emitted in 0021); 1 agent-side dispute RPC (`agent_dispute_line` in 0014); 1 nominees upsert RPC (`upsert_nominees` in 0024).
 
 ### Read RPCs (7)
 
@@ -556,54 +536,23 @@ create_subscriber_from_signup(payload jsonb) RETURNS TEXT
 create_subscriber_from_agent_onboard(payload jsonb, calling_agent_id TEXT) RETURNS TEXT
 ```
 
-Shared work (`_insert_subscriber_chain`, rewritten in 0014 then 0015):
+Shared work (`_insert_subscriber_chain`, rewritten in 0014 then 0015): validate payload (`_validate_signup_payload`); insert subscriber row (idempotent on phone via partial unique index); fire `trg_subscribers_after_insert` (seeds `subscriber_balances`); insert `contribution_schedules` (80/20 default unless overridden); insert `insurance_policies` when `contributionSchedule.includeInsurance = true` (0015); insert `nominees` (pension + insurance); insert the first `transactions` row (`type='contribution'`) — `trg_transactions_contribution` updates balance + creates first-contribution commission at `commission_config.rate`. After 0015 a second `transactions` row (`type='premium'`) is emitted when an insurance premium is set; the contribution + withdrawal triggers are guarded with `WHEN (NEW.type = …)` so the premium row does not double-fire balance writes.
 
-- Validates payload (`_validate_signup_payload`).
-- Inserts subscriber row (idempotent on phone via the partial unique index).
-- Triggers `trg_subscribers_after_insert` (seeds `subscriber_balances`).
-- Inserts `contribution_schedules` (frequency, amount, 80/20 default unless overridden).
-- Inserts `insurance_policies` when `contributionSchedule.includeInsurance = true` (0015 fix).
-- Inserts `nominees` (pension + insurance).
-- Inserts the first `transactions` row (`type='contribution'`) — triggers `trg_transactions_contribution` → balance update + first-contribution commission row at `commission_config.rate`.
-- After 0015: emits a second `transactions` row (`type='premium'`) when an insurance premium is set. The contribution + withdrawal triggers are guarded with `WHEN (NEW.type = 'contribution'|'withdrawal')` so the premium row does not double-fire balance writes.
-
-`create_subscriber_from_signup` is granted to `anon, authenticated` so the signup flow works without a JWT yet. `create_subscriber_from_agent_onboard` is `authenticated`-only and cross-checks `calling_agent_id` against `auth.jwt() ->> 'agentId'`.
+`create_subscriber_from_signup` is granted to `anon, authenticated` so signup works without a JWT yet. `create_subscriber_from_agent_onboard` is `authenticated`-only and cross-checks `calling_agent_id` against `auth.jwt() ->> 'agentId'`.
 
 ### Commission state-machine RPCs (13 + 1 agent-side)
 
-All `LANGUAGE plpgsql SECURITY DEFINER SET search_path = public`. Each validates `auth.jwt() ->> 'app_role'` against the allowed actor and raises on mismatch. Full state diagram in §11.
+All `LANGUAGE plpgsql SECURITY DEFINER SET search_path = public`. Each validates `auth.jwt() ->> 'app_role'` against the allowed actor and raises on mismatch. Full RPC list + state transitions + side effects: see §11's transition table. The 14 RPCs are:
 
-| RPC | Allowed role | What it does |
-|---|---|---|
-| `open_run()` | distributor | Bundles all `due` commissions into a new `r-YYYY-MM` run; sweeps them to `in_run`; seeds per-branch review rows. |
-| `cancel_run(p_run_id)` | distributor | Reverses `open_run`. |
-| `release_run(p_run_id)` | distributor | Flips lines to `released`, sets `paid_date`; marks run `released`. |
-| `release_branch(p_run_id, p_branch_id)` | distributor | Per-branch release; sets `released_at` on the branch review row. |
-| `branch_approve_all(p_run_id)` | branch | Approves every line in the caller's branch. Returns count. |
-| `mark_branch_reviewed(p_run_id)` | branch | Flips branch review state `pending → approved`. |
-| `branch_approve_line(p_commission_id)` | branch | Approves a single line. |
-| `branch_hold_line(p_commission_id, p_hold_reason)` | branch | `in_run → held`. Reason stored. |
-| `branch_dispute_line(p_commission_id, p_dispute_reason)` | branch | `previous_status` snapshot via BEFORE UPDATE; `disputed_by='branch'`, `disputed_at=now()`. |
-| `agent_dispute_line(p_commission_id, p_dispute_reason)` | agent | Mirrors branch dispute; `disputed_by='agent'`. Shipped in 0014, role-gate canonicalised in 0021. The frontend `services/commissions.js#disputeCommission(by='agent')` wires to this RPC. |
-| `approve_dispute(p_commission_id, p_outcome_reason?)` | distributor | Restores `previous_status` (fallback `due`); clears dispute fields. |
-| `reject_dispute(p_commission_id, p_outcome_reason)` | distributor | Terminal `rejected`. |
-| `withdraw_dispute(p_commission_id)` | agent | Restores `previous_status`; clears dispute fields. |
-| `agent_confirm_commission(p_commission_id)` | agent | Sets `agent_confirmed = TRUE` on a released line. Maker-checker counterpart to admin settlement. |
+- **Distributor-only** (5): `open_run()`, `cancel_run`, `release_run`, `release_branch`, `approve_dispute`, `reject_dispute`.
+- **Branch-only** (5): `branch_approve_all`, `mark_branch_reviewed`, `branch_approve_line`, `branch_hold_line`, `branch_dispute_line`.
+- **Agent-only** (3): `agent_dispute_line` (the frontend `services/commissions.js#disputeCommission(by='agent')` calls this), `withdraw_dispute`, `agent_confirm_commission` (maker-checker counterpart to admin settlement).
 
 The 13 RPCs from 0004 were re-emitted in `0021_commission_rpcs_app_role.sql` with the role gate inlined (reading `app_role` directly rather than via 0007's `pg_get_functiondef` literal-replace). The 0014 `agent_dispute_line` body got the same treatment in 0021.
 
 ### `upsert_nominees` (0024)
 
-`upsert_nominees(p_subscriber_id TEXT, p_pension JSONB, p_insurance JSONB) RETURNS JSONB`. SECURITY DEFINER, role-gated to `subscriber` (own row) or `admin`. Validates `SUM(share)` per type rounds to 100 or empty array. DELETE + INSERT in one transaction. Returns the canonical `{ pension, insurance }` shape that `getSubscriberNominees` consumes.
-
-**Grant pattern gap (audit D3):**
-
-```sql
-GRANT EXECUTE ON FUNCTION public.upsert_nominees(TEXT, JSONB, JSONB) TO authenticated;
-REVOKE EXECUTE ON FUNCTION public.upsert_nominees(TEXT, JSONB, JSONB) FROM anon;
-```
-
-Every other RPC in the codebase precedes the `GRANT EXECUTE ... TO authenticated` with `REVOKE ALL ON FUNCTION ... FROM PUBLIC;` (defence-in-depth — `PUBLIC` includes any future role). `upsert_nominees` revokes only from `anon`. Benign at execution time (the function still gates on `app_role`), but inconsistent with the codebase convention.
+`upsert_nominees(p_subscriber_id TEXT, p_pension JSONB, p_insurance JSONB) RETURNS JSONB`. SECURITY DEFINER, role-gated to `subscriber` (own row) or `admin`. Validates `SUM(share)` per type rounds to 100 or empty array. DELETE + INSERT in one transaction. Returns the canonical `{ pension, insurance }` shape that `getSubscriberNominees` consumes. The GRANT preamble in this file revokes only from `anon` (not `PUBLIC`) — inconsistent with house style; see §15b.
 
 ---
 
@@ -687,7 +636,7 @@ Five triggers across the migrations. All four cross-table triggers are SECURITY 
 
 `0003_rls_policies.sql` originally added `commissions`, `settlement_runs`, `settlement_run_branch_reviews` to `supabase_realtime`. `0025_drop_realtime_publication.sql` dropped all three — Phase 1 + 2 audits confirmed **zero `.channel()` subscribers** across `src/` and `api/`, so the WAL replication overhead bought nothing.
 
-**Current state:** `supabase_realtime` membership for `public.*` is empty (audit D19 confirmed this matches intent, modulo the supersession by 0025 itself). High-write tables (`transactions`, `subscribers`, `subscriber_balances`) were never added to begin with. React Query's 5-minute staleTime + manual invalidation handles cross-laptop demo sync at sufficient resolution.
+**Current state:** `supabase_realtime` membership for `public.*` is empty (matches intent, modulo the supersession by 0025 itself). High-write tables (`transactions`, `subscribers`, `subscriber_balances`) were never added to begin with. React Query's 5-minute staleTime + manual invalidation handles cross-laptop demo sync at sufficient resolution.
 
 If a future feature wires `.channel()` subscribers, the 0025 down migration restores the three-table publication.
 
@@ -701,15 +650,7 @@ Three scripts in `scripts/`.
 
 Run via `npm run seed`. Materialises the full `src/data/mockData.js` hierarchy into the Supabase Postgres DB.
 
-**Mechanics:**
-
-- Reads `SUPABASE_DB_URL` from `.env.local` (pooler URL, port 6543). Direct `pg.Client` connection (NOT through Supabase JS).
-- Wraps everything in `BEGIN … COMMIT`.
-- Runs `SET session_replication_role = 'replica'` at line 189 for the duration of the seed so the 30k seeded contribution transactions don't double-insert via `trg_transactions_contribution`. Restored to `'origin'` before `COMMIT` (and inside the `catch` for safety).
-- Bulk insert via `INSERT … FROM unnest($1::type[], $2::type[], …) ON CONFLICT (pk) DO UPDATE` — one round-trip per 2,000-row chunk. Idempotent on re-run.
-- **Phone dedup:** subscribers with duplicate phones get reassigned to a synthetic `+25671XXXXXXX` range so the partial unique index `subscribers(phone) WHERE NOT is_demo_signup` stays satisfied. Per-run state (a `Set`); if live subscribers exist when seed re-runs, dupes silently reassign to different `+25671XXXXXXX` numbers (audit D14).
-- `demo_personas` seeded with 7 rows: agents `a-001/a-042/a-118` at phones `+2567000000{1,2,3}`, branches `b-kam-015/b-mba-290` at `+2567000000{11,12}`, distributors `d-001/d-002` at `+2567000000{21,22}`.
-- Both `distributors` rows (`d-001`, `d-002`) are inserted by the seed; the `0016` migration also seeds `d-001` on-conflict-do-nothing.
+**Mechanics:** reads `SUPABASE_DB_URL` from `.env.local` (pooler URL, port 6543); direct `pg.Client` connection (NOT through Supabase JS); wraps everything in `BEGIN … COMMIT`; sets `session_replication_role = 'replica'` for the duration so the 30k seeded contribution transactions don't double-insert via `trg_transactions_contribution` (restored to `'origin'` before `COMMIT` and inside the `catch`); bulk inserts via `INSERT … FROM unnest($1::type[], …) ON CONFLICT (pk) DO UPDATE` — one round-trip per 2,000-row chunk, idempotent on re-run. **Phone dedup:** subscribers with duplicate phones get reassigned to a synthetic `+25671XXXXXXX` range so the partial unique index `subscribers(phone) WHERE NOT is_demo_signup` stays satisfied; per-run state (a `Set`), so if live subscribers exist when seed re-runs, dupes silently reassign to different `+25671XXXXXXX` numbers. `demo_personas` seeded with 7 rows: 3 agents (`a-001/a-042/a-118`), 2 branches (`b-kam-015/b-mba-290`), 2 distributors (`d-001/d-002`) at predictable `+25670000000XX` phones.
 
 **Approximate row volumes after seed:**
 
@@ -725,19 +666,15 @@ Run via `npm run seed`. Materialises the full `src/data/mockData.js` hierarchy i
 | distributors | 2 |
 | demo_personas | 7 |
 
-**`users` table is NOT populated by the seed** (audit D13). `password_hash` (added in 0026) and `last_login_at` are stamped only on live signups via `/api/auth/verify-otp`. Demo subscribers/agents/branches/distributors have no `users` row by default; the JWT-mint path upserts on first OTP verify.
+**`users` table is NOT populated by the seed.** `password_hash` (added in 0026) and `last_login_at` are stamped only on live signups via `/api/auth/verify-otp`. Demo subscribers/agents/branches/distributors have no `users` row by default; the JWT-mint path upserts on first OTP verify.
 
-**`mockData.js` `DISTRIBUTORS` drift** (audit D15). `src/data/mockData.js:92–103` exports a `DISTRIBUTORS` dictionary containing only `d-001`. The seed inserts `d-001` AND `d-002`. Mock-backed mode (`VITE_USE_SUPABASE='false'`) will miss `d-002`.
+**`mockData.js` `DISTRIBUTORS` drift.** `src/data/mockData.js:92–103` exports a `DISTRIBUTORS` dictionary containing only `d-001`. The seed inserts `d-001` AND `d-002`. Mock-backed mode (`VITE_USE_SUPABASE='false'`) will miss `d-002`.
 
 **`MOCK_NOW`** = `new Date(2026, 4, 22)` (= `2026-05-22`) at `src/data/mockData.js:24`. Today is `2026-05-26`; small relative-date demos may show negative-day signals.
 
-### `scripts/seed-loader.mjs`
+### `scripts/seed-loader.mjs` + `scripts/clip-districts.mjs`
 
-ESM resolution hook registered before `import('../src/data/mockData.js')`. Auto-appends `.js` to extension-less relative specifiers so the seed can read `mockData.js` unchanged.
-
-### `scripts/clip-districts.mjs`
-
-Boundary-clipping utility using `@turf/turf`. Reads `public/uganda-districts.geojson` + `public/uganda-regions.geojson`, intersects each district with its parent region, writes clipped output back. Backs up the original to `public/uganda-districts-original.geojson` on first run. Idempotent. Run manually: `node scripts/clip-districts.mjs`.
+`seed-loader.mjs` is an ESM resolution hook registered before `import('../src/data/mockData.js')`; auto-appends `.js` to extension-less relative specifiers so the seed can read `mockData.js` unchanged. `clip-districts.mjs` is a boundary-clipping utility using `@turf/turf` — reads `public/uganda-districts.geojson` + `public/uganda-regions.geojson`, intersects each district with its parent region, writes clipped output back (backs up the original to `public/uganda-districts-original.geojson` on first run; idempotent). Run manually: `node scripts/clip-districts.mjs`.
 
 ---
 
@@ -745,89 +682,55 @@ Boundary-clipping utility using `@turf/turf`. Reads `public/uganda-districts.geo
 
 ### §15a. Demo scope (by design — do not "fix")
 
-Every item below is intentional for a sales-rep demo. Never frame as a production-prep TODO.
+Every item below is intentional for a sales-rep demo. Never frame as a production-prep TODO. (CLAUDE.md §10a is the short-form mirror of this list.)
 
 - **Any 6-digit OTP accepted** at `/api/auth/verify-otp` (regex `^\d{6}$` is the only check). No SMS provider, no rate limiting, no lockout. Same for KYC OTP at `/api/kyc/otp-verify` (4 digits, rejects `'0000'` only).
-- **All 8 KYC routes are mocks** (`id-quality`, `id-ocr`, `nira-verify`, `otp-send`, `otp-verify`, `face-match`, `aml-screen`, `agent-referral`). Realistic latencies preserved so the live demo's animated checks land cleanly. Force-overrides via `x-qa-force` header (`fail-blur`, `partial`, `flagged`, `liveness-fail`, …) mirror the frontend's `localStorage upensions_*_force` keys.
+- **All 8 KYC routes are mocks.** Realistic latencies preserved so the live demo's animated checks land cleanly. Force-overrides via `x-qa-force` header (`fail-blur`, `partial`, `flagged`, `liveness-fail`, …) mirror the frontend's `localStorage upensions_*_force` keys.
 - **Unit price hardcoded to 1,000 UGX/unit** at `supabase/migrations/0002_rpc_functions.sql:113` (`v_unit_price NUMERIC := 1000` inside `trg_transactions_contribution`). No fund NAV table.
 - **JWT fixed 24h TTL, no refresh** (`DEFAULT_EXPIRY_SECONDS = 60 * 60 * 24`). On 401 the frontend logs out gracefully.
 - **`demo_personas` fallback IDs** (`ROLE_DEFAULTS` in both `verify-otp.ts` and `verify-password.ts`): `subscriber → 's-0001'`, `agent → 'a-001'`, `branch → 'b-kam-015'`, `distributor → 'd-001'`. Keeps every login successful for a sales demo even if the persona seed drifted.
-- **Mocked chat** — `/api/chat` returns keyword-matched canned strings with hardcoded numbers (no LLM, no DB aggregates). Three flavours: admin (distributor/branch/admin), agent DM, subscriber co-pilot.
-- **Per-session mutation stores** — frontend service files keep in-memory write overlays on top of frozen `mockData.js`. Resets on refresh (CLAUDE.md §10a).
-- **`district_rank` / `rank` / `district_branch_count`** on `branches` computed once at seed time. No daily ranking job.
-- **`commission_config` is a singleton** (`CHECK id = 'default'`); no UPDATE history table, no versioning.
-- **`contribution_history`** is a JSONB sparkline denormalized from `transactions`; no consistency trigger keeps it in sync with the ledger.
+- **Mocked chat** — `/api/chat` returns keyword-matched canned strings (no LLM, no DB aggregates). Three flavours: admin/branch/distributor, agent DM, subscriber co-pilot.
+- **Per-session mutation stores** — frontend service files keep in-memory write overlays on top of frozen `mockData.js`. Resets on refresh.
+- **Static seed metrics.** `district_rank` / `rank` / `district_branch_count` on `branches` computed once at seed time, no daily ranking job. `contribution_history` is a JSONB sparkline denorm from `transactions` with no consistency trigger. `commission_config` is a singleton (`CHECK id = 'default'`) with no UPDATE history.
 - **`search_entities` hardcoded `LIMIT 8`.** Plenty for a demo's autocomplete UX.
-- **No CSRF / origin checks** on the public POST routes. Acceptable because the demo runs from a single allowed origin.
-- **No application-level security headers (CSP, HSTS, X-Frame-Options) configured by the platform.** Vercel hosts the frontend with default headers; Render's Express layer applies `helmet()` (the post-migration default) which sets sane defaults including X-Content-Type-Options and a baseline CSP. Tightening CSP for an SPA + cross-origin Render API is explicitly out of scope for the demo.
+- **No CSRF / origin checks** on the public POST routes. Acceptable because the demo runs from a single allowed origin. Render's Express layer applies `helmet()` defaults (X-Content-Type-Options + baseline CSP); tightening CSP for an SPA + cross-origin Render API is explicitly out of scope.
 
 ### §15b. Real bugs / awareness items
 
-These affect the demo experience or future sessions — track but do NOT bundle with §15a, and do NOT propose production-hardening solutions.
+These affect the demo experience or future sessions — track but do NOT bundle with §15a, and do NOT propose production-hardening solutions. Phase-1 post-audit cleanup (2026-05-26) closed API helper duplication, error-envelope drift, KYC phone normalization, DB-error swallowing, dead phone exports, the unused `withAuth` middleware classification, the route-count discrepancy, and the stale `disputeCommission` doc drift (see §3, §4, §5). The remaining items below are open or by-design.
 
-**Closed in Phase 1 of the post-audit cleanup (2026-05-26).** Audit findings B1–B9, X2, X3 — API helper duplication, error-envelope drift, KYC phone normalization, DB-error swallowing, dead phone exports, the unused `withAuth` middleware classification, the route-count discrepancy, and the stale `disputeCommission` documentation drift — are all resolved. See §3, §4, §5 (and the Phase 1 commit SHAs cited there). The remaining items below are open or by-design.
-
-**Auth-route subtleties (open / by-design):**
-
-- `chat.ts` body `context` overrides role for unauthenticated callers; intentional but inconsistent with the strict role discipline elsewhere (audit B14). Documented at the call-site.
-- `chat.ts` type-checks `body.message` before `.trim()` (Phase 1G `1f0e2e1` — non-string bodies short-circuit to `invalid_message` instead of crashing).
+**Auth-route subtleties (open / by-design):** `chat.ts` body `context` overrides role for unauthenticated callers — intentional but inconsistent with the strict role discipline elsewhere; documented at the call-site. `chat.ts` type-checks `body.message` before `.trim()` so non-string bodies short-circuit to `invalid_message` instead of crashing.
 
 **Database invariants:**
 
-- `upsert_nominees` `GRANT` is missing the `REVOKE ALL ON FUNCTION ... FROM PUBLIC` preamble used by every other RPC (audit D3). Benign at execution time; inconsistent with house style.
-- `nominees` table has no `UNIQUE(subscriber_id, type, …)` — duplicate beneficiaries are possible at the table level (audit D9). Sum-to-100 lives in `upsert_nominees` only; direct INSERTs bypass.
-- Status columns (`subscribers.kyc_status`, `withdrawals.status`, `claims.status`, `insurance_policies.status`, `agent_referrals.status`, `distributors.status`) are TEXT with implicit enums and no `CHECK` constraint (audit D8). Discipline lives in client code.
-- 4 migrations lack idempotency guards on at least one statement: `0003`, `0006`, `0010`, `0025` (audit D12).
-- **First-contribution race — mitigated.** `commissions` now carries `ux_commissions_agent_subscriber UNIQUE(agent_id, subscriber_id)` (0017). The trigger's `NOT EXISTS` pre-check is preserved as a fast path; the unique index is the authoritative guard (CLAUDE.md §10b reference).
-- **0018 superseded by 0020** but left in tree (audit D4). Operationally stale; do not apply.
-- **`fix_metrics_rollup_app_role`** remote-only migration (timestamp `20260519165115`) is **not in the local git tree** (audit D5). Replay-safe — 0020 supersedes intent.
+- `upsert_nominees` `GRANT` is missing the `REVOKE ALL ON FUNCTION ... FROM PUBLIC` preamble used by every other RPC. Benign at execution time; inconsistent with house style.
+- `nominees` table has no `UNIQUE(subscriber_id, type, …)` — duplicate beneficiaries are possible at the table level. Sum-to-100 lives in `upsert_nominees` only; direct INSERTs bypass.
+- Status columns (`subscribers.kyc_status`, `withdrawals.status`, `claims.status`, `insurance_policies.status`, `agent_referrals.status`, `distributors.status`) are TEXT with implicit enums and no `CHECK` constraint. Discipline lives in client code.
+- 4 migrations lack idempotency guards on at least one statement: `0003`, `0006`, `0010`, `0025`.
+- **First-contribution race — mitigated.** `commissions` now carries `ux_commissions_agent_subscriber UNIQUE(agent_id, subscriber_id)` (0017). The trigger's `NOT EXISTS` pre-check is preserved as a fast path; the unique index is the authoritative guard.
+- **0018 superseded by 0020** but left in tree. Operationally stale; do not apply. The remote-only `fix_metrics_rollup_app_role` migration (timestamp `20260519165115`) is also not in the local git tree — replay-safe since 0020 supersedes its intent.
 
-**Seed-data drift:**
+**Seed-data drift:** seed does NOT populate `users` (`password_hash` is only stamped via live signups); phone dedup is per-run, not idempotent against pre-existing live data; `mockData.js#DISTRIBUTORS` knows only `d-001` while the seed inserts `d-001` + `d-002`, so mock-backed mode misses `d-002`.
 
-- Seed does NOT populate `users` (audit D13) — `password_hash` is only stamped via live signups.
-- Phone dedup is per-run, not idempotent against pre-existing live data (audit D14).
-- `mockData.js#DISTRIBUTORS` knows only `d-001`; seed inserts `d-001` + `d-002` (audit D15). Mock-backed mode misses `d-002`.
-
-**Existing awareness items (already in CLAUDE.md §10b):**
-
-- Employer + admin roles unbuilt — no RLS policies, no dashboards, no shells.
-- Dispute `reason` is free-text TEXT on `commissions.dispute_reason`. UI shows whatever was typed.
-- `agent_referrals` row PK `ar-<epoch>-<rand>` and public `UAG-XXXX` ticket ID (~1.7M space) — collision-tolerant but not cryptographic.
-- No retry / idempotency keys on `/api/contact` or `/api/kyc/agent-referral`. A resubmit creates a second row.
-
-**Agent-side dispute flow exists.** The `agent_dispute_line` RPC ships in `0014_signup_phone_and_agent_dispute.sql` and was canonicalised in `0021_commission_rpcs_app_role.sql`; the frontend service `src/services/commissions.js#disputeCommission(by='agent')` calls it successfully (audit X3). Prior documentation drift around this is resolved.
+**Other open items (also tracked in CLAUDE.md §10b):** employer + admin roles unbuilt (no RLS policies, no dashboards, no shells); dispute `reason` is free-text TEXT on `commissions.dispute_reason` (UI shows whatever was typed); `agent_referrals` row PK `ar-<epoch>-<rand>` and public `UAG-XXXX` ticket ID (~1.7M space) — collision-tolerant but not cryptographic; no retry / idempotency keys on `/api/contact` or `/api/kyc/agent-referral` (a resubmit creates a second row).
 
 ### §15c. Test coverage
 
-12 backend `.test.ts` files now cover every route under `api/auth/` and `api/kyc/` (Phase 2B `93c51f2` shipped the 4 auth route tests; Phase 2C `91f413e` shipped the 8 KYC route tests). Combined the two phases added ~138 backend tests on top of the pre-Phase-2 vitest baseline:
+12 backend `.test.ts` files cover every route under `api/auth/` and `api/kyc/`: the 4 auth route tests (`send-otp`, `verify-otp`, `verify-password`, `change-password` — ~81 tests covering OTP/password shape errors, role enum, phone canonicalisation, password set vs change flows, JWT round-trip, the `db_error` envelope); the 8 KYC route tests (one per route — ~57 tests covering phone canonicalisation on the 3 phone-accepting routes, every `x-qa-force` branch, `Cache-Control: no-store` + `Allow: POST` headers, the demo-scope 200-with-refusal contract on the 3 verifier routes); plus the pre-existing `api/auth/_lib/password.test.ts` shape + bcrypt round-trip.
 
-| Layer | Files | Notes |
-|---|---|---|
-| `api/auth/*.test.ts` | 4 (`send-otp`, `verify-otp`, `verify-password`, `change-password`) | Phase 2B `93c51f2`. ~81 tests. Cover OTP-shape errors, password-shape errors, role enum, phone canonicalisation, password set vs change flows, JWT round-trip, DB-error → `db_error` envelope (Phase 1F). |
-| `api/kyc/*.test.ts` | 8 (one per route) | Phase 2C `91f413e`. ~57 tests. Cover phone canonicalisation on the 3 phone-accepting routes, every `x-qa-force` branch, `Cache-Control: no-store` + `Allow: POST` headers, the demo-scope 200-with-refusal contract on the 3 verifier routes. |
-| `api/auth/_lib/password.test.ts` | 1 | Pre-existing. Shape validation + bcrypt hash/verify round-trip. |
-
-`npm test` runs all vitest files (`api/**/*.test.ts` + `src/tests/**/*.test.{js,ts}`). For backend-only iteration: `npm test -- api/auth api/kyc`.
+`npm test` runs all vitest files (`api/**/*.test.ts` + `src/tests/**/*.test.{js,ts}`). For backend-only iteration: `npm test -- api/auth api/kyc`. Full testing pipeline + Playwright E2E reference lives in [`docs/TESTING.md`](./docs/TESTING.md).
 
 ---
 
 ## §16. Operational runbook
 
+Operational runbook for Render-side concerns — manual deploy procedure, deploy-time outage window, free-tier resource caps, log retention, failure alerting, silent-failure recovery, provisioning checklist, JWT secret rotation, bandwidth budget — lives in [`docs/render-operational.md`](./docs/render-operational.md). This section keeps only the local-dev + dev-loop reference; do not duplicate operational procedures here.
+
 ### Local development
 
-`supabase/config.toml` controls the local CLI emulator only (not the hosted project). Key ports:
+`supabase/config.toml` controls the local CLI emulator only (not the hosted project). Ports: API gateway 54321, Postgres 54322, Studio 54323, Inbucket (email catcher) 54324, Shadow DB 54329. `project_id = "uganda-dashboard"`.
 
-| Service | Port | Notes |
-|---|---|---|
-| API gateway | 54321 | `[api]` block |
-| Postgres | 54322 | `[db]` block |
-| Studio | 54323 | `[studio]` block |
-| Inbucket (email) | 54324 | dev mail catcher |
-| Shadow DB | 54329 | for `supabase db diff` |
-
-`project_id = "uganda-dashboard"`.
-
-### Common operations
+### Common dev operations
 
 | Task | Command / SQL |
 |---|---|
@@ -835,15 +738,14 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 | Apply migrations locally | `supabase db reset` (re-runs every `00NN_*.sql`) |
 | Push migrations to hosted project | `supabase db push` |
 | Apply a single migration via MCP | `mcp__supabase__apply_migration` (note: wraps DDL in a transaction; split `CREATE INDEX CONCURRENTLY` out via `execute_sql` — see 0022 header) |
-| Tail backend (Render) logs | Render dashboard → `uganda-dashboard-api` → Logs (live tail; ~7-day retention per `docs/render-operational.md` §Log Retention). Or via MCP: `mcp__render__list_logs`. |
-| Tail frontend (Vercel) build/runtime logs | `vercel logs <deployment-url>` — note: post-migration there are no functions, so runtime logs are SPA build/serve only. |
 | Reseed Postgres | `npm run seed` (reads `SUPABASE_DB_URL` from `.env.local`) |
 | Clip GeoJSON | `node scripts/clip-districts.mjs` |
 | Test a read RPC from psql | `SELECT public.get_entity_commission_summary('region', 'r-central');` |
 | Impersonate a role in psql | `SET LOCAL request.jwt.claims = '{"role":"authenticated","app_role":"agent","agentId":"a-001","aud":"authenticated"}'; SELECT count(*) FROM subscribers;` |
-| Rotate JWT secret | **4-step procedure (G42).** `api/_lib/jwt.ts:59-72` caches the secret as `Uint8Array` for the lifetime of the process; Render does NOT hot-reload env vars. (1) Supabase Dashboard → Project Settings → API → JWT Settings → rotate. (2) Update `SUPABASE_JWT_SECRET` in the Render dashboard env. (3) Trigger a Render restart — Render dashboard → service → Manual Deploy → "Deploy latest commit", or `curl -X POST $RENDER_DEPLOY_HOOK_URL`. (4) Accept that all users get logged out: the 24h-TTL tokens become invalid immediately. (Vercel no longer holds this secret post-migration.) |
 | Inspect realtime publication | `SELECT pubname, tablename FROM pg_publication_tables WHERE pubname = 'supabase_realtime';` (expected: empty for `public.*` after 0025) |
-| Confirm app_role discipline | `SELECT count(*) FROM pg_policies WHERE schemaname='public' AND (qual LIKE '%''role''%' OR with_check LIKE '%''role''%');` (expected: 0) |
+| Confirm `app_role` discipline | `SELECT count(*) FROM pg_policies WHERE schemaname='public' AND (qual LIKE '%''role''%' OR with_check LIKE '%''role''%');` (expected: 0) |
+
+Log tail, deploy trigger, env-rotation, and JWT-secret rotation procedures are in [`docs/render-operational.md`](./docs/render-operational.md).
 
 ### `.env.local` workflow
 
@@ -858,12 +760,11 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 - Open `/dashboard` as that agent → verify agent-scoped queries return rows (RLS predicate `agent_id = auth.jwt() ->> 'agentId'` matches).
 - Run an `open_run()` from the distributor account; PostgREST returns the new run row. (Realtime no longer propagates — 0025 dropped the publication; React Query manual invalidation handles refresh.)
 
-### Migration discipline (forward-only)
+### Migration discipline reminder (forward-only)
 
-- Never edit a shipped migration file. The Supabase migration system records each file's hash; editing a shipped file breaks `db push`.
-- For schema fixes, add a new `00NN_*.sql`. New migrations should ship a `.down.sql` partner (see 0016/0022/0023/0024/0025/0026).
-- For RPC body changes, `CREATE OR REPLACE FUNCTION` in a new migration. The grants in `0002` follow each function definition; new migrations inherit those unless the signature changes.
-- New SECURITY DEFINER functions MUST set `search_path = public` (or `public, pg_temp`) and read `auth.jwt() ->> 'app_role'` — never `'role'`. The contract test in `src/tests/jwt-claim-contract.test.js` guards the claim names.
+Full discipline + the 0018→0020 supersession narrative live in §7; the full per-migration index is in [`docs/MIGRATIONS.md`](./docs/MIGRATIONS.md). The non-negotiable rule for new work:
+
+- New SECURITY DEFINER functions MUST set `search_path = public` (or `public, pg_temp`) and read `auth.jwt() ->> 'app_role'` — never `'role'`. The contract test in `src/tests/jwt-claim-contract.test.js` guards the claim names. See §6 for the trap.
 
 ---
 
@@ -871,7 +772,7 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 
 - `CLAUDE.md` — slim index, hard rules, glossary, demo credentials, awareness items.
 - `FRONTEND.md` — service/hook/context inventory, dashboard variants, design tokens, React Query keys + invalidation, frontend-side demo behaviours.
-- `docs/api-contracts.md` — currently describes a REST surface that does not exist (audit X1). Treat as stale until reconciled.
+- `docs/api-contracts.md` — describes a REST surface that does not match the current Express + PostgREST topology. Treat as stale until reconciled.
 - `docs/data-model.md` — field-level entity definitions, metric-aggregation rules, branch-health-score formula, KYC/withdrawal/AUM open questions.
 - `docs/role-permissions.md` — role × capability matrix.
 - `docs/SPEC.md` — product spec: personas, workflows, business rules.

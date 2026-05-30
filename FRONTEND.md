@@ -47,10 +47,10 @@ See `CLAUDE.md` for the slim entry index, `BACKEND.md` for SQL/RPC/RLS detail, a
 | `npm run build` | Production Vite build |
 | `npm run preview` | Serve the built bundle |
 | `npm run lint` | ESLint 9 flat config |
-| `npm test` | Vitest one-shot (707 tests at last sync) |
+| `npm test` | Vitest one-shot (~700 tests) |
 | `npm run test:watch` | Vitest watch |
 | `npm run test:coverage` | Vitest + v8 coverage — requires `npm i -D @vitest/coverage-v8` (currently NOT installed, see §17) |
-| `npm run test:e2e` | Playwright suite (`:smoke`, `:flows`, `:headed`, `:ui`) — see `.claude/skills/qa.md` |
+| `npm run test:e2e` | Playwright suite (`:smoke`, `:flows`, `:headed`, `:ui`) — see [`docs/TESTING.md`](./docs/TESTING.md) and `.claude/skills/qa.md` |
 | `npm run seed` | Seed Supabase via `scripts/seed-supabase.mjs` (see BACKEND.md §14) |
 
 **`vite.config.js` highlights:**
@@ -97,31 +97,28 @@ See `CLAUDE.md` for the slim entry index, `BACKEND.md` for SQL/RPC/RLS detail, a
 ```
 src/
   App.jsx, main.jsx, index.css
-  assets/                         Logo PNGs (transparent)
-  config/env.js                   API_BASE_URL, IS_DEV/PROD, public URLs
-  constants/                      levels.js, savings.js, signup.js
-  data/                           mockData (1060 lines), mockBranchDefs, mockGeo
-  services/                       11 files (api, supabaseClient, auth, entities,
-                                  commissions, subscriber, agent, kyc, chat,
-                                  search, contact) + __tests__/
-  hooks/                          8 hooks + __tests__/
-  contexts/                       8 contexts; SignupContext lives in src/signup/
-  utils/                          10 files — finance, currency, date, dashboard,
-                                  csv, csvDownload, phone, settlementCycle,
-                                  navigation, motion + __tests__/
-  components/                     Landing + shell-level (Navbar, Hero, Footer,
-                                  SignInModal, Modal, Toast, ErrorBoundary,
-                                  SkeletonRow, EmptyState, …) +
-                                  contribution/, signin/, reports/, feedback/
-  pages/                          About, FAQ, Contact (marketing pages)
-  signup/                         Subscriber KYC flow: SignupPage, SignupShell,
-                                  SignupContext, signupState, steps/, contribution/
-  dashboard/                      DISTRIBUTOR ADMIN (DashboardShell)
-  branch-dashboard/               BRANCH ADMIN (BranchDashboardShell)
-  agent-dashboard/                AGENT (AgentDashboardShell, routed pages)
-  subscriber-dashboard/           SUBSCRIBER (SubscriberDashboardShell,
-                                  SubscriberPanelContext, routed pages)
-  test/                           setup.js, supabaseMock.js, jwt-claim-contract.test.js
+  assets/                  Logo PNGs (transparent)
+  config/env.js            API_BASE_URL, IS_DEV/PROD, public URLs
+  constants/               levels.js, savings.js, signup.js
+  data/                    mockData (1060 lines), mockBranchDefs, mockGeo
+  services/                11 files (api, supabaseClient, auth, entities,
+                           commissions, subscriber, agent, kyc, chat,
+                           search, contact) + __tests__/
+  hooks/                   8 hooks + __tests__/
+  contexts/                8 contexts; SignupContext lives in src/signup/
+  utils/                   finance, currency, date, dashboard, csv, csvDownload,
+                           phone, settlementCycle, navigation, motion + __tests__/
+  components/              Landing + shell-level (Navbar, Hero, Footer, Modal,
+                           Toast, ErrorBoundary, SkeletonRow, EmptyState, …) +
+                           contribution/, signin/, reports/, feedback/
+  pages/                   About, FAQ, Contact (marketing pages)
+  signup/                  Subscriber KYC flow: SignupPage, SignupShell,
+                           SignupContext, signupState, steps/, contribution/
+  dashboard/               Distributor admin (DashboardShell)
+  branch-dashboard/        Branch admin (BranchDashboardShell)
+  agent-dashboard/         Agent (AgentDashboardShell, routed pages)
+  subscriber-dashboard/    Subscriber (SubscriberDashboardShell, routed pages)
+  test/                    setup.js, supabaseMock.js, jwt-claim-contract.test.js
 ```
 
 ---
@@ -142,16 +139,7 @@ src/
 
 **`SignInModal`** renders outside `<Routes>` (inside `SignInProvider`) so it can overlay any page.
 
-**`ProtectedDashboard` dispatch:** unauthenticated → `Navigate to="/"`; `hasDashboard(role)` false → `/coming-soon`; otherwise pick a shell:
-
-| Role | Shell file |
-| --- | --- |
-| `'distributor'` (default branch) | `src/dashboard/DashboardShell.jsx` |
-| `'branch'` | `src/branch-dashboard/BranchDashboardShell.jsx` |
-| `'agent'` | `src/agent-dashboard/AgentDashboardShell.jsx` |
-| `'subscriber'` | `src/subscriber-dashboard/SubscriberDashboardShell.jsx` |
-
-Each shell is `React.lazy()`-imported in `App.jsx`, wrapped in `ErrorBoundary` + `Suspense` with a spinner fallback.
+**`ProtectedDashboard` dispatch:** unauthenticated → `Navigate to="/"`; `hasDashboard(role)` false → `/coming-soon`; otherwise pick a shell by role — `distributor` → `src/dashboard/DashboardShell.jsx` (default branch), `branch` → `src/branch-dashboard/BranchDashboardShell.jsx`, `agent` → `src/agent-dashboard/AgentDashboardShell.jsx`, `subscriber` → `src/subscriber-dashboard/SubscriberDashboardShell.jsx`. Each shell is `React.lazy()`-imported in `App.jsx`, wrapped in `ErrorBoundary` + `Suspense` with a spinner fallback.
 
 ### Panel-vs-route rule (CLAUDE.md §4 item 2)
 
@@ -233,7 +221,7 @@ Shell file: `src/subscriber-dashboard/SubscriberDashboardShell.jsx`. Sub-areas: 
 
 ## 3. Hard rules (anti-patterns)
 
-These rules are audit-verified — Phase 1E confirmed all four cleanly held across the codebase. **Don't break them.**
+These rules are audit-verified and hold cleanly across the codebase. **Don't break them.**
 
 | # | Rule | Where it's enforced |
 | --- | --- | --- |
@@ -246,7 +234,7 @@ These rules are audit-verified — Phase 1E confirmed all four cleanly held acro
 | 7 | No raw SQL from the frontend. Every write goes through a Supabase RPC (typically SECURITY DEFINER) — see BACKEND.md §10. | Service layer. |
 | 8 | RLS policies read `auth.jwt() ->> 'app_role'`, **never** `'role'`. `auth.uid()` is `NULL` for our custom HS256 JWTs (BACKEND.md §9). | Audit confirmed: 65/65 policies correct. |
 
-Phase 1E also confirmed **no `dangerouslySetInnerHTML` anywhere** (React's default escaping is preserved) and **no open-redirect vectors** — every `window.location` / `navigate` destination is a hardcoded path.
+Audit verification also confirmed **no `dangerouslySetInnerHTML` anywhere** (React's default escaping is preserved) and **no open-redirect vectors** — every `window.location` / `navigate` destination is a hardcoded path.
 
 ---
 
@@ -277,22 +265,11 @@ export async function getEntity(level, id) {
 
 **Per-service overrides over frozen mockData.** Under `IS_SUPABASE_ENABLED=false`, both `entities.js` and `subscriber.js` keep an in-memory `Map` (`_entityOverrides` / `_sessionMutations`) so writes (status flips, contributions, schedule edits, withdrawals) layer on top of the frozen seed for the demo session. Lost on refresh — see §16a.
 
-### 4.1 Cross-role utility extraction (F1, F22 — commit `bd5ea82`)
+### 4.1 Cross-role utility extraction
 
-The previous `agent-dashboard/shell/PageHeader.jsx` imported `goBackOrFallback` from `../../subscriber-dashboard/shell/navigation` — the **only** cross-role import in the codebase. Phase 4B promoted the helper to `src/utils/navigation.js`:
+The previous `agent-dashboard/shell/PageHeader.jsx` imported `goBackOrFallback` from `../../subscriber-dashboard/shell/navigation` — the **only** cross-role import in the codebase. The helper now lives at `src/utils/navigation.js` (`goBackOrFallback(navigate, fallback)`) and reads `window.history.state.idx` to detect a poppable in-app entry — index 0 means the user landed here directly (deep link, refresh, fresh tab), so fall back to the route. Both shell PageHeaders import from `@/utils/navigation`; the legacy `src/subscriber-dashboard/shell/navigation.js` survives for module-internal use only.
 
-```js
-// src/utils/navigation.js
-export function goBackOrFallback(navigate, fallback) {
-  const idx = window.history.state?.idx;
-  if (typeof idx === 'number' && idx > 0) navigate(-1);
-  else navigate(fallback);
-}
-```
-
-Detection: react-router stores its own index on `window.history.state.idx`. Index 0 means the user landed here directly (deep link, refresh, or fresh tab) — there's nothing to pop, so fall back to the route. Both `agent-dashboard/shell/PageHeader.jsx` and `subscriber-dashboard/shell/PageHeader.jsx` now import from `@/utils/navigation`. The legacy `src/subscriber-dashboard/shell/navigation.js` still exists for module-internal use but no longer leaks across roles.
-
-**Audit caveat (X11 / X17).** Every service that branches on `IS_SUPABASE_ENABLED` ships an offline mock branch (per CLAUDE.md §10a rollback safety), and Phase 2 introduced unit tests for the real/mock parity on `entities`, `commissions`, `subscriber`, `agent`, `kyc`, `chat`, `search`, `contact`, `supabaseClient`, `api`, `auth`. The mock-branch coverage is now substantial (see §17) but output-shape drift remains a latent risk to manually verify on any new mock-branch change.
+**Mock-branch parity caveat.** Every service that branches on `IS_SUPABASE_ENABLED` ships an offline mock branch (per CLAUDE.md §10a rollback safety) and has unit tests for real/mock parity (see §17). Output-shape drift remains a latent risk to manually verify on any new mock-branch change.
 
 ---
 
@@ -318,59 +295,31 @@ All public exports below. Every service file follows the `IS_SUPABASE_ENABLED ? 
 
 Same-origin `/api/*` wrapper around `fetch`. Reads `Authorization: Bearer <upensions_token>` from localStorage on every request. On HTTP 401: clears auth keys and notifies all `onAuthExpired` listeners (consumed by `AuthContext`). Thrown errors carry `code`, `status`, and `body`.
 
-`VITE_API_BASE_URL` is the live API base URL. Post-Render migration this points at `https://uganda-dashboard-api.onrender.com/api` in Vercel project env (all three scopes — Production / Preview / Development) and at `http://localhost:3001/api` in local dev. `src/config/env.js` defaults to `/api` only if the env var is missing (e.g. a legacy preview that wasn't redeployed); modern builds bake the absolute URL at Vite build time. Bundle-baked semantics mean changing the value requires a Vercel redeploy, not just an env edit.
+`VITE_API_BASE_URL` is the live API base URL — points at `https://uganda-dashboard-api.onrender.com/api` in Vercel env (all three scopes) and `http://localhost:3001/api` in local dev. The URL is baked into the bundle at Vite build time; changing the value requires a Vercel redeploy, not just an env edit. See [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) for the env-var sync matrix.
 
 ### 5.2 `supabaseClient.js` — supabase-js singleton
 
 `createClient(SUPABASE_URL, SUPABASE_ANON_KEY)` with `auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }` — we manage our own JWTs. `global.headers` is a **function** that re-reads `localStorage` on every request so token rotation is picked up without recreating the client.
 
-Phase 7A (commit `27b78a3`) added a hard-fail guard in production builds: if `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` is missing in `IS_PROD`, the module throws on load. Dev/preview still fall back to `http://localhost:54321` / `'public-anon-key'` so local-without-env still boots.
+A hard-fail guard in production builds: if `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` is missing in `IS_PROD`, the module throws on load. Dev/preview still fall back to `http://localhost:54321` / `'public-anon-key'` so local-without-env still boots.
 
 ### 5.3 `auth.js` — sign-in flow
 
-```js
-export class AuthError extends Error { code; retryAfterSeconds? }
-export const DASHBOARD_ROLES = ['distributor', 'branch', 'subscriber', 'agent']
-export async function sendOtp(phone, role)
-export async function verifyOtp(phone, otp, role, password?)        // password optional — set on first sign-in
-export async function signInWithPassword(phone, password, role)
-export async function changePassword(currentPassword, newPassword)
-export function hasDashboard(role): boolean
-```
+Public API: `AuthError` (with `code` and optional `retryAfterSeconds`); `DASHBOARD_ROLES = ['distributor', 'branch', 'subscriber', 'agent']`; `sendOtp(phone, role)`, `verifyOtp(phone, otp, role, password?)` (password optional — set on first sign-in), `signInWithPassword(phone, password, role)`, `changePassword(currentPassword, newPassword)`, `hasDashboard(role)`.
 
-`AuthError.code` values that the UI maps to friendly messages via `messageForCode`: `rate_limited`, `locked`, `invalid_otp`, `password_too_short`, `password_too_weak`, `password_too_long`, `password_required`, `invalid_password`, `password_not_set`, `current_password_required`, `current_password_invalid`. Anything else falls back to "Could not verify the code. Please try again."
+`AuthError.code` values mapped to friendly messages via `messageForCode`: `rate_limited`, `locked`, `invalid_otp`, `password_too_short`, `password_too_weak`, `password_too_long`, `password_required`, `invalid_password`, `password_not_set`, `current_password_required`, `current_password_invalid`. Anything else falls back to "Could not verify the code. Please try again."
 
-Dev-only QA force-overrides via `localStorage['upensions_otp_force']` (`invalid_otp` / `rate_limited` / `locked`). `verifyOtp` returns `{ token, user: { role, phone, name?, subscriberId?, agentId?, branchId?, distributorId?, hasPassword? } }`.
-
-Phase 2A (commit `27e661b`) covers every exported function — `signInWithPassword`, `changePassword`, the extended `messageForCode`, AuthError shape — at the service layer.
+Dev-only QA force-overrides via `localStorage['upensions_otp_force']` (`invalid_otp` / `rate_limited` / `locked`). `verifyOtp` returns `{ token, user: { role, phone, name?, subscriberId?, agentId?, branchId?, distributorId?, hasPassword? } }`. Unit tests cover every exported function at the service layer.
 
 ### 5.4 `entities.js` — hierarchy CRUD (Distributor + Branch dashboards)
 
-```js
-export async function getCountry()
-export async function getEntity(level, id)
-export async function getChildren(parentLevel, parentId)
-export async function getAllAtLevel(level)
-export async function getEntityPage(level, opts)            // paginated variant
-export async function getAllAtLevelMap(level)
-export async function getParent(level, id)
-export async function getTopPerformingBranch(level, parentId)
-export async function getBreadcrumb(currentLevel, selectedIds)
-export function   getEntitySync(level, id)                  // sync — used by DashboardNavContext
-export async function getEntityMetricsRollup(level, entityIds)  // RPC get_entity_metrics_rollup
-export async function createBranch(payload)
-export async function createAgent(payload)
-export async function updateBranch(id, patch)
-export async function setBranchStatus(id, status)
-export async function updateDistributor(id, patch)
-export const _mockSources = { COUNTRY, REGIONS, DISTRICTS, BRANCHES, AGENTS, DISTRIBUTORS }
-```
+Public API (see table in §5 for the full list): country/region/district/branch/agent reads (`getCountry`, `getEntity`, `getChildren`, `getAllAtLevel`, paginated `getEntityPage`, map variant `getAllAtLevelMap`, `getParent`, `getTopPerformingBranch`, `getBreadcrumb`); sync read `getEntitySync(level, id)` for URL routing; metrics rollup `getEntityMetricsRollup(level, entityIds)` (wraps the `get_entity_metrics_rollup` RPC); writes `createBranch`, `createAgent`, `updateBranch`, `setBranchStatus`, `updateDistributor`; `_mockSources` for tests.
 
 Returns camelCase shape; Supabase rows are mapped via internal `mapRegion / mapDistrict / mapBranch / mapAgent / mapDistributor` helpers. Mock fallback reads from `mockData.js` + the in-memory `_entityOverrides` Map.
 
 `getDistributorMetrics()` was retired — every caller now uses `useEntityMetrics('country', 'ug')`, which routes through `getEntityMetricsRollup` → `get_entity_metrics_rollup` RPC. That RPC returns totalSubscribers/totalAgents/totalBranches/aum as part of its 8-field result, eliminating the 4-call fan-out the old function did.
 
-`getEntitySync` uses an in-memory `_syncCache` for synchronous lookups during URL routing (`DashboardNavContext.parsePath`). First navigation can return `null` until the cache warms — known low-impact behaviour (audit F27).
+`getEntitySync` uses an in-memory `_syncCache` for synchronous lookups during URL routing (`DashboardNavContext.parsePath`). First navigation can return `null` until the cache warms — known low-impact behaviour (see §16b).
 
 ### 5.5 `commissions.js` — commission state machine (1490 lines)
 
@@ -408,70 +357,29 @@ Both paths (`branch` and `agent`) are live. The state-machine RPC transition tab
 
 ### 5.6 `subscriber.js` — per-session mutation store + Supabase reads/writes
 
-```js
-export async function getCurrentSubscriber(phone)
-export async function getSubscriberTransactions(id, { type, range, status })
-export async function getSubscriberClaims(id)
-export async function getSubscriberWithdrawals(id)
-export async function getSubscriberNominees(id)
-export async function getSubscriberAgent(subscriberId)
-export async function makeAdHocContribution(id, { amount, retirementPct, method })
-export async function requestWithdrawal(id, ...)
-export async function submitClaim(id, payload)
-export async function updateContributionSchedule(id, schedule)
-export async function updateNominees(id, { pension, insurance })
-export async function updateInsuranceCover(id, { cover, premiumMonthly })
-export async function updateProfile(id, updates)
-export async function createFromSignup(payload)              // RPC create_subscriber_from_signup
-export async function createFromAgentOnboard(payload, agentId)  // RPC create_subscriber_from_agent_onboard
-export function invalidateSubscriber()
-```
+Public API: reads `getCurrentSubscriber(phone)`, `getSubscriberTransactions(id, { type, range, status })`, `getSubscriberClaims(id)`, `getSubscriberWithdrawals(id)`, `getSubscriberNominees(id)`, `getSubscriberAgent(id)`; writes `makeAdHocContribution`, `requestWithdrawal`, `submitClaim`, `updateContributionSchedule`, `updateNominees`, `updateInsuranceCover`, `updateProfile`; signup wrappers `createFromSignup(payload)` (RPC `create_subscriber_from_signup`) and `createFromAgentOnboard(payload, agentId)` (RPC `create_subscriber_from_agent_onboard`); cache helper `invalidateSubscriber()`.
 
 `_sessionMutations` Map keyed by subscriber ID — folds `{ extraTransactions, extraClaims, extraWithdrawals, scheduleOverride, nomineesOverride, insuranceOverride, profileOverride, balanceDelta }` into reads. `requestWithdrawal` writes BOTH a transaction (for activity feed) and a withdrawal record (for reports/claims).
 
 ### 5.7 `agent.js` — agent-scoped portfolio
 
-```js
-export async function getAgentSubscriberList(agentId)
-```
-
-Joins `subscribers` + `subscriber_balances` + `contribution_schedules` so the agent dashboard's list, detail, analytics, and home widgets ship from a single round-trip. RLS enforces "own portfolio only".
+`getAgentSubscriberList(agentId)` joins `subscribers` + `subscriber_balances` + `contribution_schedules` so the agent dashboard's list, detail, analytics, and home widgets ship from a single round-trip. RLS enforces "own portfolio only".
 
 ### 5.8 `kyc.js` — Smile ID v2-shaped pipeline (mocked)
 
-```js
-assessImageQuality(file) · extractIdFields({ front, back, sessionId })
-verifyNira(payload) · sendOtp(payload) · verifyOtp(payload)
-faceMatch(payload) · screenAml(payload) · referToAgent(payload)
-```
-
-Every call returns a `tracking_id` correlating stages of one onboarding job. **QA force-overrides** via `localStorage['upensions_<stage>_force']` (forwarded as the `X-QA-Force` header). Mock fallback honours the same flags. **Demo scope** — see §16a.
+8 stages: `assessImageQuality(file)`, `extractIdFields({ front, back, sessionId })`, `verifyNira(payload)`, `sendOtp(payload)`, `verifyOtp(payload)`, `faceMatch(payload)`, `screenAml(payload)`, `referToAgent(payload)`. Every call returns a `tracking_id` correlating stages of one onboarding job. **QA force-overrides** via `localStorage['upensions_<stage>_force']` (forwarded as the `X-QA-Force` header). Mock fallback honours the same flags. **Demo scope** — see §16a.
 
 ### 5.9 `chat.js` — keyword-matched chat (mocked)
 
-```js
-export async function getChatResponse(message)         // distributor/branch
-export async function getAgentReply(message, agent)    // subscriber ↔ agent DM
-export async function getSubscriberChatResponse(msg)   // subscriber co-pilot
-```
-
-POSTs to `/api/chat` (JWT-optional; the route flavours by role). All three return a plain string (the route also returns `suggestions[]` but callers render a single bubble). Phase 1G adds `Cache-Control: no-store` on the route and type-checks `body.message`.
+`getChatResponse(message)` (distributor / branch), `getAgentReply(message, agent)` (subscriber ↔ agent DM), `getSubscriberChatResponse(msg)` (subscriber co-pilot). All POST to `/api/chat` (JWT-optional; the route flavours by role) and return a plain string (the route also returns `suggestions[]` but callers render a single bubble). The route sets `Cache-Control: no-store` and type-checks `body.message`.
 
 ### 5.10 `search.js`
 
-```js
-export async function searchEntities(query): Promise<Array<{ id, name, level, label, parentId }>>
-```
-
-Wraps the `search_entities` PG RPC (pg_trgm fuzzy). Hardcoded max 8 results. Mock fallback scans `REGIONS/DISTRICTS/BRANCHES/AGENTS`.
+`searchEntities(query): Promise<Array<{ id, name, level, label, parentId }>>` wraps the `search_entities` PG RPC (pg_trgm fuzzy). Hardcoded max 8 results. Mock fallback scans `REGIONS/DISTRICTS/BRANCHES/AGENTS`.
 
 ### 5.11 `contact.js`
 
-```js
-export async function submitContactForm({ name, email, message }): Promise<{ submitted: true, id?, demo? }>
-```
-
-POSTs to `/api/contact`. Returns `demo: false` on real persistence, `demo: true` under the rollback flag (or in dev when `/api/*` is unreachable). The frontend does **not** strictly validate the `{ submitted, id }` shape — known low-priority drift (audit X13, §16b).
+`submitContactForm({ name, email, message }): Promise<{ submitted: true, id?, demo? }>` POSTs to `/api/contact`. Returns `demo: false` on real persistence, `demo: true` under the rollback flag (or in dev when `/api/*` is unreachable). The frontend does **not** strictly validate the `{ submitted, id }` shape — known low-priority drift (see §16b).
 
 ---
 
@@ -480,43 +388,34 @@ POSTs to `/api/contact`. Returns `demo: false` on real persistence, `demo: true`
 | Context | Provider scope | What it holds | Read by |
 | --- | --- | --- | --- |
 | `AuthContext` | `main.jsx` (whole app) | `{ user, role, isAuthenticated, login, logout, updateUser }` + localStorage persist (`upensions_auth`); subscribes to `onAuthExpired` from `api.js` (see §6.1) | All shells, SignInModal, every page that needs identity |
-| `SignInContext` | `App.jsx` (inside Routes) | `{ isOpen, open, close }` for SignInModal — `value` is **memoized** (Phase 4A `e43de1f`) | Navbar, CTA, sign-in trigger buttons |
-| `ToastContext` | `main.jsx` | `{ toasts, addToast, removeToast }` (max 3 visible, auto-dismiss) — `value` is **memoized** (Phase 4A `e43de1f`) | Every form/mutation; rendered via `<ToastContainer />` |
+| `SignInContext` | `App.jsx` (inside Routes) | `{ isOpen, open, close }` for SignInModal — `value` is **memoized** | Navbar, CTA, sign-in trigger buttons |
+| `ToastContext` | `main.jsx` | `{ toasts, addToast, removeToast }` (max 3 visible, auto-dismiss) — `value` is **memoized** | Every form/mutation; rendered via `<ToastContainer />` |
 | `DashboardContext` | `DashboardShell` / `BranchDashboardShell` / `AgentDashboardShell` / `SubscriberDashboardShell` | **Composes** `DashboardNavProvider` + `DashboardPanelProvider`; exposes merged `useDashboard()` for back-compat | All four dashboard shells |
-| `DashboardNavContext` | inside `DashboardContext` | URL-derived drill state `{ level, selectedIds, section, reportId }` + `drillDown / drillUp / goToLevel / reset` + `drillTargetBranchId/AgentId` + `onPanelActionRef`. `goToLevel` reads `pathnameRef.current` (Phase 4D `dbb46e4`) | Sidebar, Map, OverlayPanel, Breadcrumb |
-| `DashboardPanelContext` | inside `DashboardContext` | **Strictly generic** after Phase 4C (`1c46f91`): submenu toggles + role-agnostic panel open states (`createBranchOpen`, `viewBranchesOpen`, `createAgentOpen`, `viewAgentsOpen`, `commissionsOpen`, `viewReportsOpen`, `settingsOpen`) + `reportContext` + `closeAllPanels()`. Subscriber-specific keys moved to `SubscriberPanelContext`. | Distributor + Branch panels |
+| `DashboardNavContext` | inside `DashboardContext` | URL-derived drill state `{ level, selectedIds, section, reportId }` + `drillDown / drillUp / goToLevel / reset` + `drillTargetBranchId/AgentId` + `onPanelActionRef`. `goToLevel` reads `pathnameRef.current` (ref-based to keep callback identity stable) | Sidebar, Map, OverlayPanel, Breadcrumb |
+| `DashboardPanelContext` | inside `DashboardContext` | **Strictly generic**: submenu toggles + role-agnostic panel open states (`createBranchOpen`, `viewBranchesOpen`, `createAgentOpen`, `viewAgentsOpen`, `commissionsOpen`, `viewReportsOpen`, `settingsOpen`) + `reportContext` + `closeAllPanels()`. Subscriber-specific keys moved to `SubscriberPanelContext`. | Distributor + Branch panels |
 | `SubscriberPanelContext` (`src/subscriber-dashboard/`) | `SubscriberDashboardShell` only | Subscriber-only panel extension that **wraps** `DashboardPanelProvider`. Extension surface (`subscriberMenuOpen`, `viewSubscribersOpen`, plus future subscriber-only state) lives here; `useSubscriberPanel()` returns the merged `{ ...generic, ...subscriberExtension }` object. | Subscriber pages + home widgets |
-| `BranchScopeContext` | `BranchDashboardShell` only | `{ branchId }` for descendants — `value` is **memoized** (Phase 4A `e43de1f`) | ViewAgents, ViewReports, CommissionPanel when rendered inside Branch tree |
-| `AgentScopeContext` | `AgentDashboardShell` only | `{ agentId }` for descendants — `value` is **memoized** (Phase 4A `e43de1f`) | All agent pages + home widgets + CoPilot |
+| `BranchScopeContext` | `BranchDashboardShell` only | `{ branchId }` for descendants — `value` is **memoized** | ViewAgents, ViewReports, CommissionPanel when rendered inside Branch tree |
+| `AgentScopeContext` | `AgentDashboardShell` only | `{ agentId }` for descendants — `value` is **memoized** | All agent pages + home widgets + CoPilot |
 | `SignupContext` (`src/signup/SignupContext.jsx`) | `SignupPage` only | `useReducer` + debounced localStorage persist (`uganda-pensions-signup`); File/Blob fields + raw `password` stripped on serialise. Single `patch(payload)` + `reset()`. Mints `onboardingSessionId` (crypto.randomUUID). See §11 for debounce + beforeunload-flush detail | All 11 signup steps + contribution sub-flow + agent OnboardKycFlow |
 
 **Cross-context handoff — `onPanelActionRef` pattern.** `DashboardNavProvider` exposes a ref; `DashboardPanelProvider` writes `{ setViewBranchesOpen, setViewAgentsOpen, setBranchMenuOpen, setAgentMenuOpen, setViewReportsOpen, … }` into it on mount. Map drill-down effects + overlay clicks invoke `onPanelActionRef.current?.setViewBranchesOpen(true)` so nav can drive panel state without a circular import or cyclic provider order.
 
-### 6.1 Ref-based listeners (Phase 4D `dbb46e4`)
+### 6.1 Ref-based listeners
 
-Two long-lived listeners on these contexts used to capture stale callbacks because their `useEffect` deps were `[]`. Phase 4D made both ref-based so they read the current callback every fire while subscribing only once on mount:
+Two long-lived listeners on these contexts used to capture stale callbacks because their `useEffect` deps were `[]`. Both are now ref-based so they read the current callback every fire while subscribing only once on mount:
 
 - **`DashboardNavContext.goToLevel`** — `useCallback` no longer depends on `location.pathname`. Instead, a `pathnameRef` is kept in sync via a separate effect, and `goToLevel` reads `pathnameRef.current` inside `parsePath(...)`. The callback identity is now stable across navigations (was rebuilt on every route change → cascaded re-renders).
 - **`AuthContext.onAuthExpired` listener** — `logoutRef` and `navigateRef` are written every render; the subscription effect uses `[]` deps but its handler reads `logoutRef.current()` and `navigateRef.current('/')`. The 401 listener is now subscribed once for the app's lifetime, and always runs the current `logout` + `navigate`.
 
-### 6.2 Role-leakage trap (resolved — was F5)
+### 6.2 Role-leakage seam
 
-`DashboardPanelContext` previously carried subscriber-specific menu state (`subscriberMenuOpen`, `viewSubscribersOpen`) inside the same value bag that Branch and Distributor consumed. Phase 4C (`1c46f91`) split the context: the generic provider is now **strictly role-agnostic**, and subscriber-specific extensions land in `SubscriberPanelContext` (`src/subscriber-dashboard/SubscriberPanelContext.jsx`). The wrapper composes the generic provider so generic keys (`settingsOpen`, etc.) continue to flow through `useDashboardPanel()` / `useDashboard()` unchanged; subscriber-only consumers use `useSubscriberPanel()` which merges both layers.
+`DashboardPanelContext` previously carried subscriber-specific menu state (`subscriberMenuOpen`, `viewSubscribersOpen`) inside the same value bag that Branch and Distributor consumed. The context was split: the generic provider is now **strictly role-agnostic**, and subscriber-specific extensions land in `SubscriberPanelContext` (`src/subscriber-dashboard/SubscriberPanelContext.jsx`). The wrapper composes the generic provider so generic keys (`settingsOpen`, etc.) continue to flow through `useDashboardPanel()` / `useDashboard()` unchanged; subscriber-only consumers use `useSubscriberPanel()` which merges both layers.
 
 The seam is the canonical pattern for any future role-specific panel state — keep `DashboardPanelContext` generic; build a `<Role>PanelContext` wrapper for role-specific keys.
 
-### 6.3 Memoization status (Phase 4A `e43de1f`)
+### 6.3 Memoization status
 
-The audit flagged four context providers as building a new `value` object every render. All are now memoized:
-
-| Context | Status |
-| --- | --- |
-| `SignInContext` | `value = useMemo(() => ({ isOpen, open, close }), [isOpen, open, close])` |
-| `ToastContext` | `value = useMemo(() => ({ toasts, addToast, removeToast }), [toasts, addToast, removeToast])` |
-| `BranchScopeContext` | `value = useMemo(() => ({ branchId: branchId || null }), [branchId])` |
-| `AgentScopeContext` | `value = useMemo(() => ({ agentId: agentId || null }), [agentId])` |
-
-`DashboardPanelContext`, `SubscriberPanelContext`, `AuthContext`, and `SignupContext` already use `useMemo` for `value`. **All provider values across the app are now memoized.**
+All provider values across the app are memoized via `useMemo`. The previously-flagged providers (`SignInContext`, `ToastContext`, `BranchScopeContext`, `AgentScopeContext`) now wrap their `value` object in `useMemo` with the right dependency arrays; `DashboardPanelContext`, `SubscriberPanelContext`, `AuthContext`, and `SignupContext` were already memoized. Maintain this pattern for any new context provider.
 
 ---
 
@@ -545,14 +444,14 @@ The audit flagged four context providers as building a new `value` object every 
 | `useInfiniteEntityList(level, opts)` | `['allEntities', level, opts]` (cursor) |
 | `useAllEntitiesMap(level)` | `['allEntitiesMap', level]` |
 | `useTopBranch(level, parentId)` | `['topBranch', level, parentId]` |
-| `useBreadcrumb(currentLevel, selectedIds)` | `['breadcrumb', currentLevel, selectedIds]` — see audit F13 |
+| `useBreadcrumb(currentLevel, selectedIds)` | `['breadcrumb', currentLevel, selectedIds]` — stable cache key in place; see §16b for the technique |
 | `useSearch(query)` | `['search', query]` (pair with `useDebouncedValue`, §7.8) |
 | `useChildrenMetrics(parentLevel, parentId)` | `['childrenMetrics', parentLevel, parentId, ids]` |
 | `useEntityMetrics(level, id)` | `['entityMetrics', level, id]` |
 | `useAllEntitiesMetrics(level)` | `['allEntitiesMetrics', level, ids]` |
 | `useCreateBranch / useCreateAgent / useUpdateBranch / useSetBranchStatus / useUpdateDistributor` | mutations — invalidate `['allEntities', level]` + ancestors |
 
-Audit F13 flags `['breadcrumb', currentLevel, selectedIds]` — the `selectedIds` object identity is unstable across renders, so the cache thrashes. Known issue; see §16b.
+The `['breadcrumb', currentLevel, selectedIds]` key was originally flagged because `selectedIds` object identity is unstable across renders, causing the cache to thrash. A stable cache-key wrapper now serialises the ids before keying; see §16b for the pattern to propagate to any new object-identity keys.
 
 ### 7.2 `useCommission.js`
 
@@ -560,7 +459,7 @@ Read keys: `['commissionSummary', branchId]` · `['agentCommissions', focus]` ·
 
 Mutations: `useApproveDispute` · `useRejectDispute` · `useBulkApproveDisputes` · `useBulkRejectDisputes` · `useWithdrawDispute` · `useBranchDisputeLine` · `useOpenRun` · `useCancelRun` · `useBranchApproveLine` · `useBranchHoldLine` · `useBranchApproveAll` · `useMarkBranchReviewed` · `useReleaseRun` · `useReleaseBranch` · `useConfirmCommission` · `useDisputeCommission` · `useSetCommissionRate` · `useSetNetworkCadence`.
 
-**Invalidation rule:** every mutation calls `invalidateAll(queryClient)`, which invalidates the full set `ALL_RUN_KEYS + ALL_COMMISSION_KEYS`. Coarse but safe — commission state changes ripple through every summary. Phase 4H (commit `b0e54a4`) added a memoization layer on commission filter pipelines (`CommissionPanel.jsx` `agentList` / `disputedAgents`) to address F28.
+**Invalidation rule:** every mutation calls `invalidateAll(queryClient)`, which invalidates the full set `ALL_RUN_KEYS + ALL_COMMISSION_KEYS`. Coarse but safe — commission state changes ripple through every summary. A memoization layer on commission filter pipelines (`CommissionPanel.jsx` `agentList` / `disputedAgents`) keeps re-renders bounded under the coarse invalidation.
 
 ### 7.3 `useSubscriber.js`
 
@@ -576,55 +475,35 @@ Mutations: `useApproveDispute` · `useRejectDispute` · `useBulkApproveDisputes`
 
 All mutations call `invalidateSubscriber()` (from `services/subscriber.js`) which clears every `['subscriber*', ...]` key.
 
-Audit X12 flags a cache-key inconsistency: `useSubscriber.useSubscriberTransactions` keys `[id, filters]` while `useAgent`'s agent-side equivalent variants drop `filters`. Cross-context cache key drift — see §16b.
+Known cache-key inconsistency: `useSubscriber.useSubscriberTransactions` keys `[id, filters]` while `useAgent`'s agent-side equivalent variants drop `filters`. Cross-context cache-key drift — see §16b.
 
 ### 7.4 `useAgent.js`
 
-```js
-useAgentSubscribers(agentId)       // ['agentSubscribers', agentId]
-useUpdateSubscriberSchedule(subscriberId, agentId)
-   // mutation invalidates ['agentSubscribers', agentId]
-```
+`useAgentSubscribers(agentId)` → `['agentSubscribers', agentId]`. `useUpdateSubscriberSchedule(subscriberId, agentId)` mutation invalidates `['agentSubscribers', agentId]`.
 
 ### 7.5 `useIsMobile.js`
 
-```js
-export function useIsMobile(): boolean
-```
-
-`useSyncExternalStore` over `matchMedia('(max-width: 768px)')`. Subscribes on mount; no polling.
+`useIsMobile(): boolean` — `useSyncExternalStore` over `matchMedia('(max-width: 768px)')`. Subscribes on mount; no polling.
 
 ### 7.6 `useOutsideClick.js`
 
-```js
-export function useOutsideClick(active, onOutside, refs): void
-```
-
-Listens on `mousedown` (fires before trigger button's `onClick` — prevents close-then-immediately-reopen race) and `Escape`. `refs` is the "inside" set; click outside all of them triggers the handler.
+`useOutsideClick(active, onOutside, refs): void` — listens on `mousedown` (fires before trigger button's `onClick` — prevents close-then-immediately-reopen race) and `Escape`. `refs` is the "inside" set; click outside all of them triggers the handler.
 
 ### 7.7 `useCountUp.js`
 
-```js
-export function useCountUp(target, duration = 1100, run = true): number
-```
-
-`requestAnimationFrame` ease-out-expo curve. Used by `PulseCard` (subscriber) and `PortfolioPulseCard` (agent). Returns 0 when `run` is false (reduced motion).
+`useCountUp(target, duration = 1100, run = true): number` — `requestAnimationFrame` ease-out-expo curve. Used by `PulseCard` (subscriber) and `PortfolioPulseCard` (agent). Returns 0 when `run` is false (reduced motion).
 
 ### 7.8 `useDebouncedValue.js`
 
-```js
-export function useDebouncedValue<T>(value: T, delayMs?: number = 300): T
-```
+`useDebouncedValue<T>(value: T, delayMs?: number = 300): T` — centralised debounce. Returns `value` `delayMs` after it stops changing; non-finite / negative `delayMs` is coerced to `0` (avoids the `NaN`-silently-treated-as-0 footgun). Use this for search inputs (pair with `useSearch`), filter strings, slider-driven previews — anywhere downstream effects should only fire after the user pauses.
 
-Centralised debounce. Returns `value` `delayMs` after it stops changing; non-finite / negative `delayMs` is coerced to `0` (avoids the `NaN`-silently-treated-as-0 footgun). Use this for search inputs (pair with `useSearch`), filter strings, slider-driven previews — anywhere downstream effects should only fire after the user pauses.
-
-**Phase 2 coverage:** all four stateful hooks (`useEntity`, `useCommission`, `useSubscriber`, `useAgent`) now have unit tests at `src/hooks/__tests__/` — see §17. The earlier T6 gap is closed.
+**Hook test coverage:** all four stateful hooks (`useEntity`, `useCommission`, `useSubscriber`, `useAgent`) have unit tests at `src/hooks/__tests__/` — see §17.
 
 ---
 
 ## 8. Canonical optimistic-mutation pattern (`useEntity` template)
 
-Phase 4 ratified `useEntity`'s `useUpdateBranch` / `useSetBranchStatus` as the **canonical template** for future role-specific React Query mutations (F14). The pattern is:
+`useEntity`'s `useUpdateBranch` / `useSetBranchStatus` are the **canonical template** for future role-specific React Query mutations. The pattern is:
 
 ```js
 useMutation({
@@ -661,53 +540,29 @@ The test file at `src/hooks/__tests__/useEntity.test.js` exercises every step of
 
 ### 9.1 Distributor Admin — `src/dashboard/`
 
-| Field | Value |
-| --- | --- |
-| Shell | `DashboardShell.jsx` |
-| Entry guard | `ProtectedDashboard` default branch (`hasDashboard(role)` true and role not in branch/agent/subscriber) |
-| Scope context | none (`useBranchScope().branchId === null` → network-wide) |
-| Sub-areas | `sidebar/`, `map/`, `overlay/`, `cards/`, `branch/`, `agent/`, `subscriber/`, `commissions/`, `reports/` (+ `views/`), `settings/`, `shared/` |
-| Navigation | **Routes** drive drill level; **panels** drive overlays |
+Shell `DashboardShell.jsx`. Entry guard: `ProtectedDashboard` default branch (`hasDashboard(role)` true and role not in branch/agent/subscriber). Scope context: none (`useBranchScope().branchId === null` → network-wide). Sub-areas: `sidebar/`, `map/`, `overlay/`, `cards/`, `branch/`, `agent/`, `subscriber/`, `commissions/`, `reports/` (+ `views/`), `settings/`, `shared/`. Navigation: **routes** drive drill level; **panels** drive overlays.
 
 Routes are URL-driven drill levels (`/dashboard/regions/:id`, `/dashboard/districts/:id`, `/dashboard/branches/:id`, `/dashboard/agents/:id`, `/dashboard/subscribers/:id`, `/dashboard/reports[/:reportId]`) parsed by `DashboardNavContext.parsePath`. Slide-in panels (`ViewBranches`, `ViewAgents`, `ViewSubscribers`, `CommissionPanel`, `ViewReports`, `Settings`, `CreateBranch`, `CreateAgent`) are state-based via `DashboardPanelContext`. Map → panel handoff via `onPanelActionRef`. `CommissionPanel.jsx` (1682 lines) uses **replace-model** navigation — single panel swaps content with breadcrumb trail.
 
 ### 9.2 Branch Admin — `src/branch-dashboard/`
 
-| Field | Value |
-| --- | --- |
-| Shell | `BranchDashboardShell.jsx` |
-| Entry guard | `role === 'branch'` else `Navigate to="/coming-soon"`; `MissingBranchIdScreen` if `branchId` absent |
-| Scope context | `BranchScopeProvider(branchId)` + `DashboardProvider` |
-| Sub-areas | `sidebar/`, `overview/`, `agent/` |
-| Navigation | Single main view; panels for everything else |
+Shell `BranchDashboardShell.jsx`. Entry guard: `role === 'branch'` else `Navigate to="/coming-soon"`; `MissingBranchIdScreen` if `branchId` absent. Scope context: `BranchScopeProvider(branchId)` + `DashboardProvider`. Sub-areas: `sidebar/`, `overview/`, `agent/`. Navigation: single main view; panels for everything else.
 
 Single main view `BranchOverview` (no drill-down). Side panels reuse Distributor `ViewAgents`, `CommissionPanel`, `ViewReports`, `Settings` plus local `CreateAgent`, rendered with `splitMode` (backdrop suppressed; main reflows). `BranchHealthScore.jsx` (533 lines) — score gauge 0–100 from weighted formula (retention 30%, avg/subscriber 25%, agent activity 25%, growth 20%) + insights + contribution chart + embedded AI chat. `BranchSettlementBanner` surfaces open settlement runs.
 
-**Mobile drawer (`BranchDashboardShell` + `BranchSidebar`).** On viewports ≤768px the sidebar is hidden and a `MobileHeader` + Framer slide-in `MobileDrawer` take over. The drawer slides in `x: '-100%' → 0` with `EASE_OUT_EXPO` over 320ms, locks body scroll, closes on Escape, and auto-closes on route change (a `useEffect` watching `location.pathname`). `BranchSidebar` accepts `mode='desktop'|'drawer'` + `onNavigate` — drawer mode renders a full-width vertical menu and invokes `onNavigate` after each item click so the drawer dismisses itself.
+**Mobile drawer.** On viewports ≤768px the sidebar is hidden and a `MobileHeader` + Framer slide-in `MobileDrawer` take over. The drawer slides `x: '-100%' → 0` with `EASE_OUT_EXPO` over 320ms, locks body scroll, closes on Escape, auto-closes on route change. `BranchSidebar` accepts `mode='desktop'|'drawer'` + `onNavigate` — drawer mode renders a full-width vertical menu and invokes `onNavigate` after each item click so the drawer dismisses itself.
 
 ### 9.3 Agent — `src/agent-dashboard/`
 
-| Field | Value |
-| --- | --- |
-| Shell | `AgentDashboardShell.jsx` (routed pages, mobile-first) |
-| Entry guard | `role === 'agent'` else `Navigate to="/coming-soon"`; `MissingAgentIdScreen` if `agentId` absent |
-| Scope context | `AgentScopeProvider(agentId)` + `DashboardProvider` (just for the shared `Settings` panel) |
-| Sub-areas | `shell/` (SideNav + BottomTabBar + PageHeader + AgentShell), `home/` (HomePage + widgets/), `onboarding/`, `pages/` |
-| Navigation | **All routed** — no Distributor-style drill panels |
+Shell `AgentDashboardShell.jsx` (routed pages, mobile-first). Entry guard: `role === 'agent'` else `Navigate to="/coming-soon"`; `MissingAgentIdScreen` if `agentId` absent. Scope context: `AgentScopeProvider(agentId)` + `DashboardProvider` (just for the shared `Settings` panel). Sub-areas: `shell/` (SideNav + BottomTabBar + PageHeader + AgentShell), `home/` (HomePage + widgets/), `onboarding/`, `pages/`. Navigation: **all routed** — no Distributor-style drill panels.
 
 Home: 2 widgets — `PortfolioPulseCard` (dark indigo hero, count-up, cadence-aware "Next payout" via `cycleWindow()`) + `CoPilotWidget` (see §13). CommissionsPage owns cadence editor (`upensions_agent_settlement_cadence` localStorage) and **automatic settlement on cadence** — bulk "Request settlement" CTA was retired. KYC rule: every subscriber is KYC-verified by definition (no reminders, no filters).
 
-Agent-side dispute path is **live** — `useDisputeCommission` → `services/commissions.disputeCommission(_, _, by='agent')` → `agent_dispute_line` SECURITY DEFINER RPC (added in migration 0014). Earlier revisions of this doc incorrectly claimed the flow was unbuilt; that claim has been removed (X3).
+Agent-side dispute path is **live** — `useDisputeCommission` → `services/commissions.disputeCommission(_, _, by='agent')` → `agent_dispute_line` SECURITY DEFINER RPC (added in migration 0014).
 
 ### 9.4 Subscriber — `src/subscriber-dashboard/`
 
-| Field | Value |
-| --- | --- |
-| Shell | `SubscriberDashboardShell.jsx` (routed pages) |
-| Entry guard | `role === 'subscriber'` else `Navigate to="/dashboard"` |
-| Scope context | `SubscriberPanelProvider` (wraps `DashboardPanelProvider`) + `DashboardNavProvider` |
-| Sub-areas | `shell/` (SideNav + BottomTabBar + PageHeader + navigation helpers + SubscriberShell), `home/` (HomePage + 6 widgets/), `pages/`, `reports/views/` |
-| Navigation | **All routed** |
+Shell `SubscriberDashboardShell.jsx` (routed pages). Entry guard: `role === 'subscriber'` else `Navigate to="/dashboard"`. Scope context: `SubscriberPanelProvider` (wraps `DashboardPanelProvider`) + `DashboardNavProvider`. Sub-areas: `shell/` (SideNav + BottomTabBar + PageHeader + navigation helpers + SubscriberShell), `home/` (HomePage + 6 widgets/), `pages/`, `reports/views/`. Navigation: **all routed**.
 
 5 home widgets: `PulseCard`, `TopUpWidget`, `IfYouNeedItWidget` (desktop only), `ActivityWidget`, `CoPilotWidget` (see §13). Reports under `reports/views/`: `AllTransactions`, `ContributionsSummary`, `WithdrawalsHistory`, `InsuranceStatement`, `AnnualStatement`. All mutations are optimistic via the `_sessionMutations` log in `subscriber.js`.
 
@@ -756,21 +611,17 @@ Agent-side dispute path is **live** — `useDisputeCommission` → `services/com
 | `agent` (`AGENT_STEP`) | NIRA or liveness failure | `AgentFallbackStep` |
 | `pending-review` (`PENDING_REVIEW_STEP`) | AML flag | `PendingReviewStep` |
 
-### 11.1 SignupContext persistence (`SignupContext.jsx`, Phase 4H `b0e54a4`)
+### 11.1 SignupContext persistence (`SignupContext.jsx`)
 
-- `useReducer` (`patch` / `reset`) + a **debounced** `useEffect` that writes to `localStorage['uganda-pensions-signup']` 300ms after the last state change (instead of synchronously on every keystroke). Replaces the old "30+ writes during signup" pattern flagged by audit F15.
-- A second `useEffect` registers a `beforeunload` listener that **flushes the pending debounce on tab close / refresh** so the final keystroke is never dropped.
-- Lazy initialiser reads persisted state; ephemeral fields are re-nulled on rehydrate.
+- `useReducer` (`patch` / `reset`) + a **debounced** `useEffect` that writes to `localStorage['uganda-pensions-signup']` 300ms after the last state change. Replaces the old "30+ writes per signup" pattern. A second `useEffect` registers a `beforeunload` listener that **flushes the pending debounce on tab close / refresh** so the final keystroke is never dropped. Lazy initialiser reads persisted state; ephemeral fields are re-nulled on rehydrate.
 - **`EPHEMERAL_KEYS = ['idFrontFile', 'idBackFile', 'selfieFile', 'idFrontPreviewUrl', 'idBackPreviewUrl', 'password']`** dropped on serialise. User re-uploads images on refresh; OCR result + phone + beneficiaries + consent + KYC outcomes survive. **Raw passwords MUST NOT touch localStorage** — `password` lives in memory only and is re-entered on remount if the user navigates back to `ReviewStep`.
-- `onboardingSessionId` minted via `crypto.randomUUID()` (fallback to time+random) — backend uses it to correlate every KYC stage.
-- `isSignupComplete()` (in `src/signup/signupState.js`) returns `state.consent === true`. Used by `SignInModal.handleVerify` to send subscribers with incomplete KYC back to `/signup` instead of `/dashboard`.
+- `onboardingSessionId` minted via `crypto.randomUUID()` (fallback to time+random); backend uses it to correlate every KYC stage. `isSignupComplete()` (in `src/signup/signupState.js`) returns `state.consent === true`; `SignInModal.handleVerify` uses it to send subscribers with incomplete KYC back to `/signup` instead of `/dashboard`.
 
 ### 11.2 Contribution sub-flow (`/signup/contribution`)
 
-- `ContributionRoute.jsx` — route entry. Renders inside `SignupFlow` when the pathname ends with `/contribution` so step-state is preserved.
-- `ContributionSettings.jsx` (552 lines) — frequency (weekly/monthly/quarterly/half-yearly/annually via `FREQUENCY` constants), amount, retirement/emergency split.
-- `PaymentStep.jsx` — initial funding step.
-- On confirm: patches `contributionSchedule` into `SignupContext` → calls `createFromSignup(payload)` (RPC `create_subscriber_from_signup`, see BACKEND.md §10) which mints the real subscriber row + JWT → `auth.login({ token, user })` → `navigate('/dashboard')`.
+`ContributionRoute.jsx` is the route entry; renders inside `SignupFlow` when the pathname ends with `/contribution` so step-state is preserved. `ContributionSettings.jsx` (552 lines) handles frequency / amount / retirement-emergency split. `PaymentStep.jsx` is the initial funding step.
+
+On confirm: patches `contributionSchedule` into `SignupContext` → calls `createFromSignup(payload)` (RPC `create_subscriber_from_signup`, see BACKEND.md §10) which mints the real subscriber row + JWT → `auth.login({ token, user })` → `navigate('/dashboard')`.
 
 ---
 
@@ -794,62 +645,44 @@ Single shared dialog used by every confirm / destructive-action surface — `Com
 </Modal>
 ```
 
-Behaviour contract (the audit called this file **exemplary** — match this template if you ever build another modal):
+Behaviour contract — match this template if you ever build another modal:
 
-- **Portal.** Renders into `document.body` so it escapes any transformed / overflow-clipped slide-in panel that hosts the trigger. `role="dialog"` + `aria-modal="true"` + auto-generated `aria-labelledby` (use the `title` prop) on the inner surface.
-- **Focus.** On open, captures `document.activeElement` and moves focus to the first focusable element inside the dialog (falls back to the dialog container if none). On close, restores focus to the previously focused element. Tab / Shift+Tab cycle inside the dialog (focus trap).
+- **Portal.** Renders into `document.body` so it escapes any transformed / overflow-clipped slide-in panel that hosts the trigger. `role="dialog"` + `aria-modal="true"` + auto-generated `aria-labelledby` on the inner surface.
+- **Focus.** On open, captures `document.activeElement` and moves focus to the first focusable element inside the dialog (falls back to the dialog container). On close, restores focus. Tab / Shift+Tab cycle inside the dialog (focus trap).
 - **Escape.** Calls `onClose` and fires `preventDefault + stopPropagation + nativeEvent.stopImmediatePropagation()` so outer slide-in panels do NOT also close. Verified by E2E spec `e2e/specs/regression/modal-escape.spec.ts`.
 - **Backdrop dismiss.** Requires `mousedown` AND `mouseup` both on the backdrop element (`e.target === e.currentTarget`). Prevents drag-out misfires.
-- **Body scroll lock.** `document.body.style.overflow = 'hidden'` while open; restores the previous value on close.
-- **Z-index.** Backdrop at `1000` — sits above slide-in panels (panel z-index `210`).
+- **Body scroll lock + z-index.** `document.body.style.overflow = 'hidden'` while open; restored on close. Backdrop z-index `1000` — sits above slide-in panels (panel z-index `210`).
 - **Animation.** AnimatePresence wraps in / out. Backdrop fades; surface scales `0.96 → 1` + slides `12 → 0`, easing `EASE_OUT_EXPO`, 250ms.
-- **Mobile.** Surface goes full-screen with safe-area insets; border-radius collapsed.
-- **SSR safety.** Returns `null` when `typeof document === 'undefined'`.
+- **Mobile + SSR.** Mobile: full-screen with safe-area insets, no border-radius. SSR: returns `null` when `typeof document === 'undefined'`.
 
 Tests live alongside the component (`Modal.test.jsx`).
 
 ### 12.2 Slide-in panels (Distributor + Branch)
 
-- Backdrop: `position: fixed; inset: 0; background: rgba(27,26,74,0.35); z-index: 200`. Hidden in `splitMode`.
-- Panel: `position: fixed; top/right/bottom: 16px; width: 460–680px; z-index: 210; border-radius: var(--radius-xl)`.
-- Body background: `linear-gradient(180deg, #F8F9FC 0%, #F0F1F8 100%)` (solid; **not** glassmorphism for inner content).
-- Framer Motion: `initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}` with `EASE_OUT_EXPO`.
-- Mobile (≤768px): full-screen with safe-area insets, no border-radius.
-- Escape closes; internal state resets after a 400ms delay.
-- `splitMode` prop suppresses backdrop and lets the parent reflow main content beside the panel (used by `BranchOverview`).
+Backdrop `position: fixed; inset: 0; background: rgba(27,26,74,0.35); z-index: 200` (hidden in `splitMode`). Panel `position: fixed; top/right/bottom: 16px; width: 460–680px; z-index: 210; border-radius: var(--radius-xl)`; body background `linear-gradient(180deg, #F8F9FC 0%, #F0F1F8 100%)` (solid — **not** glassmorphism for inner content). Framer Motion `initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}` with `EASE_OUT_EXPO`. Mobile (≤768px): full-screen with safe-area insets, no border-radius. Escape closes; internal state resets after a 400ms delay. `splitMode` prop suppresses backdrop and lets the parent reflow main content beside the panel (used by `BranchOverview`).
 
 ### 12.3 Accessibility baseline
 
-The audit confirmed **0 anti-pattern hits** on the two highest-leverage rules — no `outline: none` without a paired focus replacement, and no `transition: all`. ARIA coverage is solid. This is a baseline worth preserving.
+Audit-verified: 0 anti-pattern hits on the two highest-leverage rules (no unpaired `outline: none`; no `transition: all`); ARIA coverage is solid.
 
-- **Focus visibility.** Global `:focus-visible` baseline in `index.css` (2px `var(--color-indigo-soft)` outline + 2px offset). Per-control overrides exist for `button:focus-visible` / `a:focus-visible`. `outline: none` only appears inside `:focus` rules that also set a custom `border-color` ring — never unpaired.
-- **Transitions.** Never `transition: all` — always list properties explicitly.
-- **Reduced motion.** `<MotionConfig reducedMotion="user">` in `main.jsx`. CSS `prefers-reduced-motion` media query in `index.css` for non-Framer animations.
-- **Icon-only buttons.** Must have `aria-label`. `title` alone is not sufficient.
+- **Focus visibility.** Global `:focus-visible` baseline in `index.css` (2px `var(--color-indigo-soft)` outline + 2px offset). Per-control overrides for `button` / `a`. `outline: none` only appears inside `:focus` rules that also set a custom border-color ring — never unpaired.
+- **Transitions + motion.** Never `transition: all` — always list properties explicitly. `<MotionConfig reducedMotion="user">` in `main.jsx`; CSS `prefers-reduced-motion` media query in `index.css` for non-Framer animations.
+- **Icon-only buttons.** Must have `aria-label`. `title` alone is not sufficient. Decorative SVGs next to a text label must have `aria-hidden="true"`.
 - **Form inputs.** `aria-label` or associated `<label>`; correct `type` / `inputMode` / `autoComplete`; `spellCheck={false}` on OTP / phone.
 - **Touch targets.** `touch-action: manipulation` set globally on buttons + links. Minimum 44px height on mobile.
-- **Skip link.** `index.html` has a `<a href="#main" class="skip-link">` anchor. `<main id="main">` is on `App.LandingPage`, `BranchDashboardShell`, `SubscriberShell`, and agent `AgentShell`.
+- **Skip link.** `index.html` has `<a href="#main" class="skip-link">`. `<main id="main">` is on `App.LandingPage`, `BranchDashboardShell`, `SubscriberShell`, and `AgentShell`.
 - **Typography.** `text-wrap: balance` on headings. `font-variant-numeric: tabular-nums` on number / stat displays. Use the literal `…` character (U+2026), not three dots — JSX text does NOT resolve `\u` escapes.
-- **Images.** All `<img>` need explicit `width` and `height`. Below-fold images use `loading="lazy"`.
-- **Large lists.** `content-visibility: auto` with `contain-intrinsic-size` (applied in `ViewBranches` / `ViewAgents` / `ViewSubscribers`). Use `useVirtualizer` from `@tanstack/react-virtual` for lists over a few hundred items.
-- **Decorative icons.** SVGs that are purely decorative (next to a text label) must have `aria-hidden="true"`.
+- **Images + large lists.** All `<img>` need explicit `width` and `height`; below-fold images use `loading="lazy"`. `content-visibility: auto` with `contain-intrinsic-size` (applied in `ViewBranches` / `ViewAgents` / `ViewSubscribers`); use `useVirtualizer` for lists over a few hundred items.
 - **Live regions.** Drill-level changes are announced via an `aria-live="polite"` `NavAnnouncer` in `DashboardShell`. Signup step transitions move focus into the new step container (`mainRef` in `SignupShell`).
 
 ---
 
 ## 13. CoPilotWidget convention (intentional duplication)
 
-The subscriber and agent dashboards each ship their own `CoPilotWidget.jsx`:
+The subscriber and agent dashboards each ship their own `CoPilotWidget.jsx` (`src/subscriber-dashboard/home/widgets/` and `src/agent-dashboard/home/widgets/`). An audit pass reviewed extracting a shared `CopilotShell` and explicitly **kept both files separate**, with a JSDoc on each calling out the intentional duplication. Divergences are larger than the shared chrome:
 
-- `src/subscriber-dashboard/home/widgets/CoPilotWidget.jsx`
-- `src/agent-dashboard/home/widgets/CoPilotWidget.jsx`
-
-Audit F26 reviewed extracting a shared `CopilotShell`. Phase 4I (commit `f60bed1`) **kept both files separate** and added a JSDoc to each calling out the intentional duplication. The divergences are larger than the shared chrome:
-
-- **CSS modules diverge.** Subscriber uses `.avatar`, `.avatarRing`, `.glowA/B`, `.composerIcon`, `.headText`, `.eyebrowDot`, `.pills/.pill`, `.suggestionsLabel`. Agent uses `.eyebrowSpark`, `.suggestionBtn`, `.suggestionDot`, `.suggestionItem`. Different role-appropriate aesthetics, not stylistic accidents.
-- **Header DOM differs.** Subscriber has avatar + glow elements + `.headText` wrapper. Agent has inline eyebrow + simpler structure.
-- **Composer differs.** Subscriber has a leading sparkle icon prefix; agent doesn't.
-- **Suggestions DOM differs.** Subscriber has a pills-grid. Agent has `ul/li` with dot separators.
+- **CSS modules diverge.** Subscriber uses `.avatar`, `.avatarRing`, `.glowA/B`, `.composerIcon`, `.headText`, `.eyebrowDot`, `.pills/.pill`, `.suggestionsLabel`. Agent uses `.eyebrowSpark`, `.suggestionBtn`, `.suggestionDot`, `.suggestionItem`. Role-appropriate aesthetics, not stylistic accidents.
+- **DOM differs.** Subscriber header has avatar + glow + `.headText` wrapper; agent has inline eyebrow + simpler structure. Subscriber composer has a sparkle icon prefix; agent doesn't. Subscriber suggestions render as a pills-grid; agent as `ul/li` with dot separators.
 - **Reply logic differs in shape.** Subscriber makes an async service call + try/catch + toast errors. Agent runs a sync keyword matcher with no error path.
 
 A shared shell would have to standardise the CSS contract (visual change) or pass classNames / slot content through, adding more glue than it removes. **Keep the two files in lockstep visually only where it makes design sense.** Any change to one must check whether the other should mirror.
@@ -863,9 +696,9 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 - **Memoization conventions.** Every list page memoizes filters with `useMemo`; mutation hooks return memoized callbacks; map drill state derives from URL via `useMemo`. All four context-value gaps flagged by the audit are now memoized (§6.3).
 - **`useEntityMetrics` / `useChildrenMetrics` / `useAllEntitiesMetrics`** are the canonical paths for the 8-field metrics rollup. `getDistributorMetrics` was retired — every caller now uses `useEntityMetrics('country', 'ug')`, which routes through `getEntityMetricsRollup` → `get_entity_metrics_rollup` RPC. One round-trip replaces the old 4-call fan-out.
 - **Loading + empty primitives.** `SkeletonRow` (variants: `avatar` / `compact` / `card`) + `EmptyState` (`kind: 'no-data' | 'no-match'`) form a triad with `useQuery` — every list-style view panel exposes loading → empty (zero data) → empty (filter mismatch).
-- **Lazy GeoJSON (Phase 4F `c3c28c3`).** `UgandaMap.jsx` now lazy-loads the 180KB `uganda-districts.geojson` (was eager every mount). Per-feature style callbacks use a `WeakMap` cache to avoid re-styling on every drill change (F10, F11 addressed).
-- **Stable refs (Phase 4D `dbb46e4`).** `goToLevel` and `onAuthExpired` listeners are now ref-based — identity stable across renders (§6.1).
-- **Signup persist debounce (Phase 4H `b0e54a4`).** 300ms debounce + beforeunload-flush replaces the per-keystroke localStorage write (F15 addressed; §11).
+- **Lazy GeoJSON.** `UgandaMap.jsx` lazy-loads the 180KB `uganda-districts.geojson` (was eager every mount). Per-feature style callbacks use a `WeakMap` cache to avoid re-styling on every drill change.
+- **Stable refs.** `goToLevel` and `onAuthExpired` listeners are ref-based — identity stable across renders (§6.1).
+- **Signup persist debounce.** 300ms debounce + beforeunload-flush replaces the per-keystroke localStorage write (§11).
 
 ---
 
@@ -875,14 +708,14 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 
 | File | Key exports |
 | --- | --- |
-| `finance.js` | `MONTHLY_RATE`, `ANNUAL_RATE`, `FREQUENCY` constants, `FREQUENCY_LABEL`, `normalizeFrequency`, `periodsPerYear`, `monthlyEquivalent`, `parseAmount`, `calcFV`, `formatUGX`, `formatUGXExact`, `fmtShort`, `sliderToAmt`, `amtToSlider`. **Re-exports `EASE_OUT_EXPO` from `./motion` for backwards compat** (commit `fccfa7b`). |
-| `motion.js` | `EASE_OUT_EXPO = [0.16, 1, 0.3, 1]` — canonical Framer Motion easing curve (Phase 5D promoted from inline). Mirrors `--ease-out-expo` CSS token in `src/index.css`. |
-| `navigation.js` | `goBackOrFallback(navigate, fallback)` — extracted in Phase 4B (`bd5ea82`); reads `window.history.state.idx` to detect a poppable in-app entry. See §4.1. |
-| `currency.js` | `formatUGX(value, { compact? = true })` (compact `'UGX 1.2M'` / exact `'UGX 50,000'` — non-positive → `'—'` in compact mode, `'UGX 0'` in exact), `formatNumber(value)` (locale-grouped count `'12,345'` — non-finite → `'0'`), `formatUGXShort(value)` (axis-label form `'1.2M'`, no UGX prefix). Single source of truth for money rendering. |
-| `date.js` | `formatDate(value, { variant? = 'short' })`. Variants: `short` `'8 Apr 2026'` · `long` `'8 April 2026'` · `time` `'14:32'` · `month-year` `'April 2026'` · `short-month-year` `'Apr 2026'` · `day-month` `'8 Apr'`. Accepts `Date | ISO string | epoch ms`; returns `'—'` for unparseable / null input (UI never shows "Invalid Date"). |
+| `finance.js` | `MONTHLY_RATE`, `ANNUAL_RATE`, `FREQUENCY` constants, `FREQUENCY_LABEL`, `normalizeFrequency`, `periodsPerYear`, `monthlyEquivalent`, `parseAmount`, `calcFV`, `formatUGX`, `formatUGXExact`, `fmtShort`, `sliderToAmt`, `amtToSlider`. **Re-exports `EASE_OUT_EXPO` from `./motion` for backwards compat**. |
+| `motion.js` | `EASE_OUT_EXPO = [0.16, 1, 0.3, 1]` — canonical Framer Motion easing curve. Mirrors `--ease-out-expo` CSS token in `src/index.css`. |
+| `navigation.js` | `goBackOrFallback(navigate, fallback)` — reads `window.history.state.idx` to detect a poppable in-app entry. See §4.1. |
+| `currency.js` | `formatUGX(value, { compact? = true })` (compact `'UGX 1.2M'` / exact `'UGX 50,000'`), `formatNumber(value)` (locale-grouped `'12,345'`), `formatUGXShort(value)` (axis-label `'1.2M'`, no UGX prefix). Non-positive → `'—'` (compact) / `'UGX 0'` (exact); non-finite → `'0'`. Single source of truth for money rendering. |
+| `date.js` | `formatDate(value, { variant? = 'short' })`. Variants: `short` / `long` / `time` / `month-year` / `short-month-year` / `day-month`. Accepts `Date | ISO string | epoch ms`; returns `'—'` for unparseable / null input (UI never shows "Invalid Date"). |
 | `dashboard.js` | `getInitials` (defensive), `getTrend`, `perfLevel` |
-| `csv.js` | `toCsv(rows, columns)`, `toCsvStream(rows, columns)` (async-iterable), `MAX_ROWS`, `downloadCSV(filename, headers, rows)` legacy. RFC 4180 escape + OWASP formula-injection defence (`= + - @ \t \r` prefixed with `'` and quote-wrapped) + UTF-8 BOM. |
-| `csvDownload.js` | `downloadCsv({ rows, columns, filename, isMobile?, onCapNotice? })`, `dateStampedFilename(slug)`, `MOBILE_ROW_CAP = 5000`, `STREAM_THRESHOLD = MAX_ROWS`. Composes `toCsv` / `toCsvStream` with the browser-side Blob + hidden `<a download>` trigger; caps mobile exports at 5,000 rows and fires `onCapNotice({ capped, total })` so callers can surface a toast without coupling the util to a toast context. |
+| `csv.js` | `toCsv`, `toCsvStream` (async-iterable), `MAX_ROWS`, `downloadCSV` (legacy). RFC 4180 escape + OWASP formula-injection defence + UTF-8 BOM. See §18. |
+| `csvDownload.js` | `downloadCsv({ rows, columns, filename, isMobile?, onCapNotice? })`, `dateStampedFilename(slug)`, `MOBILE_ROW_CAP = 5000`, `STREAM_THRESHOLD = MAX_ROWS`. Composes `toCsv` / `toCsvStream` with Blob + hidden `<a download>` trigger; caps mobile exports and fires `onCapNotice({ capped, total })` so callers can surface a toast without coupling the util to toast context. |
 | `phone.js` | `parseUGPhoneLocal`, `isValidUGPhone`, `formatUGPhone`, `toCanonicalUGPhone` (9-digit local, valid prefixes `70/71/74/75/76/77/78`, canonical storage `+256XXXXXXXXX`) |
 | `settlementCycle.js` | `CADENCES`, `cadenceLabel`, `cadenceShortLabel`, `nextCycleEnd`, `cycleWindow`, `formatCycleLabel`, `formatPayoutDate`, `groupCommissionsByPaidCycle`. |
 
@@ -898,21 +731,21 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 
 ### 15.3 `src/config/env.js`
 
-`API_BASE_URL`, `IS_DEV`, `IS_PROD`, plus public marketing URLs (`LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `SUPPORT_WHATSAPP_URL`, `SUPPORT_WHATSAPP_DISPLAY`, `SUPPORT_EMAIL`) and `MAP_TILE_URL` (default CartoDB Positron). Phase 7A (`27b78a3`) finished the env-template hardening: `.env.local.example` now lists every consumed `VITE_*` key.
+`API_BASE_URL`, `IS_DEV`, `IS_PROD`, plus public marketing URLs (`LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `SUPPORT_WHATSAPP_URL`, `SUPPORT_WHATSAPP_DISPLAY`, `SUPPORT_EMAIL`) and `MAP_TILE_URL` (default CartoDB Positron). `.env.local.example` lists every consumed `VITE_*` key. Env-var quick-start: [`CLAUDE.md §3`](./CLAUDE.md). Full table including server-only keys: [`BACKEND.md §2`](./BACKEND.md). Vercel/Render/GHA sync: [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
 
 ### 15.4 Shared component subdirs under `src/components/`
 
 | Subdir | Files | Purpose |
 | --- | --- | --- |
 | `contribution/` | `ContributionSettingsForm.jsx` (339 lines) + module CSS | Reusable schedule form (frequency + amount + split + insurance + summary + sticky footer). Used by subscriber `SchedulePage`, agent `SubscriberSchedulePage`, and `OnboardScheduleStep`. Parent must guard render until `initial` is loaded. |
-| `signin/` | `RoleSelect`, `DistributorSelect`, `PhoneEntry`, `OtpVerify`, `PasswordEntry` | Sign-in modal sub-steps. `PasswordEntry` is migrated to the global `.input` primitive (composes-from-global) — F16 addressed (Phase 5B `7f2c782`). |
+| `signin/` | `RoleSelect`, `DistributorSelect`, `PhoneEntry`, `OtpVerify`, `PasswordEntry` | Sign-in modal sub-steps. `PasswordEntry` uses the global `.input` primitive via the composes-from-global pattern (see §16.4). |
 | `reports/` | `ExportButton`, `FilterSelect`, `ReportTable`, `SearchFilter` | Distributor + Subscriber report views share these primitives. |
 | `feedback/` | `ErrorCard` | Friendly error rendering used by KYC steps + agent shell. |
 
 ### 15.5 Loading + empty primitives (top-level `src/components/`)
 
-- **`SkeletonRow.jsx`** — virtualised-row placeholder. Props: `count = 8`, `variant ∈ { 'avatar' | 'compact' | 'card' }` (default `'avatar'`), `label = 'Loading…'` (accessible busy label for `role="status"`), optional `className`. Each row mirrors a real list item (avatar + two text lines + small numeric block — or a card-shaped stat strip in `'card'` variant). Shimmer reuses the same lavender→white sweep + `EASE_OUT_EXPO` as MetricsRow's skeleton, so every loading state in the dashboard reads as one system; `prefers-reduced-motion` halts the sweep.
-- **`EmptyState.jsx`** — list/grid empty-state. Props: `kind ∈ { 'no-data' | 'no-match' }` (mandatory; drives icon + default copy), `title?`, `body?`, `cta?: { label, onClick, icon? }`, `icon?` (override), `className?`. Distinguishes a genuinely empty source (`no-data`) from a non-empty source filtered to zero (`no-match` — "No matches — try adjusting your search or filters"). Pair with `SkeletonRow` so each panel exposes loading → empty (zero data) → empty (filter mismatch).
+- **`SkeletonRow.jsx`** — virtualised-row placeholder. Props: `count = 8`, `variant ∈ { 'avatar' | 'compact' | 'card' }`, `label = 'Loading…'` (accessible busy label for `role="status"`), optional `className`. Each row mirrors a real list item; the lavender→white shimmer + `EASE_OUT_EXPO` matches MetricsRow so every loading state reads as one system. `prefers-reduced-motion` halts the sweep.
+- **`EmptyState.jsx`** — list/grid empty-state. Props: `kind ∈ { 'no-data' | 'no-match' }` (mandatory), `title?`, `body?`, `cta?: { label, onClick, icon? }`, `icon?`, `className?`. Distinguishes a genuinely empty source (`no-data`) from a non-empty source filtered to zero (`no-match`). Pair with `SkeletonRow` so each panel exposes loading → empty (zero data) → empty (filter mismatch).
 
 ### 15.6 `src/dashboard/shared/` (Distributor + Branch reuse)
 
@@ -920,8 +753,7 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 
 ### 15.7 Per-session mutation stores (mock fallback)
 
-- `entities._entityOverrides` — `setBranchStatus`, `updateBranch`, `createBranch`, `createAgent` layer over frozen mockData.
-- `subscriber._sessionMutations` — contributions, withdrawals, schedule edits, nominees, insurance, profile, claims layer over frozen mockData. Reset on page reload.
+`entities._entityOverrides` (branch status flips + creates) and `subscriber._sessionMutations` (contributions, withdrawals, schedule edits, nominees, insurance, profile, claims) layer over frozen `mockData.js`. Reset on page reload. See §4 + §16a for the demo-mode rollback flag they coexist with.
 
 ---
 
@@ -931,8 +763,7 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 
 ### 16.1 Brand & palette
 
-- **Primary colour:** Universal Indigo `#292867`. Anchors key headings, primary buttons, hero emphasis, important icons.
-- **Reserve red** for error/destructive/critical only — never as a major brand colour.
+- **Primary colour:** Universal Indigo `#292867`. Anchors key headings, primary buttons, hero emphasis, important icons. Reserve red for error/destructive/critical only.
 - **Typography.** Display: Plus Jakarta Sans (`--font-display`) — headings, hero numbers, buttons. Body: Inter (`--font-body`). Headings `font-weight: 800; letter-spacing: -0.03em; color: var(--color-indigo)`.
 - **Visual style.** Bold clean headings · large readable numbers · smooth card surfaces · restrained gradients · subtle depth · consistent iconography · motion tied to meaning. Avoid noisy visuals, decorative complexity, neobank flashiness.
 - **Animation philosophy.** Animation is a meaning layer — communicates time passing, money growing steadily, milestones reached, confidence building. Smooth, editorial/studio-grade. Use `EASE_OUT_EXPO` for entrance; staggered children 0.05–0.1s; item reveal `{ opacity: 0, y: 12–24 } → { opacity: 1, y: 0 }`; `AnimatePresence mode="wait"` for step transitions.
@@ -950,7 +781,7 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 --color-gray:          #8A90A6;
 --color-green:         #2E8B57;
 --color-teal:          #2F8F9D;
---color-white:         #FFFFFF;      /* Phase 5E (56c4839) */
+--color-white:         #FFFFFF;
 --color-on-indigo-muted: rgba(255,255,255,0.78);  /* Phase 6 — muted caption/eyebrow over the indigo hero dome (≥4.5:1 AA) */
 
 /* Status */
@@ -958,7 +789,7 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 --color-status-warning:  #E6A817;
 --color-status-poor:     #DC3545;
 
-/* KYC status (Phase 5A 1b13e2e — F18) */
+/* KYC status */
 --color-kyc-success:      #1f6e44;
 --color-kyc-warning:      #8B5A00;
 --color-kyc-warning-dark: #876300;
@@ -979,7 +810,7 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 --color-medal-silver:    #94A3B8;
 --color-medal-bronze:    #CD7F32;
 
-/* Breakpoints (Phase 5C ee78074 — F19; documentation tokens) */
+/* Breakpoints (documentation tokens — see §16.3) */
 --bp-sm: 480px;       /* small mobile */
 --bp-md: 768px;       /* large mobile / portrait tablet */
 --bp-lg: 1024px;      /* landscape tablet / small desktop */
@@ -1004,61 +835,44 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 
 Plus full scales for `--text-xs`…`--text-7xl`, `--space-1`…`--space-32`, `--radius-sm/md/lg/xl/full/capsule`, `--shadow-sm/md/lg/xl`. The shared easing curve `EASE_OUT_EXPO = [0.16, 1, 0.3, 1]` is exported from `src/utils/motion.js` (re-exported from `src/utils/finance.js` for backwards compat) and mirrored as `--ease-out-expo`. The three subscriber-mobile tokens (`--color-on-indigo-muted`, `--radius-capsule`, `--gradient-hero`) are documented in §16.9.
 
-### 16.3 Breakpoint scale (Phase 5C `ee78074`)
+### 16.3 Breakpoint scale
 
-CSS custom properties cannot be referenced inside `@media (max-width: …)` queries, so `--bp-sm/md/lg/xl` act as **documentation** for the canonical 4-breakpoint scale. Module `@media` blocks use the literal pixel value that matches the token (e.g. `@media (max-width: 768px)` corresponds to `--bp-md`). The audit catalogued 26 distinct breakpoints across the codebase; Phase 5C migrated the top-30 highest-traffic modules to the 4-breakpoint scale. Residual breakpoints (unmigrated modules) are tracked in `scripts/.followup/breakpoints-residual.txt`. When a future preprocessor or `@custom-media` lands, these tokens become the single source of truth.
+CSS custom properties cannot be referenced inside `@media (max-width: …)` queries, so `--bp-sm/md/lg/xl` act as **documentation** for the canonical 4-breakpoint scale. Module `@media` blocks use the literal pixel value that matches the token (e.g. `@media (max-width: 768px)` corresponds to `--bp-md`). The audit catalogued 26 distinct breakpoints across the codebase; the top-30 highest-traffic modules have been migrated to the 4-breakpoint scale. Residual breakpoints (unmigrated modules) are tracked in `scripts/.followup/breakpoints-residual.txt`. When a future preprocessor or `@custom-media` lands, these tokens become the single source of truth.
 
-### 16.4 `.input` primitive (Phase 5B `7f2c782`)
+### 16.4 `.input` primitive
 
-The canonical 48px frosted form input now lives in `src/index.css`:
-
-```css
-.input {
-  /* 48px height · padding · font-body · radius-md · bg + border tokens */
-}
-.input:focus-visible { /* 2px var(--color-indigo-soft) outline + 2px offset */ }
-.input:focus { /* border-color: var(--color-indigo) */ }
-.input::placeholder { color: var(--color-gray); }
-```
+The canonical 48px frosted form input lives in `src/index.css` as a `.input` class (48px height, font-body, radius-md, bg + border tokens; `:focus-visible` adds a 2px `var(--color-indigo-soft)` outline; `:focus` changes border to `var(--color-indigo)`; `::placeholder` uses `var(--color-gray)`).
 
 Component modules adopt it via the **composes-from-global pattern**:
 
 ```css
-/* CreateAgent.module.css, ViewBranches.module.css, ViewAgents.module.css,
-   Settings.module.css, CreateBranch.module.css, PasswordEntry */
 .field {
   composes: input from global;
   /* layer module-specific size / spacing / accent without forking the shared shape */
 }
 ```
 
-12 drifting `.input` definitions (audit F20) collapsed to a single primitive. `PasswordEntry` (audit F16 — 56px / `font-display` drift) is among the migrated modules. Future input variants (chat composer, sign-in 56px, signup OTP) stay local but should still source colors and radii from the global tokens.
+Used in `CreateAgent`, `ViewBranches`, `ViewAgents`, `Settings`, `CreateBranch`, `PasswordEntry`. 12 drifting `.input` definitions have been collapsed to this single primitive. Future input variants (chat composer, sign-in 56px, signup OTP) stay local but should still source colors and radii from the global tokens.
 
-### 16.5 `EASE_OUT_EXPO` constant (Phase 5D `fccfa7b`)
+### 16.5 `EASE_OUT_EXPO` constant
 
-The shared Framer Motion easing curve lives in `src/utils/motion.js`:
+The shared Framer Motion easing curve `EASE_OUT_EXPO = [0.16, 1, 0.3, 1]` lives in `src/utils/motion.js`; `src/utils/finance.js` re-exports it for backwards compat (old import paths still resolve). 9 ad-hoc `easeInOut` / `easeOut` strings in `LivenessStep`, `BranchDashboardShell`, `CreateAgent`, `IdUploadStep` have been migrated to import the shared constant.
 
-```js
-export const EASE_OUT_EXPO = [0.16, 1, 0.3, 1];
-```
+### 16.6 Indigo migration
 
-`src/utils/finance.js` re-exports it (`export { EASE_OUT_EXPO } from './motion';`) for backwards compat — old import paths still resolve. Phase 5D migrated 9 ad-hoc `easeInOut` / `easeOut` strings in `LivenessStep`, `BranchDashboardShell`, `CreateAgent`, `IdUploadStep` (audit F21) to import the shared constant.
+The audit catalogued **658 hardcoded indigo refs** (`#292867`, `rgba(41,40,103,*)`) that should reference `--color-indigo` / `--shadow-*`. A `--color-white` (`#FFFFFF`) token was introduced and all modules with ≥10 indigo refs were migrated. Net result: **658 → 223 indigo refs across 16 modules** (~66% reduction). Residual files (modules with <10 indigo refs) are tracked in `scripts/.followup/indigo-residual.txt` — 71 files at last sync, ordered by ref count for opportunistic future migration when those modules are next touched.
 
-### 16.6 Indigo migration (Phase 5E `56c4839`)
+### 16.7 Glassmorphism recipe
 
-The audit catalogued **658 hardcoded indigo refs** (`#292867`, `rgba(41,40,103,*)`) that should reference `--color-indigo` / `--shadow-*`. Phase 5E introduced `--color-white` (`#FFFFFF`) — the smallest representative cosmetic drift (F25) — and then migrated all modules with ≥10 indigo refs. Net result: **658 → 223 indigo refs across 16 modules** (~66% reduction). Residual files (modules with <10 indigo refs that weren't touched in Phase 5E) are tracked in `scripts/.followup/indigo-residual.txt` — 71 files at last sync, ordered by ref count for opportunistic future migration when those modules are next touched.
-
-### 16.7 Slide-in panel + glassmorphism conventions
-
-Slide-in panel conventions live in §12.2.
-
-**Glassmorphism recipe (overlays / cards on the map).** Background `linear-gradient(145deg, rgba(255,255,255,0.78) 0%, rgba(246,247,251,0.72) 100%)`; border bright top/left for 3D light direction; `backdrop-filter: blur(24px)`; inset shadow `0 1px 0 rgba(255,255,255,0.5) inset`; hover `translateY(-3px)`.
+For overlays / cards on the map: background `linear-gradient(145deg, rgba(255,255,255,0.78) 0%, rgba(246,247,251,0.72) 100%)`; bright top/left border for 3D light direction; `backdrop-filter: blur(24px)`; inset shadow `0 1px 0 rgba(255,255,255,0.5) inset`; hover `translateY(-3px)`. Slide-in panel conventions live in §12.2.
 
 ### 16.8 Iconography, map
 
 **Icon system.** Inline SVG line icons, `stroke="currentColor"`, `strokeWidth="1.75"`, 24×24 viewBox. Containers: `background: rgba(41,40,103,0.06); border: 1px solid var(--color-lavender); border-radius: var(--radius-md)`. Shared icon set in `src/dashboard/shared/Icons.jsx`. Some icons live in the SVG sprite at `public/icons.svg` and are referenced via `<use href="/icons.svg#name" />`. Never emojis, icon fonts, or icon libraries. Decorative SVGs next to text labels must have `aria-hidden="true"`.
 
-**Map (Distributor).** Full-bleed `react-leaflet` + CartoDB Positron tiles. GeoJSON in `public/uganda-districts.geojson` (clipped to region polygons via `scripts/clip-districts.mjs` using `@turf/turf`) + `public/uganda-regions.geojson`. Region colours: Central `#5E63A8`, Eastern `#2F8F9D`, Northern `#3D3C80`, Western `#7B7FC4`. Soft bokeh glow halos at region centroids. `flyTo`/`fitBounds` on drill-down. Lazy-load + WeakMap style cache applied in Phase 4F (`c3c28c3`) — F10 / F11 addressed.
+**Map (Distributor).** Full-bleed `react-leaflet` + CartoDB Positron tiles. GeoJSON in `public/uganda-districts.geojson` (clipped to region polygons via `scripts/clip-districts.mjs` using `@turf/turf`) + `public/uganda-regions.geojson`. Region colours: Central `#5E63A8`, Eastern `#2F8F9D`, Northern `#3D3C80`, Western `#7B7FC4`. Soft bokeh glow halos at region centroids. `flyTo`/`fitBounds` on drill-down. Lazy-load + WeakMap style cache reduce per-render styling cost (see §14).
+
+---
 
 ### 16.9 Subscriber-mobile redesign (Phase 6 — shared primitives + tokens + nav)
 
@@ -1121,46 +935,19 @@ These behaviours are intentional limits of a sales-rep demo platform. Do not pro
 
 ## 16b. Real bugs / cleanups (residual)
 
-These are residual issues that survived the Phase 4–5 cleanup. Listed so anyone touching frontend code knows what already-known drift looks like.
+Residual issues that survived the audit-driven cleanup pass. Listed so anyone touching frontend code knows what already-known drift looks like.
 
 **StubPage placeholders.** `/dashboard/settings/notifications` and `/dashboard/settings/security` are `StubPage title="..."` shells. If a demo touches Settings these dead-ends are visible.
 
-| ID | Severity | Where | What |
-| --- | --- | --- | --- |
-| F8 | med | `src/subscriber-dashboard/pages/HelpPage.jsx`, `AgentPage.jsx` | Render-time `setState` seeds initial messages — Phase 4E (`e0f6c22`) moved the seed into a `useEffect` and added an unmount guard for async chat seeds (F8 + F9 addressed; track if any future seed paths regress). |
-| F13 | med | `src/hooks/useEntity.js:168` | `queryKey: ['breadcrumb', currentLevel, selectedIds]` — `selectedIds` object identity unstable; cache thrashes. Phase 4G (`0ba0caf`) introduced a stable breadcrumb cache key — addressed; included here so the technique propagates to any new keys built around object identity. |
-| F17 | med | repo-wide | **223 residual hardcoded indigo refs** (down from 658). Tracked in `scripts/.followup/indigo-residual.txt`. Migrate file-by-file when touched. |
-| F19 | med | repo-wide | Residual `@media` breakpoints outside the 4-breakpoint scale, tracked in `scripts/.followup/breakpoints-residual.txt`. |
-| F23 | med | `src/dashboard/DashboardShell.jsx` | Phase 4G (`0ba0caf`) memoized the `onClose` prop captured by the escape-listener `useEffect` — verify any future shells follow the same pattern. |
-| F24 | low | `src/dashboard/sidebar/Sidebar.jsx` | Phase 4G (`0ba0caf`) replaced three separate document-click listeners with a single delegated listener — addressed. |
-| F27 | low | `src/services/entities.js` `_syncCache` | In-memory sync cache used by `DashboardNavContext` for synchronous lookups during URL routing; first navigation can return `null`. Phase 4I (`f60bed1`) added a JSDoc comment explaining the contract. |
+**Cache-key drift.** `useSubscriber.useSubscriberTransactions` keys `[id, filters]` while `useAgent`'s agent-side equivalent variants drop `filters`. Cross-context inconsistency that means an agent viewing a subscriber's filtered transactions may serve a stale unfiltered cache entry. Low-priority; the agent-side surface doesn't currently expose a filtered transaction view.
 
-**Cross-cutting bugs / awareness items** (audit X-prefix, manifested on the frontend):
+**Contact response shape.** `pages/Contact.jsx` doesn't strictly validate `{ submitted, id }` response shape from `/api/contact`. Surfaces no visible bug today (the route always returns the expected shape), but a server-side regression would surface as a silent "submitted: undefined" success toast.
 
-- **X6 (resolved)** — Phase 7A hard-fails on missing `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` in production builds (see §5.2).
-- **X11 / X17 (resolved at unit layer)** — every service mock branch now has Phase 2 unit tests (see §17).
-- **X12 (med)** — `useSubscriber.useSubscriberTransactions` keys `[id, filters]`; agent-side variants drop `filters`. Cross-context cache key drift.
-- **X13 (low)** — `pages/Contact.jsx` doesn't validate `{ submitted, id }` response shape from `/api/contact`.
-- **X15 (resolved)** — `src/services/api.js` now consumes `VITE_API_BASE_URL` from `src/config/env.js`. Post-Render-migration Vercel bakes the absolute URL into the bundle at build time (Production / Preview / Development scopes); local dev uses `http://localhost:3001/api`. See `BACKEND.md §2`.
+**Residual indigo + breakpoint drift.** 223 hardcoded indigo refs (down from 658) and a handful of `@media` queries outside the 4-breakpoint scale remain — both tracked in `scripts/.followup/indigo-residual.txt` and `scripts/.followup/breakpoints-residual.txt`. Migrate file-by-file when touching those modules.
 
-**Closed in this cleanup pass:**
+**Sync-cache first-paint nuance.** `src/services/entities.js` `_syncCache` (used by `DashboardNavContext` for synchronous lookups during URL routing) can return `null` on the first navigation until the cache warms. JSDoc comment explains the contract; replace with async resolution if you ever need correctness at first-paint.
 
-- **F1 / F22** — cross-role import resolved by promoting `goBackOrFallback` to `src/utils/navigation.js` (Phase 4B `bd5ea82`).
-- **F2 / F3 / F4** — `SignInContext`, `ToastContext`, `BranchScopeContext`, `AgentScopeContext` provider values memoized (Phase 4A `e43de1f`).
-- **F5** — `DashboardPanelContext` split; subscriber-specific keys moved to `SubscriberPanelContext` (Phase 4C `1c46f91`).
-- **F6 / F7** — `goToLevel` and `onAuthExpired` listeners are now ref-based (Phase 4D `dbb46e4`).
-- **F10 / F11** — Uganda GeoJSON lazy-loaded + WeakMap style cache (Phase 4F `c3c28c3`).
-- **F12 / F15 / F28** — Navbar handlers memoized, signup persist debounced, commission filter pipelines cached (Phase 4H `b0e54a4`).
-- **F13 / F23 / F24** — stable breadcrumb cache key + memoized `onClose` + delegated click listener (Phase 4G `0ba0caf`).
-- **F14** — optimistic-mutation pattern documented as the canonical template (§8) with the `src/hooks/__tests__/useEntity.test.js` scaffold.
-- **F16** — `PasswordEntry` migrated to the global `.input` primitive (Phase 5B `7f2c782`).
-- **F18** — 7 new KYC status tokens (Phase 5A `1b13e2e`).
-- **F19** — 4-breakpoint scale tokens + top-30 modules migrated (Phase 5C `ee78074`).
-- **F20** — `.input` primitive promoted to global; 12 drifting definitions collapsed (Phase 5B `7f2c782`).
-- **F21** — 9 ad-hoc easing curves migrated to `EASE_OUT_EXPO` (Phase 5D `fccfa7b`).
-- **F25** — `--color-white` token introduced; indigo migration 658 → 223 (Phase 5E `56c4839`).
-- **F26** — CoPilotWidget intentional duplication documented (Phase 4I `f60bed1`, §13).
-- **X3** — stale agent-dispute "unbuilt" claim removed; the flow is fully built and ships against the `agent_dispute_line` SECURITY DEFINER RPC.
+**Object-identity cache keys.** When a new React Query key includes an object (e.g. `selectedIds`), serialise it stably before using it as part of the key — or wrap the object in `useMemo` so referential identity holds across renders. The `useBreadcrumb` stable key in `useEntity.js` is the reference implementation.
 
 **Largest files** (lines only — candidates for extraction when next touched):
 
@@ -1179,93 +966,52 @@ These are residual issues that survived the Phase 4–5 cleanup. Listed so anyon
 
 ## 17. Testing layout
 
-**Setup.** Vitest 4 + jsdom + Testing Library. Config inside `vite.config.js`. Global setup: `src/test/setup.js` imports `@testing-library/jest-dom`. Supabase mocked via the queue-backed `src/test/supabaseMock.js` (`makeSupabaseMock()` exposes `__queueFrom(table, result)` and `__queueRpc(name, result)` for FIFO seeding).
+For the complete testing pipeline (Vitest + Playwright + CI matrix + KYC force-overrides + the `/qa` skill), see [`docs/TESTING.md`](./docs/TESTING.md). The summary below covers what's distinctive about the frontend test layout.
 
-**Phase 2 added comprehensive service + hook + util coverage:**
+### 17.1 Setup + mocks
 
-| Test file | Subject |
-| --- | --- |
-| `src/services/__tests__/auth.test.js` | Full coverage of `signInWithPassword`, `changePassword`, OTP flow, `AuthError`, every `messageForCode` code (Phase 2A `27e661b`) |
-| `src/services/__tests__/api.test.js` | `apiFetch`, `onAuthExpired` listener fan-out, 401 detection, request/response shape (Phase 2B `93c51f2`) |
-| `src/services/__tests__/subscriber.test.js` | Reads + writes + `_sessionMutations` overlay parity between real and mock branches (Phase 2D `9bf8914`) |
-| `src/services/__tests__/agent.test.js` | `getAgentSubscriberList` joins + RLS scope (Phase 2D `9bf8914`) |
-| `src/services/__tests__/chat.test.js` | `getChatResponse`, `getAgentReply`, `getSubscriberChatResponse`; `Cache-Control: no-store` + body type-checking (Phase 2D `9bf8914`) |
-| `src/services/__tests__/kyc.test.js` | All 8 KYC stages incl. phone canonicalization (Phase 2C `91f413e`) |
-| `src/services/__tests__/contact.test.js` | `submitContactForm` real + demo branches (Phase 2D `9bf8914`) |
-| `src/services/__tests__/search.test.js` | `searchEntities` real + mock (Phase 2D `9bf8914`) |
-| `src/services/__tests__/supabaseClient.test.js` | Singleton + token rotation + 401 propagation (Phase 2D `9bf8914`) |
-| `src/services/__tests__/commissions.test.js` | Commission service: rate, summary, agent list/detail, run lifecycle, dispute flow |
-| `src/services/__tests__/entities.test.js` | Entity reads + writes, branch/agent create, breadcrumb |
-| `src/hooks/__tests__/useEntity.test.js` | React Query wiring + optimistic-rollback semantics (Phase 2E `ec72ffc`); canonical scaffold — see §8 |
-| `src/hooks/__tests__/useCommission.test.js` | Read keys + 18 mutations + `invalidateAll` (Phase 2E `ec72ffc`) |
-| `src/hooks/__tests__/useSubscriber.test.js` | 7 reads + 7 mutations + `invalidateSubscriber` (Phase 2E `ec72ffc`) |
-| `src/hooks/__tests__/useAgent.test.js` | `useAgentSubscribers` + `useUpdateSubscriberSchedule` invalidation (Phase 2E `ec72ffc`) |
-| `src/hooks/useDebouncedValue.test.js` | Fake timers; `delayMs` normalization; cancellation |
-| `src/utils/__tests__/csvDownload.test.js` | Mobile row cap + cap-notice callback + Blob shape (Phase 2F `021570d`) |
-| `src/utils/__tests__/settlementCycle.test.js` | All cadences + `cycleWindow` + `groupCommissionsByPaidCycle` (Phase 2F `021570d`) |
-| `src/utils/__tests__/phone.test.js` | UG phone parse/format/validate/canonicalise |
-| `src/utils/__tests__/dashboard.test.js` | `getInitials`, `getTrend`, `perfLevel` |
-| `src/utils/__tests__/finance.test.js` | Frequency normalisation, `parseAmount`, `calcFV`, `formatUGX*`, slider helpers |
-| `src/utils/__tests__/currency.test.js` | `formatUGX`, `formatNumber`, `formatUGXShort` edge cases |
-| `src/utils/__tests__/date.test.js` | All `formatDate` variants + `'—'` fallback |
-| `src/utils/csv.test.js` | RFC 4180 + OWASP formula-injection defence |
-| `src/components/Modal.test.jsx` | Portal, focus trap, Escape, backdrop dismiss, scroll lock |
-| `src/test/jwt-claim-contract.test.js` | JWT claim shape contract |
+Vitest 4 + jsdom + Testing Library. Config inside `vite.config.js`. Global setup: `src/test/setup.js` imports `@testing-library/jest-dom`. Supabase mocked via the queue-backed `src/test/supabaseMock.js` (`makeSupabaseMock()` exposes `__queueFrom(table, result)` and `__queueRpc(name, result)` for FIFO seeding).
 
-**40 test files, 707 passing tests at last sync.** The earlier T2 / T5 / T6 gaps are closed at the unit layer. The E2E suite (Playwright) still owns happy-path regression coverage; see `.claude/skills/qa.md`.
+### 17.2 Test inventory
 
-**Coverage script.** `npm run test:coverage` is wired in `package.json` (Phase 2G `3002c14`) and reads the coverage config from the embedded Vitest block in `vite.config.js`. **`@vitest/coverage-v8` is currently NOT installed** — run `npm i -D @vitest/coverage-v8` to enable coverage reports. The script will fail with a clear "missing dependency" message until then.
+~700 passing tests across ~40 vitest files under `src/{services,hooks,utils,components,test}/__tests__/`. Coverage spans:
+
+- **Services** — `auth` (incl. `signInWithPassword`, `changePassword`, OTP flow, `AuthError`, every `messageForCode`), `api` (apiFetch + `onAuthExpired` + 401), `subscriber` (reads + writes + `_sessionMutations` overlay parity), `agent` (RLS-scoped joins), `chat` (all three role variants), `kyc` (8 stages incl. phone canonicalization), `contact` (real + demo), `search` (real + mock), `supabaseClient` (singleton + token rotation), `commissions` (rate, summary, run lifecycle, dispute flow), `entities` (reads + writes + breadcrumb).
+- **Hooks** — `useEntity` (React Query + optimistic-rollback semantics; canonical scaffold for §8), `useCommission` (read keys + 18 mutations + `invalidateAll`), `useSubscriber` (7 reads + 7 mutations + `invalidateSubscriber`), `useAgent` (subscribers + schedule invalidation), `useDebouncedValue` (fake timers, normalization, cancellation).
+- **Utilities** — `csvDownload` (mobile cap + cap-notice + Blob shape), `settlementCycle` (cadences + window + grouping), `phone`, `dashboard`, `finance` (frequency normalisation, `calcFV`, `formatUGX*`, slider helpers), `currency`, `date`, `csv` (RFC 4180 + OWASP formula-injection defence).
+- **Components + contracts** — `Modal` (portal, focus trap, Escape, backdrop dismiss, scroll lock), `jwt-claim-contract` (JWT claim shape contract).
+
+The E2E suite (Playwright) owns happy-path regression coverage and is documented in full at [`docs/TESTING.md`](./docs/TESTING.md).
+
+### 17.3 Coverage + conventions
+
+**Coverage script.** `npm run test:coverage` is wired in `package.json` and reads the coverage config from the embedded Vitest block in `vite.config.js`. **`@vitest/coverage-v8` is currently NOT installed** — run `npm i -D @vitest/coverage-v8` to enable coverage reports. The script will fail with a clear "missing dependency" message until then.
 
 **Conventions for new tests.** Prefer service-level tests (we already mock supabase-js); component tests should mount with `<QueryClientProvider>` + `<MemoryRouter>` + any required scope provider. Use `vi.mock('../supabaseClient', () => ({ supabase: makeSupabaseMock(), ... }))` per file (the mock key must match the import string the source file uses).
 
-**E2E suite.** Specs under `e2e/`, mobile + desktop projects, role-pre-minted JWTs in `e2e/.auth/`, GitHub Actions workflow. Invoke via `npm run test:e2e` or the `/qa` skill. Modal escape-key behaviour is verified by `e2e/specs/regression/modal-escape.spec.ts`. See `.claude/skills/qa.md`.
+**E2E suite.** Specs under `e2e/`, mobile + desktop projects, role-pre-minted JWTs in `e2e/.auth/`, GitHub Actions workflow. Invoke via `npm run test:e2e` or the `/qa` skill. Modal escape-key behaviour is verified by `e2e/specs/regression/modal-escape.spec.ts`. See `.claude/skills/qa.md` and [`docs/TESTING.md`](./docs/TESTING.md).
 
 ---
 
 ## 18. CSV export
 
-`src/utils/csv.js`:
+`src/utils/csv.js` exports `toCsv(rows, columns)`, `toCsvStream(rows, columns)` (async-iterable for `>MAX_ROWS`), `downloadCSV(filename, headers, rows)` (legacy), `MAX_ROWS`. Guarantees: RFC 4180 escaping (cells with commas / quotes / newlines wrapped in quotes; embedded quotes doubled); OWASP formula-injection defence (cells starting with `=`, `+`, `-`, `@`, `\t`, `\r` prefixed with a single quote and quote-wrapped — defends Excel/Sheets/LibreOffice); UTF-8 BOM prepended for Excel compatibility.
 
-```js
-export function toCsv(rows, columns)
-export function toCsvStream(rows, columns)        // async-iterable for >MAX_ROWS
-export function downloadCSV(filename, headers, rows)  // legacy
-export const MAX_ROWS
-```
+`src/utils/csvDownload.js` is the higher-level wrapper (Blob + hidden `<a download>` + mobile row cap + cap-notice callback). Filenames include a date stamp via `dateStampedFilename(slug)`.
 
-- RFC 4180 escaping (wraps cells in quotes when they contain commas / quotes / newlines; doubles embedded quotes).
-- OWASP formula-injection defence: cells starting with `=`, `+`, `-`, `@`, `\t`, `\r` are prefixed with a single quote and quote-wrapped (Excel/Sheets/LibreOffice).
-- UTF-8 BOM (`﻿`) prepended for Excel compatibility.
-
-`src/utils/csvDownload.js` is the higher-level wrapper (Blob + hidden `<a download>` + mobile row cap + cap-notice callback). Filenames include a date stamp (e.g. `all-transactions_2026-05-26.csv`) via `dateStampedFilename(slug)`.
-
-**Callers:**
-
-| File | Purpose |
-| --- | --- |
-| `src/dashboard/overlay/TopBar.jsx` | Distributor top-right "Download" button — exports the currently visible drill level |
-| `src/dashboard/reports/views/*.jsx` (11 reports) | Per-report CSV download with date-stamped filename |
-| `src/subscriber-dashboard/reports/views/*.jsx` (5 reports) | Subscriber report CSVs |
+**Callers:** `src/dashboard/overlay/TopBar.jsx` (Distributor top-right "Download" button — exports the currently visible drill level); `src/dashboard/reports/views/*.jsx` (11 per-report Distributor CSVs with date-stamped filename); `src/subscriber-dashboard/reports/views/*.jsx` (5 subscriber report CSVs).
 
 ---
 
 ## 19. Product & brand context
 
+For palette / typography / animation values, see §16. This section captures the product-level intent those choices serve.
+
 **Mission.** Universal Pensions is a digital long-term savings + pension platform for everyday Ugandans — informal workers, gig workers, farmers, self-employed. The goal is making formal retirement products feel approachable, building trust through clarity, and supporting multiple distribution + contribution models (subscriber direct, employer-managed, agent-led).
 
 **Brand personality.** Dependable · intelligent · modern · stable · human · future-facing.
 
-**Primary colour: `#292867` Universal Indigo.** Anchor for key headings, primary buttons, hero emphasis, important icons.
-
-**Supporting palette.** Deep Night `#1B1A4A` · Soft Indigo `#5E63A8` · Mist Lavender `#D9DCF2` · Cloud `#F6F7FB` · Slate Text `#2F3550` · Cool Gray `#8A90A6` · Success Green `#2E8B57` · Accent Teal `#2F8F9D`.
-
-**Colour rules.** Indigo carries the primary identity. Do not use red as a major brand colour — reserve for error/destructive/critical only. Neutrals + soft tints for spaciousness. Teal/green sparingly for positive states.
-
-**Typography.** Display: Plus Jakarta Sans (headings, hero numbers, buttons). Body: Inter. Avoid stylised / artsy fonts. Headings `font-weight: 800; letter-spacing: -0.03em; color: var(--color-indigo)`.
-
-**Visual style.** Bold clean headings · large readable numbers · smooth card surfaces · restrained gradients · subtle depth · consistent iconography · motion tied to meaning. Avoid noisy visuals, decorative complexity, neobank flashiness.
-
-**Animation philosophy.** Animation is a meaning layer — communicates time passing, money growing steadily, milestones reached, confidence building. Smooth, editorial/studio-grade. Use `EASE_OUT_EXPO` for entrance; staggered children 0.05–0.1s; item reveal `{ opacity: 0, y: 12–24 } → { opacity: 1, y: 0 }`; `AnimatePresence mode="wait"` for step transitions.
+**Supporting palette.** Deep Night `#1B1A4A` · Soft Indigo `#5E63A8` · Mist Lavender `#D9DCF2` · Cloud `#F6F7FB` · Slate Text `#2F3550` · Cool Gray `#8A90A6` · Success Green `#2E8B57` · Accent Teal `#2F8F9D`. Indigo carries the primary identity; neutrals + soft tints for spaciousness; teal/green sparingly for positive states.
 
 **Landing-page scroll storytelling.** Scroll = time. As the user scrolls, the page communicates the journey from today toward long-term financial security: time passing → gradual accumulation → improving confidence → uncertainty to stability. Intentional and cinematic, not gimmicky.
 
@@ -1288,11 +1034,13 @@ export const MAX_ROWS
 
 - [`CLAUDE.md`](./CLAUDE.md) — slim entry index, hard rules, demo personas, glossary
 - [`BACKEND.md`](./BACKEND.md) — API routes, RLS, RPCs, migrations, commission state machine
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system architecture: layered patterns, role boundaries, auth model, write/realtime patterns
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system architecture: layered patterns, role boundaries, auth model
+- [`docs/TESTING.md`](./docs/TESTING.md) — full testing pipeline (Vitest + Playwright + CI matrix)
+- [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) — deploy topology + env-var sync matrix
 - [`docs/role-permissions.md`](./docs/role-permissions.md) — role × capability matrix
 - [`docs/data-model.md`](./docs/data-model.md) — full entity hierarchy with field definitions
 - [`docs/api-contracts.md`](./docs/api-contracts.md) — HTTP shapes + cache keys + invalidation
 
 ---
 
-*Codebase size at sync: ~87k LOC across `src/**/*.{js,jsx,css}` (118 CSS modules + JS / JSX). Run `find src -type f \( -name '*.js' -o -name '*.jsx' -o -name '*.css' \) -exec wc -l {} + | tail -1` to recompute.*
+*Codebase size: ~87k LOC across `src/**/*.{js,jsx,css}` (118 CSS modules + JS / JSX). Run `find src -type f \( -name '*.js' -o -name '*.jsx' -o -name '*.css' \) -exec wc -l {} + | tail -1` to recompute.*
