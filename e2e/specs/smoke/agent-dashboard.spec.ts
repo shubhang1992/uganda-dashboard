@@ -42,8 +42,10 @@ test.describe('agent dashboard smoke', () => {
     await page.goto('/dashboard');
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
-    // Home page has no <h1> — PortfolioPulseCard uses <h2>. The hero label
-    // is the most stable identity marker (unique copy on the page).
+    // Post-redesign: Home's PulseCard wraps HeroCapsule, which renders the
+    // (dynamic) greeting as the page <h1>. That greeting is not a stable
+    // identity marker, so we still assert the unique "Monthly contribution
+    // volume" hero eyebrow label — the most stable copy on the page.
     await expect(page.getByText('Monthly contribution volume')).toBeVisible();
   });
 
