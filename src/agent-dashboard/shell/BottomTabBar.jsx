@@ -10,6 +10,7 @@ import { useOutsideClick } from '../../hooks/useOutsideClick';
 import styles from './BottomTabBar.module.css';
 
 const MORE_ITEMS = [
+  { to: '/dashboard/commissions', label: 'Commissions' },
   { to: '/dashboard/inbox', label: 'Inbox' },
   { to: '/dashboard/settings', label: 'Settings' },
 ];
