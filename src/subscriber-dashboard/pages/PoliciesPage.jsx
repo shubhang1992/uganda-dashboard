@@ -79,14 +79,14 @@ function PolicyCard({ policy, onRenew, onCertificate }) {
         <button type="button" className={styles.renewBtn} onClick={() => onRenew(policy)}>
           Renew · {formatUGXExact(policy.renewalAmount)}
         </button>
-      ) : policy.type === 'life' ? (
+      ) : (
         <button type="button" className={styles.ghostBtn} onClick={() => onCertificate(policy)}>
           Download certificate
           <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none">
             <path d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-      ) : null}
+      )}
     </article>
   );
 }
@@ -143,16 +143,20 @@ export default function PoliciesPage() {
   }
 
   function handleCertificate(policy) {
+    const isLife = policy.type === 'life';
     const ok = openPolicyCertificate({
       holderName: sub?.name,
       memberId: formatMemberId(sub?.phone),
       dob: sub?.dob,
       cover: policy.cover,
       premiumPerPeriod: policy.premiumMonthly,
-      frequency: sub?.contributionSchedule?.frequency,
+      frequency: 'monthly', // premium is a monthly figure for both products
       policyStart: policy.policyStart,
       renewalDate: policy.renewalDate,
-      beneficiaries: nominees?.insurance ?? [],
+      // Life cover lists payout beneficiaries; health insurance has none.
+      productLabel: isLife ? 'Life' : 'Health',
+      showBeneficiaries: isLife,
+      beneficiaries: isLife ? (nominees?.insurance ?? []) : [],
     });
     if (!ok) {
       addToast('error', 'Please allow pop-ups for this site, then try again to open your certificate.');

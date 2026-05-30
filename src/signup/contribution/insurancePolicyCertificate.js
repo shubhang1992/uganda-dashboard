@@ -76,7 +76,15 @@ export function buildPolicyCertificateHtml(data) {
     policyStart,
     renewalDate,
     beneficiaries = [],
+    // Product label drives the certificate title ("Life" | "Health" | …).
+    // Defaults to Life so existing callers (signup) are unchanged.
+    productLabel = 'Life',
+    // Health insurance has no payout beneficiaries — callers can hide the
+    // beneficiaries section for those products.
+    showBeneficiaries = true,
   } = data || {};
+
+  const product = escapeHtml(productLabel || 'Life');
 
   const holder = escapeHtml(holderName || 'Policy Holder');
   const member = escapeHtml(memberId || '—');
@@ -93,7 +101,7 @@ export function buildPolicyCertificateHtml(data) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Universal Pensions — Certificate of Life Insurance</title>
+  <title>Universal Pensions — Certificate of ${product} Insurance</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     @page { size: A4; margin: 18mm; }
@@ -346,7 +354,7 @@ export function buildPolicyCertificateHtml(data) {
 
     <div class="title-block">
       <div class="eyebrow">Certificate</div>
-      <h1>Certificate of Life Insurance</h1>
+      <h1>Certificate of ${product} Insurance</h1>
     </div>
 
     <section>
@@ -396,7 +404,7 @@ export function buildPolicyCertificateHtml(data) {
       </div>
     </section>
 
-    <section>
+    ${showBeneficiaries ? `<section>
       <h2>Beneficiaries</h2>
       <table>
         <thead>
@@ -410,7 +418,7 @@ export function buildPolicyCertificateHtml(data) {
           ${renderBeneficiaryRows(beneficiaries)}
         </tbody>
       </table>
-    </section>
+    </section>` : ''}
 
     <footer>
       <p><strong>Issued ${todayStr}</strong> · Protected under Uganda's Insurance Act, 2017.</p>
