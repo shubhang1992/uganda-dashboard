@@ -1,15 +1,10 @@
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useCallback, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
 import styles from './BottomTabBar.module.css';
-
-const SUBSCRIBER_OPTIONS = [
-  { to: '/dashboard/subscribers', label: 'View subscribers' },
-  { to: '/dashboard/onboard', label: 'Onboard a new subscriber' },
-];
 
 const MORE_ITEMS = [
   { to: '/dashboard/analytics', label: 'Analytics' },
@@ -49,22 +44,12 @@ const MoreIcon = (
 
 export default function BottomTabBar() {
   const [moreOpen, setMoreOpen] = useState(false);
-  const [subsOpen, setSubsOpen] = useState(false);
   const moreRef = useRef(null);
-  const subsRef = useRef(null);
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
-  const closeSubs = useCallback(() => setSubsOpen(false), []);
-
   useOutsideClick(moreOpen, closeMore, [moreRef]);
-  useOutsideClick(subsOpen, closeSubs, [subsRef]);
-
-  const subsActive =
-    location.pathname.startsWith('/dashboard/subscribers')
-    || location.pathname.startsWith('/dashboard/onboard');
 
   function handleLogout() {
     closeMore();
@@ -83,48 +68,26 @@ export default function BottomTabBar() {
         <span className={styles.tabLabel}>Home</span>
       </NavLink>
 
-      <div className={styles.popoverWrap} ref={subsRef}>
-        <button
-          type="button"
-          className={`${styles.tab} ${subsActive ? styles.tabActive : ''}`}
-          aria-haspopup="menu"
-          aria-expanded={subsOpen}
-          onClick={() => {
-            setMoreOpen(false);
-            setSubsOpen((v) => !v);
-          }}
-        >
-          <span className={styles.tabIcon}>{SubscribersIcon}</span>
-          <span className={styles.tabLabel}>Subscribers</span>
-        </button>
-        <AnimatePresence>
-          {subsOpen && (
-            <motion.div
-              role="menu"
-              className={styles.popoverMenu}
-              data-anchor="left"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ duration: 0.22, ease: EASE_OUT_EXPO }}
-            >
-              {SUBSCRIBER_OPTIONS.map((opt) => (
-                <NavLink
-                  key={opt.to}
-                  to={opt.to}
-                  className={({ isActive }) =>
-                    `${styles.popoverItem} ${isActive ? styles.popoverItemActive : ''}`
-                  }
-                  onClick={closeSubs}
-                  role="menuitem"
-                >
-                  {opt.label}
-                </NavLink>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <NavLink
+        to="/dashboard/subscribers"
+        className={({ isActive }) => `${styles.tab} ${isActive ? styles.tabActive : ''}`}
+      >
+        <span className={styles.tabIcon}>{SubscribersIcon}</span>
+        <span className={styles.tabLabel}>Subscribers</span>
+      </NavLink>
+
+      <NavLink
+        to="/dashboard/onboard"
+        className={({ isActive }) => `${styles.fab} ${isActive ? styles.fabActive : ''}`}
+        aria-label="Onboard a subscriber"
+      >
+        <span className={styles.fabIcon}>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="26" height="26">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round"/>
+          </svg>
+        </span>
+        <span className={styles.fabLabel}>Onboard</span>
+      </NavLink>
 
       <NavLink
         to="/dashboard/commissions"
@@ -138,10 +101,7 @@ export default function BottomTabBar() {
         <button
           type="button"
           className={`${styles.tab} ${moreOpen ? styles.tabActive : ''}`}
-          onClick={() => {
-            setSubsOpen(false);
-            setMoreOpen((v) => !v);
-          }}
+          onClick={() => setMoreOpen((v) => !v)}
           aria-haspopup="menu"
           aria-expanded={moreOpen}
           aria-label="More options"

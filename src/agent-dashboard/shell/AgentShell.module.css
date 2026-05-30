@@ -13,7 +13,11 @@
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  /* Clear the BottomTabBar (64px) PLUS the center Onboard FAB, which protrudes
+     22px above the bar's top edge (.fabIcon margin-top: -22px), plus a small
+     breathing gap and the iOS home-indicator safe area. Without the FAB
+     allowance a screen's bottom CTA would sit under the raised Onboard button. */
+  padding-bottom: calc(64px + 22px + var(--space-4) + env(safe-area-inset-bottom));
 }
 
 .page {

@@ -65,6 +65,11 @@
   color: var(--color-white);
 }
 
+.item:focus-visible {
+  outline: 2px solid var(--color-white);
+  outline-offset: -2px;
+}
+
 .itemActive,
 .itemActive:hover {
   background: rgba(255, 255, 255, 0.12);
@@ -96,79 +101,6 @@
   text-overflow: ellipsis;
 }
 
-.item[aria-haspopup='menu'] {
-  width: 100%;
-  background: transparent;
-  text-align: left;
-  border: none;
-  font-family: var(--font-display);
-}
-
-.itemChevron {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(217, 220, 242, 0.55);
-  transition: transform 0.2s ease, color 0.18s ease;
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-
-.item:hover .itemChevron {
-  color: var(--color-white);
-}
-
-.itemChevron[data-open] {
-  transform: rotate(90deg);
-  color: var(--color-white);
-}
-
-/* ── Subscribers popover (View / Onboard) ──────────────────────── */
-.subsWrap {
-  position: relative;
-}
-
-.subsMenu {
-  position: absolute;
-  left: calc(100% + 8px);
-  top: 0;
-  min-width: 240px;
-  background: var(--color-white);
-  border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  z-index: 30;
-}
-
-.subsMenuItem {
-  text-decoration: none;
-  text-align: left;
-  color: var(--color-slate);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.subsMenuItem:hover {
-  background: var(--color-cloud);
-  color: var(--color-indigo);
-}
-
-.subsMenuItemActive,
-.subsMenuItemActive:hover {
-  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
-  color: var(--color-indigo);
-  font-weight: 700;
-}
-
 .spacer {
   flex: 1;
 }
@@ -194,4 +126,9 @@
 .logout:hover {
   background: rgba(248, 113, 113, 0.1);
   color: var(--color-alert);
+}
+
+.logout:focus-visible {
+  outline: 2px solid var(--color-alert);
+  outline-offset: -2px;
 }

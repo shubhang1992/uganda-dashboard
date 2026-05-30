@@ -22,6 +22,7 @@
 
 .tab {
   flex: 1;
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -42,11 +43,28 @@
 }
 
 .tab:active {
-  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
+  background: color-mix(in srgb, var(--color-indigo) 10%, transparent);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 2px;
 }
 
 .tabActive {
   color: var(--color-indigo);
+}
+
+.tabActive::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-indigo);
 }
 
 .tabIcon {
@@ -62,7 +80,74 @@
   line-height: 1;
 }
 
-/* ── Popover wrapper + menu (Subscribers + More) ──────────────────── */
+/* Center Onboard FAB — occupies its own flex slot so it stays within the bar
+   footprint and never overlaps a screen's bottom CTA. The button itself is
+   lifted above the bar surface via margin-top + z-index. */
+.fab {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  text-decoration: none;
+  cursor: pointer;
+  padding-top: 4px;
+  touch-action: manipulation;
+}
+
+.fab:focus-visible {
+  outline: none;
+}
+
+.fab:focus-visible .fabIcon {
+  box-shadow: var(--shadow-lg), 0 0 0 4px color-mix(in srgb, var(--color-indigo) 35%, transparent);
+}
+
+.fabIcon {
+  position: relative;
+  z-index: 51;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-top: -22px;
+  border-radius: var(--radius-full);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  box-shadow: var(--shadow-lg);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fab:active .fabIcon {
+  transform: scale(0.94);
+}
+
+/* Active-on-Onboard = ring + elevation + scale, NOT a hue change (no mint). */
+.fabActive .fabIcon {
+  transform: scale(1.06);
+  box-shadow: var(--shadow-xl), 0 0 0 4px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+}
+
+.fabLabel {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: -0.005em;
+  line-height: 1;
+  color: var(--color-gray);
+  transition: color 0.18s ease;
+}
+
+.fabActive .fabLabel {
+  color: var(--color-indigo);
+}
+
+/* ── More popover wrapper + menu ──────────────────────────────────── */
 .popoverWrap {
   position: relative;
   flex: 1;
@@ -86,10 +171,6 @@
   flex-direction: column;
 }
 
-.popoverMenu[data-anchor='left'] {
-  left: 0;
-}
-
 .popoverMenu[data-anchor='right'] {
   right: 0;
 }
@@ -106,12 +187,18 @@
   padding: 12px 14px;
   border-radius: var(--radius-md);
   cursor: pointer;
+  min-height: 44px;
   touch-action: manipulation;
 }
 
 .popoverItem:hover,
 .popoverItem:active {
   background: var(--color-cloud);
+}
+
+.popoverItem:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: -2px;
 }
 
 .popoverItemActive,
@@ -126,4 +213,13 @@
   border-top: 1px solid var(--color-lavender);
   margin-top: 4px;
   border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fabIcon,
+  .fab:active .fabIcon,
+  .fabActive .fabIcon {
+    transition: none;
+    transform: none;
+  }
 }
