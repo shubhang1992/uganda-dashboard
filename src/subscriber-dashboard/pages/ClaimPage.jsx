@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO, formatUGXExact, formatUGX, parseAmount } from '../../utils/finance';
 import { formatNumber } from '../../utils/currency';
@@ -7,6 +7,7 @@ import { formatDate } from '../../utils/date';
 import { useCurrentSubscriber, useSubmitClaim, useSubscriberClaims } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import PageHeader from '../../components/PageHeader';
+import { PillChip, PillChipGroup } from '../../components/PillChip';
 import { goBackOrFallback } from '../shell/navigation';
 import styles from './ClaimPage.module.css';
 
@@ -32,6 +33,7 @@ function statusMeta(status) {
 
 export default function ClaimPage() {
   const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const submitClaim = useSubmitClaim(sub?.id);
@@ -112,20 +114,36 @@ export default function ClaimPage() {
     setResultClaim(null);
   }
 
+  // On the list view with an active policy, fold the cover figure into the
+  // hero dome (eyebrow + big amount + premium/renewal stat row). Every other
+  // view (and the no-policy upsell) shows a title-only hero with a muted line.
+  const showCoverHero = view === 'list' && !noPolicy && insurance;
+
   return (
     <div className={styles.page}>
       <PageHeader
+        variant="hero"
         title={
           view === 'list' ? 'File a claim'
           : view === 'form' ? 'New claim'
           : view === 'review' ? 'Review claim'
           : 'Submitted'
         }
+        eyebrow={showCoverHero ? 'ACTIVE COVER' : undefined}
+        prefix={showCoverHero ? 'UGX' : undefined}
+        amount={showCoverHero ? formatUGXExact(insurance.cover || 0).replace('UGX ', '') : undefined}
         subtitle={
-          view === 'list' && insurance ? `Cover: ${formatUGX(insurance.cover || 0)}`
+          showCoverHero ? undefined
+          : view === 'list' && insurance ? `Cover: ${formatUGX(insurance.cover || 0)}`
           : view === 'list' ? 'No active policy yet'
-          : null
+          : undefined
         }
+        statRow={showCoverHero ? (
+          <>
+            <span><strong>{formatUGXExact(insurance.premiumMonthly)}</strong> / mo</span>
+            <span>Renews <strong>{formatDate(insurance.renewalDate)}</strong></span>
+          </>
+        ) : undefined}
         onBack={handleBack}
       />
 
@@ -135,9 +153,9 @@ export default function ClaimPage() {
             <motion.div
               key="list"
               className={styles.step}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
+              initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+              animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
+              exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
               transition={{ duration: 0.28, ease: EASE_OUT_EXPO }}
             >
               {noPolicy ? (
@@ -162,21 +180,6 @@ export default function ClaimPage() {
                 </section>
               ) : (
                 <>
-                  <section className={styles.coverCard}>
-                    <span className={styles.coverEyebrow}>Active cover</span>
-                    <div className={styles.coverValue}>{formatUGX(insurance.cover)}</div>
-                    <div className={styles.coverMeta}>
-                      <div className={styles.coverMetaItem}>
-                        <span className={styles.coverMetaLabel}>Premium</span>
-                        <span className={styles.coverMetaValue}>{formatUGXExact(insurance.premiumMonthly)} / mo</span>
-                      </div>
-                      <div className={styles.coverMetaItem}>
-                        <span className={styles.coverMetaLabel}>Renewal</span>
-                        <span className={styles.coverMetaValue}>{formatDate(insurance.renewalDate)}</span>
-                      </div>
-                    </div>
-                  </section>
-
                   <button type="button" className={styles.fileNewBtn} onClick={() => { resetForm(); setView('form'); }}>
                     <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="14" height="14">
                       <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
@@ -222,9 +225,9 @@ export default function ClaimPage() {
             <motion.div
               key="form"
               className={styles.step}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
+              initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+              animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
+              exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
               transition={{ duration: 0.28, ease: EASE_OUT_EXPO }}
             >
               <section className={styles.section}>
@@ -232,21 +235,17 @@ export default function ClaimPage() {
                   <span className={styles.sectionIdx}>01</span>
                   <h2 className={styles.sectionTitle}>What happened?</h2>
                 </div>
-                <div className={styles.chipRow} role="radiogroup" aria-label="Claim type">
+                <PillChipGroup label="Claim type" layout="grid" columns={2}>
                   {CLAIM_TYPES.map((c) => (
-                    <button
+                    <PillChip
                       key={c.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={claimType === c.id}
-                      className={styles.chip}
-                      data-active={claimType === c.id}
+                      selected={claimType === c.id}
                       onClick={() => setClaimType(c.id)}
                     >
                       {c.label}
-                    </button>
+                    </PillChip>
                   ))}
-                </div>
+                </PillChipGroup>
               </section>
 
               <section className={styles.section}>
@@ -350,9 +349,9 @@ export default function ClaimPage() {
             <motion.div
               key="review"
               className={styles.step}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
+              initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+              animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
+              exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
               transition={{ duration: 0.28, ease: EASE_OUT_EXPO }}
             >
               <section className={styles.reviewCard}>
@@ -384,9 +383,9 @@ export default function ClaimPage() {
             <motion.div
               key="success"
               className={styles.successStep}
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
+              initial={reducedMotion ? false : { opacity: 0, scale: 0.96 }}
+              animate={reducedMotion ? undefined : { opacity: 1, scale: 1 }}
+              exit={reducedMotion ? undefined : { opacity: 0 }}
               transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
             >
               <div className={styles.successCheck} aria-hidden="true">

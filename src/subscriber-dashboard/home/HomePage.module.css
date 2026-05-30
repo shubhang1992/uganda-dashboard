@@ -5,18 +5,25 @@
   padding: calc(env(safe-area-inset-top) + var(--space-3)) var(--space-4) var(--space-6);
 }
 
-/* Phone-only adjustments: hide the safety widget (withdraw/claim live in
-   the sidebar) and surface the AI co-pilot above the future-value card so
-   subscribers get to a question-friendly entry point sooner. */
-@media (max-width: 767.98px) {
+/* Hide the safety widget across the whole mobile layout: withdraw/claim live
+   in the desktop SideNav, which only appears at >=1024px. Below that the
+   BottomTabBar is the navigation surface, so this breakpoint is aligned to
+   1023.98px to match the bar's 1024px switch (previously 767.98px, which left
+   the widget visible in the 768-1023px band where no sidebar exists). */
+@media (max-width: 1023.98px) {
   .phoneHide { display: none; }
+}
 
+/* Phone-stack ordering (mockup 01): balance hero → pay/top-up → Ask Pensa AI →
+   Your policies → Recent transactions. Projection + safety are phoneHide. The
+   JSX already declares this order; the explicit values keep intent obvious and
+   the 1024px grid below overrides ordering anyway. */
+@media (max-width: 767.98px) {
   .slotPulse      { order: 1; }
   .slotContrib    { order: 2; }
   .slotCopilot    { order: 3; }
-  .slotProjection { order: 4; }
-  .slotSafety     { order: 5; }
-  .slotActivity   { order: 6; }
+  .slotPolicies   { order: 4; }
+  .slotActivity   { order: 5; }
 }
 
 @media (min-width: 768px) {
@@ -50,8 +57,8 @@
   .page > :global(*):nth-child(1) {
     grid-column: 1 / -1;
   }
-  /* Help/agent spans full width at the bottom */
-  .page > :global(*):nth-child(6) {
+  /* Ask Pensa AI (3rd child) spans full width */
+  .page > :global(*):nth-child(3) {
     grid-column: 1 / -1;
   }
 }

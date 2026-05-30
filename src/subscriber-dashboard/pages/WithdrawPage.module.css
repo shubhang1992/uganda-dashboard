@@ -15,20 +15,13 @@
 
 .body {
   flex: 1;
-  padding: var(--space-2) var(--space-4) var(--space-6);
-}
-
-.step {
+  padding: var(--space-5) var(--space-4) var(--space-6);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
 }
 
 .section {
-  background: var(--color-white);
-  border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-xl);
-  padding: var(--space-4) var(--space-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -37,38 +30,102 @@
 .sectionHead {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
 }
 
-.sectionIdx {
-  font-family: var(--font-display);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--color-indigo-soft);
-  letter-spacing: 0.08em;
-  background: rgba(94,99,168,0.08);
-  border: 1px solid var(--color-lavender);
-  padding: 4px 7px;
-  border-radius: var(--radius-sm);
-}
-
-.sectionTitle {
+.sectionLabel {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: var(--text-base);
-  letter-spacing: -0.02em;
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--color-indigo);
   margin: 0;
-  flex: 1;
 }
 
-.sectionAside {
+/* ── Amount slider ────────────────────────────────────── */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(
+    to right,
+    var(--color-indigo) 0%,
+    var(--color-indigo) var(--pct),
+    var(--color-lavender) var(--pct),
+    var(--color-lavender) 100%
+  );
+  outline: none;
+  cursor: pointer;
+}
+
+.slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.slider:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 4px;
+  border-radius: var(--radius-full);
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-white);
+  border: 3px solid var(--color-indigo);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-white);
+  border: 3px solid var(--color-indigo);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.slider:disabled::-webkit-slider-thumb {
+  border-color: var(--color-gray);
+}
+
+.slider:disabled::-moz-range-thumb {
+  border-color: var(--color-gray);
+}
+
+.sliderEnds {
+  display: flex;
+  justify-content: space-between;
   font-family: var(--font-body);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
 }
 
-/* ── Bucket grid ──────────────────────────────────────── */
+.sliderMax {
+  color: var(--color-indigo-soft);
+  font-weight: 600;
+}
+
+.helperLine {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-gray);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Pot picker ───────────────────────────────────────── */
 .bucketGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -101,256 +158,212 @@
 }
 
 .bucket[data-locked='true'] {
-  opacity: 0.85;
+  opacity: 0.92;
 }
 
-.bucketHead {
+.bucket:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.bucketName {
   display: flex;
   align-items: center;
   gap: 6px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+  font-weight: 600;
 }
 
 .bucketDot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  flex: 0 0 auto;
 }
 
 .bucketDot[data-tone='emergency']  { background: var(--color-teal); }
 .bucketDot[data-tone='retirement'] { background: var(--color-indigo); }
 
-.bucketName {
-  font-family: var(--font-body);
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-indigo-soft);
-  font-weight: 600;
-}
-
 .bucketBal {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   letter-spacing: -0.025em;
   color: var(--color-indigo);
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
 
-.bucketPill {
+.lockPill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-family: var(--font-body);
-  font-size: 10.5px;
-  color: var(--color-status-good);
-  background: rgba(46, 139, 87, 0.1);
+  font-size: 10px;
+  color: var(--color-gray);
+  background: rgba(138, 144, 166, 0.12);
   padding: 3px 8px;
   border-radius: var(--radius-full);
   align-self: flex-start;
 }
 
-.bucketPill[data-tone='locked'] {
-  color: var(--color-gray);
-  background: rgba(138, 144, 166, 0.12);
-}
-
-/* ── Amount field ─────────────────────────────────────── */
-.amountField {
+/* ── Footer CTA ───────────────────────────────────────── */
+/* In-flow at the bottom of the page (.body flex:1 pushes it down); NOT sticky.
+   A sticky footer pinned to the scrollport bottom collided with the fixed
+   BottomTabBar; the page + viewport bottom padding keep this clear of the bar. */
+.footer {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-4);
   display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--color-cloud);
-  border: 1.5px solid var(--color-lavender);
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  flex-direction: column;
 }
 
-.amountField:focus-within {
-  border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
-}
-
-.amountField[data-error] {
-  border-color: var(--color-status-poor);
-}
-
-.amountPrefix {
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--color-indigo-soft);
-}
-
-.amountInput {
+.primaryBtn {
   flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: var(--text-2xl);
-  letter-spacing: -0.025em;
-  color: var(--color-indigo);
-  font-variant-numeric: tabular-nums;
-  min-width: 0;
-}
-
-.amountInput::placeholder {
-  color: var(--color-gray);
-  font-weight: 600;
-}
-
-.amountInput:disabled {
-  color: var(--color-gray);
-}
-
-.maxBtn {
-  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   background: var(--color-indigo);
   color: var(--color-white);
   border: none;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 11px;
-  padding: 6px 10px;
+  font-size: var(--text-base);
+  letter-spacing: -0.01em;
   border-radius: var(--radius-full);
+  padding: 16px 20px;
+  min-height: 52px;
   cursor: pointer;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  touch-action: manipulation;
+  box-shadow: var(--shadow-lg);
+  font-variant-numeric: tabular-nums;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 
-.maxBtn:disabled {
+.primaryBtn:disabled {
   background: var(--color-lavender);
   color: var(--color-gray);
   cursor: not-allowed;
+  box-shadow: none;
 }
 
-.errorLine {
-  font-family: var(--font-body);
-  font-size: 12px;
-  color: var(--color-status-poor);
-  margin: 0;
+.primaryBtn:active:not(:disabled) {
+  transform: scale(0.99);
+  background: var(--color-indigo-deep);
 }
 
-.helperLine {
-  font-family: var(--font-body);
-  font-size: 12px;
-  color: var(--color-gray);
-  margin: 0;
-  line-height: 1.5;
+.primaryBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 3px;
 }
 
-/* ── Reason list ──────────────────────────────────────── */
-.reasonList {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.reasonItem {
-  display: flex;
+/* Danger variant — RED is reserved for destructive/irreversible actions per
+   brand rules. Used ONLY for the final "Confirm withdrawal" commit CTA, never
+   for the benign form-step or success-step buttons. Duplicates the primaryBtn
+   declarations (the file uses no `composes`) and overrides only the surface
+   colour + shadow so disabled/active/focus behaviour stays consistent. */
+.dangerBtn {
+  flex: 1;
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  background: var(--color-cloud);
-  border: 1.5px solid var(--color-lavender);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-status-poor);
+  color: var(--color-white);
+  border: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  letter-spacing: -0.01em;
+  border-radius: var(--radius-full);
+  padding: 16px 20px;
+  min-height: 52px;
   cursor: pointer;
-  text-align: left;
   touch-action: manipulation;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--color-status-poor) 22%, transparent);
+  font-variant-numeric: tabular-nums;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 
-.reasonItem[data-active='true'] {
-  border-color: var(--color-indigo);
-  background: var(--color-white);
+.dangerBtn:disabled {
+  background: var(--color-lavender);
+  color: var(--color-gray);
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
-.reasonRadio {
+.dangerBtn:active:not(:disabled) {
+  transform: scale(0.99);
+  background: color-mix(in srgb, var(--color-status-poor) 85%, black);
+}
+
+.dangerBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 3px;
+}
+
+.secondaryBtn {
   flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid var(--color-lavender);
+  background: var(--color-white);
+  color: var(--color-indigo);
+  border: 1px solid var(--color-lavender);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  border-radius: var(--radius-full);
+  padding: 16px 22px;
+  min-height: 52px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.secondaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondaryBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+/* ── Confirm → success sheet ──────────────────────────── */
+.sheetScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: color-mix(in srgb, var(--color-indigo-deep) 45%, transparent);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
 }
 
-.reasonItem[data-active='true'] .reasonRadio {
-  border-color: var(--color-indigo);
-}
-
-.reasonRadioDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: transparent;
-}
-
-.reasonItem[data-active='true'] .reasonRadioDot {
-  background: var(--color-indigo);
-}
-
-.reasonText {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.reasonName {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--text-sm);
-  color: var(--color-indigo);
-  letter-spacing: -0.01em;
-}
-
-.reasonHelper {
-  font-family: var(--font-body);
-  font-size: 11.5px;
-  color: var(--color-gray);
-}
-
-/* ── Method chips ─────────────────────────────────────── */
-.methodRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.methodChip {
-  background: var(--color-cloud);
-  border: 1.5px solid var(--color-lavender);
-  color: var(--color-indigo);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--text-xs);
-  padding: 9px 14px;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  touch-action: manipulation;
-  min-height: 38px;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.methodChip[data-active='true'] {
-  background: var(--color-indigo);
-  color: var(--color-white);
-  border-color: var(--color-indigo);
-}
-
-/* ── Confirm card ─────────────────────────────────────── */
-.confirmCard {
+.sheet {
+  width: 100%;
+  max-width: 640px;
   background: var(--color-white);
-  border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-xl);
-  padding: var(--space-5);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  padding: var(--space-3) var(--space-5) calc(var(--space-6) + env(safe-area-inset-bottom));
+  box-shadow: var(--shadow-xl);
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.sheetGrip {
+  display: block;
+  width: 40px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-lavender);
+  margin: 0 auto var(--space-4);
+}
+
+.sheetInner {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -426,22 +439,25 @@
   color: var(--color-indigo);
 }
 
+.sheetActions {
+  display: flex;
+  gap: 8px;
+  margin-top: var(--space-3);
+}
+
 /* ── Success ──────────────────────────────────────────── */
-.successStep {
-  background: var(--color-white);
-  border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-xl);
-  padding: var(--space-7) var(--space-5);
+.successInner {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   gap: var(--space-3);
+  padding-top: var(--space-2);
 }
 
 .successCheck {
-  width: 72px;
-  height: 72px;
+  width: 68px;
+  height: 68px;
   border-radius: 50%;
   background: rgba(46, 139, 87, 0.12);
   color: var(--color-green);
@@ -495,78 +511,28 @@
   font-weight: 700;
   font-size: var(--text-xs);
   cursor: pointer;
-  margin-top: var(--space-2);
+  margin: var(--space-1) 0 var(--space-2);
 }
 
 .trackLink:hover {
   color: var(--color-indigo);
 }
 
-/* ── Footer ───────────────────────────────────────────── */
-.footer {
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: var(--space-3) var(--space-4) var(--space-4);
-  background: linear-gradient(180deg, rgba(246, 247, 251, 0) 0%, var(--color-cloud) 30%);
-  display: flex;
-  flex-direction: column;
+.trackLink:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
-.footerRow {
-  display: flex;
-  gap: 8px;
+.successInner .primaryBtn {
+  width: 100%;
 }
 
-.primaryBtn {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: var(--color-indigo);
-  color: var(--color-white);
-  border: none;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--text-base);
-  letter-spacing: -0.01em;
-  border-radius: var(--radius-full);
-  padding: 16px 20px;
-  min-height: 52px;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background 0.15s ease, transform 0.15s ease;
-}
-
-.primaryBtn:disabled {
-  background: var(--color-lavender);
-  color: var(--color-gray);
-  cursor: not-allowed;
-}
-
-.primaryBtn:active:not(:disabled) {
-  transform: scale(0.99);
-  background: var(--color-indigo-deep);
-}
-
-.primaryAmt {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-.secondaryBtn {
-  background: var(--color-white);
-  color: var(--color-indigo);
-  border: 1px solid var(--color-lavender);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--text-base);
-  border-radius: var(--radius-full);
-  padding: 16px 22px;
-  min-height: 52px;
-  cursor: pointer;
-  touch-action: manipulation;
+/* Respect reduced-motion: Framer handles transforms, but neutralise the
+   active-press scale for users who opt out of motion. */
+@media (prefers-reduced-motion: reduce) {
+  .primaryBtn:active:not(:disabled),
+  .dangerBtn:active:not(:disabled) {
+    transform: none;
+  }
 }

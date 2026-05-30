@@ -97,7 +97,16 @@
   }
 
   .select {
-    min-height: 36px;
+    min-height: 44px;
+  }
+
+  .searchInput {
+    height: 44px;
+  }
+
+  .clearBtn {
+    width: 32px;
+    height: 32px;
   }
 }
 

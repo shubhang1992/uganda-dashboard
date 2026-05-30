@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { formatNumber } from '../../utils/currency';
 import styles from './ReportTable.module.css';
@@ -27,6 +27,7 @@ export default function ReportTable({
   rowKey = 'id',
   loading = false,
 }) {
+  const reducedMotion = useReducedMotion();
   const [sortKey, setSortKey] = useState(defaultSort || columns[0]?.key);
   const [sortDir, setSortDir] = useState(defaultDir);
   const [page, setPage] = useState(0);
@@ -96,20 +97,28 @@ export default function ReportTable({
         <table className={styles.table}>
           <thead>
             <tr>
-              <th className={styles.rowNum}>#</th>
+              <th scope="col" className={styles.rowNum}>#</th>
               {columns.map((col) => (
                 <th
                   key={col.key}
+                  scope="col"
                   className={styles.th}
                   data-align={col.align || 'left'}
+                  aria-sort={
+                    col.sortable !== false && sortKey === col.key
+                      ? (sortDir === 'asc' ? 'ascending' : 'descending')
+                      : 'none'
+                  }
                   style={col.width ? { width: col.width, minWidth: col.width } : undefined}
                 >
                   {col.sortable !== false ? (
                     <button
+                      type="button"
                       className={styles.sortBtn}
                       onClick={() => handleSort(col.key)}
                       data-active={sortKey === col.key}
                       data-align={col.align || 'left'}
+                      aria-label={`Sort by ${col.label}${sortKey === col.key ? (sortDir === 'asc' ? ', ascending' : ', descending') : ''}`}
                     >
                       <span>{col.label}</span>
                       <span className={styles.sortIcon} data-dir={sortKey === col.key ? sortDir : 'none'}>
@@ -143,10 +152,10 @@ export default function ReportTable({
                   className={styles.tr}
                   data-clickable={!!onRowClick}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.15, delay: Math.min(idx * 0.01, 0.2) }}
-                  layout
+                  initial={reducedMotion ? false : { opacity: 0 }}
+                  animate={reducedMotion ? undefined : { opacity: 1 }}
+                  transition={{ duration: 0.15, delay: reducedMotion ? 0 : Math.min(idx * 0.01, 0.2), ease: EASE_OUT_EXPO }}
+                  layout={!reducedMotion}
                 >
                   <td className={styles.rowNum}>{page * pageSize + idx + 1}</td>
                   {columns.map((col) => (

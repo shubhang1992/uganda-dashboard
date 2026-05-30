@@ -34,7 +34,7 @@ describe('contact service — real (Supabase) branch', () => {
   });
 
   it('posts to /api/contact and returns { ok, demo: false, id } on success', async () => {
-    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse({ submitted: true, id: 'msg-123' }),
     );
     const res = await submitContactForm({
@@ -56,25 +56,32 @@ describe('contact service — real (Supabase) branch', () => {
   });
 
   it('returns ok with id undefined when route omits id', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ submitted: true }));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ submitted: true }));
     const res = await submitContactForm({ name: 'a', email: 'b', message: 'c' });
     expect(res).toEqual({ ok: true, demo: false, id: undefined });
   });
 
-  it('falls back to mock when /api/contact 404s in dev mode', async () => {
-    // In dev (IS_DEV=true by default in vitest env), the catch branch should
-    // swallow the error and re-route to the mock payload.
-    vi.spyOn(global, 'fetch').mockResolvedValue(
+  it('surfaces a 404 from /api/contact without falling back', async () => {
+    // Per G53: the mock fallback is gated on VITE_USE_SUPABASE === 'false'
+    // (not on IS_DEV). With the default real branch, backend errors must
+    // propagate so they can be debugged rather than masked as a silent
+    // demo banner.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse({ code: 'not_found' }, { status: 404 }),
     );
-    const res = await submitContactForm({ name: 'a', email: 'b', message: 'c' });
-    expect(res).toEqual({ ok: true, demo: true });
+    await expect(
+      submitContactForm({ name: 'a', email: 'b', message: 'c' }),
+    ).rejects.toThrow();
   });
 
-  it('falls back to mock on network failure in dev mode', async () => {
-    vi.spyOn(global, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
-    const res = await submitContactForm({ name: 'a', email: 'b', message: 'c' });
-    expect(res).toEqual({ ok: true, demo: true });
+  it('surfaces network errors without falling back', async () => {
+    // Same gate as above. apiFetch wraps a fetch TypeError into a typed
+    // `network_unreachable` error; that error propagates up without the
+    // mock fallback swallowing it.
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(
+      submitContactForm({ name: 'a', email: 'b', message: 'c' }),
+    ).rejects.toMatchObject({ code: 'network_unreachable' });
   });
 });
 
@@ -89,7 +96,7 @@ describe('contact service — mock-fallback branch (IS_SUPABASE_ENABLED=false)',
   });
 
   it('does NOT hit the network', async () => {
-    const fetchSpy = vi.spyOn(global, 'fetch');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
     await submitContactForm({ name: 'a', email: 'b', message: 'c' });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -104,7 +111,7 @@ describe('contact service — real/mock branch parity (X11)', () => {
   it('both branches return objects with the same `ok` key', async () => {
     // Real
     const realMod = await import('../contact');
-    vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ submitted: true, id: 'x' }));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ submitted: true, id: 'x' }));
     const real = await realMod.submitContactForm({ name: 'a', email: 'b', message: 'c' });
 
     // Mock

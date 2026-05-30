@@ -82,7 +82,6 @@ function makeWrapper() {
       mutations: { retry: false },
     },
   });
-  // eslint-disable-next-line react/prop-types
   const Wrapper = ({ children }) => (
     React.createElement(QueryClientProvider, { client: queryClient }, children)
   );

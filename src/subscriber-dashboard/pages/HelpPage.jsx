@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
@@ -72,6 +72,7 @@ function persistMessages(subId, messages) {
 
 export default function HelpPage() {
   const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const subId = sub?.id;
@@ -157,6 +158,7 @@ export default function HelpPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        variant="hero"
         title={view === 'home' ? 'How can we help?' : 'Live support chat'}
         subtitle={
           view === 'home' ? 'Find answers, contact support, or message your agent'
@@ -171,10 +173,10 @@ export default function HelpPage() {
             <motion.div
               key="home"
               className={styles.step}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.28, ease: EASE_OUT_EXPO }}
+              initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+              animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
+              exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
+              transition={{ duration: reducedMotion ? 0 : 0.28, ease: EASE_OUT_EXPO }}
             >
               <div className={styles.searchWrap}>
                 <svg aria-hidden="true" className={styles.searchIcon} viewBox="0 0 24 24" fill="none" width="18" height="18">
@@ -280,10 +282,10 @@ export default function HelpPage() {
                         {openFaq === f.id && (
                           <motion.div
                             className={styles.faqBody}
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+                            initial={reducedMotion ? false : { height: 0, opacity: 0 }}
+                            animate={reducedMotion ? { opacity: 1 } : { height: 'auto', opacity: 1 }}
+                            exit={reducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                            transition={{ duration: reducedMotion ? 0 : 0.25, ease: EASE_OUT_EXPO }}
                           >
                             <p className={styles.faqA}>{f.a}</p>
                           </motion.div>
@@ -314,10 +316,10 @@ export default function HelpPage() {
             <motion.div
               key="chat"
               className={styles.chat}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.28, ease: EASE_OUT_EXPO }}
+              initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+              animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
+              exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
+              transition={{ duration: reducedMotion ? 0 : 0.28, ease: EASE_OUT_EXPO }}
             >
               <div className={styles.messages} ref={listRef} aria-live="polite">
                 {messages.map((m, i) => (

@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useToast } from '../contexts/ToastContext';
 import styles from './Toast.module.css';
 
@@ -50,14 +50,18 @@ function ToastIcon({ type }) {
 
 /* ── Single toast ───────────────────────────────────────────────────────── */
 function ToastItem({ toast, onClose }) {
+  // Respect the OS "reduce motion" setting: snap to opacity-only transitions
+  // (no translate/scale, zero duration) when enabled. Layout animations are
+  // preserved. Visuals are unchanged for users without the setting.
+  const reduce = useReducedMotion();
   return (
     <motion.div
       className={styles.toast}
       layout
-      initial={{ opacity: 0, y: 24, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 8, scale: 0.97 }}
-      transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
+      initial={reduce ? false : { opacity: 0, y: 24, scale: 0.95 }}
+      animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+      exit={reduce ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.97 }}
+      transition={{ duration: reduce ? 0 : 0.35, ease: EASE_OUT_EXPO }}
       role="status"
       aria-live="polite"
     >

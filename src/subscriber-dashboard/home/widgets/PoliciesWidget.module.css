@@ -8,10 +8,19 @@
   gap: var(--space-4);
 }
 
+/* ── Header ──────────────────────────────────────────── */
 .head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.headText {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .eyebrow {
@@ -30,7 +39,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--color-amber);
+  background: var(--color-indigo-soft);
 }
 
 .title {
@@ -42,20 +51,42 @@
   margin: 0;
 }
 
-/* Stacked CTA cards ─────────────────────────────── */
-.actions {
+.viewAll {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  background: transparent;
+  border: none;
+  color: var(--color-indigo);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  padding: 4px 0;
+  touch-action: manipulation;
+  transition: color 0.15s ease;
+}
+
+.viewAll:hover {
+  color: var(--color-indigo-deep);
+}
+
+/* ── Document rows ───────────────────────────────────── */
+.rows {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  flex: 1;
 }
 
-.cta {
+.row {
   display: grid;
-  grid-template-columns: 48px 1fr 32px;
+  grid-template-columns: 40px 1fr 36px;
   align-items: center;
   gap: 14px;
-  padding: 16px 18px;
+  padding: 14px 16px;
   background: var(--color-white);
   border: 1px solid var(--color-lavender);
   border-radius: var(--radius-lg);
@@ -69,28 +100,39 @@
     box-shadow 0.18s ease;
 }
 
-.cta:hover {
+.row:hover {
   background: var(--color-cloud);
   border-color: var(--color-indigo-soft);
   transform: translateY(-1px);
   box-shadow: 0 6px 16px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
-.cta:active {
+.row:active {
   transform: scale(0.99);
   background: var(--color-cloud);
-  border-color: var(--color-indigo-soft);
   box-shadow: 0 2px 6px color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
-.cta:active .ctaChevron {
+.row:active .rowAction {
   background: var(--color-indigo);
   color: var(--color-white);
 }
 
-.ctaIcon {
-  width: 48px;
-  height: 48px;
+.row:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.row:disabled:hover {
+  background: var(--color-white);
+  border-color: var(--color-lavender);
+  transform: none;
+  box-shadow: none;
+}
+
+.docIcon {
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
@@ -98,74 +140,39 @@
   background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
   color: var(--color-indigo);
   border: 1px solid color-mix(in srgb, var(--color-indigo) 6%, transparent);
-  transition: background 0.18s ease, transform 0.18s ease;
 }
 
-.ctaIcon[data-tone='claim'] {
-  background: rgba(45, 212, 191, 0.14);
-  border-color: rgba(45, 212, 191, 0.22);
-  color: var(--color-teal);
-}
-
-.cta:hover .ctaIcon {
-  transform: scale(1.04);
-}
-
-.ctaBody {
+.rowBody {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
 }
 
-.ctaTitle {
+.rowTitle {
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 700;
   font-size: var(--text-base);
   color: var(--color-indigo);
   letter-spacing: -0.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.ctaMeta {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.rowMeta {
   font-family: var(--font-body);
   font-size: 12px;
   color: var(--color-gray);
-  min-width: 0;
-}
-
-.ctaValue {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 12px;
-  color: var(--color-slate);
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.ctaValue[data-muted] {
-  color: var(--color-gray);
-  font-weight: 600;
-}
-
-.ctaSep {
-  color: var(--color-lavender);
-  font-weight: 700;
-}
-
-.ctaHint {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
 }
 
-.ctaChevron {
-  width: 32px;
-  height: 32px;
+.rowAction {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
   color: var(--color-indigo);
@@ -179,30 +186,22 @@
     transform 0.18s ease;
 }
 
-.cta:hover .ctaChevron {
+.row:hover:not(:disabled) .rowAction {
   background: var(--color-indigo);
   color: var(--color-white);
-  transform: translateX(2px);
-}
-
-@media (max-width: 480px) {
-  .ctaMeta {
-    flex-wrap: wrap;
-    gap: 4px 6px;
-  }
-  .ctaSep { display: none; }
+  transform: translateY(1px);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cta,
-  .ctaIcon,
-  .ctaChevron {
+  .row,
+  .rowAction,
+  .viewAll {
     transition: none;
   }
-  .cta:hover {
+  .row:hover {
     transform: none;
   }
-  .cta:active {
+  .row:active {
     transform: none;
   }
 }

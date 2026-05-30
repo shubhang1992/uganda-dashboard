@@ -32,6 +32,9 @@ export function formatUGX(value, options = {}) {
     if (!Number.isFinite(n) || n <= 0) return '—';
     if (n >= 1e9) return `UGX ${(n / 1e9).toFixed(2)}B`;
     if (n >= 1e6) return `UGX ${(n / 1e6).toFixed(1)}M`;
+    // Below 1,000 the "K" form would round to a misleading "UGX 0K" / "UGX 1K";
+    // show the exact rounded amount instead. >= 1000 behaviour is unchanged.
+    if (n < 1e3) return `UGX ${Math.round(n).toLocaleString(LOCALE)}`;
     return `UGX ${(n / 1e3).toFixed(0)}K`;
   }
 

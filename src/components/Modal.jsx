@@ -19,7 +19,7 @@
 
 import { useCallback, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../utils/finance';
 import styles from './Modal.module.css';
 
@@ -85,6 +85,11 @@ export default function Modal({
   describedBy,
   className,
 }) {
+  // Respect the OS "reduce motion" setting: snap to opacity-only transitions
+  // (no scale/translate, zero duration) when enabled. Visuals are unchanged
+  // for users without the setting.
+  const reduce = useReducedMotion();
+
   // Stable, render-safe id for the auto-rendered title.
   const generatedId = useId();
   const titleId = labelledBy || (title ? `modal-title-${generatedId}` : undefined);
@@ -208,10 +213,10 @@ export default function Modal({
       {open && (
         <motion.div
           className={styles.backdrop}
-          initial={{ opacity: 0 }}
+          initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: reduce ? 0 : 0.2 }}
           onMouseDown={handleBackdropMouseDown}
           onMouseUp={handleBackdropMouseUp}
           // Capture keydown at the backdrop so we get tab/escape regardless
@@ -228,10 +233,10 @@ export default function Modal({
             // tabIndex -1 so the container itself can receive focus when no
             // focusable child is present.
             tabIndex={-1}
-            initial={{ opacity: 0, scale: 0.96, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 8 }}
-            transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+            initial={reduce ? false : { opacity: 0, scale: 0.96, y: 12 }}
+            animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
+            transition={{ duration: reduce ? 0 : 0.25, ease: EASE_OUT_EXPO }}
           >
             {title ? (
               // Accessibility-only label. Consumers render their own visible

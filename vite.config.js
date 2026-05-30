@@ -5,6 +5,26 @@ import { fileURLToPath, URL } from 'node:url'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Local dev only — proxy /api to the local Express backend (`npm run dev:api`
+  // on :3001) so the browser talks to it same-origin (no CORS). The backend's
+  // CORS allowlist (server/cors.ts) only permits the Vercel origins but allows
+  // no-Origin (server-to-server) requests, so we strip the browser Origin on
+  // the proxied call. `server.proxy` has NO effect on `vite build` / the Vercel
+  // deployment — production points the frontend at the Render API via
+  // VITE_API_BASE_URL. Safe to commit.
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.removeHeader('origin');
+          });
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',

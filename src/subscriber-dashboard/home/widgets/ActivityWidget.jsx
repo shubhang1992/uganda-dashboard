@@ -28,12 +28,12 @@ export default function ActivityWidget({ subscriber }) {
             <span className={styles.eyebrowDot} aria-hidden="true" />
             Recent
           </span>
-          <h3 id="activity-title" className={styles.title}>Activity</h3>
+          <h3 id="activity-title" className={styles.title}>Recent transactions</h3>
         </div>
         <button
           type="button"
           className={styles.viewAll}
-          onClick={() => navigate('/dashboard/reports/all-transactions')}
+          onClick={() => navigate('/dashboard/activity')}
         >
           View all
           <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10" fill="none">

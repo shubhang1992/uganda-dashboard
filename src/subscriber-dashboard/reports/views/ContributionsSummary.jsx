@@ -118,8 +118,8 @@ export default function ContributionsSummary() {
                 <span className={frameStyles.monthLabel}>{m.monthLabel}</span>
                 <span className={frameStyles.monthValue}>{formatUGXExact(m.total)}</span>
                 <span className={frameStyles.monthMeta}>
-                  <span>R {formatUGX(m.retirement)}</span>
-                  <span>E {formatUGX(m.emergency)}</span>
+                  <span aria-label={`Retirement ${formatUGXExact(m.retirement)}`}>R {formatUGX(m.retirement)}</span>
+                  <span aria-label={`Emergency ${formatUGXExact(m.emergency)}`}>E {formatUGX(m.emergency)}</span>
                 </span>
               </div>
             ))}

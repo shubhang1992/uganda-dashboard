@@ -50,16 +50,6 @@ const SECONDARY = [
     ),
   },
   {
-    to: '/dashboard/projection',
-    label: 'Goal projection',
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75"/>
-        <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-      </svg>
-    ),
-  },
-  {
     to: '/dashboard/agent',
     label: 'Your agent',
     icon: (

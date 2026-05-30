@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { isValidUGPhone } from '../../utils/phone';
 import { getInitials } from '../../utils/dashboard';
@@ -16,9 +16,38 @@ function genId(tab) {
   return `nom-new-${tab}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
-function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle }) {
+function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle, reducedMotion }) {
+  // Local raw string for the share input so typing can pass through an empty /
+  // partial state (e.g. clearing the field) without parseInt snapping it to 0.
+  // The shared list state (`nominee.share`) always stays a clamped NUMBER —
+  // we only commit a number on blur, so the submitted payload is unchanged.
+  const [shareDraft, setShareDraft] = useState(String(nominee.share ?? ''));
+
+  // Keep the draft in sync when the canonical value changes from outside the
+  // input (auto-balance, Balance button, hydration) but not while the user is
+  // mid-edit — guarded by comparing against the parsed draft.
+  useEffect(() => {
+    const canonical = nominee.share ?? '';
+    if (String(canonical) !== shareDraft && Number.parseInt(shareDraft || '', 10) !== canonical) {
+      setShareDraft(String(canonical));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nominee.share]);
+
   function updateField(field, value) {
     onChange({ ...nominee, [field]: value });
+  }
+  function onShareChange(raw) {
+    // Strip non-digits; allow '' as an intermediate value while editing.
+    const digits = raw.replace(/[^\d]/g, '');
+    setShareDraft(digits);
+  }
+  function onShareBlur() {
+    // Clamp to the documented 1-100 range and commit a NUMBER to shared state.
+    const parsed = Number.parseInt(shareDraft || '0', 10);
+    const clamped = Math.max(1, Math.min(100, Number.isNaN(parsed) ? 1 : parsed));
+    setShareDraft(String(clamped));
+    if (clamped !== nominee.share) updateField('share', clamped);
   }
   function updatePhone(raw) {
     const digits = raw.replace(/[^\d]/g, '').slice(0, 9);
@@ -50,10 +79,10 @@ function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle
         {expanded && (
           <motion.div
             className={styles.rowBody}
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+            initial={reducedMotion ? false : { height: 0, opacity: 0 }}
+            animate={reducedMotion ? { opacity: 1 } : { height: 'auto', opacity: 1 }}
+            exit={reducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+            transition={{ duration: reducedMotion ? 0 : 0.25, ease: EASE_OUT_EXPO }}
           >
             <div className={styles.rowBodyInner}>
               <label className={styles.field}>
@@ -92,8 +121,9 @@ function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle
                       max={100}
                       inputMode="numeric"
                       className={styles.input}
-                      value={nominee.share ?? ''}
-                      onChange={(e) => updateField('share', Math.max(0, Math.min(100, parseInt(e.target.value || '0', 10))))}
+                      value={shareDraft}
+                      onChange={(e) => onShareChange(e.target.value)}
+                      onBlur={onShareBlur}
                     />
                     <span className={styles.sharePct}>%</span>
                   </div>
@@ -152,6 +182,7 @@ function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle
 }
 
 export default function NomineesPage() {
+  const reducedMotion = useReducedMotion();
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const updateNominees = useUpdateNominees(sub?.id);
@@ -243,6 +274,7 @@ export default function NomineesPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        variant="hero"
         title="Nominees"
         subtitle="Who inherits your savings if anything happens"
         fallback="/dashboard/settings"
@@ -251,15 +283,17 @@ export default function NomineesPage() {
       <div className={styles.body}>
         <motion.div
           className={styles.step}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+          animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
-          <div className={styles.tabs} role="tablist">
+          <div className={styles.tabs} role="tablist" aria-label="Nominee category">
             <button
               type="button"
               role="tab"
+              id="nominees-tab-pension"
               aria-selected={tab === 'pension'}
+              aria-controls="nominees-panel"
               className={styles.tab}
               data-active={tab === 'pension'}
               onClick={() => setTab('pension')}
@@ -270,7 +304,9 @@ export default function NomineesPage() {
             <button
               type="button"
               role="tab"
+              id="nominees-tab-insurance"
               aria-selected={tab === 'insurance'}
+              aria-controls="nominees-panel"
               className={styles.tab}
               data-active={tab === 'insurance'}
               onClick={() => setTab('insurance')}
@@ -280,6 +316,12 @@ export default function NomineesPage() {
             </button>
           </div>
 
+          <div
+            role="tabpanel"
+            id="nominees-panel"
+            aria-labelledby={tab === 'pension' ? 'nominees-tab-pension' : 'nominees-tab-insurance'}
+            className={styles.panel}
+          >
           <div className={styles.shareBanner} data-valid={shareValid || undefined}>
             <div className={styles.shareBannerText}>
               <span className={styles.shareBannerLabel}>Total share</span>
@@ -314,6 +356,7 @@ export default function NomineesPage() {
                   canRemove={currentList.length > 1}
                   expanded={expandedId === n.id}
                   onToggle={() => setExpandedId(expandedId === n.id ? null : n.id)}
+                  reducedMotion={reducedMotion}
                 />
               ))}
             </AnimatePresence>
@@ -343,6 +386,7 @@ export default function NomineesPage() {
             Add nominee
             {currentList.length >= MAX_NOMINEES && <span className={styles.addBtnNote}>(max {MAX_NOMINEES})</span>}
           </button>
+          </div>
         </motion.div>
       </div>
 

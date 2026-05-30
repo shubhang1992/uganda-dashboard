@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import PageHeader from '../../components/PageHeader';
 import styles from './ReportsPage.module.css';
@@ -84,6 +84,7 @@ function ReportLoading() {
 
 export default function ReportsPage() {
   const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
   const { reportId } = useParams();
 
   if (reportId) {
@@ -91,7 +92,11 @@ export default function ReportsPage() {
     if (!ActiveReportComponent) {
       return (
         <div className={styles.page}>
-          <PageHeader title="Report not found" fallback="/dashboard/reports" />
+          <PageHeader
+            variant="hero"
+            title="Report not found"
+            fallback="/dashboard/reports"
+          />
           <div className={styles.body}>
             <p className={styles.empty}>That report doesn&apos;t exist.</p>
           </div>
@@ -100,7 +105,11 @@ export default function ReportsPage() {
     }
     return (
       <div className={styles.page}>
-        <PageHeader title={REPORT_TITLES[reportId]} fallback="/dashboard/reports" />
+        <PageHeader
+          variant="hero"
+          title={REPORT_TITLES[reportId]}
+          fallback="/dashboard/reports"
+        />
         <div className={styles.body}>
           <Suspense fallback={<ReportLoading />}>
             <ActiveReportComponent />
@@ -113,6 +122,7 @@ export default function ReportsPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        variant="hero"
         title="Reports"
         subtitle="Every transaction. Every claim. Every number."
         fallback="/dashboard"
@@ -126,10 +136,10 @@ export default function ReportsPage() {
               type="button"
               className={styles.card}
               onClick={() => navigate(`/dashboard/reports/${r.id}`)}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+              animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 0.05 + i * 0.05, ease: EASE_OUT_EXPO }}
-              whileHover={{ y: -2 }}
+              whileHover={reducedMotion ? undefined : { y: -2 }}
             >
               <span className={styles.cardIcon}>{r.icon}</span>
               <div className={styles.cardText}>

@@ -5,6 +5,8 @@ import { downloadCSV } from '../../../utils/csv';
 import ErrorCard from '../../../components/feedback/ErrorCard';
 import ExportButton from '../../../components/reports/ExportButton';
 import SkeletonRow from '../../../components/SkeletonRow';
+import EmptyState from '../../../components/EmptyState';
+import { PillChip, PillChipGroup } from '../../../components/PillChip';
 import frameStyles from './ReportFrame.module.css';
 
 function txYear(isoDate) {
@@ -94,70 +96,80 @@ export default function AnnualStatement() {
         <ExportButton onExport={handleExport} />
       </div>
 
-      {/* Year chips */}
-      {years.length > 0 && (
-        <div className={frameStyles.filters}>
-          {years.map((y) => (
-            <button
-              key={y}
-              type="button"
-              className={frameStyles.yearChip}
-              data-active={year === y}
-              onClick={() => setYear(y)}
-            >
-              {y}
-            </button>
-          ))}
-        </div>
+      {transactions.length === 0 ? (
+        // Match the other report views: when there are no transactions at all
+        // we show a single empty-state instead of a "0 of 0" year summary.
+        <EmptyState
+          kind="no-data"
+          title="No statement yet."
+          body="Once your first transaction settles, a year-end summary will appear here for your records."
+        />
+      ) : (
+        <>
+          {/* Year chips */}
+          {years.length > 0 && (
+            <PillChipGroup label="Statement year" layout="row">
+              {years.map((y) => (
+                <PillChip
+                  key={y}
+                  selected={year === y}
+                  onClick={() => setYear(y)}
+                >
+                  {y}
+                </PillChip>
+              ))}
+            </PillChipGroup>
+          )}
+
+          <div className={frameStyles.kpiStrip}>
+            <div className={frameStyles.kpi}>
+              <span className={frameStyles.kpiLabel}>Contributions</span>
+              <span className={frameStyles.kpiValue}>{formatUGX(totals.contributions)}</span>
+            </div>
+            <div className={frameStyles.kpi}>
+              <span className={frameStyles.kpiLabel}>Premiums</span>
+              <span className={frameStyles.kpiValue}>{formatUGX(totals.premiums)}</span>
+            </div>
+            <div className={frameStyles.kpi}>
+              <span className={frameStyles.kpiLabel}>Withdrawals</span>
+              <span className={frameStyles.kpiValue}>{formatUGX(totals.withdrawals)}</span>
+            </div>
+            <div className={frameStyles.kpi}>
+              <span className={frameStyles.kpiLabel}>Claim payouts</span>
+              <span className={frameStyles.kpiValue}>{formatUGX(totals.claimsInflow)}</span>
+            </div>
+          </div>
+
+          <section className={frameStyles.statSection}>
+            <div className={frameStyles.statSectionTitle}>{year} summary</div>
+            <ul className={frameStyles.summaryList}>
+              <li className={frameStyles.summaryRow}>
+                <span>Total saved ({totals.contributions ? 'gross' : 'none'})</span>
+                <strong>{formatUGXExact(totals.contributions)}</strong>
+              </li>
+              <li className={frameStyles.summaryRow}>
+                <span>Insurance premiums paid</span>
+                <strong>{formatUGXExact(totals.premiums)}</strong>
+              </li>
+              <li className={frameStyles.summaryRow}>
+                <span>Withdrawals made</span>
+                <strong>{formatUGXExact(totals.withdrawals)}</strong>
+              </li>
+              <li className={frameStyles.summaryRow}>
+                <span>Insurance claim payouts</span>
+                <strong>{formatUGXExact(totals.claimsInflow)}</strong>
+              </li>
+              <li className={`${frameStyles.summaryRow} ${frameStyles.summaryTotal}`}>
+                <span>Net inflow to your account</span>
+                <strong>{formatUGXExact(Math.max(0, totals.netInflow))}</strong>
+              </li>
+            </ul>
+            <p className={frameStyles.summaryNote}>
+              This summary is for your personal records. Universal Pensions contributions may be tax-deductible in some cases — check with a qualified tax advisor.
+            </p>
+          </section>
+        </>
       )}
-
-      <div className={frameStyles.kpiStrip}>
-        <div className={frameStyles.kpi}>
-          <span className={frameStyles.kpiLabel}>Contributions</span>
-          <span className={frameStyles.kpiValue}>{formatUGX(totals.contributions)}</span>
-        </div>
-        <div className={frameStyles.kpi}>
-          <span className={frameStyles.kpiLabel}>Premiums</span>
-          <span className={frameStyles.kpiValue}>{formatUGX(totals.premiums)}</span>
-        </div>
-        <div className={frameStyles.kpi}>
-          <span className={frameStyles.kpiLabel}>Withdrawals</span>
-          <span className={frameStyles.kpiValue}>{formatUGX(totals.withdrawals)}</span>
-        </div>
-        <div className={frameStyles.kpi}>
-          <span className={frameStyles.kpiLabel}>Claim payouts</span>
-          <span className={frameStyles.kpiValue}>{formatUGX(totals.claimsInflow)}</span>
-        </div>
-      </div>
-
-      <section className={frameStyles.statSection}>
-        <div className={frameStyles.statSectionTitle}>{year} summary</div>
-        <ul className={frameStyles.summaryList}>
-          <li className={frameStyles.summaryRow}>
-            <span>Total saved ({totals.contributions ? 'gross' : 'none'})</span>
-            <strong>{formatUGXExact(totals.contributions)}</strong>
-          </li>
-          <li className={frameStyles.summaryRow}>
-            <span>Insurance premiums paid</span>
-            <strong>{formatUGXExact(totals.premiums)}</strong>
-          </li>
-          <li className={frameStyles.summaryRow}>
-            <span>Withdrawals made</span>
-            <strong>{formatUGXExact(totals.withdrawals)}</strong>
-          </li>
-          <li className={frameStyles.summaryRow}>
-            <span>Insurance claim payouts</span>
-            <strong>{formatUGXExact(totals.claimsInflow)}</strong>
-          </li>
-          <li className={`${frameStyles.summaryRow} ${frameStyles.summaryTotal}`}>
-            <span>Net inflow to your account</span>
-            <strong>{formatUGXExact(Math.max(0, totals.netInflow))}</strong>
-          </li>
-        </ul>
-        <p className={frameStyles.summaryNote}>
-          This summary is for your personal records. Universal Pensions contributions may be tax-deductible in some cases — check with a qualified tax advisor.
-        </p>
-      </section>
     </div>
   );
 }

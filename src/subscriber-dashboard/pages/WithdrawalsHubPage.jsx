@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO, formatUGX } from '../../utils/finance';
+import { formatUGXShort } from '../../utils/currency';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import PageHeader from '../../components/PageHeader';
 import styles from './WithdrawalsHubPage.module.css';
@@ -35,10 +36,12 @@ const OPTIONS = [
 
 export default function WithdrawalsHubPage() {
   const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
   const { data: sub } = useCurrentSubscriber();
 
   const emergency = sub?.emergencyBalance || 0;
   const retirement = sub?.retirementBalance || 0;
+  const available = emergency + retirement;
   const cover = sub?.insurance?.cover || 0;
   const insuranceActive = sub?.insurance?.status === 'active';
 
@@ -49,11 +52,25 @@ export default function WithdrawalsHubPage() {
       : 'No active cover',
   };
 
+  const statRow = (
+    <>
+      <span>{formatUGX(emergency)} emergency</span>
+      <span>
+        <strong>{formatUGX(cover)}</strong> cover
+      </span>
+    </>
+  );
+
   return (
     <div className={styles.page}>
       <PageHeader
+        variant="hero"
         title="Withdrawals"
-        subtitle="Take money out, or file an insurance claim."
+        eyebrow="Available to withdraw"
+        prefix="UGX"
+        amount={formatUGXShort(available)}
+        subtitle="Take money out, or file an insurance claim"
+        statRow={statRow}
         fallback="/dashboard"
       />
 
@@ -65,10 +82,10 @@ export default function WithdrawalsHubPage() {
               type="button"
               className={styles.card}
               onClick={() => navigate(opt.to)}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+              animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 0.05 + i * 0.05, ease: EASE_OUT_EXPO }}
-              whileHover={{ y: -2 }}
+              whileHover={reducedMotion ? undefined : { y: -2 }}
             >
               <span className={styles.cardIcon}>{opt.icon}</span>
               <div className={styles.cardText}>
