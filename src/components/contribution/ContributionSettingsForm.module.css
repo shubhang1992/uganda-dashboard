@@ -257,6 +257,12 @@
   margin-top: var(--space-2);
 }
 
+.slider:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 4px;
+  border-radius: var(--radius-full);
+}
+
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
