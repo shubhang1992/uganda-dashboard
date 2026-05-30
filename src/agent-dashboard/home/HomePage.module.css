@@ -14,13 +14,32 @@
 
 @media (min-width: 1024px) {
   .page {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: row;
     max-width: 880px;
     margin: 0 auto;
     width: 100%;
-    gap: var(--space-5);
+    gap: var(--space-4);
     padding: var(--space-6) 0 var(--space-8);
+    align-items: stretch;
+  }
+  /* Each grid cell wraps a widget card. Make the wrapper a flex column and let
+     the card grow so paired cards line up to the same bottom edge. */
+  .page > :global(*) {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .page > :global(*) > :global(*) {
+    flex: 1 1 auto;
+  }
+  /* Pulse dome + Co-Pilot span full width; Portfolio + Commissions pair up. */
+  .slotPulse,
+  .slotCopilot {
+    grid-column: 1 / -1;
   }
 }
 
-/* Mobile + desktop both stack:
-   PortfolioPulseCard → CommissionsWidget → CoPilotWidget */
+/* Mobile + desktop stack order:
+   PulseCard → PortfolioCard → CommissionsSnapshotCard → CoPilotWidget */

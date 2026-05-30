@@ -1,7 +1,9 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
-import PortfolioPulseCard from './widgets/PortfolioPulseCard';
+import PulseCard from './widgets/PulseCard';
+import PortfolioCard from './widgets/PortfolioCard';
+import CommissionsSnapshotCard from './widgets/CommissionsSnapshotCard';
 import CoPilotWidget from './widgets/CoPilotWidget';
 import styles from './HomePage.module.css';
 
@@ -16,13 +18,26 @@ const item = {
 
 export default function HomePage() {
   const { agentId } = useAgentScope();
+  const reduceMotion = useReducedMotion();
+  const itemVariants = reduceMotion ? undefined : item;
 
   return (
-    <motion.div className={styles.page} variants={stagger} initial="initial" animate="animate">
-      <motion.div variants={item} className={styles.slotPulse}>
-        <PortfolioPulseCard agentId={agentId} />
+    <motion.div
+      className={styles.page}
+      variants={reduceMotion ? undefined : stagger}
+      initial={reduceMotion ? false : 'initial'}
+      animate={reduceMotion ? false : 'animate'}
+    >
+      <motion.div variants={itemVariants} className={styles.slotPulse}>
+        <PulseCard agentId={agentId} />
       </motion.div>
-      <motion.div variants={item} className={styles.slotCopilot}>
+      <motion.div variants={itemVariants} className={styles.slotPortfolio}>
+        <PortfolioCard agentId={agentId} />
+      </motion.div>
+      <motion.div variants={itemVariants} className={styles.slotCommissions}>
+        <CommissionsSnapshotCard agentId={agentId} />
+      </motion.div>
+      <motion.div variants={itemVariants} className={styles.slotCopilot}>
         <CoPilotWidget agentId={agentId} />
       </motion.div>
     </motion.div>

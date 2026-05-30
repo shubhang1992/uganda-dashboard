@@ -76,6 +76,7 @@ export default function CoPilotWidget({ agentId }) {
   const [input, setInput] = useState('');
   const [exchange, setExchange] = useState(null);
   const [isThinking, setIsThinking] = useState(false);
+  const [open, setOpen] = useState(false);
   const inputRef = useRef(null);
   const aliveRef = useRef(true);
   const timerRef = useRef(null);
@@ -113,104 +114,136 @@ export default function CoPilotWidget({ agentId }) {
     requestAnimationFrame(() => inputRef.current?.focus());
   }
 
+  function expand() {
+    setOpen(true);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }
+
   return (
     <section className={styles.card} aria-labelledby="agent-copilot-title">
-      <header className={styles.head}>
-        <span className={styles.eyebrow}>
-          <svg className={styles.eyebrowSpark} viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true">
-            <path d="M8 2l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3z" fill="currentColor"/>
+      <button
+        type="button"
+        className={styles.trigger}
+        onClick={expand}
+        aria-expanded={open}
+        aria-controls="agent-copilot-panel"
+      >
+        <span className={styles.triggerIcon} aria-hidden="true">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none">
+            <path d="M8 2l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3z" fill="currentColor" />
           </svg>
-          Co-Pilot
         </span>
-        <h3 id="agent-copilot-title" className={styles.title}>
-          Ask anything about your portfolio
-        </h3>
-      </header>
+        <span className={styles.triggerBody}>
+          <span className={styles.eyebrow}>Co-Pilot</span>
+          <span id="agent-copilot-title" className={styles.title}>
+            Ask anything about your portfolio
+          </span>
+        </span>
+        <span className={styles.triggerChevron} data-open={open ? 'true' : 'false'} aria-hidden="true">
+          <svg viewBox="0 0 12 12" width="12" height="12" fill="none">
+            <path d="M2.5 4.5l3.5 4 3.5-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </button>
 
       <AnimatePresence initial={false}>
-        {exchange && (
+        {open && (
           <motion.div
-            key="exchange"
-            className={styles.exchange}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
+            key="panel"
+            id="agent-copilot-panel"
+            className={styles.panel}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
           >
-            <div className={styles.userBubble}>
-              <span className={styles.bubbleLabel}>You</span>
-              <span className={styles.bubbleText}>{exchange.question}</span>
-            </div>
-
-            <div className={styles.aiBubble}>
-              <span className={styles.bubbleLabel}>Co-Pilot</span>
-              {exchange.answer ? (
-                <motion.span
-                  className={styles.bubbleText}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
+            <AnimatePresence initial={false}>
+              {exchange && (
+                <motion.div
+                  key="exchange"
+                  className={styles.exchange}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
                 >
-                  {exchange.answer}
-                </motion.span>
-              ) : (
-                <span className={styles.typing} aria-label="Thinking">
-                  <span className={styles.typingDot} />
-                  <span className={styles.typingDot} />
-                  <span className={styles.typingDot} />
-                </span>
-              )}
-            </div>
+                  <div className={styles.userBubble}>
+                    <span className={styles.bubbleLabel}>You</span>
+                    <span className={styles.bubbleText}>{exchange.question}</span>
+                  </div>
 
-            {exchange.answer && (
-              <button type="button" className={styles.resetBtn} onClick={reset}>
-                Ask another
-                <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10" fill="none">
-                  <path d="M9 3.5v3h-3M9 3.5l-2.6 2.6a3.5 3.5 0 11-1 2.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <div className={styles.aiBubble}>
+                    <span className={styles.bubbleLabel}>Co-Pilot</span>
+                    {exchange.answer ? (
+                      <motion.span
+                        className={styles.bubbleText}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
+                      >
+                        {exchange.answer}
+                      </motion.span>
+                    ) : (
+                      <span className={styles.typing} aria-label="Thinking">
+                        <span className={styles.typingDot} />
+                        <span className={styles.typingDot} />
+                        <span className={styles.typingDot} />
+                      </span>
+                    )}
+                  </div>
+
+                  {exchange.answer && (
+                    <button type="button" className={styles.resetBtn} onClick={reset}>
+                      Ask another
+                      <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10" fill="none">
+                        <path d="M9 3.5v3h-3M9 3.5l-2.6 2.6a3.5 3.5 0 11-1 2.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <form className={styles.composer} onSubmit={handleSubmit}>
+              <input
+                ref={inputRef}
+                type="text"
+                name="message"
+                autoComplete="off"
+                className={styles.input}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask about subscribers, payouts, onboarding…"
+                aria-label="Ask your co-pilot"
+                disabled={isThinking}
+              />
+              <button type="submit" className={styles.send} disabled={!input.trim() || isThinking} aria-label="Send">
+                <span className={styles.sendLabel}>Ask</span>
+                <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" fill="none">
+                  <path d="M2 8h11M9 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
+            </form>
+
+            {!exchange && (
+              <ul className={styles.suggestions}>
+                {SUGGESTIONS.map((q, i) => (
+                  <li key={q} className={styles.suggestionItem}>
+                    {i > 0 && <span className={styles.suggestionDot} aria-hidden="true">·</span>}
+                    <button
+                      type="button"
+                      className={styles.suggestionBtn}
+                      onClick={() => ask(q)}
+                    >
+                      {q}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </motion.div>
         )}
       </AnimatePresence>
-
-      <form className={styles.composer} onSubmit={handleSubmit}>
-        <input
-          ref={inputRef}
-          type="text"
-          name="message"
-          autoComplete="off"
-          className={styles.input}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about subscribers, payouts, onboarding…"
-          aria-label="Ask your co-pilot"
-          disabled={isThinking}
-        />
-        <button type="submit" className={styles.send} disabled={!input.trim() || isThinking} aria-label="Send">
-          <span className={styles.sendLabel}>Ask</span>
-          <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" fill="none">
-            <path d="M2 8h11M9 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-      </form>
-
-      {!exchange && (
-        <ul className={styles.suggestions}>
-          {SUGGESTIONS.map((q, i) => (
-            <li key={q} className={styles.suggestionItem}>
-              {i > 0 && <span className={styles.suggestionDot} aria-hidden="true">·</span>}
-              <button
-                type="button"
-                className={styles.suggestionBtn}
-                onClick={() => ask(q)}
-              >
-                {q}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }
