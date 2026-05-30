@@ -21,7 +21,6 @@ const PALETTE = {
   indigoSoft: '#5E63A8',
   lavender: '#D9DCF2',
   teal: '#2F8F9D',
-  mint: '#2DD4BF',
   amber: '#FBBF24',
   positive: '#4ADE80',
   gridLine: 'rgba(41, 40, 103, 0.08)',
@@ -78,11 +77,13 @@ export default function AnalyticsPage() {
   if (isLoading) {
     return (
       <div className={styles.page}>
-        <PageHeader title="Analytics" subtitle="Loading insights…" fallback="/dashboard" />
-        <div className={styles.skeletonGrid}>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className={styles.skeleton} />
-          ))}
+        <PageHeader variant="hero" showBack={false} title="Analytics" subtitle="Loading insights…" />
+        <div className={styles.body}>
+          <div className={styles.skeletonGrid}>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className={styles.skeleton} />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -91,13 +92,15 @@ export default function AnalyticsPage() {
   if (isError) {
     return (
       <div className={styles.page}>
-        <PageHeader title="Analytics" fallback="/dashboard" />
-        <div className={styles.empty}>
-          <ErrorCard
-            title="We couldn't load your analytics"
-            message={error}
-            onRetry={refetch}
-          />
+        <PageHeader variant="hero" showBack={false} title="Analytics" />
+        <div className={styles.body}>
+          <div className={styles.empty}>
+            <ErrorCard
+              title="We couldn't load your analytics"
+              message={error}
+              onRetry={refetch}
+            />
+          </div>
         </div>
       </div>
     );
@@ -106,26 +109,28 @@ export default function AnalyticsPage() {
   if (total === 0) {
     return (
       <div className={styles.page}>
-        <PageHeader title="Analytics" subtitle="No subscribers yet" fallback="/dashboard" />
-        <div className={styles.empty}>
-          <div className={styles.emptyIcon} aria-hidden="true">
-            <svg viewBox="0 0 48 48" width="40" height="40" fill="none">
-              <path d="M8 38V12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              <path d="M8 38h32" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              <rect x="14" y="22" width="6" height="12" rx="1" stroke="currentColor" strokeWidth="2"/>
-              <rect x="24" y="14" width="6" height="20" rx="1" stroke="currentColor" strokeWidth="2"/>
-              <rect x="34" y="26" width="6" height="8" rx="1" stroke="currentColor" strokeWidth="2"/>
-            </svg>
+        <PageHeader variant="hero" showBack={false} title="Analytics" subtitle="No subscribers yet" />
+        <div className={styles.body}>
+          <div className={styles.empty}>
+            <div className={styles.emptyIcon} aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="40" height="40" fill="none">
+                <path d="M8 38V12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M8 38h32" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <rect x="14" y="22" width="6" height="12" rx="1" stroke="currentColor" strokeWidth="2"/>
+                <rect x="24" y="14" width="6" height="20" rx="1" stroke="currentColor" strokeWidth="2"/>
+                <rect x="34" y="26" width="6" height="8" rx="1" stroke="currentColor" strokeWidth="2"/>
+              </svg>
+            </div>
+            <h2 className={styles.emptyTitle}>Onboard your first subscriber</h2>
+            <p className={styles.emptySub}>Insights about your book will appear here once you have at least one subscriber.</p>
+            <button
+              type="button"
+              className={styles.emptyCta}
+              onClick={() => navigate('/dashboard/onboard')}
+            >
+              Onboard a subscriber
+            </button>
           </div>
-          <h2 className={styles.emptyTitle}>Onboard your first subscriber</h2>
-          <p className={styles.emptySub}>Insights about your book will appear here once you have at least one subscriber.</p>
-          <button
-            type="button"
-            className={styles.emptyCta}
-            onClick={() => navigate('/dashboard/onboard')}
-          >
-            Onboard a subscriber
-          </button>
         </div>
       </div>
     );
@@ -134,11 +139,13 @@ export default function AnalyticsPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        variant="hero"
+        showBack={false}
         title="Analytics"
         subtitle={`Insights from your ${formatNumber(total)} subscriber${total === 1 ? '' : 's'}`}
-        fallback="/dashboard"
       />
 
+      <div className={styles.body}>
       <section className={styles.section} aria-labelledby="profile-mix-title">
         <header className={styles.sectionHead}>
           <span className={styles.eyebrow}>Profile mix</span>
@@ -247,7 +254,7 @@ export default function AnalyticsPage() {
                   <Bar
                     dataKey="value"
                     name="Subscribers"
-                    fill={PALETTE.mint}
+                    fill={PALETTE.teal}
                     radius={[6, 6, 0, 0]}
                     isAnimationActive={!reduceMotion}
                   />
@@ -335,6 +342,7 @@ export default function AnalyticsPage() {
           </footer>
         </article>
       </section>
+      </div>
     </div>
   );
 }

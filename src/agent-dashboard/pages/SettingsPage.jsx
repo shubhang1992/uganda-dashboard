@@ -81,7 +81,7 @@ export default function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Settings" subtitle="Manage your profile and security" fallback="/dashboard" />
+      <PageHeader variant="hero" showBack={false} title="Settings" subtitle="Manage your profile and security" />
 
       <form className={styles.form} onSubmit={handleSave} noValidate>
         <motion.div
@@ -90,9 +90,9 @@ export default function SettingsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
         >
-          <div className={styles.avatar}>
-            <span className={styles.avatarInitials}>{getInitials(name || agent?.name || user?.name)}</span>
-          </div>
+          <span className={styles.avatar} aria-hidden="true">
+            {getInitials(name || agent?.name || user?.name) || 'UP'}
+          </span>
           <div className={styles.profileInfo}>
             <span className={styles.profileName}>{name || agent?.name || user?.name || 'Agent'}</span>
             <span className={styles.profilePhone}>+256 {formatPhone(phone || agent?.phone || user?.phone)}</span>
