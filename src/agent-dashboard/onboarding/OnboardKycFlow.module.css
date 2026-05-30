@@ -11,9 +11,15 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-7) var(--space-2);
-  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 4%, transparent);
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--color-lavender);
   flex-shrink: 0;
+}
+
+@media (min-width: 1024px) {
+  .metaBar {
+    padding-inline: var(--space-5);
+  }
 }
 
 .backBtn {
@@ -29,12 +35,14 @@
   padding: 0.4rem 0.6rem;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease;
-  min-height: 36px;
+  touch-action: manipulation;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  min-height: 44px;
   margin-left: -0.6rem;
 }
 
 .backBtn:hover { color: var(--color-indigo); background: color-mix(in srgb, var(--color-indigo) 4%, transparent); }
+.backBtn:active { transform: scale(0.98); }
 .backBtn:focus-visible { outline: 2px solid var(--color-indigo); outline-offset: 2px; }
 
 .stepCount {
@@ -79,14 +87,14 @@
   background: var(--color-white);
   border: 1px solid var(--color-lavender);
   border-radius: var(--radius-xl);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-indigo) 4%, transparent), 0 8px 24px color-mix(in srgb, var(--color-indigo) 6%, transparent);
+  box-shadow: var(--shadow-md);
 }
 
 .terminalIcon {
-  width: 56px;
-  height: 56px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
-  background: rgba(230, 168, 23, 0.12);
+  background: rgba(251, 191, 36, 0.14);
   color: #B07A0F;
   display: flex;
   align-items: center;
@@ -124,32 +132,34 @@
 
 .terminalBtn {
   margin-top: var(--space-2);
-  padding: 0.7rem 1.4rem;
+  padding: 14px 1.6rem;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
+  letter-spacing: -0.01em;
   color: var(--color-white);
   background: var(--color-indigo);
   border: none;
   border-radius: var(--radius-full);
   cursor: pointer;
-  min-height: 44px;
+  touch-action: manipulation;
+  min-height: 48px;
+  box-shadow: var(--shadow-md);
   transition: background 0.15s ease, transform 0.15s ease;
 }
 
-.terminalBtn:hover { background: var(--color-indigo-deep); transform: translateY(-1px); }
+.terminalBtn:active { background: var(--color-indigo-deep); transform: scale(0.99); }
 .terminalBtn:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; }
 
-/* ── Mobile ── */
+@media (prefers-reduced-motion: reduce) {
+  .backBtn,
+  .terminalBtn {
+    transition: none;
+  }
+}
+
+/* ── Compact terminal padding on small screens ── */
 @media (max-width: 768px) {
-  .metaBar {
-    padding: var(--space-3) var(--space-5) var(--space-2);
-  }
-
-  .stepHost {
-    padding: var(--space-3) var(--space-5) var(--space-6);
-  }
-
   .terminal {
     padding: var(--space-5) var(--space-4);
   }
