@@ -27,18 +27,16 @@
   padding: var(--space-2) var(--space-4) var(--space-6);
 }
 
-/* ── Payout schedule card ── */
+/* ── Payout schedule card — clean white (subscriber theme) ── */
 .payoutCard {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-xl);
-  background:
-    radial-gradient(120% 100% at 0% 0%, rgba(94, 99, 168, 0.55) 0%, transparent 60%),
-    radial-gradient(110% 100% at 100% 100%, rgba(45, 212, 191, 0.18) 0%, transparent 60%),
-    linear-gradient(160deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
-  color: var(--color-white);
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  color: var(--color-slate);
   padding: var(--space-5) var(--space-5) var(--space-4);
-  box-shadow: 0 16px 38px rgba(27, 26, 74, 0.26);
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -60,52 +58,14 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(217, 220, 242, 0.78);
+  color: var(--color-indigo-soft);
 }
 
 .payoutEyebrowIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-accent-mint);
-}
-
-.payoutEditBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  color: var(--color-white);
-  border-radius: var(--radius-full);
-  padding: 6px 12px;
-  font-family: var(--font-display);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  touch-action: manipulation;
-  min-height: 32px;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.payoutEditBtn:hover {
-  background: rgba(255, 255, 255, 0.22);
-  border-color: rgba(255, 255, 255, 0.36);
-}
-
-.payoutEditBtn:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.55);
-  outline-offset: 2px;
-}
-
-.payoutEditChevron {
-  display: inline-flex;
-  align-items: center;
-  transition: transform 0.18s ease;
-}
-
-.payoutEditChevron[data-open='true'] {
-  transform: rotate(-180deg);
+  color: var(--color-teal);
 }
 
 .payoutCadence {
@@ -113,7 +73,7 @@
   font-weight: 800;
   font-size: var(--text-lg);
   letter-spacing: -0.02em;
-  color: var(--color-white);
+  color: var(--color-indigo);
   margin: 0;
 }
 
@@ -122,8 +82,8 @@
   flex-direction: column;
   gap: 6px;
   padding: var(--space-3) var(--space-4);
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
   border-radius: var(--radius-md);
 }
 
@@ -134,7 +94,7 @@
   gap: var(--space-3);
   font-family: var(--font-body);
   font-size: var(--text-xs);
-  color: rgba(217, 220, 242, 0.72);
+  color: var(--color-gray);
 }
 
 .payoutMetaLabel {
@@ -143,134 +103,29 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(217, 220, 242, 0.62);
+  color: var(--color-indigo-soft);
 }
 
 .payoutMetaValue {
   font-family: var(--font-display);
   font-weight: 800;
   font-size: var(--text-sm);
-  color: var(--color-white);
+  color: var(--color-indigo);
   font-variant-numeric: tabular-nums;
+}
+
+.payoutMetaNote {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
 }
 
 .payoutFootnote {
   margin: 0;
   font-family: var(--font-body);
   font-size: var(--text-xs);
-  color: rgba(217, 220, 242, 0.62);
+  color: var(--color-gray);
   line-height: 1.55;
-}
-
-.payoutPreviewToggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.85);
-  font-family: var(--font-display);
-  font-size: 11.5px;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: var(--radius-md);
-  touch-action: manipulation;
-  transition: background 0.15s ease;
-}
-
-.payoutPreviewToggle:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.payoutEdit {
-  overflow: hidden;
-}
-
-.payoutEditInner {
-  padding-top: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.payoutEditHelp {
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  color: rgba(217, 220, 242, 0.78);
-  line-height: 1.5;
-}
-
-.payoutOptions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-@media (max-width: 768px) {
-  .payoutOptions {
-    grid-template-columns: 1fr;
-  }
-}
-
-.payoutOption {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: var(--space-3);
-  background: rgba(255, 255, 255, 0.07);
-  border: 1.5px solid rgba(255, 255, 255, 0.16);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background 0.15s ease, border-color 0.15s ease;
-  min-height: 44px;
-}
-
-.payoutOption:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.payoutOption[data-active='true'] {
-  background: var(--color-white);
-  border-color: var(--color-white);
-  color: var(--color-indigo);
-}
-
-.payoutOption input[type='radio'] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--color-indigo);
-  flex-shrink: 0;
-}
-
-.payoutOptionText {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.payoutOptionLabel {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: var(--text-sm);
-  letter-spacing: -0.01em;
-  color: inherit;
-}
-
-.payoutOptionSub {
-  font-family: var(--font-body);
-  font-size: 11px;
-  color: rgba(217, 220, 242, 0.72);
-}
-
-.payoutOption[data-active='true'] .payoutOptionSub {
-  color: var(--color-indigo-soft);
-}
-
-.payoutPreview {
-  /* Reserved space for future detailed preview list. Hidden when empty. */
 }
 
 /* ── Summary strip (total + progress) ── */
@@ -340,7 +195,7 @@
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, var(--color-positive) 0%, var(--color-accent-mint) 100%);
+  background: linear-gradient(90deg, var(--color-indigo) 0%, var(--color-teal) 100%);
   border-radius: var(--radius-full);
   transition: width 0.6s var(--ease-out-expo);
 }
@@ -399,6 +254,11 @@
   border-color: color-mix(in srgb, var(--color-indigo) 18%, transparent);
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
+}
+
+.primaryCard:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
 }
 
 .primaryIcon {
@@ -483,14 +343,19 @@
 
 .attentionRow:hover { background: color-mix(in srgb, var(--color-indigo) 4%, transparent); }
 
+.attentionRow:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: -2px;
+}
+
 .attentionAccent {
   width: 4px;
   height: 32px;
   border-radius: var(--radius-full);
 }
 
-.attentionAccent[data-type='confirm']  { background: var(--color-positive); }
-.attentionAccent[data-type='disputed'] { background: var(--color-status-poor); }
+.attentionAccent[data-type='confirm']  { background: var(--color-teal); }
+.attentionAccent[data-type='disputed'] { background: var(--color-amber); }
 
 .attentionInfo {
   display: flex;
@@ -523,8 +388,8 @@
   text-align: right;
 }
 
-.attentionCount[data-type='confirm']  { color: var(--color-green); }
-.attentionCount[data-type='disputed'] { color: var(--color-status-poor); }
+.attentionCount[data-type='confirm']  { color: var(--color-teal); }
+.attentionCount[data-type='disputed'] { color: #B07A0F; }
 
 .chev { color: var(--color-gray); display: flex; }
 
@@ -722,14 +587,28 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Dispute reason / hold note — "under review" is not an error, so it reads
+   amber, not red. */
 .disputeNote {
-  background: rgba(248, 113, 113, 0.08);
-  border: 1px solid rgba(248, 113, 113, 0.18);
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.28);
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
   font-family: var(--font-body);
   font-size: var(--text-xs);
-  color: #B43E3E;
+  color: #946007;
+  line-height: 1.5;
+}
+
+/* Benign transaction reference line — neutral, never red. */
+.refNote {
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
   line-height: 1.5;
 }
 
@@ -770,26 +649,42 @@
 
 .btnPrimary:hover:not(:disabled) { background: var(--color-indigo-deep); transform: translateY(-1px); }
 .btnPrimary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btnPrimary:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; }
 
+/* Sheet secondary (Cancel / Not yet) — full-width, paired with .btnPrimaryWide. */
 .btnSecondary {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: var(--text-xs);
-  letter-spacing: 0.02em;
+  font-size: var(--text-base);
+  letter-spacing: -0.01em;
   background: var(--color-white);
   color: var(--color-indigo);
   border: 1px solid var(--color-lavender);
   border-radius: var(--radius-full);
-  padding: 0.5rem 1.1rem;
-  min-height: 36px;
+  padding: 14px 22px;
+  min-height: 48px;
   cursor: pointer;
   touch-action: manipulation;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.btnSecondary:hover {
+.btnSecondary:hover:not(:disabled) {
   background: var(--color-cloud);
   border-color: var(--color-indigo-soft);
+}
+
+.btnSecondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnSecondary:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
 }
 
 .btnLink {
@@ -812,6 +707,16 @@
   color: var(--color-indigo);
 }
 
+.btnLink:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.btnLink:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ── Status badges ── */
 .badge {
   display: inline-flex;
@@ -826,10 +731,10 @@
   color: var(--color-indigo-soft);
 }
 
-.badge[data-tone='confirmed'] { background: rgba(74, 222, 128, 0.16); color: var(--color-green); }
-.badge[data-tone='awaiting']  { background: rgba(45, 212, 191, 0.16); color: #16766C; }
+.badge[data-tone='confirmed'] { background: rgba(46, 139, 87, 0.16); color: var(--color-green); }
+.badge[data-tone='awaiting']  { background: rgba(47, 143, 157, 0.16); color: var(--color-teal); }
 .badge[data-tone='due']       { background: rgba(251, 191, 36, 0.18); color: #B07A0F; }
-.badge[data-tone='disputed']  { background: rgba(248, 113, 113, 0.14); color: #B43E3E; }
+.badge[data-tone='disputed']  { background: rgba(251, 191, 36, 0.16); color: #946007; }
 .badge[data-tone='rejected']  { background: rgba(138, 144, 166, 0.18); color: var(--color-gray); }
 
 /* ── Empty + loading ── */
@@ -862,18 +767,53 @@
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Modal ── */
-/* `.modal` is the inner content layout for the dispute dialog. The surface
- * (background / radius / shadow / max-width) is supplied by the shared
- * <Modal> primitive (src/components/Modal.jsx). */
-.modal {
-  padding: var(--space-6);
+/* ── Bottom sheet (dispute + confirm-receipt) ──
+ * Portaled to <body> via createPortal so the sheet escapes the page's
+ * transformed ancestor and layers above the fixed BottomTabBar. Mirrors the
+ * subscriber SavePage sheet pattern (scrim + slide-up + grip). The shared
+ * Modal.jsx primitive is no longer used here (left untouched for others). */
+.sheetScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: color-mix(in srgb, var(--color-indigo-deep) 42%, transparent);
   display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+  align-items: flex-end;
+  justify-content: center;
 }
 
-.modalTitle {
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  background: var(--color-white);
+  border-radius: var(--radius-capsule) var(--radius-capsule) 0 0;
+  padding: var(--space-3) var(--space-5) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  box-shadow: var(--shadow-xl);
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.sheetGrip {
+  display: block;
+  width: 40px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-lavender);
+  margin: 0 auto var(--space-4);
+}
+
+.sheetBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sheetBody[data-center='true'] {
+  align-items: center;
+  text-align: center;
+}
+
+.sheetTitle {
   font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: 800;
@@ -882,7 +822,7 @@
   margin: 0;
 }
 
-.modalSub {
+.sheetSub {
   font-family: var(--font-body);
   font-size: var(--text-sm);
   color: var(--color-slate);
@@ -890,40 +830,24 @@
   line-height: 1.5;
 }
 
-.modalSub strong { color: var(--color-indigo); font-weight: 700; }
+.sheetSub strong { color: var(--color-indigo); font-weight: 700; }
 
-.reasonList {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.reasonOpt {
-  display: flex;
+/* Inner layout for a reason chip — the native radio carries the contract
+   (name="dispute-reason") + accessible state; the PillChip provides the visual.
+   The radio is visually compact and removed from the tab order (the PillChip
+   group's roving tabindex owns keyboard navigation). */
+.reasonChipInner {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  background: var(--color-white);
-  border: 1.5px solid var(--color-lavender);
-  border-radius: var(--radius-md);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  color: var(--color-slate);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-  min-height: 44px;
+  gap: var(--space-2);
 }
 
-.reasonOpt[data-active='true'] {
-  border-color: var(--color-indigo);
-  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
-}
-
-.reasonOpt input[type='radio'] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--color-indigo);
+.reasonRadio {
+  width: 14px;
+  height: 14px;
+  accent-color: currentColor;
   flex-shrink: 0;
+  pointer-events: none;
 }
 
 .customReason {
@@ -947,10 +871,50 @@
   outline: none;
 }
 
-.modalActions {
+.sheetActions {
   display: flex;
   gap: var(--space-2);
-  justify-content: flex-end;
+  margin-top: var(--space-3);
+  width: 100%;
+}
+
+/* Full-width primary CTA inside the sheet (mirrors SavePage primaryBtn). */
+.btnPrimaryWide {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-indigo);
+  color: var(--color-white);
+  border: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  letter-spacing: -0.01em;
+  border-radius: var(--radius-full);
+  padding: 14px 20px;
+  min-height: 48px;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: var(--shadow-lg);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.btnPrimaryWide:disabled {
+  background: var(--color-lavender);
+  color: var(--color-gray);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btnPrimaryWide:active:not(:disabled) {
+  transform: scale(0.99);
+  background: var(--color-indigo-deep);
+}
+
+.btnPrimaryWide:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
 }
 
 @media (max-width: 768px) {
@@ -960,13 +924,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   .progressFill,
-  .payoutEditChevron,
   .cycleChev,
   .primaryCard,
   .attentionRow,
-  .payoutEditBtn,
-  .payoutPreviewToggle,
-  .cycleHead {
+  .cycleHead,
+  .btnPrimaryWide {
     transition: none;
   }
   .primaryCard:hover {

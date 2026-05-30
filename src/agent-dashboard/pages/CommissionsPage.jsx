@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import Modal from '../../components/Modal';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
@@ -24,6 +24,7 @@ import {
   groupCommissionsByPaidCycle,
 } from '../../utils/settlementCycle';
 import PageHeader from '../../components/PageHeader';
+import { PillChip, PillChipGroup } from '../../components/PillChip';
 import styles from './CommissionsPage.module.css';
 
 const VALID_VIEWS = new Set(['earned', 'owed', 'confirm', 'disputes']);
@@ -136,7 +137,7 @@ function CommissionRow({ commission, onConfirm, onDispute, onWithdraw, isPending
           </div>
         )}
         {isPaidLike && commission.txnRef && (
-          <div className={styles.disputeNote}>Ref: {commission.txnRef}</div>
+          <div className={styles.refNote}>Ref: {commission.txnRef}</div>
         )}
       </div>
 
@@ -187,7 +188,7 @@ function PayoutScheduleCard({ cadence, nextEnd, nextTotal, nextCount }) {
           <span className={styles.payoutMetaValue}>{formatUGX(nextTotal)}</span>
         </div>
         <div className={styles.payoutMetaRow}>
-          <span className={styles.payoutMetaLabel}>
+          <span className={styles.payoutMetaNote}>
             {nextCount > 0
               ? `${nextCount} commission${nextCount === 1 ? '' : 's'} in the current run`
               : 'No commissions in the current run yet'}
@@ -268,66 +269,110 @@ function PastCyclesSection({ cycles, onConfirm, onDispute, onWithdraw, isPending
   );
 }
 
+/**
+ * DisputeModal — portaled bottom sheet (mirrors SavePage): a scrim + slide-up
+ * sheet rendered into <body> so it escapes the page's transformed ancestor and
+ * layers above the fixed BottomTabBar. Replaces the old shared <Modal> usage;
+ * the shared Modal.jsx primitive is untouched and still used by other consumers.
+ *
+ * Internal form state is fresh on every open because the parent re-mounts this
+ * component via `key={disputeTarget?.id}` — no reset effect needed. The radio
+ * group `name="dispute-reason"`, the DISPUTE_REASONS array, and the
+ * 'Other'→textarea branch are a fixed contract and preserved exactly.
+ */
 function DisputeModal({ commission, open, onClose, onConfirm, isPending }) {
-  // Internal form state. The parent re-mounts this component via `key` on each
-  // new commission, so state is fresh on every open — no reset effect needed.
+  const reduceMotion = useReducedMotion();
   const [reason, setReason] = useState(DISPUTE_REASONS[0]);
   const [custom, setCustom] = useState('');
 
   const finalReason = reason === 'Other' ? custom.trim() : reason;
   const canSubmit = finalReason.length > 0 && !isPending;
 
-  // Bail when fully closed and no commission is set — saves Modal mount work
-  // for the never-opened case. The Modal primitive itself handles its own
-  // exit animation while still mounted.
   if (!commission) return null;
 
-  return (
-    <Modal open={open} onClose={onClose} title="Raise a dispute" size="md">
-      <div className={styles.modal}>
-        <h3 className={styles.modalTitle}>Raise a dispute</h3>
-        <p className={styles.modalSub}>
-          Commission {commission.id} for <strong>{commission.subscriberName}</strong> · {formatUGX(commission.amount)}
-        </p>
-
-        <div className={styles.reasonList}>
-          {DISPUTE_REASONS.map((r) => (
-            <label key={r} className={styles.reasonOpt} data-active={reason === r}>
-              <input
-                type="radio"
-                name="dispute-reason"
-                value={r}
-                checked={reason === r}
-                onChange={() => setReason(r)}
-              />
-              {r}
-            </label>
-          ))}
-          {reason === 'Other' && (
-            <textarea
-              className={styles.customReason}
-              value={custom}
-              onChange={(e) => setCustom(e.target.value)}
-              placeholder="Tell us what's wrong…"
-              rows={3}
-              maxLength={300}
-            />
-          )}
-        </div>
-
-        <div className={styles.modalActions}>
-          <button type="button" className={styles.btnSecondary} onClick={onClose}>Cancel</button>
-          <button
-            type="button"
-            className={styles.btnPrimary}
-            disabled={!canSubmit}
-            onClick={() => onConfirm(finalReason)}
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className={styles.sheetScrim}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.2 }}
+          onClick={() => { if (!isPending) onClose(); }}
+        >
+          <motion.div
+            className={styles.sheet}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Raise a dispute"
+            initial={reduceMotion ? false : { y: '100%' }}
+            animate={{ y: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { y: '100%' }}
+            transition={{ duration: reduceMotion ? 0 : 0.34, ease: EASE_OUT_EXPO }}
+            onClick={(e) => e.stopPropagation()}
           >
-            {isPending ? 'Submitting…' : 'Submit dispute'}
-          </button>
-        </div>
-      </div>
-    </Modal>
+            <span className={styles.sheetGrip} aria-hidden="true" />
+
+            <div className={styles.sheetBody}>
+              <h3 className={styles.sheetTitle}>Raise a dispute</h3>
+              <p className={styles.sheetSub}>
+                Commission {commission.id} for <strong>{commission.subscriberName}</strong> · {formatUGX(commission.amount)}
+              </p>
+
+              {/* The native radio group is preserved (name="dispute-reason") as a
+                  contract; PillChipGroup is layered on for the visual selection
+                  while the radios carry the accessible state + value. */}
+              <PillChipGroup label="Dispute reason" layout="grid" columns={1}>
+                {DISPUTE_REASONS.map((r) => (
+                  <PillChip key={r} selected={reason === r} onClick={() => setReason(r)}>
+                    <span className={styles.reasonChipInner}>
+                      <input
+                        type="radio"
+                        name="dispute-reason"
+                        value={r}
+                        checked={reason === r}
+                        onChange={() => setReason(r)}
+                        tabIndex={-1}
+                        className={styles.reasonRadio}
+                      />
+                      {r}
+                    </span>
+                  </PillChip>
+                ))}
+              </PillChipGroup>
+
+              {reason === 'Other' && (
+                <textarea
+                  className={styles.customReason}
+                  value={custom}
+                  onChange={(e) => setCustom(e.target.value)}
+                  placeholder="Tell us what's wrong…"
+                  rows={3}
+                  maxLength={300}
+                  aria-label="Describe the issue"
+                />
+              )}
+
+              <div className={styles.sheetActions}>
+                <button type="button" className={styles.btnSecondary} onClick={onClose} disabled={isPending}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={styles.btnPrimaryWide}
+                  disabled={!canSubmit}
+                  onClick={() => onConfirm(finalReason)}
+                >
+                  {isPending ? 'Submitting…' : 'Submit dispute'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
   );
 }
 
@@ -442,17 +487,37 @@ export default function CommissionsPage() {
   const list = activeView ? listFor(activeView) : [];
 
   const title = isHome ? 'Commissions' : VIEW_LABELS[activeView];
-  const subtitle = isHome
-    ? 'Settled on the distributor schedule. Confirm receipts and raise disputes here.'
-    : `${list.length} record${list.length === 1 ? '' : 's'}`;
+  const heroStatRow = (
+    <>
+      <span>
+        <strong>{totals.settledPct}%</strong> settled
+      </span>
+      <span>
+        <strong>{formatNumber(all.length)}</strong> record{all.length === 1 ? '' : 's'}
+      </span>
+    </>
+  );
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        title={title}
-        subtitle={subtitle}
-        fallback={isHome ? '/dashboard' : '/dashboard/commissions'}
-      />
+      {isHome ? (
+        <PageHeader
+          variant="hero"
+          title="Commissions"
+          eyebrow="TOTAL COMMISSIONS"
+          prefix="UGX"
+          amount={isLoading ? '—' : formatUGX(totals.totalAll).replace('UGX ', '')}
+          subtitle="Settled on the distributor schedule. Confirm receipts and raise disputes here."
+          statRow={isLoading ? <span style={{ opacity: 0.6 }}>Loading…</span> : heroStatRow}
+          showBack={false}
+        />
+      ) : (
+        <PageHeader
+          title={title}
+          subtitle={`${list.length} record${list.length === 1 ? '' : 's'}`}
+          fallback="/dashboard/commissions"
+        />
+      )}
 
       <div className={styles.body}>
         {isLoading && (
