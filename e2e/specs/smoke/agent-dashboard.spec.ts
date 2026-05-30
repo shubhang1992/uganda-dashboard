@@ -78,6 +78,19 @@ test.describe('agent dashboard smoke', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
+  test('Inbox loads', async ({ page }) => {
+    // Support inbox (Phase 2 of the tickets feature). Reached from the agent's
+    // More popover. List mode renders PageHeader variant="hero" title="Inbox"
+    // as the page <h1>; selecting a row swaps to a ThreadView, but a cold
+    // goto lands on the list, so the stable identity marker is the "Inbox" h1.
+    await page.goto('/dashboard/inbox');
+    await expect(page).toHaveURL(/\/dashboard\/inbox/);
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
+    await expect(
+      page.getByRole('heading', { level: 1, name: /^inbox$/i })
+    ).toBeVisible();
+  });
+
   test('Analytics loads', async ({ page }) => {
     await page.goto('/dashboard/analytics');
     await expect(page).toHaveURL(/\/dashboard\/analytics/);

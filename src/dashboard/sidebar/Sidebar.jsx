@@ -77,6 +77,16 @@ const NAV_ITEMS = [
     ),
   },
   {
+    id: 'tickets',
+    label: 'Support',
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
+        <path d="M4 5a2 2 0 012-2h12a2 2 0 012 2v9a2 2 0 01-2 2H9l-5 4V5z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
+        <path d="M8 8h8M8 11.5h5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
     id: 'reports',
     label: 'Reports',
     icon: (
@@ -206,7 +216,7 @@ export default function Sidebar() {
   const [moreOpen, setMoreOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const { reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, subscriberMenuOpen, setSubscriberMenuOpen, viewSubscribersOpen, setViewSubscribersOpen, setDrillTargetBranchId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen, setCommissionsOpen, settingsOpen, setSettingsOpen } = useDashboard();
+  const { reset, branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen, viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen, viewAgentsOpen, setViewAgentsOpen, subscriberMenuOpen, setSubscriberMenuOpen, viewSubscribersOpen, setViewSubscribersOpen, setDrillTargetBranchId, setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen, setCommissionsOpen, settingsOpen, setSettingsOpen, viewTicketsOpen, setViewTicketsOpen } = useDashboard();
 
   // Real counts for the submenu headers — sourced from the country-level
   // rollup RPC (single call, 5-min staleTime). Replaces three earlier
@@ -224,6 +234,7 @@ export default function Sidebar() {
   // in DashboardPanelContext, so panels opening externally automatically
   // light up the right sidebar item.
   const active = useMemo(() => {
+    if (viewTicketsOpen) return 'tickets';
     if (viewReportsOpen) return 'reports';
     if (commissionsOpen) return 'commissions';
     if (settingsOpen) return 'settings';
@@ -232,7 +243,7 @@ export default function Sidebar() {
     if (subscriberMenuOpen) return 'subscribers';
     return 'overview';
   }, [
-    viewReportsOpen, commissionsOpen, settingsOpen,
+    viewTicketsOpen, viewReportsOpen, commissionsOpen, settingsOpen,
     branchMenuOpen, agentMenuOpen, subscriberMenuOpen,
   ]);
 
@@ -290,6 +301,7 @@ export default function Sidebar() {
       setSubscriberMenuOpen(false);
       setViewReportsOpen(false);
       setCommissionsOpen(false);
+      setViewTicketsOpen(false);
       setBranchMenuOpen((prev) => !prev);
       return;
     }
@@ -298,6 +310,7 @@ export default function Sidebar() {
       setSubscriberMenuOpen(false);
       setViewReportsOpen(false);
       setCommissionsOpen(false);
+      setViewTicketsOpen(false);
       setAgentMenuOpen((prev) => !prev);
       return;
     }
@@ -306,6 +319,7 @@ export default function Sidebar() {
       setAgentMenuOpen(false);
       setViewReportsOpen(false);
       setCommissionsOpen(false);
+      setViewTicketsOpen(false);
       setSubscriberMenuOpen((prev) => !prev);
       return;
     }
@@ -315,6 +329,7 @@ export default function Sidebar() {
     if (id === 'settings') {
       setViewReportsOpen(false);
       setCommissionsOpen(false);
+      setViewTicketsOpen(false);
       setSettingsOpen(true);
       return;
     }
@@ -325,20 +340,30 @@ export default function Sidebar() {
     }
     if (id === 'overview') {
       setViewReportsOpen(false);
+      setViewTicketsOpen(false);
       reset();
     }
     if (id === 'commissions') {
       setViewReportsOpen(false);
+      setViewTicketsOpen(false);
       setCommissionsOpen(true);
       return;
     }
     if (id === 'reports') {
       setCommissionsOpen(false);
+      setViewTicketsOpen(false);
       setViewReportsOpen(true);
+      return;
+    }
+    if (id === 'tickets') {
+      setViewReportsOpen(false);
+      setCommissionsOpen(false);
+      setViewTicketsOpen(true);
       return;
     }
     setViewReportsOpen(false);
     setCommissionsOpen(false);
+    setViewTicketsOpen(false);
   }
 
   function handleBranchSub(subId) {

@@ -1,0 +1,128 @@
+/* Clickable ticket row — mirrors the agent SubscribersPage row geometry:
+   leading avatar · flexible body · right-aligned trailing column. */
+.row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-xl);
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  min-height: 64px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s var(--ease-out-expo);
+}
+
+.row:hover {
+  border-color: var(--color-indigo-soft);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.row:active {
+  transform: translateY(0);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+/* ── Leading avatar (initials) ─────────────────────────── */
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-sm);
+  flex-shrink: 0;
+  background: var(--color-indigo-soft);
+}
+
+/* ── Body (subject + optional subtitle + preview) ──────── */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.subject {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-base);
+  letter-spacing: -0.01em;
+  color: var(--color-indigo);
+}
+
+.subject > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subtitle {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-indigo-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-gray);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Trailing column (time · unread dot · status badge) ── */
+.trailing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.time {
+  font-family: var(--font-body);
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--color-gray);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.markers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Unread dot — brand indigo, never mint. */
+.unreadDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-indigo);
+  flex-shrink: 0;
+}

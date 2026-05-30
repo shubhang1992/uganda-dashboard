@@ -13,6 +13,7 @@ import ViewAgents from '../dashboard/agent/ViewAgents';
 import ViewReports from '../dashboard/reports/ViewReports';
 import CommissionPanel from '../dashboard/commissions/CommissionPanel';
 import Settings from '../dashboard/settings/Settings';
+import ViewTickets from './tickets/ViewTickets';
 import styles from './BranchDashboardShell.module.css';
 
 function MobileHeader({ onMenuToggle, menuOpen }) {
@@ -107,6 +108,7 @@ function DashboardContent({ menuOpen, onMenuToggle, onMenuClose }) {
       <ViewReports splitMode />
       <CommissionPanel splitMode />
       <Settings splitMode />
+      <ViewTickets splitMode />
     </>
   );
 }

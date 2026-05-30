@@ -13,6 +13,7 @@ const OnboardPage = lazy(() => import('./pages/OnboardPage'));
 const SubscribersPage = lazy(() => import('./pages/SubscribersPage'));
 const SubscriberDetailPage = lazy(() => import('./pages/SubscriberDetailPage'));
 const SubscriberSchedulePage = lazy(() => import('./pages/SubscriberSchedulePage'));
+const InboxPage = lazy(() => import('./pages/InboxPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const CommissionsPage = lazy(() => import('./pages/CommissionsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
@@ -77,6 +78,7 @@ export default function AgentDashboardShell() {
             <Route path="subscribers" element={<Suspense fallback={<PageFallback />}><SubscribersPage /></Suspense>} />
             <Route path="subscribers/:id" element={<Suspense fallback={<PageFallback />}><SubscriberDetailPage /></Suspense>} />
             <Route path="subscribers/:id/schedule" element={<Suspense fallback={<PageFallback />}><SubscriberSchedulePage /></Suspense>} />
+            <Route path="inbox" element={<Suspense fallback={<PageFallback />}><InboxPage /></Suspense>} />
             <Route path="analytics" element={<Suspense fallback={<PageFallback />}><AnalyticsPage /></Suspense>} />
             <Route path="commissions" element={<Suspense fallback={<PageFallback />}><CommissionsPage /></Suspense>} />
             <Route path="commissions/:view" element={<Suspense fallback={<PageFallback />}><CommissionsPage /></Suspense>} />

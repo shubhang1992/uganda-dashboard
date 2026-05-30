@@ -38,17 +38,6 @@ const PRIMARY = [
     ),
   },
   {
-    to: '/dashboard/commissions',
-    label: 'Commissions',
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
-        <rect x="2.5" y="6" width="19" height="13" rx="2" stroke="currentColor" strokeWidth="1.75"/>
-        <path d="M2.5 10h19" stroke="currentColor" strokeWidth="1.75"/>
-        <circle cx="12" cy="14.5" r="1.6" stroke="currentColor" strokeWidth="1.5"/>
-      </svg>
-    ),
-  },
-  {
     to: '/dashboard/analytics',
     label: 'Analytics',
     icon: (

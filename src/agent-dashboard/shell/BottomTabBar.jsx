@@ -3,11 +3,14 @@ import { useCallback, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAgentScope } from '../../contexts/AgentScopeContext';
+import { useAgentTickets } from '../../hooks/useTickets';
+import { TICKET_STATUS } from '../../data/ticketsSeed';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
 import styles from './BottomTabBar.module.css';
 
 const MORE_ITEMS = [
-  { to: '/dashboard/analytics', label: 'Analytics' },
+  { to: '/dashboard/inbox', label: 'Inbox' },
   { to: '/dashboard/settings', label: 'Settings' },
 ];
 
@@ -26,11 +29,13 @@ const SubscribersIcon = (
   </svg>
 );
 
-const CommissionsIcon = (
+const AnalyticsIcon = (
   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
-    <rect x="2.5" y="6" width="19" height="13" rx="2" stroke="currentColor" strokeWidth="1.75"/>
-    <path d="M2.5 10h19" stroke="currentColor" strokeWidth="1.75"/>
-    <circle cx="12" cy="14.5" r="1.6" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M4 19V5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+    <path d="M4 19h16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+    <rect x="7.5" y="11" width="3" height="6" rx="0.6" stroke="currentColor" strokeWidth="1.75"/>
+    <rect x="12.5" y="7" width="3" height="10" rx="0.6" stroke="currentColor" strokeWidth="1.75"/>
+    <rect x="17.5" y="13" width="3" height="4" rx="0.6" stroke="currentColor" strokeWidth="1.75"/>
   </svg>
 );
 
@@ -42,11 +47,28 @@ const MoreIcon = (
   </svg>
 );
 
+// Cap the numeric badge so a busy inbox never blows out the tab footprint.
+function badgeText(count) {
+  return count > 9 ? '9+' : String(count);
+}
+
 export default function BottomTabBar() {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef(null);
   const { logout } = useAuth();
   const navigate = useNavigate();
+
+  // Unread support badge. Calling useAgentTickets with NO status arg shares the
+  // ['tickets','agent',id,'all'] cache key with the Inbox page, so the badge and
+  // the inbox dedupe into one fetch + poll. Sum the agent's unread counter over
+  // OPEN tickets only — a closed ticket carries no actionable unread.
+  const { agentId } = useAgentScope();
+  const { data: agentTickets } = useAgentTickets(agentId);
+  const unreadCount = (agentTickets ?? []).reduce(
+    (sum, t) => (t.status === TICKET_STATUS.OPEN ? sum + (t.unread?.agent ?? 0) : sum),
+    0,
+  );
+  const hasUnread = unreadCount > 0;
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
   useOutsideClick(moreOpen, closeMore, [moreRef]);
@@ -90,11 +112,11 @@ export default function BottomTabBar() {
       </NavLink>
 
       <NavLink
-        to="/dashboard/commissions"
+        to="/dashboard/analytics"
         className={({ isActive }) => `${styles.tab} ${isActive ? styles.tabActive : ''}`}
       >
-        <span className={styles.tabIcon}>{CommissionsIcon}</span>
-        <span className={styles.tabLabel}>Commissions</span>
+        <span className={styles.tabIcon}>{AnalyticsIcon}</span>
+        <span className={styles.tabLabel}>Analytics</span>
       </NavLink>
 
       <div className={styles.popoverWrap} ref={moreRef}>
@@ -129,6 +151,9 @@ export default function BottomTabBar() {
                   role="menuitem"
                 >
                   {item.label}
+                  {item.to === '/dashboard/inbox' && hasUnread && (
+                    <span className={styles.popoverBadge}>{badgeText(unreadCount)}</span>
+                  )}
                 </NavLink>
               ))}
               <button

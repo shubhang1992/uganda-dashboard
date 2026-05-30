@@ -218,6 +218,25 @@ export default function SubscriberDetailPage() {
 
         <section className={styles.section}>
           <header className={styles.sectionHead}>
+            <h2 className={styles.sectionTitle}>Support</h2>
+            <button
+              type="button"
+              className={styles.sectionAction}
+              onClick={() => navigate(`/dashboard/inbox?subscriberId=${id}`)}
+            >
+              View tickets
+              <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10" fill="none">
+                <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </header>
+          <div className={styles.scheduleEmpty}>
+            <p>Open this subscriber&apos;s support conversations to triage or reply.</p>
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <header className={styles.sectionHead}>
             <h2 className={styles.sectionTitle}>Contribution rhythm</h2>
             <span className={styles.sectionHint}>12 months</span>
           </header>

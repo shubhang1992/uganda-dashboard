@@ -8,6 +8,8 @@ import { useEntity } from '../../../hooks/useEntity';
 import { useAgentSubscribers } from '../../../hooks/useAgent';
 import { useAgentCommissionDetail } from '../../../hooks/useCommission';
 import { useCountUp } from '../../../hooks/useCountUp';
+import { useAgentTickets } from '../../../hooks/useTickets';
+import { TICKET_STATUS } from '../../../data/ticketsSeed';
 import HeroCapsule from '../../../components/HeroCapsule';
 import styles from './PulseCard.module.css';
 
@@ -16,6 +18,11 @@ function hourGreeting() {
   if (h < 12) return 'morning';
   if (h < 17) return 'afternoon';
   return 'evening';
+}
+
+// Cap the numeric badge so a busy inbox never blows out the icon footprint.
+function badgeText(count) {
+  return count > 9 ? '9+' : String(count);
 }
 
 /**
@@ -34,6 +41,18 @@ export default function PulseCard({ agentId }) {
   const { data: agent } = useEntity('agent', agentId);
   const { data: subscribers = [] } = useAgentSubscribers(agentId);
   const { data: commissionDetail } = useAgentCommissionDetail(agentId);
+
+  // Unread support badge for the inbox action. Calling useAgentTickets with no
+  // status arg shares the ['tickets','agent',id,'all'] cache key with the Inbox
+  // page + BottomTabBar, so this dedupes into the same fetch/poll (no extra
+  // request). Sum the agent's unread counter over OPEN tickets only — a closed
+  // ticket carries no actionable unread.
+  const { data: agentTickets } = useAgentTickets(agentId);
+  const unreadCount = (agentTickets ?? []).reduce(
+    (sum, t) => (t.status === TICKET_STATUS.OPEN ? sum + (t.unread?.agent ?? 0) : sum),
+    0,
+  );
+  const hasUnread = unreadCount > 0;
 
   const firstName = (user?.name || agent?.name || 'there').split(' ')[0];
   const greeting = `Good ${hourGreeting()}, ${firstName}`;
@@ -78,10 +97,19 @@ export default function PulseCard({ agentId }) {
     </>
   );
 
-  const addIcon = (
-    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
-      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" />
-    </svg>
+  // Instagram-style "Direct" paper-airplane glyph — the icon users associate
+  // with DMs/messages. Badge sits at its upper-right corner (white-on-indigo so
+  // it reads against the dome; CLAUDE.md reserves red for errors only).
+  const inboxIcon = (
+    <span className={styles.inboxIcon}>
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="21" height="21">
+        <path d="M22 2L11 13" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {hasUnread && (
+        <span className={styles.inboxBadge} aria-hidden="true">{badgeText(unreadCount)}</span>
+      )}
+    </span>
   );
 
   return (
@@ -92,9 +120,9 @@ export default function PulseCard({ agentId }) {
         prefix="UGX"
         amount={amountLabel}
         statRow={statRow}
-        menuIcon={addIcon}
-        menuLabel="Onboard a new subscriber"
-        onMenu={() => navigate('/dashboard/onboard')}
+        menuIcon={inboxIcon}
+        menuLabel={hasUnread ? `Open your inbox (${unreadCount} unread)` : 'Open your inbox'}
+        onMenu={() => navigate('/dashboard/inbox')}
       />
     </section>
   );

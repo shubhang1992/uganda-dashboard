@@ -55,6 +55,16 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  {
+    id: 'tickets',
+    label: 'Support',
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
+        <path d="M4 5h16a1 1 0 011 1v10a1 1 0 01-1 1H9l-4 4v-4H4a1 1 0 01-1-1V6a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M8 10h8M8 13h5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
 ];
 
 const BOTTOM_ITEMS = [
@@ -91,6 +101,16 @@ const MORE_ITEMS = [
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
         <path d="M3 3v18h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
         <path d="M7 14l4-4 4 4 5-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'tickets',
+    label: 'Support',
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
+        <path d="M4 5h16a1 1 0 011 1v10a1 1 0 01-1 1H9l-4 4v-4H4a1 1 0 01-1-1V6a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M8 10h8M8 13h5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
       </svg>
     ),
   },
@@ -134,6 +154,7 @@ export default function BranchSidebar({ mode = 'desktop', onNavigate }) {
     viewReportsOpen, setViewReportsOpen,
     commissionsOpen, setCommissionsOpen,
     settingsOpen, setSettingsOpen,
+    viewTicketsOpen, setViewTicketsOpen,
     setDrillTargetAgentId,
   } = useDashboard();
   const isDrawer = mode === 'drawer';
@@ -142,9 +163,10 @@ export default function BranchSidebar({ mode = 'desktop', onNavigate }) {
     if (viewAgentsOpen || createAgentOpen) return 'agents';
     if (viewReportsOpen) return 'reports';
     if (commissionsOpen) return 'commissions';
+    if (viewTicketsOpen) return 'tickets';
     if (settingsOpen) return 'settings';
     return 'overview';
-  }, [viewAgentsOpen, createAgentOpen, viewReportsOpen, commissionsOpen, settingsOpen]);
+  }, [viewAgentsOpen, createAgentOpen, viewReportsOpen, commissionsOpen, viewTicketsOpen, settingsOpen]);
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
 
@@ -163,6 +185,7 @@ export default function BranchSidebar({ mode = 'desktop', onNavigate }) {
     setViewReportsOpen(false);
     setCommissionsOpen(false);
     setSettingsOpen(false);
+    setViewTicketsOpen(false);
   }
 
   function handleClick(id) {
@@ -209,6 +232,12 @@ export default function BranchSidebar({ mode = 'desktop', onNavigate }) {
     if (id === 'reports') {
       closeAllPanels();
       setViewReportsOpen(true);
+      onNavigate?.();
+      return;
+    }
+    if (id === 'tickets') {
+      closeAllPanels();
+      setViewTicketsOpen(true);
       onNavigate?.();
       return;
     }

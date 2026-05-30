@@ -25,6 +25,8 @@ import { useDashboardNav } from './DashboardNavContext';
  * @property {(open: boolean) => void} setCommissionsOpen
  * @property {boolean} settingsOpen
  * @property {(open: boolean) => void} setSettingsOpen
+ * @property {boolean} viewTicketsOpen
+ * @property {(open: boolean) => void} setViewTicketsOpen
  * @property {string|null} reportContext - Report ID for auto-navigation
  * @property {(id: string|null) => void} setReportContext
  * @property {() => void} closeAllPanels - Close every slide-in panel
@@ -49,6 +51,7 @@ export function DashboardPanelProvider({ children }) {
   const [viewReportsOpen, setViewReportsOpen] = useState(false);
   const [commissionsOpen, setCommissionsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [viewTicketsOpen, setViewTicketsOpen] = useState(false);
   const [reportContext, setReportContext] = useState(null);
 
   const { drillTargetBranchId, drillTargetAgentId } = useDashboardNav();
@@ -103,6 +106,7 @@ export function DashboardPanelProvider({ children }) {
     setViewReportsOpen(false);
     setCommissionsOpen(false);
     setSettingsOpen(false);
+    setViewTicketsOpen(false);
   }, []);
 
   const value = useMemo(() => ({
@@ -117,13 +121,14 @@ export function DashboardPanelProvider({ children }) {
     viewReportsOpen, setViewReportsOpen,
     commissionsOpen, setCommissionsOpen,
     settingsOpen, setSettingsOpen,
+    viewTicketsOpen, setViewTicketsOpen,
     reportContext, setReportContext,
     closeAllPanels,
   }), [
     branchMenuOpen, createBranchOpen, viewBranchesOpen,
     agentMenuOpen, createAgentOpen, viewAgentsOpen,
     subscriberMenuOpen, viewSubscribersOpen, viewReportsOpen,
-    commissionsOpen, settingsOpen, reportContext,
+    commissionsOpen, settingsOpen, viewTicketsOpen, reportContext,
     closeAllPanels,
     setBranchMenuOpen, setAgentMenuOpen, setSubscriberMenuOpen,
   ]);

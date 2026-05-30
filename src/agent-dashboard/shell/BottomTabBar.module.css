@@ -68,11 +68,13 @@
 }
 
 .tabIcon {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   height: 22px;
 }
+
 
 .tabLabel {
   font-size: 11px;
@@ -176,6 +178,10 @@
 }
 
 .popoverItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   background: transparent;
   border: none;
   text-align: left;
@@ -189,6 +195,25 @@
   cursor: pointer;
   min-height: 44px;
   touch-action: manipulation;
+}
+
+/* Unread badge alongside the Inbox item inside the popover. */
+.popoverBadge {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .popoverItem:hover,

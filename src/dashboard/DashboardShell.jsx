@@ -23,6 +23,7 @@ import ViewSubscribers from './subscriber/ViewSubscribers';
 import ViewReports from './reports/ViewReports';
 import CommissionPanel from './commissions/CommissionPanel';
 import Settings from './settings/Settings';
+import ViewTickets from './tickets/ViewTickets';
 import styles from './DashboardShell.module.css';
 
 const DRAWER_ITEMS = [
@@ -31,6 +32,7 @@ const DRAWER_ITEMS = [
   { id: 'agents', label: 'View Agents' },
   { id: 'subscribers', label: 'Subscribers' },
   { id: 'commissions', label: 'Commissions' },
+  { id: 'tickets', label: 'Support' },
   { id: 'reports', label: 'Reports' },
   { id: 'settings', label: 'Settings' },
 ];
@@ -81,6 +83,7 @@ function MobileDrawer({ open, onClose }) {
     setViewReportsOpen,
     setCommissionsOpen,
     setSettingsOpen,
+    setViewTicketsOpen,
   } = useDashboard();
 
   useEffect(() => {
@@ -108,6 +111,7 @@ function MobileDrawer({ open, onClose }) {
     setViewReportsOpen(false);
     setCommissionsOpen(false);
     setSettingsOpen(false);
+    setViewTicketsOpen(false);
 
     switch (id) {
       case 'overview':
@@ -124,6 +128,9 @@ function MobileDrawer({ open, onClose }) {
         break;
       case 'commissions':
         setCommissionsOpen(true);
+        break;
+      case 'tickets':
+        setViewTicketsOpen(true);
         break;
       case 'reports':
         setViewReportsOpen(true);
@@ -222,6 +229,7 @@ function DashboardContent() {
     viewReportsOpen,
     commissionsOpen,
     settingsOpen,
+    viewTicketsOpen,
   } = useDashboard();
   return (
     <>
@@ -244,6 +252,7 @@ function DashboardContent() {
       {viewReportsOpen && <ViewReports />}
       {commissionsOpen && <CommissionPanel />}
       {settingsOpen && <Settings />}
+      {viewTicketsOpen && <ViewTickets />}
     </>
   );
 }

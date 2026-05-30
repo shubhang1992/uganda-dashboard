@@ -48,3 +48,39 @@ export function formatDate(value, options = {}) {
   if (variant === 'time') return d.toLocaleTimeString(LOCALE, opts);
   return d.toLocaleDateString(LOCALE, opts);
 }
+
+const MINUTE_MS = 60000;
+const HOUR_MS = 3600000;
+const DAY_MS = 86400000;
+const WEEK_MS = 7 * DAY_MS;
+
+/**
+ * Compact relative-time label for list rows / inbox previews, e.g. "now",
+ * "5m", "3h", "yesterday", "4d", "2w", or a short date once the gap exceeds a
+ * month. Tuned for past timestamps (a ticket's `updatedAt`); future values
+ * collapse to "now".
+ *
+ * The reference instant defaults to the wall clock. Callers that render
+ * MOCK_NOW-anchored demo data may pass their own `now` (a Date / ISO string /
+ * timestamp) so "3d" copy stays stable — utilities never import the mock store,
+ * so the anchor is always supplied from outside (CLAUDE.md §4).
+ *
+ * @param {Date | string | number | null | undefined} value
+ * @param {{ now?: Date | string | number }} [options]
+ * @returns {string} relative label, or "—" when the value is unparseable
+ */
+export function formatRelativeTime(value, options = {}) {
+  const d = toDate(value);
+  if (!d) return '—';
+  const ref = toDate(options.now) ?? new Date();
+
+  const diff = ref.getTime() - d.getTime();
+  if (diff < MINUTE_MS) return 'now';
+  if (diff < HOUR_MS) return `${Math.floor(diff / MINUTE_MS)}m`;
+  if (diff < DAY_MS) return `${Math.floor(diff / HOUR_MS)}h`;
+  if (diff < 2 * DAY_MS) return 'yesterday';
+  if (diff < WEEK_MS) return `${Math.floor(diff / DAY_MS)}d`;
+  if (diff < 4 * WEEK_MS) return `${Math.floor(diff / WEEK_MS)}w`;
+  // Older than a month: a short date reads better than a large week count.
+  return formatDate(d, { variant: 'day-month' });
+}
