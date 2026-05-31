@@ -1,0 +1,78 @@
+/* Mobile header chrome for the agent dome (HeroCapsule top bar): the
+   notification bell (left) + inbox (right) that persist across every tab-root
+   page. Both live in a 44px cell that reserves its footprint on all widths but
+   hides its contents at >=1024px, where the desktop sidebar owns the bell. */
+
+.cell {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Desktop: hide the dome chrome (sidebar carries the bell) but keep the 44px
+   cell so the centered HeroCapsule title stays optically centered. */
+@media (min-width: 1024px) {
+  .cell > * {
+    display: none;
+  }
+}
+
+/* Inbox button — mirrors HeroCapsule's .iconBtn (translucent white on indigo)
+   so it visually matches the bell beside it. */
+.inboxBtn {
+  position: relative;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--color-white);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.inboxBtn:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.inboxBtn:active {
+  transform: scale(0.94);
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* White focus ring — the global indigo-soft ring is <3:1 on the indigo dome. */
+.inboxBtn:focus-visible {
+  outline: 2px solid var(--color-white);
+  outline-offset: 2px;
+}
+
+/* Unread badge pinned to the glyph's upper-right. White-on-indigo (matches the
+   shipped PulseCard inbox badge); red is reserved for errors per CLAUDE.md. */
+.inboxBadge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--color-white);
+  color: var(--color-indigo);
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-indigo-deep) 38%, transparent);
+}

@@ -312,6 +312,34 @@ describe('POST /api/auth/verify-password', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Generic catch — signJwt blowing up surfaces as 500 unexpected_error
+  // (distinct from the 4xx invalid_request vocabulary; BL-39).
+  // -------------------------------------------------------------------------
+
+  it('returns 500 unexpected_error on unexpected error (e.g. signJwt failure)', async () => {
+    const hash = await ensureHash();
+    queueFrom('users', {
+      data: { password_hash: hash, role: 'subscriber' },
+      error: null,
+    });
+    queueFrom('subscribers', { data: null, error: null });
+    signJwtMock.mockRejectedValueOnce(new Error('boom'));
+
+    await call(
+      makeReq({
+        body: {
+          phone: '+256777247884',
+          role: 'subscriber',
+          password: 'Demo1234',
+        },
+      }),
+      res,
+    );
+    expect(res.__getStatus()).toBe(500);
+    expect(res.__getPayload()).toEqual({ code: 'unexpected_error' });
+  });
+
+  // -------------------------------------------------------------------------
   // Success — JWT claim shape per role.
   // -------------------------------------------------------------------------
 

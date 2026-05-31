@@ -76,6 +76,24 @@ export function useAgentTickets(agentId, { status } = {}) {
 }
 
 /**
+ * The agent's actionable unread-message count for the inbox badge — the sum of
+ * the agent's `unread.agent` counter over OPEN tickets only (a closed ticket
+ * carries no actionable unread). Reuses useAgentTickets with NO status arg so it
+ * shares the ['tickets','agent',id,'all'] cache key with the Inbox page, the
+ * BottomTabBar, the Home PulseCard, and the mobile header chrome — they all
+ * dedupe into a single fetch + poll.
+ * @param {string|null|undefined} agentId
+ * @returns {number} total unread (0 when no agentId / no data)
+ */
+export function useAgentUnreadTicketCount(agentId) {
+  const { data: agentTickets } = useAgentTickets(agentId);
+  return (agentTickets ?? []).reduce(
+    (sum, t) => (t.status === TICKET_STATUS.OPEN ? sum + (t.unread?.agent ?? 0) : sum),
+    0,
+  );
+}
+
+/**
  * Branch oversight (view-only) — every ticket in the branch, optionally narrowed
  * by `filters` ({ status?, agentId? }).
  * @param {string|null|undefined} branchId
@@ -176,12 +194,20 @@ export function invalidateAllTickets(queryClient) {
  * service mints the tk-<seq> id and resolves the subscriber's agent/branch, so
  * there is no stable id to splice into the inbox cache ahead of the response —
  * we let the onSettled invalidation pull the real ticket in.
+ *
+ * Pass `routing` ({ agentId, branchId }) — the subscriber's LIVE agent assignment
+ * (e.g. from `useSubscriberAgent` → `getSubscriberAgent`) — so the ticket reaches
+ * the real agent's inbox in Supabase mode, where the frozen mockData chain does
+ * not mirror the live seed. The created ticket's `agentId` is `null` when neither
+ * routing nor the mock chain resolves an agent; the caller should reflect that in
+ * its success copy.
  * @param {string} subscriberId
+ * @param {{ agentId?: string|null, branchId?: string|null }} [routing]
  */
-export function useCreateTicket(subscriberId) {
+export function useCreateTicket(subscriberId, routing) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload) => tickets.createTicket(subscriberId, payload),
+    mutationFn: (payload) => tickets.createTicket(subscriberId, payload, routing),
     onSettled: () => invalidateAllTickets(queryClient),
   });
 }

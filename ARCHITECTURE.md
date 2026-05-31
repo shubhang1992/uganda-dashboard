@@ -34,7 +34,8 @@ The platform is a thin, three-tier stack with a deliberately narrow contract bet
 │  │                                                                       │  │
 │  │  Cross-cutting utils: `src/utils/navigation.js` (Phase 4B `bd5ea82`), │  │
 │  │  `finance.js`, `date.js`, `currency.js`, `csv.js`, `phone.js`,        │  │
-│  │  `settlementCycle.js`, `motion.js` (EASE_OUT_EXPO), `dashboard.js`.   │  │
+│  │  `xlsx.js`, `settlement.js`, `commissionMonths.js`,                   │  │
+│  │  `motion.js` (EASE_OUT_EXPO), `dashboard.js`.                         │  │
 │  └───────────────┬───────────────────────────────┬───────────────────────┘  │
 │       Authorization: Bearer <jwt>     Authorization: Bearer <jwt>           │
 │                   │                       + apikey: <anon_key>              │
@@ -73,13 +74,13 @@ The platform is a thin, three-tier stack with a deliberately narrow contract bet
                   ▼                                      ▼
          ┌─────────────────────────────────────────────────────────────────┐
          │                Supabase Postgres (single project)               │
-         │  21 tables · 4 ENUMs · pg_trgm · 5 triggers                     │
+         │  21 tables · 2 ENUMs · pg_trgm · 4 triggers                     │
          │  29 functions (22 public RPCs)                                  │
          │  65 RLS policies (zero `auth.uid()` calls — all read app_role)  │
-         │  supabase_realtime publication: 3 tables ON                     │
+         │  supabase_realtime publication: empty (no tables)               │
          │                                                                 │
-         │  28 migrations after Phase 6A (`0d0776e`):                      │
-         │    0001 → 0028 inclusive, with 0019 retained as a captured      │
+         │  31 migrations after Phase 6A (`0d0776e`):                      │
+         │    0001 → 0031 inclusive, with 0019 retained as a captured      │
          │    remote hotfix (no longer skipped). See §13.                  │
          └─────────────────────────────────────────────────────────────────┘
 ```
@@ -299,11 +300,11 @@ Several schema decisions look "wrong" at first read but were accepted during the
 | **Seeded-but-unwritten columns on `agents`, `branches`, `subscribers`, `transactions`** | Columns the seed populates that the app never reads or rewrites | Seed-stage convenience for canned demo data; no live code path mutates them. Acceptable for demo. | D11 |
 | **`users.password_hash = null` for demo personas** | Seeded `users` rows have a `NULL` hash | Stamped on first sign-in via `verify-otp.ts` (when `password` is supplied) or `verify-password.ts`. Seeding pre-stamps would force a synthetic password into the demo data and break the OTP-only login path. | Phase 6B `b83ebc4` |
 | **Partial unique index on `nominees(subscriber_id, type, nin) WHERE nin IS NOT NULL`** | Diverges from the audit's literal `(subscriber_id, type)` shape | `upsert_nominees` legitimately inserts many rows per type (one per beneficiary in the JSONB array with `share` summing to 100). A unique constraint on just `(subscriber_id, type)` would break the RPC. Partial index on `nin` blocks dup-NIN entries while allowing pre-KYC NULL-NIN rows. | Phase 6A `0d0776e`, D9 |
-| **CHECK constraints on free-text + enum status columns** | Belt-and-suspenders CHECKs even on ENUM-typed columns | Self-documenting on `\d` output. Schema reality:<br/>• `subscribers.kyc_status` ∈ {`complete`, `pending`, `incomplete`}<br/>• `withdrawals.status` ∈ {`paid`, `processing`}<br/>• `claims.status` ∈ {`submitted`, `under_review`, `approved`, `paid`, `rejected`}<br/>• `commissions.status` (ENUM, defensive CHECK)<br/>• **`settlement_runs.state`** — note the column is `state`, **NOT `status`** ∈ {`draft`, `branch_review`, `released`, `cancelled`} | Phase 6A `0d0776e`, D8 |
+| **CHECK constraints on free-text + enum status columns** | Belt-and-suspenders CHECKs even on ENUM-typed columns | Self-documenting on `\d` output. Schema reality:<br/>• `subscribers.kyc_status` ∈ {`complete`, `pending`, `incomplete`}<br/>• `withdrawals.status` ∈ {`paid`, `processing`}<br/>• `claims.status` ∈ {`submitted`, `under_review`, `approved`, `paid`, `rejected`}<br/>• `commissions.status` — the `commission_status` ENUM, now just {`due`, `paid`} after the 0029–0031 settlement simplification (defensive CHECK) | Phase 6A `0d0776e`, D8 |
 
-The `settlement_runs.state` vs `.status` confusion is the most-likely future bug: copy-paste from one of the other status tables would write `state = 'released'` against a `state` column that may or may not exist. The CHECK constraint enforces the allowed set and the column name is the single source of truth — never `settlement_runs.status`.
+The commission flow is now a flat two-state `due → paid` (no maker-checker, no settlement runs). `commissions.status` carries only those two ENUM values; the defensive CHECK keeps the set explicit on `\d` output.
 
-See also: [`BACKEND.md §6`](./BACKEND.md) (schema), [`BACKEND.md §10`](./BACKEND.md) (commission state machine).
+See also: [`BACKEND.md §6`](./BACKEND.md) (schema), [`BACKEND.md §10`](./BACKEND.md) (commission settlement flow).
 
 ---
 
@@ -379,7 +380,7 @@ Two layers, each catching a different class of regression. The cleanup sprint mo
 | Layer | Tooling | Where | What it catches |
 |---|---|---|---|
 | **Unit** | Vitest 4.1.4 + jsdom + `src/test/supabaseMock.js` | `src/**/__tests__/`, `src/**/*.test.{js,jsx}`, `api/**/*.test.ts` | Service shape contracts, util correctness, hook caching, component primitives, API route handlers, mock-branch parity |
-| **E2E** | Playwright; service-role fixtures in `e2e/fixtures/db.ts`; auth fixtures in `e2e/.auth/` | `e2e/specs/{smoke,flows,regression,db}/` | Real-browser flows: signup → contribute → withdraw; commission state machine end-to-end; cross-laptop demo loops |
+| **E2E** | Playwright; service-role fixtures in `e2e/fixtures/db.ts`; auth fixtures in `e2e/.auth/` | `e2e/specs/{smoke,flows,regression,db}/` | Real-browser flows: signup → contribute → withdraw; commission settlement (`due → paid`) end-to-end; cross-laptop demo loops |
 
 ### 7.1 Unit layer — 707 tests across 40 files
 
@@ -400,7 +401,7 @@ That is ~**491 new unit tests added across the cleanup**. Coverage delta is brok
 | `91f413e` | `api/kyc/*.test.ts` (8) | All 8 KYC routes including phone canonicalization | T4 |
 | `9bf8914` | `src/services/__tests__/*.test.js` (7) | Service-layer parity (real + mock branch) | T5, X11 |
 | `ec72ffc` | `src/hooks/__tests__/*.test.js` (4) | `useAgent`, `useCommission`, `useEntity`, `useSubscriber` with optimistic-rollback paths | T6 |
-| `021570d` | `src/utils/__tests__/{csvDownload,settlementCycle}.test.js` | Branching utilities | T7 |
+| `021570d` | `src/utils/__tests__/{csvDownload,settlement}.test.js` | Branching utilities | T7 |
 
 Phase 2G (`3002c14`, T19/X9) added the Vitest **embedded coverage config**:
 
@@ -564,7 +565,7 @@ See also: [`BACKEND.md §3`](./BACKEND.md) (route inventory).
 **Why this rule:**
 
 - **Atomicity.** Signup creates a `subscribers` row + `subscriber_balances` + `contribution_schedules` + `insurance_policies` + `nominees` + first `transactions` + first `commissions` row. If any insert fails, the whole signup must roll back. A single `create_subscriber_from_signup(payload jsonb)` RPC wraps all of that in one transaction.
-- **Business invariants.** `release_run`, `branch_dispute_line`, `agent_confirm_commission`, `upsert_nominees` etc. validate `auth.jwt() ->> 'app_role'`, the entity-ownership claim (`agent_id = auth.jwt() ->> 'agentId'`), AND the source state of the row before transitioning. None of that can be expressed as a plain RLS policy.
+- **Business invariants.** `apply_settlement`, `upsert_nominees` etc. validate `auth.jwt() ->> 'app_role'`, the entity-ownership claim (`agent_id = auth.jwt() ->> 'agentId'`), AND the source state of the row before transitioning (e.g. `apply_settlement` only flips an agent's `due` lines to `paid`). None of that can be expressed as a plain RLS policy. (The old maker-checker run/review/dispute/confirm RPCs were dropped in the 0029–0031 commission simplification.)
 - **Defense in depth.** The frontend can't forge writes by going around the React Query mutation layer; the API can't forge writes by going around the role check; even a Supabase service-role caller has to invoke the RPC to maintain invariants (it just has to satisfy the role check, not the policy).
 
 **The atomic-write pattern** (`supabase/migrations/0002_rpc_functions.sql` + later):
@@ -590,8 +591,8 @@ Phase 6A (`0d0776e`, D3) extended the `REVOKE FROM PUBLIC` → `GRANT TO authent
 **Tables with NO direct INSERT/UPDATE/DELETE policy** (writes flow ONLY through RPCs):
 
 - `commissions`
-- `settlement_runs`
-- `settlement_run_branch_reviews`
+- `settlement_batches` (SELECT-only to clients; rows written by `apply_settlement`)
+- `notifications` (SELECT-only to clients; rows written by `apply_settlement`, read-flag flipped by `mark_notifications_read`)
 
 **Tables WITH direct policies** (subscriber-self writes through PostgREST):
 
@@ -613,14 +614,14 @@ Four state systems, each with a single responsibility:
 | **TanStack Query** | Server data — anything that lives in Postgres or behind `/api/*` | Cache (5min staleTime, 10min gcTime); refetch on invalidate | `useCurrentSubscriber`, `useEntity`, `useCommissionSummary`, every mutation |
 | **React Context** | Cross-tree shared UI state, identity, role-scope, modal opens | Provider mount lifetime | `AuthContext`, `ToastContext`, `SignInContext`, `DashboardNavContext`, `DashboardPanelContext`, `SubscriberPanelContext`, `BranchScopeContext`, `AgentScopeContext`, `SignupContext` |
 | **`useState` / `useReducer`** | Local UI state; form values; transient toggles | Component lifetime | Form field values, expanded/collapsed flags, modal open booleans not promoted to context |
-| **`localStorage`** | Session persistence (token, user payload), signup persistence, per-session demo flags | Until browser-clear or app-clear | `upensions_token`, `upensions_auth`, `uganda-pensions-signup`, `upensions_agent_settlement_cadence`, `upensions_<stage>_force` (KYC QA force flags) |
+| **`localStorage`** | Session persistence (token, user payload), signup persistence, per-session demo flags | Until browser-clear or app-clear | `upensions_token`, `upensions_auth`, `uganda-pensions-signup`, `upensions_<stage>_force` (KYC QA force flags) |
 
 **When to pick which:**
 
 - **If the data lives in Postgres** → TanStack Query (with a hook in `src/hooks/` that wraps a service in `src/services/`). Never put server data in Context.
 - **If it's identity / role / token** → Context (`AuthContext`). Never put auth in `useState` at the page level.
 - **If it's a subscriber-only flag** → put it in `SubscriberPanelContext` (post Phase 4C, §6.4), not the generic `DashboardPanelContext`.
-- **If it survives a refresh and isn't security-sensitive** → `localStorage` (signup state, settlement cadence). For security tokens → `localStorage` too (no refresh tokens; demo scope), but the value is treated as a bearer secret.
+- **If it survives a refresh and isn't security-sensitive** → `localStorage` (signup state). For security tokens → `localStorage` too (no refresh tokens; demo scope), but the value is treated as a bearer secret.
 
 **Cross-context handoff — the `onPanelActionRef` pattern.** The distributor + branch dashboards have a chicken-and-egg: the URL-derived nav state (in `DashboardNavContext`) needs to drive the slide-in panel state (in `DashboardPanelContext`), but they cannot directly depend on each other. `DashboardNavProvider` exposes a `ref`; `DashboardPanelProvider` writes panel setters into it on mount. Map drill-down effects then call `onPanelActionRef.current?.setViewBranchesOpen(true)` — no circular imports, no cyclic provider order. Phase 4A (`e43de1f`, F2/F3/F4) memoized both providers' `value` objects so the ref-handoff doesn't trigger unrelated-consumer re-renders.
 
@@ -628,18 +629,18 @@ Four state systems, each with a single responsibility:
 
 ## 12. Realtime architecture
 
-Supabase Realtime is **selectively enabled** for exactly three tables:
+Supabase Realtime is now **disabled for every `public.*` table** — the publication is empty:
 
 | Table | Realtime | Why |
 |---|---|---|
-| `commissions` | **ON** | Cross-laptop demo: branch approves a line on laptop A → distributor sees the state change on laptop B in real time |
-| `settlement_runs` | **ON** | Run-lifecycle states (`draft → branch_review → released`) drive the distributor + branch + agent settlement UX; multi-actor demo loops |
-| `settlement_run_branch_reviews` | **ON** | Per-branch review state inside a run; same cross-laptop demo flow |
+| `commissions` | OFF | `0025_drop_realtime_publication.sql` removed the original `commissions` publication once it had zero `.channel()` subscribers; React Query staleTime + manual invalidation covers cross-laptop demo sync |
+| `settlement_batches` | OFF | Added by the 0029–0031 settlement simplification; SELECT-only and never published |
+| `notifications` | OFF | Same — surfaced via a polling/invalidation-backed `NotificationBell`, not a realtime subscription |
 | `transactions` | OFF | High write volume (~30k seeded rows) would burn free-tier realtime connections |
 | `subscribers` | OFF | High write volume; React Query's 5-min staleTime + manual invalidation is sufficient |
 | `subscriber_balances` | OFF | Same — manual invalidation on contribution / withdrawal is fine |
 
-The architectural rule: **realtime is opt-in per-table; default is off**. Phase 6A's `0028_replay_safety_guards.sql` wrapped the `ALTER PUBLICATION ... DROP TABLE` statements in `pg_publication_tables` existence checks so a forward replay doesn't abort the transaction (D12).
+The architectural rule: **realtime is opt-in per-table; default is off** — and today nothing opts in. The dropped maker-checker tables (`settlement_runs`, `settlement_run_branch_reviews`) that previously drove the cross-laptop loop no longer exist. Phase 6A's `0028_replay_safety_guards.sql` had wrapped the `ALTER PUBLICATION ... DROP TABLE` statements in `pg_publication_tables` existence checks so a forward replay doesn't abort the transaction (D12).
 
 A regression-safe SQL probe:
 
@@ -648,14 +649,14 @@ SELECT tablename
   FROM pg_publication_tables
  WHERE pubname = 'supabase_realtime'
  ORDER BY 1;
--- expected: commissions, settlement_run_branch_reviews, settlement_runs
+-- expected: (no rows — publication is empty)
 ```
 
 ---
 
 ## 13. Migration & schema-evolution discipline
 
-**Forward-only migrations** under `supabase/migrations/`. Sequential 4-digit prefix; never edit a shipped migration. The full list today runs `0001` → `0028`, **28 migrations after Phase 6A** (`0d0776e`).
+**Forward-only migrations** under `supabase/migrations/`. Sequential 4-digit prefix; never edit a shipped migration. The full list today runs `0001` → `0031`, **31 migrations after Phase 6A** (`0d0776e`); `0029`–`0031` deliver the commission-flow simplification (`due → paid`).
 
 **Discipline rules:**
 
@@ -664,7 +665,7 @@ SELECT tablename
 | 4-digit zero-padded prefix | Filename convention; Supabase migration table records hashes |
 | `.down.sql` partner for new migrations (0016 onward) | Convention; `0016_distributors_table.down.sql`, `0022_audit_perf.down.sql`, etc. |
 | `IF EXISTS` / `IF NOT EXISTS` on schema-touching statements | Phase 6A `0028_replay_safety_guards.sql` retrofits the missing guards for 0003 / 0006 / 0010 / 0025 |
-| `SET search_path = public` on every SECURITY DEFINER function | All 29 RPCs comply, all 5 trigger functions comply (D2) |
+| `SET search_path = public` on every SECURITY DEFINER function | Every RPC complies, all 4 trigger functions comply (D2) |
 | `REVOKE ALL FROM PUBLIC` then `GRANT EXECUTE TO <role>` on every RPC | Phase 6A `0027_post_audit_polish.sql` closed the last gap (`upsert_nominees`, D3) |
 | Apply via Supabase MCP `apply_migration` (or `supabase db push`) | Workflow convention |
 

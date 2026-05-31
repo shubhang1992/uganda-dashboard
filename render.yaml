@@ -16,7 +16,7 @@ services:
     runtime: node                                           # B6
     plan: free
     region: singapore                                       # B14 — IRREVERSIBLE
-    branch: cleanup/post-audit-2026-05-26                   # G14, swap to main after cutover
+    branch: main                                            # G14 — swapped to main at cutover (was cleanup/post-audit-2026-05-26)
     autoDeployTrigger: off                                  # G14
     healthCheckPath: /healthz                               # G16
     buildCommand: npm ci --include=dev && npm run build:api && npm prune --omit=dev   # G15 — --include=dev required because NODE_ENV=production would otherwise make `npm ci` skip devDeps (@types/*, @vercel/node, tsx, @sentry/* are devDeps)

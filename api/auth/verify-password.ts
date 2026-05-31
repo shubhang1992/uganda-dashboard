@@ -187,8 +187,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
   } catch (err) {
     console.error('[verify-password] unexpected error', err);
-    // Match verify-otp's behaviour: unknown failures surface as a generic
-    // 500 rather than leaking error vocabulary the UI can branch on.
-    res.status(500).json({ code: 'invalid_request' });
+    // Match verify-otp's behaviour: unknown failures surface as a generic 500.
+    // The status and code must agree, so use `unexpected_error` rather than the
+    // 4xx `invalid_request` vocabulary reserved for client-correctable shape
+    // failures (BL-39); the frontend's error map falls back to its default
+    // message for unknown codes.
+    res.status(500).json({ code: 'unexpected_error' });
   }
 }

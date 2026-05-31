@@ -49,6 +49,15 @@ export default defineConfig({
     // Slightly higher than the default 500kB so we don't get warnings on
     // routes that legitimately carry a chart library (recharts) or map.
     chunkSizeWarningLimit: 700,
+    // 'hidden' emits .map files on disk WITHOUT the trailing
+    // `//# sourceMappingURL=` comment, so the bundle stays minified to end
+    // users (no source leak in devtools) while leaving maps available for a
+    // future symbolication step. There is intentionally no `@sentry/vite-plugin`
+    // upload wired (BL-29 / H-5) — this is a demo platform, so the frontend
+    // Sentry init (`src/main.jsx`) is best-effort and its captured stack frames
+    // are minified unless these maps are manually uploaded to Sentry. See
+    // FRONTEND.md §11 / BACKEND.md §2 observability note.
+    sourcemap: 'hidden',
     rollupOptions: {
       output: {
         // Split heavy third-party deps out of the entry chunk so the marketing
@@ -62,6 +71,13 @@ export default defineConfig({
           // React.lazy split.
           if (id.includes('/leaflet') || id.includes('react-leaflet')) return 'vendor-leaflet';
           if (id.includes('/recharts') || id.includes('/d3-')) return 'vendor-charts';
+          // xlsx (SheetJS) is ~400KB+ and only used by the distributor
+          // settlement template download/parse path. It's pulled in via a
+          // dynamic `import('xlsx')` in `src/utils/xlsx.js` (so it's normally a
+          // standalone async chunk anyway); this manual chunk is a safety net
+          // to keep it out of the entry/`vendor` chunk if anything ever
+          // references it statically.
+          if (id.includes('/xlsx')) return 'vendor-xlsx';
           if (id.includes('/framer-motion') || id.includes('/motion-utils') || id.includes('/motion-dom')) return 'vendor-motion';
           if (id.includes('/@tanstack/')) return 'vendor-tanstack';
           if (id.includes('/react-router') || id.includes('/@remix-run')) return 'vendor-router';

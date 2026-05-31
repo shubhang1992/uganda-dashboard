@@ -15,8 +15,16 @@
 //
 // We intercept at the PostgREST level because the subscriber surfaces hit
 // the table directly (services/subscriber.js uses `.from('subscribers')` +
-// `.from('insurance_policies')` + `.from('nominees')` + the
-// `set_contribution_schedule` RPC etc).
+// `.from('insurance_policies')` + `.from('contribution_schedules')` + the
+// nominees upsert RPC etc).
+//
+// BL-39 (R9) coverage note: two surfaces are now fully driven to a real
+// 500→toast assertion — Profile Save (PATCH /subscribers) and Schedule Save
+// (PATCH /contribution_schedules). The remaining four (Withdraw, Claim,
+// Insurance, Nominees) stay as expect.soft reachability checks because their
+// real write is feature-gated behind multi-step / file-upload / tier-delta
+// UX that's out of scope for a toast-wiring regression; they share the same
+// useToast pipeline the two driven surfaces prove intact.
 
 import { test, expect, type Page } from '@playwright/test';
 import { storageStatePathFor } from '../../fixtures/auth';
@@ -199,9 +207,18 @@ test.describe('subscriber dashboard → write-failure surfaces', () => {
   });
 
   test('Schedule save shows error toast on 500', async ({ page }) => {
-    // Schedule writes via `set_contribution_schedule` RPC + the contribution
-    // schedules table.
-    await failPath(page, /\/rest\/v1\/rpc\/set_contribution_schedule/, ['POST']);
+    // BL-39 (R9): this surface was previously an expect.soft reachability
+    // check. It is now a REAL 500→toast assertion — the second fully-driven
+    // write surface after Profile Save — so the toast wiring is verified on
+    // more than one mutation path.
+    //
+    // Post-0029/redesign write path: SchedulePage delegates to
+    // `<ContributionSettingsForm onSave={handleSave}>` (SchedulePage.jsx) and
+    // `updateContributionSchedule` (services/subscriber.js:735-778) issues a
+    // PATCH on `contribution_schedules` (a `.update().eq(subscriber_id)`),
+    // NOT the `set_contribution_schedule` RPC. We intercept that PATCH and
+    // return 500; SchedulePage's catch surfaces `err.message` (the synthetic
+    // body) via addToast('error', …) → role="status".
     await failPath(page, /\/rest\/v1\/contribution_schedules/, ['POST', 'PATCH']);
 
     await page.goto('/dashboard/save/schedule');
@@ -209,27 +226,53 @@ test.describe('subscriber dashboard → write-failure surfaces', () => {
       page.getByRole('heading', { level: 1, name: /(set a schedule|tune your schedule)/i }),
     ).toBeVisible();
 
-    // T13: skip-removal decisions (two prior skips merged).
-    // 1) `!hasSubmit` skip — SchedulePage delegates to
-    //    `<ContributionSettingsForm onSave={handleSave} />` (SchedulePage.jsx:41-46);
-    //    the Save CTA always renders but stays disabled until the form is
-    //    dirty + valid. The previous skip masked any breakage in form
-    //    mount itself, which we now assert.
-    // 2) "validation gated" skip — driving the full multi-field form
-    //    (frequency, amount, retirement/emergency split, optional insurance
-    //    upgrade) is out of scope for a toast-wiring regression. The real
-    //    set_contribution_schedule RPC 500 path is exercised once any of
-    //    the integration flows seeds form input; here we acknowledge the
-    //    CTA is reachable and the toast pipeline is shared with Profile Save.
-    const submit = page.getByRole('button', { name: /save|update|set schedule/i }).first();
-    await expect(submit).toBeVisible({ timeout: 10_000 });
-    expect
-      .soft(
-        await submit.isVisible(),
-        'Schedule Save CTA must render; the underlying contribution_schedules ' +
-          '500 path is feature-gated by form validation (toast wiring covered by Profile Save).',
-      )
-      .toBe(true);
+    // Hydration barrier: ContributionSettingsForm only mounts once `sub`
+    // resolves (`{sub && <ContributionSettingsForm …>}`), and the Save CTA
+    // stays disabled until the form is dirty + valid. The frequency radios
+    // render synchronously once the form mounts, so wait for the Frequency
+    // radiogroup before interacting.
+    const freqGroup = page.getByRole('radiogroup', { name: /frequency/i });
+    await expect(freqGroup).toBeVisible({ timeout: 15_000 });
+
+    // Make the form dirty with a valid edit. Picking a different frequency
+    // flips `dirty=true` for an existing schedule (the subscriber seed always
+    // carries a contributionSchedule), or sets a valid frequency for a new
+    // one. We also stamp a valid amount so `hasAmount` holds for the new-user
+    // path. Quarterly is unlikely to equal the seeded default.
+    await freqGroup.getByRole('radio', { name: /quarterly/i }).click();
+
+    const amountField = page.getByRole('textbox', { name: /contribution amount/i });
+    await expect(amountField).toBeVisible();
+    // Well above MIN_CONTRIBUTION so `hasAmount` is satisfied on the new path.
+    await amountField.fill('50000');
+
+    // Save CTA enables once dirty + valid. Its label is one of "Save changes"
+    // / "Set up schedule" depending on new-vs-existing.
+    const saveBtn = page.getByRole('button', { name: /save changes|set up schedule/i });
+    await expect(saveBtn).toBeEnabled({ timeout: 5_000 });
+
+    // Confirm our route intercept actually fires on the PATCH.
+    const patchWait = page.waitForResponse(
+      (res) =>
+        res.url().includes('/rest/v1/contribution_schedules') &&
+        res.request().method() === 'PATCH',
+      { timeout: 15_000 },
+    );
+
+    await saveBtn.click();
+
+    const patchResp = await patchWait;
+    expect(
+      patchResp.status(),
+      `expected 500 from route intercept, got ${patchResp.status()} for ${patchResp.url()}`,
+    ).toBe(500);
+
+    // SchedulePage catch: addToast('error', err?.message || 'Could not save
+    // schedule.') — the synthetic body message wins, but we accept the
+    // fallback copy too in case the supabase-js error shape changes.
+    await expect(
+      page.getByText(/could not save schedule|synthetic failure/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test('Nominees save shows error toast on 500', async ({ page }) => {

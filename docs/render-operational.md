@@ -21,6 +21,15 @@ Auto-deploy is **off** by design (mirrors CLAUDE.md §1 guardrail). Every deploy
 2. **From CI / scripts:** `curl -X POST $RENDER_DEPLOY_HOOK_URL`.
    - The deploy hook lives at: Render dashboard → service → **Settings** → **Deploy Hook**. Toggle it on, copy the URL, store in 1Password under the project entry. Treat the URL as a secret (anyone with it can trigger a deploy).
 
+### Cutover pre-deploy checklist (`feat/simplify-commissions` → `main`)
+
+Before the first post-cutover manual deploy, confirm:
+
+1. **Render tracks `main` (BL-7).** `render.yaml:19` is now `branch: main` (was `cleanup/post-audit-2026-05-26`). Confirm in the Render dashboard that the service's tracked branch is `main`, otherwise "Deploy latest commit" ships the stale branch. Keep `autoDeployTrigger: off`.
+2. **Live DB schema applied first, ledger NOT pushed blindly (BL-6).** Apply schema to live via the Supabase MCP path (`mcp__supabase__apply_migration` / `execute_sql`), **not** `supabase db push` — the live `schema_migrations` ledger is missing 6 local migrations (`0022`/`0023`/`0024`/`0025`/`0027`/`0028`) whose effects are already applied, and `0003`/`0006`/`0010`/`0025` contain non-idempotent statements that would error on a blind re-push. See `BACKEND.md §16 → "Migration-ledger drift"`. Take and verify a full backup before touching the live ledger (pairs with the lossy `0029.down.sql` gate).
+3. **Sequence:** DB schema apply → verify → Vercel frontend + Render backend deploy (DB contract first).
+4. **Re-enable the gated settlement E2E.** After applying `0032`, remove the `describe.fixme`/`skip` on `e2e/specs/flows/distributor-apply-settlement.spec.ts` (and the per-line 0032-only `test.fixme`s inside) and re-run e2e — the spec is gated until the two-arg `apply_settlement(p_rows, p_nonce)` is live.
+
 ---
 
 ## Deploy-time Outage Window (G62)

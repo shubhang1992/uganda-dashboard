@@ -19,7 +19,7 @@ Slim entry index for this repo. Two deep specialist docs sit alongside this file
 If you're working on… | Open this
 --- | ---
 A React component, hook, service, dashboard variant, signup step, commission UI, design token, accessibility rule | `FRONTEND.md`
-An API route, SQL schema, RLS policy, RPC, migration, trigger, seed script, JWT/auth flow, commission state machine | `BACKEND.md`
+An API route, SQL schema, RLS policy, RPC, migration, trigger, seed script, JWT/auth flow, commission settlement flow | `BACKEND.md`
 System architecture, layered patterns, role boundaries, auth model, write/realtime patterns | `ARCHITECTURE.md`
 Role × capability matrix (who can see/do what) | `docs/role-permissions.md`
 Field-level entity model / aggregation rules / health-score formula | `docs/data-model.md`
@@ -116,7 +116,7 @@ File | What it does
 
 1. **Never log JWTs** or include them in error reports — they are bearer tokens for the entire session.
 2. **Never expose `SUPABASE_SERVICE_ROLE_KEY`** to the frontend. It bypasses RLS. Server-only, used by `api/_lib/supabase-admin.ts`.
-3. **All writes flow through SECURITY DEFINER RPCs** (`create_subscriber_from_signup`, commission state-machine RPCs, etc.) — never write directly to a table from the client. RLS would block it, and the RPCs enforce business invariants atomically.
+3. **All writes flow through SECURITY DEFINER RPCs** (`create_subscriber_from_signup`, `apply_settlement`, etc.) — never write directly to a table from the client. RLS would block it, and the RPCs enforce business invariants atomically.
 4. **RLS policies read JWT claims, not `auth.uid()`** — `auth.uid()` is `NULL` for our custom HS256 tokens. See `BACKEND.md §8`.
 5. **The demo OTP route accepts any 6-digit code.** It is **not** production-grade and must never ship as-is to a real customer — it's intentional demo scope (see §10a).
 
@@ -155,15 +155,16 @@ Branch | Sub-distributor entity that supervises agents in a district.
 Distributor | Top-of-tree network operator (one in the demo seed: `d-001`).
 Employer | (Deferred) Organisation managing employee contributions — no dashboard built.
 Admin | (Deferred) Head-office platform admin with global rights — no dashboard built.
-Commission state machine | Lifecycle `due → in_run → [held \| disputed] → released → confirmed/paid → rejected (terminal)`. See `BACKEND.md §10`.
+Commission settlement | Two-state flow `due → paid`. Commissions auto-generate as `due` at the configured flat rate-per-subscriber on a subscriber's first contribution. The distributor pays offline, then downloads a per-agent Excel template (prefilled with pending dues), fills Amount Paid + payment reference/date, and re-uploads; the matching agent's `due` lines flip to `paid` via the `apply_settlement` RPC, which also records a `settlement_batches` row and notifies the agent + branch. No maker-checker, runs, branch review, holds, disputes, or cadence. See `BACKEND.md §11`.
 RPC | Remote procedure call — a Postgres function (typically `SECURITY DEFINER`) invoked via `supabase.rpc('name', args)`. Atomic writes only.
 RLS | Row-Level Security — Postgres policies that scope SELECT/INSERT/UPDATE/DELETE per JWT claim.
 `splitMode` | Prop on slide-in panels that suppresses the backdrop so the parent reflows main content beside the panel (Branch overview uses this).
 Drill-down | Map/overlay navigation through `country → region → district → branch → agent → subscriber`. Distributor-only.
-Maker-checker | Two-actor commission flow — admin settles (`due → paid`); agent confirms receipt (`agentConfirmCommission`).
+Settlement batch | A `settlement_batches` row recorded each time the distributor's settlement upload flips an agent's `due` lines to `paid` (one row per agent: pending total, amount paid, txn ref, paid date, line count). SELECT-only — written by the `apply_settlement` RPC.
+Notification | In-app `notifications` row (`recipient_role` ∈ `agent`/`branch`). The only `type` today is `commission_settled`, emitted to the affected agent + branch when a settlement is applied. Surfaced via a `NotificationBell` for agent + branch (distributor not mounted).
 Scope context | `BranchScopeContext` / `AgentScopeContext` — provide `branchId` / `agentId` to descendants when the tree is rendered for a single-entity role.
 Atomic-write RPC | A SECURITY DEFINER function that mutates multiple tables in one transaction (e.g. `create_subscriber_from_signup` creates subscriber + balances + schedule + insurance + nominees + first-contribution commission). See `BACKEND.md §9`.
-Realtime publication | Supabase realtime channel. ON for `commissions`, `settlement_runs`, `settlement_run_branch_reviews`; OFF for `transactions`, `subscribers`, `subscriber_balances`.
+Realtime publication | Supabase realtime channel. Empty for `public.*` — `0025_drop_realtime_publication.sql` removed the original `commissions` publication (zero `.channel()` subscribers); React Query staleTime + manual invalidation handles cross-laptop demo sync. The `settlement_batches` + `notifications` tables (added in 0030/0031) are SELECT-only and not published either.
 
 ---
 
@@ -186,10 +187,10 @@ See `FRONTEND.md §16a` and `BACKEND.md §14a` for the role-specific demo-scope 
 
 ### 10b. Awareness items (worth knowing, not urgent)
 
-- **`MOCK_NOW = new Date(2026, 3, 8)`** in `src/data/mockData.js` anchors "due in N days" demos. Slide it forward (or flip to `new Date()`) when the demo's relative dates start looking stale.
+- **`MOCK_NOW = new Date(2026, 4, 26)`** (2026-05-26) in `src/data/mockData.js` anchors "due in N days" demos. Slide it forward (or flip to `new Date()`) when the demo's relative dates start looking stale.
 - **README.md is stale** — currently 87 lines, only documents the landing page, claims "Vite 8" (actually Vite 6.3), no mention of dashboards or backend. Flagged here; a ~30-min refresh is a separate follow-up.
 - **NPM deps inventory (verified 2026-05-22 in audit Phase 6):** every direct dep in `package.json` is actually used. `dotenv` is used by `e2e/fixtures/db.ts:13` + `playwright.config.ts:16` (NOT unused). `react-is` is required transitively by `recharts` (build fails without it). `jose` is used in `api/_lib/jwt.ts`; `pg` is used in `scripts/seed-supabase.mjs`. None should be removed.
-- **Real bugs in the demo experience** (not demo-scope) are catalogued in `FRONTEND.md §16b` (agent-side `disputeCommission` returns "not built", subscriber Settings/notifications + Settings/security are `StubPage` placeholders) and `BACKEND.md §14b` (`agent_dispute_line` RPC missing, nominee shares can sum >100%, first-contribution commission lacks `UNIQUE(agent_id, subscriber_id)`, employer/admin roles unbuilt).
+- **Real bugs in the demo experience** (not demo-scope) are catalogued in `FRONTEND.md §16b` (subscriber Settings/notifications + Settings/security are `StubPage` placeholders) and `BACKEND.md §14b` (nominee shares can sum >100%, employer/admin roles unbuilt). The commission dispute/maker-checker flow was removed in the 0029–0031 simplification, so the old `agent_dispute_line` / `disputeCommission` items no longer apply.
 
 ---
 
@@ -202,7 +203,7 @@ See `FRONTEND.md §16a` and `BACKEND.md §14a` for the role-specific demo-scope 
 ## See also
 
 - [`FRONTEND.md`](./FRONTEND.md) — services, hooks, contexts, dashboard variants, signup flow, design tokens, accessibility, frontend findings
-- [`BACKEND.md`](./BACKEND.md) — env vars, API routes, `_lib/` helpers, auth flow, schema, migrations, RLS, RPCs, commission state machine, triggers, seeding, runbook
+- [`BACKEND.md`](./BACKEND.md) — env vars, API routes, `_lib/` helpers, auth flow, schema, migrations, RLS, RPCs, commission settlement flow, triggers, seeding, runbook
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system architecture: layered patterns, role boundaries, auth model, write/realtime patterns
 - [`docs/role-permissions.md`](./docs/role-permissions.md) — role × capability matrix
 - [`docs/data-model.md`](./docs/data-model.md) — field-level entity model + aggregation rules

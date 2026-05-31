@@ -229,33 +229,26 @@ export async function assertNoSubscriberOrphans(): Promise<void> {
 }
 
 /**
- * Returns a function that restores the commission row's `status` (and
- * `previous_status`, `disputed_at`, `disputed_by`, `dispute_reason`,
- * `resolved_at`, `resolved_by`, `outcome_reason`) to the values captured here.
+ * Returns a function that restores a commission row's `status` (and the
+ * settlement stamp columns `paid_date` / `paid_amount` / `txn_ref`) to the
+ * values captured here.
  *
- * Internal helper for `seedReleasedCommissionForFixture` /
- * `seedDisputedCommissionForFixture` — both flip an existing seed commission
- * into the desired status (subject to the UNIQUE(agent_id, subscriber_id)
- * constraint from migration 0017, which prevents inserting fresh rows) and
- * need a deterministic restore.
+ * Post-0029 the commission lifecycle is the two-state `due → paid` model
+ * (the run/dispute/hold/confirm columns were dropped by migration 0029), so a
+ * snapshot only has to capture those four columns. Internal helper for the
+ * settlement-flow fixtures below.
  */
 type CommissionRestoreSnapshot = {
   status: string;
-  previous_status: string | null;
-  disputed_at: string | null;
-  disputed_by: string | null;
-  dispute_reason: string | null;
-  resolved_at: string | null;
-  resolved_by: string | null;
-  outcome_reason: string | null;
+  paid_date: string | null;
+  paid_amount: number | null;
+  txn_ref: string | null;
 };
 
 async function snapshotCommission(commissionId: string): Promise<CommissionRestoreSnapshot> {
   const { data, error } = await supabaseAdmin
     .from('commissions')
-    .select(
-      'status,previous_status,disputed_at,disputed_by,dispute_reason,resolved_at,resolved_by,outcome_reason',
-    )
+    .select('status,paid_date,paid_amount,txn_ref')
     .eq('id', commissionId)
     .maybeSingle();
   if (error) throw new Error(`snapshotCommission(${commissionId}): ${error.message}`);
@@ -277,166 +270,92 @@ async function restoreCommission(
 }
 
 /**
- * Handle returned by `seedReleasedCommissionForFixture` and
- * `seedDisputedCommissionForFixture`. `cleanup()` restores the row to its
- * pre-seed state — call it from `afterAll` so reruns are idempotent.
+ * Handle returned by `seedDueCommissionForFixture`. `cleanup()` restores the
+ * row(s) to their pre-seed state — call it from `afterAll`/`afterEach` so
+ * reruns are idempotent.
  */
 export type CommissionFixtureHandle = {
-  /** ID of the commission row that now carries the requested status. */
-  commissionId: string;
-  /** Restores the row's pre-seed status / dispute / outcome fields. */
+  /** IDs of the commission rows the fixture touched. */
+  commissionIds: string[];
+  /** Restores each touched row's pre-seed status / settlement-stamp fields. */
   cleanup: () => Promise<void>;
 };
 
 /**
- * Ensure a `released` commission exists for the given agent. Strategy:
+ * Ensure at least `minCount` `due` commissions exist for the given agent, so a
+ * settlement-flow spec has dues to settle regardless of the seed window or a
+ * prior run that already paid them off. Strategy:
  *
- *  1. If a row with `status='released'` already exists, return it (cleanup
- *     is a no-op so nothing is disturbed).
- *  2. Otherwise pick the first non-released, non-disputed commission for the
- *     agent and flip it to `released`, snapshotting the prior state so
- *     `cleanup()` can restore it.
- *  3. If the agent has zero commissions at all (highly unlikely with the
- *     standard seed but possible in a freshly-truncated DB), throw — the
- *     spec author should `npm run seed` before relying on this fixture
- *     rather than have the fixture silently invent unrelated rows that
- *     would violate the UNIQUE(agent_id, subscriber_id) constraint from
- *     migration 0017.
+ *  1. If the agent already has >= `minCount` rows with `status='due'`, return a
+ *     no-op handle (nothing disturbed).
+ *  2. Otherwise pick the most-recently-paid rows and flip them back to `due`
+ *     (clearing `paid_date`/`paid_amount`/`txn_ref`), snapshotting each so
+ *     `cleanup()` restores the exact prior state.
+ *  3. If the agent has fewer than `minCount` commissions in total, throw — the
+ *     spec author should `npm run seed` rather than have the fixture invent
+ *     unrelated rows that would violate the UNIQUE(agent_id, subscriber_id)
+ *     constraint from migration 0017.
  *
- * Used by `e2e/specs/regression/modal-escape.spec.ts` to make the agent
- * dispute-modal scenario seed-window-independent (T12).
+ * Used by the settlement-flow spec to guarantee a settleable `due` slice. The
+ * dispute/run fixtures this replaced were retired with the 0029 simplification
+ * (no `released`/`disputed` states survive the two-state collapse).
  */
-export async function seedReleasedCommissionForFixture(
+export async function seedDueCommissionForFixture(
   agentId: string,
+  minCount = 1,
 ): Promise<CommissionFixtureHandle> {
-  // Step 1: short-circuit if a released row already exists.
-  const { data: existing, error: existingErr } = await supabaseAdmin
+  // Step 1: short-circuit if enough due rows already exist.
+  const { count: dueCount, error: countErr } = await supabaseAdmin
     .from('commissions')
-    .select('id')
+    .select('*', { count: 'exact', head: true })
     .eq('agent_id', agentId)
-    .eq('status', 'released')
-    .limit(1)
-    .maybeSingle();
-  if (existingErr) {
-    throw new Error(`seedReleasedCommissionForFixture: lookup ${agentId}: ${existingErr.message}`);
+    .eq('status', 'due');
+  if (countErr) {
+    throw new Error(`seedDueCommissionForFixture: count ${agentId}: ${countErr.message}`);
   }
-  if (existing) {
-    return {
-      commissionId: (existing as { id: string }).id,
-      cleanup: async () => {
-        /* no-op — we didn't change anything */
-      },
-    };
+  if ((dueCount ?? 0) >= minCount) {
+    return { commissionIds: [], cleanup: async () => {} };
   }
 
-  // Step 2: pick a non-released, non-disputed candidate and flip it.
-  const { data: candidate, error: candErr } = await supabaseAdmin
+  // Step 2: flip the shortfall from paid → due, newest-paid first.
+  const need = minCount - (dueCount ?? 0);
+  const { data: candidates, error: candErr } = await supabaseAdmin
     .from('commissions')
     .select('id')
     .eq('agent_id', agentId)
-    .not('status', 'in', '(released,disputed)')
-    .limit(1)
-    .maybeSingle();
+    .eq('status', 'paid')
+    .order('paid_date', { ascending: false, nullsFirst: false })
+    .limit(need);
   if (candErr) {
-    throw new Error(`seedReleasedCommissionForFixture: candidate ${agentId}: ${candErr.message}`);
+    throw new Error(`seedDueCommissionForFixture: candidates ${agentId}: ${candErr.message}`);
   }
-  if (!candidate) {
+  if (!candidates || candidates.length < need) {
     throw new Error(
-      `seedReleasedCommissionForFixture: no candidate commission for agent ${agentId} — ` +
-        `re-run \`npm run seed\` before invoking this fixture`,
+      `seedDueCommissionForFixture: agent ${agentId} has too few commissions to reach ` +
+        `${minCount} due rows — re-run \`npm run seed\` before invoking this fixture`,
     );
   }
-  const commissionId = (candidate as { id: string }).id;
-  const snapshot = await snapshotCommission(commissionId);
 
-  const { error: updateErr } = await supabaseAdmin
-    .from('commissions')
-    .update({ status: 'released' })
-    .eq('id', commissionId);
-  if (updateErr) {
-    throw new Error(`seedReleasedCommissionForFixture: flip ${commissionId}: ${updateErr.message}`);
+  const snapshots: { id: string; snap: CommissionRestoreSnapshot }[] = [];
+  for (const c of candidates) {
+    const id = (c as { id: string }).id;
+    const snap = await snapshotCommission(id);
+    const { error: updErr } = await supabaseAdmin
+      .from('commissions')
+      .update({ status: 'due', paid_date: null, paid_amount: null, txn_ref: null })
+      .eq('id', id);
+    if (updErr) {
+      throw new Error(`seedDueCommissionForFixture: flip ${id}: ${updErr.message}`);
+    }
+    snapshots.push({ id, snap });
   }
 
   return {
-    commissionId,
+    commissionIds: snapshots.map((s) => s.id),
     cleanup: async () => {
-      await restoreCommission(commissionId, snapshot);
-    },
-  };
-}
-
-/**
- * Ensure a `disputed` commission exists for the given agent. Strategy
- * mirrors `seedReleasedCommissionForFixture` but flips to `disputed` instead.
- *
- * Used by `e2e/specs/regression/modal-escape.spec.ts` to make the distributor
- * commission-resolution scenario seed-window-independent (T12).
- */
-export async function seedDisputedCommissionForFixture(
-  agentId: string,
-): Promise<CommissionFixtureHandle> {
-  // Step 1: short-circuit if a disputed row already exists.
-  const { data: existing, error: existingErr } = await supabaseAdmin
-    .from('commissions')
-    .select('id')
-    .eq('agent_id', agentId)
-    .eq('status', 'disputed')
-    .limit(1)
-    .maybeSingle();
-  if (existingErr) {
-    throw new Error(`seedDisputedCommissionForFixture: lookup ${agentId}: ${existingErr.message}`);
-  }
-  if (existing) {
-    return {
-      commissionId: (existing as { id: string }).id,
-      cleanup: async () => {
-        /* no-op — we didn't change anything */
-      },
-    };
-  }
-
-  // Step 2: pick a non-disputed candidate and flip it. We preserve the prior
-  // status into `previous_status` (matching the dispute lifecycle convention
-  // documented at `commissions.previous_status` in the schema) so the row
-  // looks naturally-disputed.
-  const { data: candidate, error: candErr } = await supabaseAdmin
-    .from('commissions')
-    .select('id,status')
-    .eq('agent_id', agentId)
-    .not('status', 'eq', 'disputed')
-    .limit(1)
-    .maybeSingle();
-  if (candErr) {
-    throw new Error(`seedDisputedCommissionForFixture: candidate ${agentId}: ${candErr.message}`);
-  }
-  if (!candidate) {
-    throw new Error(
-      `seedDisputedCommissionForFixture: no candidate commission for agent ${agentId} — ` +
-        `re-run \`npm run seed\` before invoking this fixture`,
-    );
-  }
-  const row = candidate as { id: string; status: string };
-  const commissionId = row.id;
-  const snapshot = await snapshotCommission(commissionId);
-
-  const { error: updateErr } = await supabaseAdmin
-    .from('commissions')
-    .update({
-      status: 'disputed',
-      previous_status: row.status,
-      disputed_at: new Date().toISOString(),
-      disputed_by: 'agent',
-      dispute_reason: 'fixture-seeded dispute (modal-escape regression)',
-    })
-    .eq('id', commissionId);
-  if (updateErr) {
-    throw new Error(`seedDisputedCommissionForFixture: flip ${commissionId}: ${updateErr.message}`);
-  }
-
-  return {
-    commissionId,
-    cleanup: async () => {
-      await restoreCommission(commissionId, snapshot);
+      for (const { id, snap } of snapshots) {
+        await restoreCommission(id, snap);
+      }
     },
   };
 }

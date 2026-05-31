@@ -13,22 +13,40 @@
 // Coverage:
 //   - Distributor: ViewBranches confirm-status modal — opens Modal over the
 //     ViewBranches panel; Escape must close the Modal but leave ViewBranches.
-//   - Distributor: Commission resolution modal — opens over CommissionPanel.
-//   - Agent: DisputeModal — opens over the agent dashboard chrome.
+//   - Distributor: settlement confirm modal — opens over CommissionPanel.
 //
-// All three modals route through the shared <Modal> primitive at
+// Both modals route through the shared <Modal> primitive at
 // src/components/Modal.jsx, so the focus-trap + Escape stop behaviour is
 // shared. We test each entry point so a regression in any consumer is caught
 // (not just the primitive).
+//
+// HISTORY: this file previously also covered an agent DisputeModal and a
+// distributor "commission resolution" (Approve/Reject) modal. Both the dispute
+// flow and its enum states (released/disputed) were removed by the 0029
+// commission simplification (BACKEND.md §15b: "there is no longer a dispute
+// path on either side"), so those two blocks were rewritten onto the surviving
+// settlement confirm modal. The Modal.jsx Escape stop-propagation primitive is
+// the actual contract under test — it stays fully covered by the two blocks
+// below (one Modal-over-panel, one Modal-over-CommissionPanel).
 
 import { test, expect } from '@playwright/test';
 import { storageStatePathFor, PERSONA_FOR } from '../../fixtures/auth';
 import { disableAnimations } from '../../fixtures/motion';
-import {
-  seedReleasedCommissionForFixture,
-  seedDisputedCommissionForFixture,
-  type CommissionFixtureHandle,
-} from '../../fixtures/db';
+import { seedDueCommissionForFixture, type CommissionFixtureHandle } from '../../fixtures/db';
+
+// A minimal settlement CSV the distributor file input accepts (.csv is in
+// ALLOWED_EXTENSIONS, parseSheet reads CSV via SheetJS). Header names match
+// SETTLEMENT_TEMPLATE_COLUMNS (src/utils/settlement.js); the row carries a
+// valid Agent ID + a positive Amount Paid so normalizeUploadedRows keeps it
+// and CommissionPanel opens the confirm modal. We do NOT confirm the
+// settlement here — opening the modal is enough to exercise the Escape
+// contract, and not confirming avoids mutating commission state.
+function settlementCsv(agentId: string, amountPaid: number): string {
+  return [
+    'Agent ID,Agent Name,Branch,Pending Amount (UGX),Amount Paid (UGX),Payment Reference,Payment Date',
+    `${agentId},Fixture Agent,Fixture Branch,${amountPaid},${amountPaid},MODAL-ESCAPE,`,
+  ].join('\n');
+}
 
 test.describe('Modal Escape regression', () => {
   test.describe('distributor → ViewBranches confirm-status modal', () => {
@@ -143,96 +161,77 @@ test.describe('Modal Escape regression', () => {
     });
   });
 
-  test.describe('agent → DisputeModal', () => {
-    test.use({ storageState: storageStatePathFor('agent') });
-
-    // T12: seed a released commission via explicit fixture so this spec is
-    // independent of the seed window. The helper short-circuits if a released
-    // row already exists for the agent; otherwise it flips a candidate row
-    // and the afterAll cleanup restores it. Replaces the prior
-    // `test.skip(!canDispute, 'no released commissions in this seed window')`.
-    let releasedHandle: CommissionFixtureHandle | null = null;
-    test.beforeAll(async () => {
-      releasedHandle = await seedReleasedCommissionForFixture(PERSONA_FOR.agent.entityId);
-    });
-    test.afterAll(async () => {
-      if (releasedHandle) await releasedHandle.cleanup();
-    });
-
-    test.beforeEach(async ({ page }) => {
-      await disableAnimations(page);
-    });
-
-    test('Escape closes the dispute modal without navigating away', async ({ page }) => {
-      // The dispute modal opens from the agent's commission detail rows.
-      // /dashboard/commissions/earned lists 'released' + 'confirmed' lines —
-      // both render the "Dispute" CTA (CommissionsPage.jsx:155-158).
-      await page.goto('/dashboard/commissions/earned');
-      await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
-
-      // The released row seeded in beforeAll guarantees at least one
-      // Dispute button — no conditional skip needed.
-      const disputeBtn = page.getByRole('button', { name: /^dispute$/i }).first();
-      await expect(disputeBtn).toBeVisible({ timeout: 15_000 });
-
-      await disputeBtn.click();
-      const modal = page.getByRole('dialog');
-      await expect(modal).toBeVisible();
-
-      const urlBefore = page.url();
-
-      await page.keyboard.press('Escape');
-      await expect(modal).toHaveCount(0);
-
-      // URL must NOT have changed — the Escape must close the modal, not
-      // bubble up to a router navigation.
-      expect(page.url()).toBe(urlBefore);
-    });
-  });
-
-  test.describe('distributor → Commission resolution modal', () => {
+  test.describe('distributor → settlement confirm modal', () => {
     test.use({ storageState: storageStatePathFor('distributor') });
 
-    // T12: seed a disputed commission via explicit fixture so the Approve
-    // CTA is guaranteed. Mirror of the agent block above — the helper is
-    // idempotent (short-circuits if a disputed row already exists for the
-    // default agent persona) and cleanup restores any flipped row.
-    let disputedHandle: CommissionFixtureHandle | null = null;
+    // Seed a `due` commission for the default agent so the distributor has a
+    // pending due to settle — guarantees the upload normalizes to ≥1 settleable
+    // row and the confirm modal opens, independent of the seed window or a
+    // prior run that already paid the agent off. Cleanup restores any flipped
+    // row. Replaces the retired dispute fixtures (no dispute states survive
+    // the 0029 two-state collapse).
+    let dueHandle: CommissionFixtureHandle | null = null;
     test.beforeAll(async () => {
-      disputedHandle = await seedDisputedCommissionForFixture(PERSONA_FOR.agent.entityId);
+      dueHandle = await seedDueCommissionForFixture(PERSONA_FOR.agent.entityId, 1);
     });
     test.afterAll(async () => {
-      if (disputedHandle) await disputedHandle.cleanup();
+      if (dueHandle) await dueHandle.cleanup();
     });
 
     test.beforeEach(async ({ page }) => {
       await disableAnimations(page);
     });
 
-    test('Escape closes the resolution modal without closing CommissionPanel', async ({ page }) => {
+    test('Escape closes the confirm modal without closing CommissionPanel', async ({ page }) => {
       await page.goto('/dashboard');
+      await expect(page.getByRole('button', { name: /^overview$/i })).toBeVisible();
+
+      // Open the CommissionPanel (its outer container is role="dialog"
+      // aria-label="Commissions").
       await page.getByRole('button', { name: /^commissions$/i }).click();
-      const panel = page.getByRole('dialog', { name: /commission settlement/i });
+      const panel = page.getByRole('dialog', { name: /^commissions$/i });
       await expect(panel).toBeVisible();
 
-      // The resolution modal opens from the Disputes section's Approve /
-      // Reject buttons. The disputed row seeded in beforeAll guarantees the
-      // Approve CTA is reachable — no conditional skip needed.
-      const approveBtn = page.getByRole('button', { name: /^approve/i }).first();
-      await expect(approveBtn).toBeVisible({ timeout: 15_000 });
+      // Drive the "Upload settlement" hidden file input directly. handleUploadFile
+      // parses the file, normalizes the rows, and (with ≥1 settleable row) stages
+      // pendingUpload — which opens the shared <Modal> confirm dialog. No RPC is
+      // fired until "Confirm settlement" is clicked, which we deliberately do NOT
+      // do (this spec only exercises the Escape contract; confirming would mutate
+      // commission state and depends on the post-0032 two-arg RPC being live).
+      await panel
+        .getByRole('button', { name: /upload settlement/i })
+        .scrollIntoViewIfNeeded();
+      await page.setInputFiles('input[type="file"]', {
+        name: 'settlement.csv',
+        mimeType: 'text/csv',
+        buffer: Buffer.from(settlementCsv(PERSONA_FOR.agent.entityId, 5000), 'utf-8'),
+      });
 
-      await approveBtn.click();
-      // The resolution modal is portaled — we identify it by its inner title
-      // text rather than relying on aria-label because the shared Modal sets
-      // `aria-labelledby` to a generated id.
-      const modal = page.locator('[role="dialog"]').filter({ hasText: /approve|reject/i }).first();
-      await expect(modal).toBeVisible();
+      // The confirm modal is portaled to <body> via the shared <Modal>; it
+      // carries its own role="dialog" with the "Confirm settlement" title. We
+      // scope to the modal (not the panel, which is also role="dialog") by
+      // title text so the locator is unambiguous.
+      const modal = page
+        .getByRole('dialog')
+        .filter({ hasText: /confirm settlement/i });
+      await expect(modal).toBeVisible({ timeout: 15_000 });
 
+      // Press Escape inside the modal. The shared <Modal> primitive calls
+      // e.preventDefault + e.stopPropagation + nativeEvent.stopImmediatePropagation
+      // (Modal.jsx) so the document-level "Escape closes the panel" listener in
+      // CommissionPanel (the useEffect onKey at CommissionPanel.jsx) does NOT
+      // also fire. The contract: after Escape the modal is closed AND the
+      // CommissionPanel is still open.
+      const urlBefore = page.url();
       await page.keyboard.press('Escape');
-      await expect(modal).toHaveCount(0);
 
-      // CommissionPanel still open (its outer container has the
-      // "Commission Settlement" aria-label).
+      // Modal closes.
+      await expect(modal).toHaveCount(0, { timeout: 5_000 });
+
+      // URL unchanged — Escape didn't trigger a navigation.
+      expect(page.url()).toBe(urlBefore);
+
+      // CommissionPanel is still open (the Escape stopped at the modal).
       await expect(panel).toBeVisible();
     });
   });

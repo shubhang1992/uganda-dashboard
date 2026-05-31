@@ -87,10 +87,20 @@ function createOnboardingSessionId() {
  * Terminals
  * @property {string|null} failureReason
  * @property {string|null} failureStage
+ *
+ * Wizard position
+ * @property {string} stepId               — the wizard step the user is on.
+ *   Persisted (non-ephemeral) so a mid-flow refresh rehydrates the position
+ *   instead of dropping to step 1. `SignupFlow` clamps the rehydrated value
+ *   back to the first step still needing a file re-upload (files are dropped
+ *   on refresh — see EPHEMERAL_KEYS), so wizard position survives without
+ *   skipping a now-empty upload gate.
  */
 
 const INITIAL_STATE = {
   onboardingSessionId: '',
+
+  stepId: 'id-upload',
 
   idFrontFile: null,
   idBackFile: null,

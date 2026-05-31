@@ -99,14 +99,28 @@ function resolveAgentName(agentId) {
 
 /**
  * Resolve the agent + (denormalized) branch a new ticket should route to.
- * Preference order: (1) the subscriber's most recent existing ticket — keeps a
- * saver's threads with the same agent; (2) the real org chain from mockData
- * (subscriber.parentId → agentId, agent.parentId → branchId) so a subscriber's
- * FIRST-ever ticket still reaches their assigned agent's inbox + branch oversight.
+ * Preference order:
+ *   (1) the subscriber's most recent existing ticket — keeps a saver's threads
+ *       with the same agent;
+ *   (2) a caller-supplied `routing` ({ agentId, branchId }) — the subscriber's
+ *       LIVE assignment, resolved from `getSubscriberAgent` (which reads the real
+ *       `subscribers.agent_id → agents` chain in Supabase mode). This is the
+ *       authoritative source in live mode, where the in-memory mockData chain
+ *       does NOT mirror the live seed (the live DB and mockData generate separate
+ *       deterministic subscriber/agent sets);
+ *   (3) the mockData org chain (subscriber.parentId → agentId, agent.parentId →
+ *       branchId) — the fallback for the mock-backed demo, where the caller has
+ *       no live assignment to pass.
+ * Returns { agentId: null, branchId: null } when nothing resolves; the caller is
+ * responsible for surfacing an honest "couldn't reach an agent" state rather than
+ * a false success (see createTicket).
  */
-function resolveRouting(subscriberId, existing) {
+function resolveRouting(subscriberId, existing, routing) {
   if (existing?.agentId) {
     return { agentId: existing.agentId, branchId: existing.branchId ?? null };
+  }
+  if (routing?.agentId) {
+    return { agentId: routing.agentId, branchId: routing.branchId ?? null };
   }
   const agentId = SUBSCRIBERS[subscriberId]?.parentId ?? null;
   const branchId = agentId ? (AGENTS[agentId]?.parentId ?? null) : null;
@@ -338,28 +352,37 @@ function nextTicketId() {
 }
 
 /**
- * Open a new ticket on behalf of a subscriber. The subscriber is resolved to an
- * agent + branch via their own ticket history if any exists; otherwise the
- * caller's first existing ticket would be the only source, so we fall back to
- * the subscriber's most recent ticket assignment. The first message is the
- * subscriber's body; unread.agent starts at 1 (the agent has it un-seen).
+ * Open a new ticket on behalf of a subscriber. The new ticket's agent + branch
+ * are resolved by resolveRouting (existing thread → caller-supplied live routing
+ * → mockData org chain). The first message is the subscriber's body;
+ * unread.agent starts at 1 (the agent has it un-seen).
+ *
+ * Callers in live mode SHOULD pass `routing` (the subscriber's live
+ * `agent_id`/`branch_id`, e.g. from `getSubscriberAgent`) so the ticket reaches
+ * the real assigned agent's inbox — the frozen mockData chain does NOT mirror
+ * the live seed. When routing resolves to `null` (no agent assigned), the ticket
+ * is still created (so it surfaces in branch/distributor oversight rather than
+ * being lost) but `agentId` is `null`; the caller is responsible for not showing
+ * a false "sent to your agent" success in that case.
  *
  * @param {string} subscriberId
  * @param {{ subject: string, category: string, priority: string, body: string }} payload
- * @returns {Promise<object>} the newly created Ticket
+ * @param {{ agentId?: string|null, branchId?: string|null }} [routing] - the
+ *   subscriber's live agent/branch assignment, used when there is no prior thread
+ * @returns {Promise<object>} the newly created Ticket (agentId may be null)
  * @throws if subject or body is empty/whitespace
  */
-export async function createTicket(subscriberId, { subject, category, priority, body } = {}) {
+export async function createTicket(subscriberId, { subject, category, priority, body } = {}, routing) {
   if (isBlank(subject)) throw new Error('Ticket subject is required');
   if (isBlank(body)) throw new Error('Ticket message is required');
 
   // Resolve the subscriber's agent + branch so the new ticket carries the same
   // denormalized routing the oversight views rely on. Prefer an existing thread's
-  // assignment; fall back to the real org chain for a first-ever ticket.
+  // assignment; else the caller's live routing; else the mockData org chain.
   const existing = Array.from(store().values())
     .filter((t) => t.subscriberId === subscriberId)
     .sort(byUpdatedDesc)[0];
-  const { agentId, branchId } = resolveRouting(subscriberId, existing);
+  const { agentId, branchId } = resolveRouting(subscriberId, existing, routing);
 
   const now = new Date().toISOString();
   const id = nextTicketId();

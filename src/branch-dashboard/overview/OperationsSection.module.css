@@ -407,7 +407,6 @@
 
 .stackedSegment[data-type='settled']  { background: var(--color-indigo); }
 .stackedSegment[data-type='due']      { background: var(--color-status-warning); }
-.stackedSegment[data-type='disputed'] { background: var(--color-status-poor); }
 
 .commissionStats {
   display: flex;
@@ -438,7 +437,6 @@
 
 .statDot[data-type='settled']  { background: var(--color-indigo); }
 .statDot[data-type='due']      { background: var(--color-status-warning); }
-.statDot[data-type='disputed'] { background: var(--color-status-poor); }
 
 .statLabel {
   font-family: var(--font-body);

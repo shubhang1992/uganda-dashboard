@@ -88,16 +88,36 @@ export function monthlyEquivalent(schedule) {
 }
 
 /**
- * Parse a UGX amount string ("12,500", "12500", "UGX 12,500") into a
- * positive integer or null. Used by every contribution / withdrawal form.
- * @param {string} str
+ * Canonical UGX money parser — the single source of truth for turning a
+ * user/upload-entered amount into a whole-shilling integer.
+ *
+ * UGX is a zero-decimal currency: the platform never stores sub-shilling
+ * amounts. Accepts plain numbers and formatted strings ("12,500", "12500",
+ * "UGX 12,500", "12,500.50") and returns a non-negative **integer** (rounded
+ * to the nearest whole UGX) or `null` for blank / non-finite / non-positive
+ * input.
+ *
+ * Decimals are preserved through parsing and then rounded — the old
+ * implementation stripped the decimal point outright (`"12,500.50"` → 1250050,
+ * off by 100×). The settlement upload path imports this same parser so there
+ * is exactly one money-parsing rule across contributions, withdrawals, claims,
+ * and settlement (see `src/utils/settlement.js`, BL-8 / M-C1).
+ *
+ * @param {string | number} str
  * @returns {number | null}
  */
 export function parseAmount(str) {
-  const cleaned = String(str ?? '').replace(/[^\d]/g, '');
-  if (!cleaned) return null;
-  const n = Number.parseInt(cleaned, 10);
-  return Number.isFinite(n) ? n : null;
+  if (typeof str === 'number') {
+    if (!Number.isFinite(str) || str <= 0) return null;
+    return Math.round(str);
+  }
+  // Strip everything except digits, the decimal point, and a leading sign so a
+  // fractional cell ("45000.50") parses, then round to whole UGX.
+  const cleaned = String(str ?? '').replace(/[^\d.-]/g, '');
+  if (cleaned === '' || cleaned === '-' || cleaned === '.') return null;
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n);
 }
 
 /**

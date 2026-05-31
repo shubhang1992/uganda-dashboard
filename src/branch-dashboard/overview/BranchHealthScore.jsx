@@ -5,6 +5,8 @@ import { formatUGX, formatNumber } from '../../utils/currency';
 import { getChatResponse } from '../../services/chat';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useBranchScope } from '../../contexts/BranchScopeContext';
+import NotificationBell from '../../components/notifications/NotificationBell';
 import styles from './BranchHealthScore.module.css';
 
 /* ── Derived metrics ── */
@@ -185,6 +187,7 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
     setCommissionsOpen,
     closeAllPanels,
   } = useDashboard();
+  const { branchId } = useBranchScope();
 
   function openReport(reportId) {
     closeAllPanels();
@@ -276,10 +279,13 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
             {formatBranchDate()}
           </span>
         </div>
-        <span className={styles.heroBadge}>
-          <span className={styles.heroBadgeDot} aria-hidden="true" />
-          Branch Admin
-        </span>
+        <div className={styles.heroActions}>
+          {branchId && <NotificationBell role="branch" entityId={branchId} portal />}
+          <span className={styles.heroBadge}>
+            <span className={styles.heroBadgeDot} aria-hidden="true" />
+            Branch Admin
+          </span>
+        </div>
       </div>
 
       {/* ── Top section: Score + Metrics + Activity ── */}

@@ -233,21 +233,23 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 | branchId | string | Stored | Branch of the agent (denormalized for fast lookups) |
 | subscriberId | string | Stored | Subscriber whose first contribution triggered this |
 | subscriberName | string | Stored | Denormalized subscriber name |
-| amount | number | Stored | Commission amount in UGX. Currently fixed at `COMMISSION_CONFIG.ratePerSubscriber` (5,000 UGX) |
-| status | string | Stored | Commission lifecycle status |
+| amount | number | Stored | Commission amount in UGX. Fixed at the configured flat rate-per-subscriber |
+| status | string | Stored | Commission status — `due` or `paid` |
 | firstContributionDate | string | Stored | ISO date — when subscriber made first contribution |
 | dueDate | string | Stored | ISO date — `firstContributionDate + 30 days` |
-| paidDate | string \| null | Stored | ISO date — when commission was paid. Null if not yet paid |
-| agentConfirmed | boolean | Stored | Whether agent has confirmed receipt (maker-checker pattern) |
-| settlementRequested | boolean | Stored | Whether agent has requested settlement (for "due" commissions) |
-| disputeReason | string \| null | Stored | Reason for dispute. Null if not disputed |
+| paidDate | string \| null | Stored | ISO date — when commission was settled. Null if still `due` |
+| paidAmount | number \| null | Stored | Whole-UGX amount paid for **this line** — its own `amount`, set by `apply_settlement` when FIFO allocation covers it (migration `0032`). Null if still `due`. `SUM(paidAmount)` across an agent's settled lines reconciles with the matching `settlement_batches.paidAmount`. |
+| txnRef | string \| null | Stored | Payment reference captured from the settlement upload. Null if still `due` |
+
+> The old maker-checker / dispute columns (`agentConfirmed`, `settlementRequested`, `disputeReason`, and the run/hold/resolve fields) were removed in migration `0029_commission_simplify.sql`. `paidAmount` + `txnRef` replace them.
+>
+> **0032 (settlement-apply fix):** `paidAmount` is now the **per-line** amount (the line's own `amount`), not the whole-batch total stamped on every line. A partial payment settles only the oldest lines it fully covers (FIFO); the rest stay `due` — INFORM-NOT-BLOCK, see `BACKEND.md §11`.
 
 ### Relationships
 - References: Agent (agentId), Branch (branchId), Subscriber (subscriberId)
 
 ### Enums
-- status: `due` | `paid` | `disputed` | `rejected`
-- disputeReason: `"Subscriber denies onboarding"` | `"Duplicate commission entry"` | `"Incorrect commission amount"` | `"Subscriber KYC incomplete"` | `"Agent ID mismatch"`
+- status: `due` | `paid` (collapsed from 7 states in `0029`)
 
 ### Commission State Machine
 
@@ -260,45 +262,25 @@ First contribution made
         v
 Commission created ---------> status: "due"
         |                        |
-        |                        |---> Agent requests settlement
-        |                        |     (settlementRequested = true)
-        |                        |
-        |                        |---> Distributor/Branch Admin settles
+        |                        |---> Distributor pays offline, then uploads the
+        |                        |     filled settlement template (apply_settlement RPC)
         |                        |     v
         |                        |     status: "paid"
-        |                        |     paidDate set
-        |                        |     agentConfirmed = false (pending)
-        |                        |     v
-        |                        |     Agent confirms receipt
-        |                        |     agentConfirmed = true
-        |                        |
-        |                        \---> Disputed
-        |                              v
-        |                              status: "disputed"
-        |                              disputeReason set
-        |                              |
-        |                              |---> Approved (dispute resolved)
-        |                              |     v
-        |                              |     status: "due" (re-enters settlement queue)
-        |                              |     disputeReason = null
-        |                              |
-        |                              \---> Rejected (voided)
-        |                                    v
-        |                                    status: "rejected"
-        |                                    settlementRequested = false
+        |                        |     paidDate / paidAmount / txnRef set
+        |                        |     + settlement_batches row recorded
+        |                        |     + agent & branch notified (commission_settled)
 ```
 
 ### Business Rules
 - **Trigger**: Commission is created when a subscriber makes their first contribution.
-- **Amount**: Flat fee per subscriber. Currently 5,000 UGX. Configurable via `COMMISSION_CONFIG.ratePerSubscriber`.
+- **Amount**: Flat fee per subscriber. Configurable via the commission rate (see Commission Configuration below).
 - **Due date**: `firstContributionDate + 30 days`.
-- **Settlement**: Distributor or Branch Admin can settle individual commissions, all due commissions for an agent, or bulk settle.
-- **Dispute flow**: Disputed commissions can be approved (back to "due") or rejected ("rejected", voided).
-- **Agent confirmation**: `agentConfirmed` tracks whether agent acknowledged payment receipt. 85% confirmed in mock.
-- **Settlement requests**: ~25% of "due" commissions have agent-initiated settlement requests.
-- **Bulk operations**: Approve/reject multiple disputed commissions at once.
-- UNCLEAR — confirm: Who can dispute a commission? Only the platform admin? Or can agents/subscribers raise disputes too?
-- UNCLEAR — confirm: Is `rejected` a terminal state, or can rejected commissions be reopened?
+- **Settlement**: The distributor pays agents offline, then downloads a per-agent Excel template prefilled with pending dues, fills in Amount Paid + payment reference/date, and re-uploads it. `apply_settlement` (0032) allocates the whole-UGX-rounded Amount Paid **FIFO** across the agent's `due` lines oldest-first — a line flips to `paid` only while the budget covers it in full. There is no branch review, no holds, no agent confirmation, and no scheduled cadence.
+- **Partial payment (INFORM-NOT-BLOCK)**: when Amount Paid is less than the agent's due total, only the lines it covers settle; the rest stay genuinely `due`. The distributor sees the mismatch before confirming (not blocked); the agent sees an "Ask for reason" banner on a short-paid settlement.
+- **Money**: all settlement amounts are whole UGX (zero-decimal). The upload parser (`parseAmount`) and the RPC both round.
+- **Idempotency**: each upload carries a per-upload nonce; a re-submit / reload replay returns the original result without duplicating batches or notifications (`settlement_uploads` ledger, 0032).
+- **No dispute flow**: disputes were removed in the 0029 simplification — `paid` is terminal and `due → paid` is the only transition.
+- **Notifications**: each settlement emits an in-app `commission_settled` notification (formatted body — thousands separators, correct pluralization) to the affected agent + branch.
 
 ### Pre-indexed Lookups
 The service layer maintains two index maps for O(1) access:
@@ -311,9 +293,59 @@ The service layer maintains two index maps for O(1) access:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| ratePerSubscriber | number | Commission amount per subscriber's first contribution. Default: 5,000 UGX |
+| ratePerSubscriber | number | Commission amount per subscriber's first contribution. Maps to `commission_config.rate` |
 
-This is mutable at runtime via `setCommissionRate()`. In production, consider whether rate changes should apply retroactively or only to new commissions.
+This is mutable at runtime via `setCommissionRate()`; commissions auto-generate as `due` at this rate on a subscriber's first contribution. The legacy `cadence` / `next_run_date` columns remain on the singleton row but are no longer read (settlement is upload-driven, not scheduled — see `0029_commission_simplify.sql`).
+
+---
+
+## Settlement Batch
+
+One row recorded by `apply_settlement` each time the distributor's settlement upload settles an agent (table `settlement_batches`, migration `0030`; `clientNonce` added in `0032`). SELECT-only — distributor reads all; branch/agent read own.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string | Batch id |
+| agentId | string | Agent settled |
+| branchId | string | Agent's branch |
+| pendingTotal | number | Total that was outstanding (`due`) for the agent when the batch ran |
+| paidAmount | number | The **actually-allocated** total — sum of the FIFO-settled lines' own amounts (≤ the entered Amount Paid when a partial payment can't fully cover a line). Reconciles with `SUM(commissions.paidAmount)` for this batch. |
+| txnRef | string | Payment reference from the upload |
+| paidDate | string | ISO date of the offline payment |
+| lineCount | number | Number of commission lines actually settled in this batch |
+| createdAt | string | ISO timestamp |
+| clientNonce | string \| null | Per-upload idempotency key (0032). Null for legacy 0031 batches. |
+
+---
+
+## Settlement Upload (idempotency ledger)
+
+RPC-internal table (`settlement_uploads`, migration `0032`) backing the `apply_settlement` idempotency guard. **Not** read directly by any service — RLS-forced with no policies/grants; only the DEFINER RPC touches it.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| nonce | string | Per-upload idempotency key (PK). A replayed nonce short-circuits the RPC. |
+| result | object | The JSONB result the RPC returned the first time (`{ agentsSettled, linesSettled, totalPaid, skipped }`) |
+| createdAt | string | ISO timestamp |
+
+---
+
+## Notification
+
+In-app feed row (table `notifications`, migration `0031`). SELECT-only — agent/branch read own; distributor reads all. Written by `apply_settlement`; cleared via `mark_notifications_read`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string | Notification id |
+| recipientRole | string | `agent` or `branch` |
+| recipientId | string | Agent or branch id |
+| type | string | `commission_settled` (only type today) |
+| title | string | Display title |
+| body | string | Display body |
+| amount | number \| null | Settled amount, if relevant |
+| refId | string \| null | Related ref (e.g. settlement batch id) |
+| isRead | boolean | Whether the recipient has read it |
+| createdAt | string | ISO timestamp |
 
 ---
 

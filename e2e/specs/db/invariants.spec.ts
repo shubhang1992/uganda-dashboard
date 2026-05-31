@@ -1,5 +1,16 @@
-// DB invariants spec — guards the post-Phase-2 schema state of the live
+// DB invariants spec — guards the post-0029 schema state of the live
 // Supabase project (zengmiugieqjqzaccbqe).
+//
+// The commission flow was simplified in migrations 0029/0030/0031 (applied +
+// ledger-tracked in live): the maker-checker run/dispute/hold/confirm state
+// machine was retired and the commission_status enum collapsed from seven
+// states to the two-state `due → paid` model. The dropped objects
+// (settlement_runs, the agent_*/branch_*/dispute RPCs, the
+// disputed_at/previous_status/agent_confirmed columns, the released/confirmed/
+// held/disputed enum values) MUST NOT reappear, and the new write RPCs
+// (apply_settlement, mark_notifications_read) MUST be present. This guard
+// encodes the CURRENT schema so a regression that re-introduces the old shape
+// — or drops the new RPCs — fails the main full matrix loudly.
 //
 // What we assert:
 //   1. Zero duplicate agent emails — UNIQUE INDEX ux_agents_email is live
@@ -7,20 +18,21 @@
 //   2. Zero duplicate subscriber NIns — UNIQUE INDEX ux_subscribers_nin is
 //      live (migration 0017). The `nin` column lives on `subscribers`, not
 //      `agents`; the agents table has no national-ID column.
-//   3. Zero commission rows with `paid_date IS NOT NULL` AND status not in
-//      the terminal set { confirmed, released, rejected } — every paid
-//      row carries an end-state. The commission_status enum (0001 line 35)
-//      contains: due | in_run | held | disputed | released | confirmed |
-//      rejected. There is NO 'paid' state — paid_date is set when the row
-//      reaches confirmed/released.
-//   4. Zero `held`/`disputed` commission rows missing the audit columns
-//      (`disputed_at`, `disputed_by`) — every dispute records who/when.
+//   3. Every commission row carries a valid two-state status — `status IN
+//      ('due','paid')` only (post-0029 commission_status enum, 0029 line 138).
+//      No row may carry a dropped legacy value (released/confirmed/held/
+//      disputed/in_run/rejected).
+//   4. Every `paid` commission carries its settlement stamp — `paid_date` AND
+//      `paid_amount` are populated (apply_settlement stamps both, 0031/0032);
+//      and no `due` row leaks a `paid_date`. This is the post-collapse
+//      replacement for the old "paid_date ⇒ terminal status" invariant.
 //   5. Zero contribution schedules with `next_due_date < CURRENT_DATE` —
 //      contribution_schedules has no status column; we simply assert every
 //      schedule row has a non-stale next_due_date.
 //   6. The new `distributors` table is live with the d-001 row.
-//   7. The `agent_dispute_line` RPC is live (signature
-//      `(commission_id text, dispute_reason text)` per migration 0014).
+//   7. The new settlement write RPCs `apply_settlement` and
+//      `mark_notifications_read` exist in pg_proc (replacing the dropped
+//      `agent_dispute_line` probe — that RPC was removed by 0029 line 55).
 //
 // Run prereq: SUPABASE_SERVICE_ROLE_KEY in .env.local. Without it, every
 // test in this file `test.skip()`s with a clear note — the e2e/fixtures/db
@@ -87,44 +99,53 @@ test.describe('DB invariants (zengmiugieqjqzaccbqe)', () => {
     ).toBe(0);
   });
 
-  test('no commission rows with paid_date set but non-terminal status', async () => {
-    // Terminal states for a commission line that has paid_date populated:
-    // confirmed, released, rejected. The commission_status enum (0001 line
-    // 35) has no 'paid' value — paid_date is set when the row enters
-    // released/confirmed (post-settlement-run).
-    const TERMINAL = ['confirmed', 'released', 'rejected'];
+  test('every commission carries a valid two-state status (due | paid)', async () => {
+    // Post-0029 the commission_status enum is exactly { due, paid } (0029
+    // line 138). No row may carry a dropped legacy value. We count rows whose
+    // status is NOT in the surviving set; any legacy value (or an unexpected
+    // new one) makes the count non-zero and fails loudly. Querying for the
+    // dropped values directly would error at the enum layer, so we invert.
+    const VALID = ['due', 'paid'];
     const { data, error, count } = await supabaseAdmin
       .from('commissions')
-      .select('id, status, paid_date', { count: 'exact' })
-      .not('paid_date', 'is', null)
-      .not('status', 'in', `(${TERMINAL.join(',')})`);
-    expect(error, 'commissions paid_date query').toBeNull();
+      .select('id, status', { count: 'exact' })
+      .not('status', 'in', `(${VALID.join(',')})`);
+    expect(error, 'commissions status query').toBeNull();
     expect(
       count ?? 0,
-      `commissions with paid_date and non-terminal status (sample: ${JSON.stringify((data || []).slice(0, 3))})`,
+      `commissions with a status outside {due,paid} (sample: ${JSON.stringify((data || []).slice(0, 3))})`,
     ).toBe(0);
   });
 
-  test('no held/disputed commission rows missing disputed_at/disputed_by', async () => {
-    // For rows in held/disputed, both audit columns must be populated.
-    // We split into two queries — Postgrest's `or` with two `is.null`
-    // predicates is awkward across nullable text columns; two checks are
-    // clearer and equally fast.
-    const { count: missingAt, error: e1 } = await supabaseAdmin
+  test('paid commissions carry paid_date + paid_amount; due rows carry no paid_date', async () => {
+    // apply_settlement (0031/0032) stamps status='paid' together with
+    // paid_date + paid_amount in the same UPDATE, so a `paid` row missing
+    // either is a corrupt settlement. Conversely a `due` row must not carry a
+    // paid_date (it would mean a half-rolled-back settlement). Three cheap
+    // head-only counts; each must be zero.
+    const { count: paidNoDate, error: e1 } = await supabaseAdmin
       .from('commissions')
       .select('*', { count: 'exact', head: true })
-      .in('status', ['held', 'disputed'])
-      .is('disputed_at', null);
-    expect(e1, 'commissions disputed_at audit').toBeNull();
-    expect(missingAt ?? 0, 'held/disputed rows missing disputed_at').toBe(0);
+      .eq('status', 'paid')
+      .is('paid_date', null);
+    expect(e1, 'paid rows missing paid_date query').toBeNull();
+    expect(paidNoDate ?? 0, 'paid commissions missing paid_date').toBe(0);
 
-    const { count: missingBy, error: e2 } = await supabaseAdmin
+    const { count: paidNoAmount, error: e2 } = await supabaseAdmin
       .from('commissions')
       .select('*', { count: 'exact', head: true })
-      .in('status', ['held', 'disputed'])
-      .is('disputed_by', null);
-    expect(e2, 'commissions disputed_by audit').toBeNull();
-    expect(missingBy ?? 0, 'held/disputed rows missing disputed_by').toBe(0);
+      .eq('status', 'paid')
+      .is('paid_amount', null);
+    expect(e2, 'paid rows missing paid_amount query').toBeNull();
+    expect(paidNoAmount ?? 0, 'paid commissions missing paid_amount').toBe(0);
+
+    const { count: dueWithDate, error: e3 } = await supabaseAdmin
+      .from('commissions')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'due')
+      .not('paid_date', 'is', null);
+    expect(e3, 'due rows with paid_date query').toBeNull();
+    expect(dueWithDate ?? 0, 'due commissions carrying a paid_date').toBe(0);
   });
 
   test('no schedules with next_due_date < CURRENT_DATE', async () => {
@@ -153,28 +174,47 @@ test.describe('DB invariants (zengmiugieqjqzaccbqe)', () => {
     expect(count, 'expected exactly one d-001 row').toBe(1);
   });
 
-  test('agent_dispute_line RPC exists in pg_proc', async () => {
+  test('settlement write RPCs (apply_settlement + mark_notifications_read) exist in pg_proc', async () => {
     // We can't query pg_proc directly via PostgREST — it's not exposed via
-    // the public schema. The cleanest proof is to invoke the RPC with safe
-    // sentinel input and confirm the error is "no rows / permission" (i.e.
-    // function exists) rather than "function does not exist".
+    // the public schema. The cleanest proof is to invoke each RPC with safe
+    // sentinel input and confirm the error (if any) is NOT "function does not
+    // exist" (PGRST202). The 0029 simplification dropped the dispute RPC this
+    // test used to probe; the surviving write surface is apply_settlement
+    // (0031/0032) + mark_notifications_read (0031).
     //
-    // Live signature (verified via pg_proc Mar 2026):
-    //   agent_dispute_line(p_commission_id text, p_dispute_reason text)
-    const { error } = await supabaseAdmin.rpc('agent_dispute_line', {
-      p_commission_id: 'c-never-exists-00000000',
-      p_dispute_reason: 'invariant-check',
-    });
-    if (error) {
-      // PostgREST returns code PGRST202 ("Could not find the function") if
-      // the function is missing; anything else (bad input, RLS denial,
-      // application-level error) means the function IS present.
+    // apply_settlement is distributor-gated and raises P0001 for a NULL-jwt
+    // service-role caller (role IS DISTINCT FROM 'distributor'). That role-gate
+    // error proves the function is present and wired. We pass an empty array so
+    // nothing is settled even on the (impossible-here) happy path.
+    //
+    // NOTE on the apply_settlement overload: the live DB currently carries the
+    // single-arg 0031 form `apply_settlement(p_rows jsonb)`; migration 0032
+    // (NOT yet applied to live — gated cutover step) replaces it with the
+    // two-arg `apply_settlement(p_rows jsonb, p_nonce text)`. We probe with the
+    // single-arg shape so this passes pre-0032; the two-arg form keeps the
+    // p_rows name, so the role-gate path still fires post-0032. If 0032 ever
+    // drops the single-arg overload while this probe lags, the result would be
+    // PGRST202 here — a deliberate tripwire that the probe needs the p_nonce
+    // arg added at cutover.
+    const fnMissing = (msg: string | null | undefined) =>
+      /could not find.*function|PGRST202|does not exist/i.test(msg || '');
+
+    const applyRes = await supabaseAdmin.rpc('apply_settlement', { p_rows: [] });
+    if (applyRes.error) {
       expect(
-        /could not find.*function|PGRST202|does not exist/i.test(error.message || ''),
-        `agent_dispute_line missing: ${error.message}`,
+        fnMissing(applyRes.error.message),
+        `apply_settlement missing from pg_proc: ${applyRes.error.message}`,
       ).toBe(false);
     }
-    // No error or only an application-level error means the function is
-    // wired in pg_proc.
+
+    const markRes = await supabaseAdmin.rpc('mark_notifications_read', {
+      p_ids: ['ntf-never-exists-00000000'],
+    });
+    if (markRes.error) {
+      expect(
+        fnMissing(markRes.error.message),
+        `mark_notifications_read missing from pg_proc: ${markRes.error.message}`,
+      ).toBe(false);
+    }
   });
 });

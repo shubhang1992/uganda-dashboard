@@ -170,6 +170,13 @@
   color: rgba(217,220,242,0.3);
 }
 
+.heroActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-shrink: 0;
+}
+
 .heroBadge {
   display: inline-flex;
   align-items: center;

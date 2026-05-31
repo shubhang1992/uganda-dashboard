@@ -1,55 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
-import {
-  useAgentCommissionDetail,
-  useConfirmCommission,
-  useDisputeCommission,
-  useWithdrawDispute,
-  useNetworkCadence,
-} from '../../hooks/useCommission';
-import { useToast } from '../../contexts/ToastContext';
+import { useAgentCommissionDetail, useSettlementsList } from '../../hooks/useCommission';
+import { groupByPaidMonth } from '../../utils/commissionMonths';
+import { SUPPORT_EMAIL } from '../../config/env';
 import ErrorCard from '../../components/feedback/ErrorCard';
-import {
-  CADENCES,
-  cadenceLabel,
-  cycleWindow,
-  formatCycleLabel,
-  formatPayoutDate,
-  groupCommissionsByPaidCycle,
-} from '../../utils/settlementCycle';
 import PageHeader from '../../components/PageHeader';
-import { PillChip, PillChipGroup } from '../../components/PillChip';
+import { useAgentHeaderChrome } from '../shell/AgentHeaderChrome';
 import styles from './CommissionsPage.module.css';
 
-const VALID_VIEWS = new Set(['earned', 'owed', 'confirm', 'disputes']);
+const VALID_VIEWS = new Set(['earned', 'owed']);
 
 const VIEW_LABELS = {
   earned: 'Earned',
   owed: 'Owed',
-  confirm: 'Confirm receipts',
-  disputes: 'My disputes',
 };
 
-const DISPUTE_REASONS = [
-  'I never onboarded this subscriber',
-  'Amount looks wrong',
-  'Subscriber details incorrect',
-  'Duplicate commission entry',
-  'Other',
-];
-
 const Icons = {
-  chev: (
-    <svg viewBox="0 0 20 20" fill="none" width="16" height="16" aria-hidden="true">
-      <path d="M7 4l6 6-6 6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  ),
   chevDown: (
     <svg viewBox="0 0 20 20" fill="none" width="16" height="16" aria-hidden="true">
       <path d="M5 8l5 5 5-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
@@ -66,180 +37,95 @@ const Icons = {
       <path d="M10 6v4l2.5 2.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
-  calendar: (
+  wallet: (
     <svg viewBox="0 0 20 20" fill="none" width="18" height="18" aria-hidden="true">
-      <rect x="3" y="4.5" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.75" />
-      <path d="M3 8.5h14" stroke="currentColor" strokeWidth="1.75" />
-      <path d="M7 3v3M13 3v3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <rect x="2.5" y="5" width="15" height="11" rx="2" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M2.5 8.5h15" stroke="currentColor" strokeWidth="1.75" />
+      <circle cx="13.5" cy="12" r="1.1" fill="currentColor" />
     </svg>
   ),
 };
 
-function StatusBadge({ commission }) {
-  switch (commission.status) {
-    case 'confirmed':
-      return <span className={styles.badge} data-tone="confirmed">Confirmed</span>;
-    case 'released':
-      return <span className={styles.badge} data-tone="awaiting">Confirm</span>;
-    case 'in_run':
-      return <span className={styles.badge} data-tone="awaiting">In current run</span>;
-    case 'held':
-      return <span className={styles.badge} data-tone="awaiting">On hold</span>;
-    case 'due':
-      return <span className={styles.badge} data-tone="due">Due</span>;
-    case 'disputed':
-      return <span className={styles.badge} data-tone="disputed">Under review</span>;
-    case 'rejected':
-    default:
-      return <span className={styles.badge} data-tone="rejected">Closed</span>;
+function StatusBadge({ status }) {
+  if (status === 'paid') {
+    return <span className={styles.badge} data-tone="confirmed">Paid</span>;
   }
+  return <span className={styles.badge} data-tone="due">Due</span>;
 }
 
-function CommissionRow({ commission, onConfirm, onDispute, onWithdraw, isPending }) {
-  const isReleased = commission.status === 'released';
-  const isPaidLike = isReleased || commission.status === 'confirmed';
-  const isOutstanding =
-    commission.status === 'due' || commission.status === 'in_run' || commission.status === 'held';
-  const isDisputed = commission.status === 'disputed';
-  const canWithdraw = isDisputed && !commission.resolvedAt;
-
-  let dateLabel = '';
-  if (isPaidLike) dateLabel = `Paid ${formatDate(commission.paidDate)}`;
-  else if (commission.status === 'in_run') dateLabel = 'Bundled into current settlement run';
-  else if (commission.status === 'held') dateLabel = 'Held — will roll into the next run';
-  else if (commission.status === 'due') dateLabel = `Due ${formatDate(commission.dueDate)}`;
-  else if (isDisputed) {
-    dateLabel = commission.disputedAt
-      ? `Filed ${formatDate(commission.disputedAt)}`
-      : 'Filed for review';
-  }
+/**
+ * CommissionRow — one paid or due line. Paid lines (from `paidTransactions`)
+ * read "Paid {date} · Ref {txnRef}"; due lines (from `dueTransactions`) read
+ * "Due {date}". No confirm / dispute / withdraw actions survive the flat
+ * `due → paid` flow.
+ */
+function CommissionRow({ line }) {
+  const isPaid = line.status === 'paid';
+  const dateLabel = isPaid
+    ? `Paid ${formatDate(line.transactionDate)}`
+    : `Due ${formatDate(line.dueDate)}`;
 
   return (
     <div className={styles.row}>
       <div className={styles.rowMain}>
         <div className={styles.rowHeader}>
-          <span className={styles.rowName}>{commission.subscriberName}</span>
-          <StatusBadge commission={commission} />
+          <span className={styles.rowName}>{line.subscriberName}</span>
+          <StatusBadge status={line.status} />
         </div>
         <div className={styles.rowMeta}>
           <span>{dateLabel}</span>
-          <span className={styles.rowAmount}>{formatUGX(commission.amount)}</span>
+          <span className={styles.rowAmount}>{formatUGX(line.amount)}</span>
         </div>
-        {isDisputed && commission.disputeReason && (
-          <div className={styles.disputeNote}>{commission.disputeReason}</div>
-        )}
-        {commission.status === 'held' && commission.holdReason && (
-          <div className={styles.disputeNote}>Held: {commission.holdReason}</div>
-        )}
-        {commission.resolvedAt && commission.outcomeReason && (
-          <div className={styles.outcomeNote}>
-            Resolved {formatDate(commission.resolvedAt)} · {commission.outcomeReason}
-          </div>
-        )}
-        {isPaidLike && commission.txnRef && (
-          <div className={styles.refNote}>Ref: {commission.txnRef}</div>
+        {isPaid && line.txnRef && (
+          <div className={styles.refNote}>Ref: {line.txnRef}</div>
         )}
       </div>
-
-      {(isReleased || isPaidLike || isOutstanding || canWithdraw) && (
-        <div className={styles.rowActions}>
-          {isReleased && (
-            <button type="button" className={styles.btnPrimary} disabled={isPending} onClick={() => onConfirm(commission)}>
-              Confirm receipt
-            </button>
-          )}
-          {canWithdraw && (
-            <button type="button" className={styles.btnLink} disabled={isPending} onClick={() => onWithdraw(commission)}>
-              Withdraw
-            </button>
-          )}
-          {(isPaidLike || isOutstanding) && commission.status !== 'held' && (
-            <button type="button" className={styles.btnLink} onClick={() => onDispute(commission)}>
-              Dispute
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
-function PayoutScheduleCard({ cadence, nextEnd, nextTotal, nextCount }) {
-  return (
-    <section className={styles.payoutCard} aria-labelledby="payout-schedule-title">
-      <header className={styles.payoutHead}>
-        <span className={styles.payoutEyebrow}>
-          <span className={styles.payoutEyebrowIcon} aria-hidden="true">{Icons.calendar}</span>
-          Payout schedule
-        </span>
-      </header>
+/**
+ * EarnedMonths — paid transactions grouped by the calendar month they were paid
+ * in (newest month first), each a collapsible section. Replaces the old
+ * cadence-driven "past cycles" grouping.
+ */
+function EarnedMonths({ months }) {
+  const [openKey, setOpenKey] = useState(months[0]?.key || null);
 
-      <h2 id="payout-schedule-title" className={styles.payoutCadence}>
-        {cadenceLabel(cadence)}
-      </h2>
-
-      <div className={styles.payoutMeta}>
-        <div className={styles.payoutMetaRow}>
-          <span className={styles.payoutMetaLabel}>Next payout</span>
-          <span className={styles.payoutMetaValue}>{formatPayoutDate(nextEnd)}</span>
-        </div>
-        <div className={styles.payoutMetaRow}>
-          <span className={styles.payoutMetaLabel}>Bundled this cycle</span>
-          <span className={styles.payoutMetaValue}>{formatUGX(nextTotal)}</span>
-        </div>
-        <div className={styles.payoutMetaRow}>
-          <span className={styles.payoutMetaNote}>
-            {nextCount > 0
-              ? `${nextCount} commission${nextCount === 1 ? '' : 's'} in the current run`
-              : 'No commissions in the current run yet'}
-          </span>
-        </div>
-      </div>
-
-      <p className={styles.payoutFootnote}>
-        Schedule is set by the distributor. New commissions roll into the next run automatically.
-      </p>
-    </section>
-  );
-}
-
-function PastCyclesSection({ cycles, onConfirm, onDispute, onWithdraw, isPending }) {
-  const [openKey, setOpenKey] = useState(cycles[0]?.key || null);
-
-  if (cycles.length === 0) return null;
+  if (months.length === 0) return null;
 
   return (
-    <section className={styles.cyclesSection} aria-labelledby="past-cycles-title">
+    <section className={styles.cyclesSection} aria-labelledby="earned-months-title">
       <header className={styles.cyclesHead}>
         <span className={styles.cyclesEyebrow}>History</span>
-        <h2 id="past-cycles-title" className={styles.cyclesTitle}>Past payout cycles</h2>
+        <h2 id="earned-months-title" className={styles.cyclesTitle}>Paid by month</h2>
       </header>
       <ul className={styles.cyclesList}>
-        {cycles.map((cycle) => {
-          const open = openKey === cycle.key;
+        {months.map((group) => {
+          const open = openKey === group.key;
           return (
-            <li key={cycle.key} className={styles.cycleItem}>
+            <li key={group.key} className={styles.cycleItem}>
               <button
                 type="button"
                 className={styles.cycleHead}
                 aria-expanded={open}
-                aria-controls={`cycle-${cycle.key}`}
-                onClick={() => setOpenKey(open ? null : cycle.key)}
+                aria-controls={`month-${group.key}`}
+                onClick={() => setOpenKey(open ? null : group.key)}
               >
                 <span className={styles.cycleLabelStack}>
-                  <span className={styles.cycleLabel}>{cycle.label}</span>
+                  <span className={styles.cycleLabel}>{group.label}</span>
                   <span className={styles.cycleSub}>
-                    {cycle.commissions.length} commission{cycle.commissions.length === 1 ? '' : 's'}
+                    {group.lines.length} commission{group.lines.length === 1 ? '' : 's'}
                   </span>
                 </span>
-                <span className={styles.cycleAmount}>{formatUGX(cycle.total)}</span>
+                <span className={styles.cycleAmount}>{formatUGX(group.total)}</span>
                 <span className={styles.cycleChev} data-open={open}>{Icons.chevDown}</span>
               </button>
               <AnimatePresence initial={false}>
                 {open && (
                   <motion.div
                     key="rows"
-                    id={`cycle-${cycle.key}`}
+                    id={`month-${group.key}`}
                     className={styles.cycleBody}
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -247,15 +133,8 @@ function PastCyclesSection({ cycles, onConfirm, onDispute, onWithdraw, isPending
                     transition={{ duration: 0.28, ease: EASE_OUT_EXPO }}
                   >
                     <div className={styles.cycleRows}>
-                      {cycle.commissions.map((c) => (
-                        <CommissionRow
-                          key={c.id}
-                          commission={c}
-                          onConfirm={onConfirm}
-                          onDispute={onDispute}
-                          onWithdraw={onWithdraw}
-                          isPending={isPending}
-                        />
+                      {group.lines.map((line) => (
+                        <CommissionRow key={line.id} line={line} />
                       ))}
                     </div>
                   </motion.div>
@@ -270,109 +149,46 @@ function PastCyclesSection({ cycles, onConfirm, onDispute, onWithdraw, isPending
 }
 
 /**
- * DisputeModal — portaled bottom sheet (mirrors SavePage): a scrim + slide-up
- * sheet rendered into <body> so it escapes the page's transformed ancestor and
- * layers above the fixed BottomTabBar. Replaces the old shared <Modal> usage;
- * the shared Modal.jsx primitive is untouched and still used by other consumers.
- *
- * Internal form state is fresh on every open because the parent re-mounts this
- * component via `key={disputeTarget?.id}` — no reset effect needed. The radio
- * group `name="dispute-reason"`, the DISPUTE_REASONS array, and the
- * 'Other'→textarea branch are a fixed contract and preserved exactly.
+ * SettlementMismatchBanner — INFORM-NOT-BLOCK surfacing of a short-paid
+ * settlement (BL-1). When the distributor's most recent settlement for this
+ * agent paid less than the pending total it was raised against, the FIFO
+ * apply leaves some lines genuinely `due`; this banner tells the agent what
+ * happened and offers an "Ask for reason" mailto prefilled with the batch
+ * reference, the due total, and the paid total. A client-side mailto is a demo
+ * affordance (no backend integration); the recipient is the distributor/back-
+ * office support mailbox (`SUPPORT_EMAIL`).
  */
-function DisputeModal({ commission, open, onClose, onConfirm, isPending }) {
-  const reduceMotion = useReducedMotion();
-  const [reason, setReason] = useState(DISPUTE_REASONS[0]);
-  const [custom, setCustom] = useState('');
+function SettlementMismatchBanner({ batch }) {
+  if (!batch) return null;
+  const shortfall = Math.max(0, (batch.pendingTotal || 0) - (batch.paidAmount || 0));
+  const subject = `Commission settlement query — ${batch.id}`;
+  const bodyLines = [
+    `Hello,`,
+    ``,
+    `I have a question about a recent commission settlement.`,
+    ``,
+    `Settlement reference: ${batch.id}`,
+    `Due at the time: ${formatUGX(batch.pendingTotal)}`,
+    `Amount paid: ${formatUGX(batch.paidAmount)}`,
+    `Still outstanding: ${formatUGX(shortfall)}`,
+    ``,
+    `Could you let me know the reason for the difference?`,
+    ``,
+    `Thank you.`,
+  ];
+  const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join('\n'))}`;
 
-  const finalReason = reason === 'Other' ? custom.trim() : reason;
-  const canSubmit = finalReason.length > 0 && !isPending;
-
-  if (!commission) return null;
-
-  return createPortal(
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className={styles.sheetScrim}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: reduceMotion ? 0 : 0.2 }}
-          onClick={() => { if (!isPending) onClose(); }}
-        >
-          <motion.div
-            className={styles.sheet}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Raise a dispute"
-            initial={reduceMotion ? false : { y: '100%' }}
-            animate={{ y: 0 }}
-            exit={reduceMotion ? { opacity: 0 } : { y: '100%' }}
-            transition={{ duration: reduceMotion ? 0 : 0.34, ease: EASE_OUT_EXPO }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span className={styles.sheetGrip} aria-hidden="true" />
-
-            <div className={styles.sheetBody}>
-              <h3 className={styles.sheetTitle}>Raise a dispute</h3>
-              <p className={styles.sheetSub}>
-                Commission {commission.id} for <strong>{commission.subscriberName}</strong> · {formatUGX(commission.amount)}
-              </p>
-
-              {/* The native radio group is preserved (name="dispute-reason") as a
-                  contract; PillChipGroup is layered on for the visual selection
-                  while the radios carry the accessible state + value. */}
-              <PillChipGroup label="Dispute reason" layout="grid" columns={1}>
-                {DISPUTE_REASONS.map((r) => (
-                  <PillChip key={r} selected={reason === r} onClick={() => setReason(r)}>
-                    <span className={styles.reasonChipInner}>
-                      <input
-                        type="radio"
-                        name="dispute-reason"
-                        value={r}
-                        checked={reason === r}
-                        onChange={() => setReason(r)}
-                        tabIndex={-1}
-                        className={styles.reasonRadio}
-                      />
-                      {r}
-                    </span>
-                  </PillChip>
-                ))}
-              </PillChipGroup>
-
-              {reason === 'Other' && (
-                <textarea
-                  className={styles.customReason}
-                  value={custom}
-                  onChange={(e) => setCustom(e.target.value)}
-                  placeholder="Tell us what's wrong…"
-                  rows={3}
-                  maxLength={300}
-                  aria-label="Describe the issue"
-                />
-              )}
-
-              <div className={styles.sheetActions}>
-                <button type="button" className={styles.btnSecondary} onClick={onClose} disabled={isPending}>
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className={styles.btnPrimaryWide}
-                  disabled={!canSubmit}
-                  onClick={() => onConfirm(finalReason)}
-                >
-                  {isPending ? 'Submitting…' : 'Submit dispute'}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body
+  return (
+    <section className={styles.mismatchBanner} role="status" aria-live="polite">
+      <div className={styles.mismatchText}>
+        <span className={styles.mismatchTitle}>Your last settlement was partial</span>
+        <span className={styles.mismatchBody}>
+          {formatUGX(batch.paidAmount)} paid against {formatUGX(batch.pendingTotal)} due
+          {' '}— {formatUGX(shortfall)} is still outstanding (ref {batch.id}).
+        </span>
+      </div>
+      <a className={styles.mismatchCta} href={mailto}>Ask for reason</a>
+    </section>
   );
 }
 
@@ -381,16 +197,25 @@ export default function CommissionsPage() {
   const navigate = useNavigate();
   const { agentId } = useAgentScope();
   const { data: detail, isLoading, isError, error, refetch } = useAgentCommissionDetail(agentId);
-  const { data: cadenceCfg } = useNetworkCadence();
-  const cadence = cadenceCfg?.cadence || CADENCES.MONTHLY_FIRST;
-  const confirm = useConfirmCommission();
-  const dispute = useDisputeCommission();
-  const withdraw = useWithdrawDispute();
-  const { addToast } = useToast();
+  const { data: settlements = [] } = useSettlementsList({ agentId });
+  const headerChrome = useAgentHeaderChrome();
 
-  const [disputeTarget, setDisputeTarget] = useState(null);
+  // INFORM-NOT-BLOCK mismatch surfacing (BL-1): find the LOGGED-IN agent's most
+  // recent settlement batch that paid less than the pending total it was raised
+  // against — i.e. a partial payment that left some lines `due`. In LIVE mode
+  // RLS scopes `settlement_batches` to the agent's own rows; in MOCK mode there
+  // is no RLS, so we pass `agentId` to the query AND defensively re-filter by
+  // `b.agentId` here so this page can never surface ANOTHER agent's partial
+  // batch. Newest-first from the service.
+  const partialBatch = useMemo(
+    () => settlements.find(
+      (b) => b.agentId === agentId && (b.paidAmount || 0) < (b.pendingTotal || 0),
+    ) || null,
+    [settlements, agentId],
+  );
 
-  // Defensive: if a stale URL still points at /commissions/requests, redirect home.
+  // A removed view (confirm / disputes) or any unknown param falls back to the
+  // commissions home.
   useEffect(() => {
     if (view && !VALID_VIEWS.has(view)) {
       navigate('/dashboard/commissions', { replace: true });
@@ -400,90 +225,42 @@ export default function CommissionsPage() {
   const isHome = !view;
   const activeView = VALID_VIEWS.has(view) ? view : null;
 
-  const all = useMemo(() => detail?.commissions || [], [detail]);
+  const paidTransactions = useMemo(() => detail?.paidTransactions || [], [detail]);
+  const dueTransactions = useMemo(() => detail?.dueTransactions || [], [detail]);
+
   const totals = useMemo(() => {
-    const paid = all.filter((c) => c.status === 'released' || c.status === 'confirmed');
-    const due = all.filter((c) => c.status === 'due' || c.status === 'in_run' || c.status === 'held');
-    const inRun = all.filter((c) => c.status === 'in_run');
-    // Keep recently-resolved disputes in the My-Disputes view so the agent
-    // sees the outcome — once status flips off `disputed`, only the
-    // outcomeReason + resolvedAt fields remain.
-    const disputed = all.filter(
-      (c) => c.status === 'disputed' || (c.resolvedAt && c.outcomeReason)
-    );
-    const awaitingConfirm = all.filter((c) => c.status === 'released');
-    const openDisputes = disputed.filter((c) => c.status === 'disputed');
-    const totalPaid = paid.reduce((s, c) => s + c.amount, 0);
-    const totalDue = due.reduce((s, c) => s + c.amount, 0);
-    const totalDisputed = openDisputes.reduce((s, c) => s + c.amount, 0);
-    const totalAll = totalPaid + totalDue + totalDisputed;
+    const totalPaid = detail?.totalPaid ?? paidTransactions.reduce((s, c) => s + (c.amount || 0), 0);
+    const totalDue = detail?.totalDue ?? dueTransactions.reduce((s, c) => s + (c.amount || 0), 0);
+    const totalAll = totalPaid + totalDue;
     const settledPct = totalAll ? Math.round((totalPaid / totalAll) * 100) : 0;
     return {
-      paid, due, inRun, disputed, openDisputes, awaitingConfirm,
-      totalPaid, totalDue, totalDisputed, totalAll, settledPct,
+      paid: paidTransactions,
+      due: dueTransactions,
+      totalPaid,
+      totalDue,
+      totalAll,
+      settledPct,
     };
-  }, [all]);
+  }, [detail, paidTransactions, dueTransactions]);
 
-  const nextCycle = useMemo(() => {
-    const win = cycleWindow(cadence);
-    // Lines already in the current run are guaranteed to pay out next cycle.
-    let total = totals.inRun.reduce((s, c) => s + c.amount, 0);
-    let count = totals.inRun.length;
-    // Plus any due lines whose dueDate falls within the upcoming cycle window.
-    for (const c of totals.due) {
-      if (c.status !== 'due') continue;
-      const d = c.dueDate ? new Date(c.dueDate) : null;
-      if (d && d.getTime() <= win.end.getTime()) {
-        total += c.amount || 0;
-        count += 1;
-      }
-    }
-    return { end: win.end, total, count };
-  }, [totals.due, totals.inRun, cadence]);
+  const earnedMonths = useMemo(() => groupByPaidMonth(paidTransactions), [paidTransactions]);
 
-  const pastCycles = useMemo(
-    () => groupCommissionsByPaidCycle(totals.paid, cadence),
-    [totals.paid, cadence]
-  );
+  const recordCount = totals.paid.length + totals.due.length;
 
   function listFor(viewId) {
-    if (viewId === 'earned') return [...totals.paid].sort((a, b) => (b.paidDate || '').localeCompare(a.paidDate || ''));
-    if (viewId === 'owed') return [...totals.due].sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
-    if (viewId === 'confirm') return totals.awaitingConfirm;
-    if (viewId === 'disputes') return totals.disputed;
+    if (viewId === 'earned') {
+      return [...totals.paid].sort((a, b) =>
+        (b.transactionDate || '').localeCompare(a.transactionDate || ''),
+      );
+    }
+    if (viewId === 'owed') {
+      return [...totals.due].sort((a, b) =>
+        (a.dueDate || '').localeCompare(b.dueDate || ''),
+      );
+    }
     return [];
   }
 
-  async function handleConfirm(commission) {
-    try {
-      await confirm.mutateAsync(commission.id);
-      addToast('success', 'Receipt confirmed.');
-    } catch {
-      addToast('error', 'Could not confirm. Try again.');
-    }
-  }
-
-  async function handleDisputeSubmit(reason) {
-    if (!disputeTarget) return;
-    try {
-      await dispute.mutateAsync({ commissionId: disputeTarget.id, reason });
-      addToast('success', 'Dispute filed for review.');
-      setDisputeTarget(null);
-    } catch {
-      addToast('error', 'Could not file dispute. Try again.');
-    }
-  }
-
-  async function handleWithdraw(commission) {
-    try {
-      await withdraw.mutateAsync(commission.id);
-      addToast('success', 'Dispute withdrawn.');
-    } catch {
-      addToast('error', 'Could not withdraw. Try again.');
-    }
-  }
-
-  const isAnyMutating = confirm.isPending || dispute.isPending || withdraw.isPending;
   const list = activeView ? listFor(activeView) : [];
 
   const title = isHome ? 'Commissions' : VIEW_LABELS[activeView];
@@ -493,7 +270,7 @@ export default function CommissionsPage() {
         <strong>{totals.settledPct}%</strong> settled
       </span>
       <span>
-        <strong>{formatNumber(all.length)}</strong> record{all.length === 1 ? '' : 's'}
+        <strong>{formatNumber(recordCount)}</strong> record{recordCount === 1 ? '' : 's'}
       </span>
     </>
   );
@@ -507,9 +284,11 @@ export default function CommissionsPage() {
           eyebrow="TOTAL COMMISSIONS"
           prefix="UGX"
           amount={isLoading ? '—' : formatUGX(totals.totalAll).replace('UGX ', '')}
-          subtitle="Settled on the distributor schedule. Confirm receipts and raise disputes here."
+          subtitle="Paid out by your distributor. You'll get a notification each time a settlement lands."
           statRow={isLoading ? <span style={{ opacity: 0.6 }}>Loading…</span> : heroStatRow}
           showBack={false}
+          leadingSlot={headerChrome.leadingSlot}
+          trailingSlot={headerChrome.trailingSlot}
         />
       ) : (
         <PageHeader
@@ -539,19 +318,29 @@ export default function CommissionsPage() {
 
         {!isLoading && !isError && isHome && (
           <div className={styles.homeWrap}>
-            <PayoutScheduleCard
-              cadence={cadence}
-              nextEnd={nextCycle.end}
-              nextTotal={nextCycle.total}
-              nextCount={nextCycle.count}
-            />
+            <SettlementMismatchBanner batch={partialBatch} />
+
+            <section className={styles.outstandingCard} aria-labelledby="outstanding-title">
+              <span className={styles.outstandingEyebrow}>
+                <span className={styles.outstandingIcon} aria-hidden="true">{Icons.wallet}</span>
+                Outstanding
+              </span>
+              <h2 id="outstanding-title" className={styles.outstandingValue}>
+                {formatUGX(totals.totalDue)}
+              </h2>
+              <p className={styles.outstandingNote}>
+                {totals.due.length > 0
+                  ? `${formatNumber(totals.due.length)} commission${totals.due.length === 1 ? '' : 's'} owed — settled when your distributor next pays out.`
+                  : 'Nothing owed right now. New commissions appear here until they’re paid.'}
+              </p>
+            </section>
 
             <div className={styles.summaryStrip}>
               <div className={styles.summaryAmount}>
                 <span className={styles.summaryLabel}>Total commissions</span>
                 <span className={styles.summaryValue}>{formatUGX(totals.totalAll)}</span>
                 <span className={styles.summaryHint}>
-                  {formatNumber(all.length)} record{all.length === 1 ? '' : 's'} from your subscribers
+                  {formatNumber(recordCount)} record{recordCount === 1 ? '' : 's'} from your subscribers
                 </span>
               </div>
               <div className={styles.summaryProgress}>
@@ -576,106 +365,35 @@ export default function CommissionsPage() {
                 <div className={styles.primaryIcon}>{Icons.clock}</div>
                 <div className={styles.primaryAmount}>{formatUGXShort(totals.totalDue)}</div>
                 <div className={styles.primaryLabel}>Owed</div>
-                <div className={styles.primaryCount}>{formatNumber(totals.due.length)} awaiting next cycle</div>
+                <div className={styles.primaryCount}>{formatNumber(totals.due.length)} awaiting payout</div>
               </button>
             </div>
 
-            {(totals.awaitingConfirm.length > 0 || totals.openDisputes.length > 0) && (
-              <div className={styles.attentionSection}>
-                <div className={styles.attentionTitle}>Needs attention</div>
-                {totals.awaitingConfirm.length > 0 && (
-                  <button className={styles.attentionRow} onClick={() => navigate('/dashboard/commissions/confirm')}>
-                    <div className={styles.attentionAccent} data-type="confirm" />
-                    <div className={styles.attentionInfo}>
-                      <div className={styles.attentionLabel}>Confirm receipts</div>
-                      <div className={styles.attentionDesc}>
-                        {formatUGX(totals.awaitingConfirm.reduce((s, c) => s + c.amount, 0))} paid · waiting on you
-                      </div>
-                    </div>
-                    <div className={styles.attentionCount} data-type="confirm">{totals.awaitingConfirm.length}</div>
-                    <span className={styles.chev} aria-hidden="true">{Icons.chev}</span>
-                  </button>
-                )}
-                {totals.openDisputes.length > 0 && (
-                  <button className={styles.attentionRow} onClick={() => navigate('/dashboard/commissions/disputes')}>
-                    <div className={styles.attentionAccent} data-type="disputed" />
-                    <div className={styles.attentionInfo}>
-                      <div className={styles.attentionLabel}>My disputes</div>
-                      <div className={styles.attentionDesc}>
-                        {formatUGX(totals.totalDisputed)} under review
-                      </div>
-                    </div>
-                    <div className={styles.attentionCount} data-type="disputed">{totals.openDisputes.length}</div>
-                    <span className={styles.chev} aria-hidden="true">{Icons.chev}</span>
-                  </button>
-                )}
-              </div>
-            )}
-
-            <PastCyclesSection
-              cycles={pastCycles}
-              onConfirm={handleConfirm}
-              onDispute={(c) => setDisputeTarget(c)}
-              onWithdraw={handleWithdraw}
-              isPending={isAnyMutating}
-            />
-
-            {pastCycles.length > 0 && (
-              <p className={styles.cyclesFootnote}>
-                Cycle history grouped by {formatCycleLabel(nextCycle.end, cadence).toLowerCase().includes('week') ? 'pay-out week' : 'pay-out month'}.
-              </p>
-            )}
+            <EarnedMonths months={earnedMonths} />
           </div>
         )}
 
         {!isLoading && !isError && !isHome && activeView && (
           list.length === 0 ? (
             <div className={styles.empty}>
-              <p className={styles.emptyTitle}>{(() => {
-                switch (activeView) {
-                  case 'earned': return 'No paid commissions yet';
-                  case 'owed': return 'Nothing owed right now';
-                  case 'confirm': return "You're all caught up";
-                  case 'disputes': return 'No open disputes';
-                  default: return 'Nothing here';
-                }
-              })()}</p>
-              <p>{(() => {
-                switch (activeView) {
-                  case 'earned': return 'Settlements appear here once the distributor releases a run.';
-                  case 'owed': return 'New commissions roll into the next settlement run automatically.';
-                  case 'confirm': return 'Nothing to confirm right now. Great work.';
-                  case 'disputes': return "Anything you flag will appear here while it's reviewed.";
-                  default: return '';
-                }
-              })()}</p>
+              <p className={styles.emptyTitle}>
+                {activeView === 'earned' ? 'No paid commissions yet' : 'Nothing owed right now'}
+              </p>
+              <p>
+                {activeView === 'earned'
+                  ? 'Paid commissions appear here once your distributor settles them.'
+                  : 'New commissions show up here until your distributor pays them out.'}
+              </p>
             </div>
           ) : (
             <div className={styles.list}>
-              {list.map((commission) => (
-                <CommissionRow
-                  key={commission.id}
-                  commission={commission}
-                  onConfirm={handleConfirm}
-                  onDispute={(c) => setDisputeTarget(c)}
-                  onWithdraw={handleWithdraw}
-                  isPending={isAnyMutating}
-                />
+              {list.map((line) => (
+                <CommissionRow key={line.id} line={line} />
               ))}
             </div>
           )
         )}
       </div>
-
-      <DisputeModal
-        // key ensures a fresh form instance per commission — opens reset state.
-        key={disputeTarget?.id || 'no-target'}
-        commission={disputeTarget}
-        open={Boolean(disputeTarget)}
-        onClose={() => setDisputeTarget(null)}
-        onConfirm={handleDisputeSubmit}
-        isPending={dispute.isPending}
-      />
     </div>
   );
 }

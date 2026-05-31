@@ -132,4 +132,20 @@ describe('POST /api/kyc/nira-verify', () => {
     expect(res.body).toEqual({ code: 'method_not_allowed' });
     expect(res.headers.Allow).toBe('POST');
   });
+
+  it('sets Cache-Control: no-store on the success path (B13)', async () => {
+    const req = buildReq({ body: {} });
+    const res = buildRes();
+    const pending = handler(req, res);
+    await vi.advanceTimersByTimeAsync(1800);
+    await pending;
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
+
+  it('sets Cache-Control: no-store on the 405 path (B13)', async () => {
+    const req = buildReq({ method: 'OPTIONS' });
+    const res = buildRes();
+    await handler(req, res);
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
 });

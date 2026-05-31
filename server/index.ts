@@ -13,9 +13,27 @@
 // client-only; the demo's 24h HS256 token has no refresh + no revocation).
 
 // ─── 0. Sentry side-effect init (must precede any express() / handler import)
+//
+// PII hardening (BL-26 / H-4): `beforeSend`/`beforeBreadcrumb` run the shared
+// scrubber (`server/sentryScrub.ts`, kept in sync with `src/utils/sentryScrub.js`)
+// which redacts Ugandan phone numbers, `role:phone` ids (the JWT `sub` /
+// `users.id`), bearer tokens / JWTs, and password fields from forwarded errors
+// (e.g. Supabase error detail). `sendDefaultPii` stays explicitly false.
+// `release` reads Render's auto-injected RENDER_GIT_COMMIT (or SENTRY_RELEASE)
+// when present; `environment` mirrors NODE_ENV. Init stays strictly DSN-gated —
+// a no-op when SENTRY_DSN is absent (local dev, PR previews).
 import * as Sentry from '@sentry/node';
+import { scrubEvent, scrubBreadcrumb } from './sentryScrub.js';
 if (process.env.SENTRY_DSN) {
-  Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    tracesSampleRate: 0.1,
+    sendDefaultPii: false,
+    environment: process.env.NODE_ENV,
+    release: process.env.RENDER_GIT_COMMIT || process.env.SENTRY_RELEASE || undefined,
+    beforeSend: scrubEvent,
+    beforeBreadcrumb: scrubBreadcrumb,
+  });
 }
 
 // ─── 1. Env preflight (B1) — fail loudly before app.listen
@@ -96,10 +114,13 @@ app.use(
   morgan(':method :url :status :response-time ms - :res[content-length]')
 );
 
-// ─── 8. Rate limiters (G18) — applied per-route below, NOT globally. Four
-// unauthenticated side-effect routes are the only ones that need protection;
-// limiting the whole API would hurt legitimate signup flows where a single
-// session fires 4-5 sequential KYC calls in <10s.
+// ─── 8. Rate limiters (G18) — applied per-route below, NOT globally. Only the
+// credential / side-effect routes need protection (the three /api/auth/verify*
+// + change-password CPU/credential paths via authLimiter, and the two DB-insert
+// routes via writeLimiter); limiting the whole API would hurt legitimate signup
+// flows where a single session fires 4-5 sequential KYC calls in <10s. Note
+// change-password is authenticated, but a holder of one valid 24h token can
+// still hammer the bcrypt + DB write path (BL-17), so it shares authLimiter.
 // Returns the same `{ code: 'rate_limited' }` shape `verify-otp` already
 // produces (api/auth/verify-otp.ts:20), so the frontend's existing
 // error-vocab handling needs no changes.
@@ -127,7 +148,7 @@ const writeLimiter = rateLimit({
 app.all('/api/auth/send-otp', toExpress(sendOtp));
 app.all('/api/auth/verify-otp', authLimiter, toExpress(verifyOtp)); // G18 — write + JWT mint
 app.all('/api/auth/verify-password', authLimiter, toExpress(verifyPassword)); // G18 — bcrypt CPU + credential-stuffing vector
-app.all('/api/auth/change-password', toExpress(changePassword));
+app.all('/api/auth/change-password', authLimiter, toExpress(changePassword)); // G18 / BL-17 — bcrypt CPU + current-password brute-force surface for an already-authenticated caller
 app.all('/api/kyc/otp-send', toExpress(kycOtpSend));
 app.all('/api/kyc/otp-verify', toExpress(kycOtpVerify));
 app.all('/api/kyc/id-ocr', toExpress(idOcr));

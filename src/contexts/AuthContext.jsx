@@ -118,7 +118,6 @@ export function AuthProvider({ children }) {
   // a refs-during-render violation; we accept the trade because the failure
   // mode if we miss the early-401 window is a hard page reload (the existing
   // notifyAuthExpired fallback), which is materially worse for a sales demo.
-  // eslint-disable-next-line react-hooks/refs
   if (unsubAuthExpiredRef.current === null) {
     // eslint-disable-next-line react-hooks/refs
     unsubAuthExpiredRef.current = onAuthExpired(() => {

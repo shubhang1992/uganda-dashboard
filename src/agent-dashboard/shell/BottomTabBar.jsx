@@ -1,11 +1,10 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
-import { useAgentTickets } from '../../hooks/useTickets';
-import { TICKET_STATUS } from '../../data/ticketsSeed';
+import { useAgentUnreadTicketCount } from '../../hooks/useTickets';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
 import styles from './BottomTabBar.module.css';
 
@@ -59,20 +58,17 @@ export default function BottomTabBar() {
   const { logout } = useAuth();
   const navigate = useNavigate();
 
-  // Unread support badge. Calling useAgentTickets with NO status arg shares the
-  // ['tickets','agent',id,'all'] cache key with the Inbox page, so the badge and
-  // the inbox dedupe into one fetch + poll. Sum the agent's unread counter over
-  // OPEN tickets only — a closed ticket carries no actionable unread.
+  // Unread support badge — shared hook dedupes into the ['tickets','agent',id,'all']
+  // fetch/poll used by the Inbox page, Home PulseCard, and mobile header chrome.
   const { agentId } = useAgentScope();
-  const { data: agentTickets } = useAgentTickets(agentId);
-  const unreadCount = (agentTickets ?? []).reduce(
-    (sum, t) => (t.status === TICKET_STATUS.OPEN ? sum + (t.unread?.agent ?? 0) : sum),
-    0,
-  );
+  const unreadCount = useAgentUnreadTicketCount(agentId);
   const hasUnread = unreadCount > 0;
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
-  useOutsideClick(moreOpen, closeMore, [moreRef]);
+  // Memoise the refs array so useOutsideClick doesn't tear down + re-add its
+  // document listeners on every render while the "More" popover is open.
+  const moreOutsideRefs = useMemo(() => [moreRef], []);
+  useOutsideClick(moreOpen, closeMore, moreOutsideRefs);
 
   function handleLogout() {
     closeMore();

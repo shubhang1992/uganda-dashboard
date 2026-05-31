@@ -300,8 +300,12 @@ export default function ViewSubscribers() {
     return () => document.removeEventListener('keydown', onKey);
   }, [viewSubscribersOpen, handleClose]);
 
-  // Close sort dropdown on outside click + Escape.
-  useOutsideClick(sortDropOpen, () => setSortDropOpen(false), [sortBtnRef]);
+  // Close sort dropdown on outside click + Escape. Memoise the refs array +
+  // close callback so useOutsideClick doesn't tear down + re-add its document
+  // listeners on every render while the dropdown is open.
+  const sortOutsideRefs = useMemo(() => [sortBtnRef], []);
+  const closeSortDrop = useCallback(() => setSortDropOpen(false), []);
+  useOutsideClick(sortDropOpen, closeSortDrop, sortOutsideRefs);
 
   function handleSelectSubscriber(sub) {
     setSelectedSubscriber(sub);

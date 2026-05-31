@@ -27,8 +27,70 @@
   padding: var(--space-2) var(--space-4) var(--space-6);
 }
 
-/* ── Payout schedule card — clean white (subscriber theme) ── */
-.payoutCard {
+/* ── Settlement mismatch banner (BL-1) — amber inform, not red destructive ── */
+.mismatchBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+}
+
+.mismatchText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.mismatchTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-sm);
+  color: var(--color-indigo);
+}
+
+.mismatchBody {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-indigo-soft);
+}
+
+.mismatchCta {
+  flex-shrink: 0;
+  align-self: center;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+
+.mismatchCta:hover {
+  background: var(--color-indigo-soft);
+}
+
+.mismatchCta:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mismatchCta {
+    transition: none;
+  }
+}
+
+/* ── Outstanding card — clean white summary of what's owed ── */
+.outstandingCard {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-xl);
@@ -39,17 +101,10 @@
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-}
-
-.payoutHead {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   gap: var(--space-2);
 }
 
-.payoutEyebrow {
+.outstandingEyebrow {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -61,66 +116,25 @@
   color: var(--color-indigo-soft);
 }
 
-.payoutEyebrowIcon {
+.outstandingIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--color-teal);
 }
 
-.payoutCadence {
+.outstandingValue {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: var(--text-lg);
-  letter-spacing: -0.02em;
-  color: var(--color-indigo);
-  margin: 0;
-}
-
-.payoutMeta {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-cloud);
-  border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-md);
-}
-
-.payoutMetaRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  color: var(--color-gray);
-}
-
-.payoutMetaLabel {
-  font-family: var(--font-display);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-indigo-soft);
-}
-
-.payoutMetaValue {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: var(--text-sm);
+  font-size: var(--text-2xl);
+  letter-spacing: -0.025em;
   color: var(--color-indigo);
   font-variant-numeric: tabular-nums;
+  margin: 0;
+  line-height: 1.05;
 }
 
-.payoutMetaNote {
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  color: var(--color-gray);
-}
-
-.payoutFootnote {
+.outstandingNote {
   margin: 0;
   font-family: var(--font-body);
   font-size: var(--text-xs);
@@ -305,95 +319,7 @@
   color: var(--color-gray);
 }
 
-/* ── Needs Attention ── */
-.attentionSection {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  background: var(--color-white);
-  border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-}
-
-.attentionTitle {
-  font-family: var(--font-display);
-  font-size: var(--text-xs);
-  font-weight: 800;
-  color: var(--color-indigo-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: var(--space-1);
-}
-
-.attentionRow {
-  display: grid;
-  grid-template-columns: 4px 1fr auto auto;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: none;
-  border-radius: var(--radius-md);
-  text-align: left;
-  background: transparent;
-  cursor: pointer;
-  transition: background 0.15s ease;
-  touch-action: manipulation;
-}
-
-.attentionRow:hover { background: color-mix(in srgb, var(--color-indigo) 4%, transparent); }
-
-.attentionRow:focus-visible {
-  outline: 2px solid var(--color-indigo-soft);
-  outline-offset: -2px;
-}
-
-.attentionAccent {
-  width: 4px;
-  height: 32px;
-  border-radius: var(--radius-full);
-}
-
-.attentionAccent[data-type='confirm']  { background: var(--color-teal); }
-.attentionAccent[data-type='disputed'] { background: var(--color-amber); }
-
-.attentionInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.attentionLabel {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--text-sm);
-  color: var(--color-indigo);
-  letter-spacing: -0.01em;
-}
-
-.attentionDesc {
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  color: var(--color-gray);
-  line-height: 1.4;
-}
-
-.attentionCount {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: var(--text-base);
-  font-variant-numeric: tabular-nums;
-  min-width: 24px;
-  text-align: right;
-}
-
-.attentionCount[data-type='confirm']  { color: var(--color-teal); }
-.attentionCount[data-type='disputed'] { color: #B07A0F; }
-
-.chev { color: var(--color-gray); display: flex; }
-
-/* ── Past cycles ── */
+/* ── Paid-by-month history ── */
 .cyclesSection {
   background: var(--color-white);
   border: 1px solid var(--color-lavender);
@@ -520,15 +446,6 @@
   padding: var(--space-3);
 }
 
-.cyclesFootnote {
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  color: var(--color-gray);
-  margin: 0;
-  padding: 0 var(--space-2);
-  text-align: center;
-}
-
 /* ── List view (sub-route) ── */
 .list {
   display: flex;
@@ -587,19 +504,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Dispute reason / hold note — "under review" is not an error, so it reads
-   amber, not red. */
-.disputeNote {
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.28);
-  border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  color: #946007;
-  line-height: 1.5;
-}
-
 /* Benign transaction reference line — neutral, never red. */
 .refNote {
   background: var(--color-cloud);
@@ -610,111 +514,6 @@
   font-size: var(--text-xs);
   color: var(--color-gray);
   line-height: 1.5;
-}
-
-.outcomeNote {
-  background: rgba(46, 139, 87, 0.08);
-  border: 1px solid rgba(46, 139, 87, 0.2);
-  border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  color: var(--color-status-good);
-  line-height: 1.5;
-}
-
-.rowActions {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-/* ── Buttons ── */
-.btnPrimary {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--text-xs);
-  letter-spacing: 0.02em;
-  background: var(--color-indigo);
-  color: var(--color-white);
-  border: none;
-  border-radius: var(--radius-full);
-  padding: 0.55rem 1.25rem;
-  min-height: 36px;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background 0.15s ease, transform 0.15s ease;
-}
-
-.btnPrimary:hover:not(:disabled) { background: var(--color-indigo-deep); transform: translateY(-1px); }
-.btnPrimary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-.btnPrimary:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; }
-
-/* Sheet secondary (Cancel / Not yet) — full-width, paired with .btnPrimaryWide. */
-.btnSecondary {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--text-base);
-  letter-spacing: -0.01em;
-  background: var(--color-white);
-  color: var(--color-indigo);
-  border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-full);
-  padding: 14px 22px;
-  min-height: 48px;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.btnSecondary:hover:not(:disabled) {
-  background: var(--color-cloud);
-  border-color: var(--color-indigo-soft);
-}
-
-.btnSecondary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btnSecondary:focus-visible {
-  outline: 2px solid var(--color-indigo-soft);
-  outline-offset: 2px;
-}
-
-.btnLink {
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--color-indigo-soft);
-  background: transparent;
-  border: none;
-  padding: 0.4rem 0.7rem;
-  min-height: 36px;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.btnLink:hover {
-  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
-  color: var(--color-indigo);
-}
-
-.btnLink:focus-visible {
-  outline: 2px solid var(--color-indigo-soft);
-  outline-offset: 2px;
-}
-
-.btnLink:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* ── Status badges ── */
@@ -732,10 +531,7 @@
 }
 
 .badge[data-tone='confirmed'] { background: rgba(46, 139, 87, 0.16); color: var(--color-green); }
-.badge[data-tone='awaiting']  { background: rgba(47, 143, 157, 0.16); color: var(--color-teal); }
 .badge[data-tone='due']       { background: rgba(251, 191, 36, 0.18); color: #B07A0F; }
-.badge[data-tone='disputed']  { background: rgba(251, 191, 36, 0.16); color: #946007; }
-.badge[data-tone='rejected']  { background: rgba(138, 144, 166, 0.18); color: var(--color-gray); }
 
 /* ── Empty + loading ── */
 .empty {
@@ -767,156 +563,6 @@
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Bottom sheet (dispute + confirm-receipt) ──
- * Portaled to <body> via createPortal so the sheet escapes the page's
- * transformed ancestor and layers above the fixed BottomTabBar. Mirrors the
- * subscriber SavePage sheet pattern (scrim + slide-up + grip). The shared
- * Modal.jsx primitive is no longer used here (left untouched for others). */
-.sheetScrim {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  background: color-mix(in srgb, var(--color-indigo-deep) 42%, transparent);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-
-.sheet {
-  width: 100%;
-  max-width: 560px;
-  background: var(--color-white);
-  border-radius: var(--radius-capsule) var(--radius-capsule) 0 0;
-  padding: var(--space-3) var(--space-5) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
-  box-shadow: var(--shadow-xl);
-  max-height: 88vh;
-  overflow-y: auto;
-}
-
-.sheetGrip {
-  display: block;
-  width: 40px;
-  height: 4px;
-  border-radius: var(--radius-full);
-  background: var(--color-lavender);
-  margin: 0 auto var(--space-4);
-}
-
-.sheetBody {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.sheetBody[data-center='true'] {
-  align-items: center;
-  text-align: center;
-}
-
-.sheetTitle {
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  font-weight: 800;
-  color: var(--color-indigo);
-  letter-spacing: -0.02em;
-  margin: 0;
-}
-
-.sheetSub {
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  color: var(--color-slate);
-  margin: 0;
-  line-height: 1.5;
-}
-
-.sheetSub strong { color: var(--color-indigo); font-weight: 700; }
-
-/* Inner layout for a reason chip — the native radio carries the contract
-   (name="dispute-reason") + accessible state; the PillChip provides the visual.
-   The radio is visually compact and removed from the tab order (the PillChip
-   group's roving tabindex owns keyboard navigation). */
-.reasonChipInner {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.reasonRadio {
-  width: 14px;
-  height: 14px;
-  accent-color: currentColor;
-  flex-shrink: 0;
-  pointer-events: none;
-}
-
-.customReason {
-  width: 100%;
-  border: 1.5px solid var(--color-lavender);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  color: var(--color-slate);
-  background: var(--color-white);
-  resize: vertical;
-  min-height: 80px;
-  line-height: 1.5;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.customReason:focus {
-  border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
-  outline: none;
-}
-
-.sheetActions {
-  display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  width: 100%;
-}
-
-/* Full-width primary CTA inside the sheet (mirrors SavePage primaryBtn). */
-.btnPrimaryWide {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-indigo);
-  color: var(--color-white);
-  border: none;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--text-base);
-  letter-spacing: -0.01em;
-  border-radius: var(--radius-full);
-  padding: 14px 20px;
-  min-height: 48px;
-  cursor: pointer;
-  touch-action: manipulation;
-  box-shadow: var(--shadow-lg);
-  transition: background 0.15s ease, transform 0.15s ease;
-}
-
-.btnPrimaryWide:disabled {
-  background: var(--color-lavender);
-  color: var(--color-gray);
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.btnPrimaryWide:active:not(:disabled) {
-  transform: scale(0.99);
-  background: var(--color-indigo-deep);
-}
-
-.btnPrimaryWide:focus-visible {
-  outline: 2px solid var(--color-indigo-soft);
-  outline-offset: 2px;
-}
-
 @media (max-width: 768px) {
   .summaryValue { font-size: var(--text-xl); }
   .primaryAmount { font-size: 1.375rem; }
@@ -926,9 +572,7 @@
   .progressFill,
   .cycleChev,
   .primaryCard,
-  .attentionRow,
-  .cycleHead,
-  .btnPrimaryWide {
+  .cycleHead {
     transition: none;
   }
   .primaryCard:hover {

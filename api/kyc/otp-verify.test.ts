@@ -136,4 +136,20 @@ describe('POST /api/kyc/otp-verify', () => {
     expect(res.body).toEqual({ code: 'method_not_allowed' });
     expect(res.headers.Allow).toBe('POST');
   });
+
+  it('sets Cache-Control: no-store on the success path (B13)', async () => {
+    const req = buildReq({ body: { phone: '+256701234567', code: '1234' } });
+    const res = buildRes();
+    const pending = handler(req, res);
+    await vi.advanceTimersByTimeAsync(700);
+    await pending;
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
+
+  it('sets Cache-Control: no-store on the 405 path (B13)', async () => {
+    const req = buildReq({ method: 'DELETE' });
+    const res = buildRes();
+    await handler(req, res);
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
 });

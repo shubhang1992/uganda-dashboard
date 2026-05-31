@@ -119,4 +119,32 @@ describe('POST /api/kyc/id-ocr', () => {
     expect(res.body).toEqual({ code: 'method_not_allowed' });
     expect(res.headers.Allow).toBe('POST');
   });
+
+  // This route returns identity PII (name, NIN, DOB), so no-store matters most
+  // here. Assert it on the success, 400, and 405 paths (B13).
+  it('sets Cache-Control: no-store on the success (PII) path (B13)', async () => {
+    const req = buildReq({ body: { front: 'front-token', back: 'back-token' } });
+    const res = buildRes();
+    const pending = handler(req, res);
+    await vi.advanceTimersByTimeAsync(2200);
+    await pending;
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
+
+  it('sets Cache-Control: no-store on the 400 path (B13)', async () => {
+    const req = buildReq({ body: { back: 'back-token' } });
+    const res = buildRes();
+    const pending = handler(req, res);
+    await vi.advanceTimersByTimeAsync(2200);
+    await pending;
+    expect(res.statusCode).toBe(400);
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
+
+  it('sets Cache-Control: no-store on the 405 path (B13)', async () => {
+    const req = buildReq({ method: 'GET' });
+    const res = buildRes();
+    await handler(req, res);
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
 });

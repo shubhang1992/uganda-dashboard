@@ -37,7 +37,7 @@ Sign-in flow: Role Select → (Distributor Sub-select if applicable) → Phone E
 | Create Branch | Full | Multi-step form: Branch Details → Admin Details → Review |
 | View Agents | Full | All ~500+ agents, list + detail slide-in |
 | View Subscribers | Full | All ~30,000 subscribers, list + detail slide-in |
-| Commission Panel | Full | Home, agents list, agent detail, subscribers, disputed, settlement requests |
+| Commission Panel | Full | Home (rate card + Total/Settled/Outstanding summary + pending dues with Branch⇄Agent toggle + Download template + Upload settlement + settlement history), agents list, agent detail, subscribers |
 | Reports Panel | Full | All 11 reports |
 | Settings Panel | Full | Profile + password |
 | AI Data Assistant | Full | Bottom card row chat widget |
@@ -57,12 +57,8 @@ Sign-in flow: Role Select → (Distributor Sub-select if applicable) → Phone E
 | Create branch | Create | Any district |
 | Create agent | Create | Any branch (via branch dashboard pattern, but accessible from distributor too) |
 | View agent commissions | Read | All agents |
-| Set commission rate | Update | Global |
-| Settle commissions (individual) | Update | Any due commission |
-| Settle commissions (bulk/agent/all) | Update | Any scope |
-| Approve disputed commission | Update | Any disputed commission |
-| Reject disputed commission | Update | Any disputed commission |
-| Bulk approve/reject | Update | Multiple commissions |
+| Set commission rate | Update | Global (flat rate-per-subscriber) |
+| Apply settlement (template upload) | Update | Any agent's due commissions (`apply_settlement` → flips `due → paid`, records a settlement batch, notifies agent + branch) |
 | Update own profile | Update | Own user |
 | Change own password | Update | Own user |
 | Search entities | Read | All entities (regions, districts, branches, agents) |
@@ -115,10 +111,8 @@ Sign-in flow: Role Select → (Distributor Sub-select if applicable) → Phone E
 | View own agents | Read | Own branch's agents |
 | View own subscribers (via agents) | Read | Own branch's subscribers |
 | Create agent | Create | Own branch |
-| View agent commissions | Read | Own branch's agents |
-| Settle commissions | Update | Own branch's due commissions |
-| Approve disputed commission | Update | Own branch's disputed commissions |
-| Reject disputed commission | Update | Own branch's disputed commissions |
+| View own commissions + settlement history | Read | Own branch (read-only — branch no longer reviews/holds/settles; settlement is distributor-only via the upload flow) |
+| View notifications | Read | Own branch's `commission_settled` notifications (notification bell) |
 | Update own profile | Update | Own user |
 | Change own password | Update | Own user |
 
@@ -239,20 +233,19 @@ All slide-in panels use `splitMode={true}`:
 ### Pages/Views Accessible
 | View | Access | Notes |
 |------|--------|-------|
-| Home | Full | `PortfolioPulseCard` (cadence-aware next-payout) + `CoPilotWidget` |
+| Home | Full | `PortfolioPulseCard` + `CoPilotWidget` |
 | Onboard (4-stage flow) | Full | Awareness check → KYC (reuses signup STEPS) → Schedule → Done |
 | Subscribers list | Scoped | Own subscribers only; search + sort + active/dormant filter |
 | Subscriber detail | Scoped | KYC pill + KPIs + schedule + sparkline + products |
 | Subscriber schedule edit | Scoped | Reuses `ContributionSettingsForm` |
 | Analytics | Scoped | Recharts demographics + saving habits + onboarding velocity from agent's portfolio |
-| Commissions home | Scoped | Payout schedule (with cadence editor) + earned/owed cards + Past cycles + Needs Attention |
-| Commissions sub-views | Scoped | `/commissions/:view` ∈ `{earned, owed, confirm, disputes}` |
+| Commissions home | Scoped | Earned (`paid`, grouped by paid month) + Owed (`due`) cards |
+| Commissions sub-views | Scoped | `/commissions/:view` ∈ `{earned, owed}` (confirm + disputes removed) |
 | Settings | Full | Profile + password (password change activates with backend) |
 
 ### Data Scope
 - **Visibility:** Own agent record + own subscribers + own commissions
 - **No access to:** Other agents, branch-level data, or network data
-- **Settlement cadence:** Persisted in `localStorage['upensions_agent_settlement_cadence']` (will move to server-owned config when backend lands).
 
 ### Actions (CRUD)
 | Action | Permission | Scope |
@@ -260,19 +253,14 @@ All slide-in panels use `splitMode={true}`:
 | View own subscribers | Read | Own subscribers (`useAgentSubscribers`) |
 | Onboard new subscriber | Create | Under own agent ID (full 9-step KYC + schedule capture) |
 | Update subscriber's schedule | Update | Own subscribers (`useUpdateSubscriberSchedule` — optimistic + rollback over the agent's portfolio array) |
-| View own commissions | Read | `useAgentCommissionDetail` |
-| Edit payout cadence | Update | Local agent setting |
-| Confirm commission receipt | Update | Own paid commissions (`useAgentConfirmCommission` — maker-checker counterpart to admin settle) |
-| Dispute a commission | Create | Own commissions (`useDisputeCommission`) |
-| Withdraw a dispute | Update | Own disputed commissions (`useWithdrawDispute`) |
+| View own commissions | Read | `useAgentCommissionDetail` (Earned / Owed only) |
+| View notifications | Read | Own `commission_settled` notifications (notification bell) |
+| Mark notifications read | Update | Own notifications (`useMarkNotificationsRead` → `mark_notifications_read`) |
 | Update own profile | Update | Own user |
 | Run analytics over portfolio | Read | Own subscribers (client-side derivation, no separate endpoint) |
 
 ### Commission Interaction
-The `agentConfirmed` field on commissions exists specifically for this role:
-- After distributor/branch admin settles a commission (status → 'paid'), the agent sees it as pending confirmation
-- Agent confirms receipt → `agentConfirmed = true`
-- This is a maker-checker pattern: admin pays, agent confirms
+The agent is now a pure observer of commissions. Lines auto-generate as `due` on a subscriber's first contribution and flip to `paid` when the distributor applies a settlement upload. There is no confirm-receipt step and no dispute flow (both removed in `0029_commission_simplify.sql`); the agent is simply notified via the bell when their dues are settled.
 
 ---
 
@@ -292,7 +280,7 @@ The `agentConfirmed` field on commissions exists specifically for this role:
 | User Management | High | CRUD for all user accounts across all roles |
 | Entity Management | High | Create/edit/deactivate regions, districts, branches |
 | Commission Configuration | High | Set/modify commission rates, approve rate changes |
-| Audit Log | Medium | Track all mutations (settlements, disputes, user changes) |
+| Audit Log | Medium | Track all mutations (settlements, user changes) |
 | System Settings | Medium | Platform configuration, feature flags |
 | All Reports | Medium | Access to all 11 reports with no scope restrictions |
 | KYC Verification Queue | Medium | Review and approve KYC submissions |
@@ -320,9 +308,9 @@ The `agentConfirmed` field on commissions exists specifically for this role:
 
 | Role | Entity Visibility | Commission Visibility | Report Scope |
 |------|------------------|----------------------|--------------|
-| distributor | All entities, all levels (including read of own `distributors` row + update of own row) | All commissions | All 11 reports, network-wide |
-| branch | Own branch + own agents + own subscribers (+ read-only of the singleton `distributors` row for attribution) | Own branch's commissions | 8 reports, branch-scoped |
-| agent | Own record + own subscribers (+ read-only of the singleton `distributors` row) | Own commissions (read + confirm + dispute) | Client-side analytics over own portfolio |
+| distributor | All entities, all levels (including read of own `distributors` row + update of own row) | All commissions (set rate + apply settlement uploads) | All 11 reports, network-wide |
+| branch | Own branch + own agents + own subscribers (+ read-only of the singleton `distributors` row for attribution) | Own branch's commissions (read-only) | 8 reports, branch-scoped |
+| agent | Own record + own subscribers (+ read-only of the singleton `distributors` row) | Own commissions (read-only — Earned / Owed) | Client-side analytics over own portfolio |
 | subscriber | Own record only (+ read-only of the singleton `distributors` row) | None | 5 own-account reports (transactions, contributions, withdrawals, insurance, annual) |
 | employer (planned) | Own org's employees | None | Own org reports |
 | admin (planned) | All entities, all levels | All commissions | All reports, all scopes |

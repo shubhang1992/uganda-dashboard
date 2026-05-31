@@ -749,41 +749,20 @@ Object.values(REGIONS).forEach((region) => {
 }
 
 // ─── COMMISSIONS ────────────────────────────────────────────────────────────
-// Commission rate + the network-wide settlement cadence. The cadence is owned
-// by the distributor admin (not per-agent any more): it controls when a
-// settlement RUN opens and which commissions get bundled into it.
+// Commission rate paid per onboarded subscriber. Phase 2 of the commission
+// simplification collapsed the lifecycle to two states: `due → paid`.
 //
 // Status enum:
-//   due       — earned, not yet in a run
-//   in_run    — assigned to an open run, awaiting branch sign-off
-//   held      — branch held this line; drops out of the current run, returns
-//               to `due` for the next one
-//   disputed  — flagged by agent or branch
-//   released  — distributor released the run; money transferred externally,
-//               agent has not yet acknowledged
-//   confirmed — agent has acknowledged receipt (final state)
-//   rejected  — voided permanently
+//   due   — earned, not yet settled
+//   paid  — distributor settled it (a settlement batch flipped it to paid)
 export const COMMISSION_CONFIG = {
   ratePerSubscriber: 5000,        // UGX per subscriber
-  cadence: 'monthly-first',        // weekly-friday | biweekly-friday | monthly-first
-  nextRunDate: '2026-05-01',       // computed on first cadence change at runtime
 };
 
-// Sentinel run IDs: one already-released run for last cycle, one currently-open
-// run for the active cycle (relative to MOCK_NOW = 2026-05-01).
-const RUN_RELEASED_ID = 'r-2026-03';
-const RUN_OPEN_ID = 'r-2026-04';
-
-const _runOpenWindow = { start: new Date(2026, 3, 1), end: new Date(2026, 3, 30, 23, 59, 59) };
-const _runReleasedWindow = { start: new Date(2026, 2, 1), end: new Date(2026, 2, 31, 23, 59, 59) };
-
-const COMMISSION_DISPUTE_REASONS = [
-  'Subscriber denies onboarding',
-  'Duplicate commission entry',
-  'Incorrect commission amount',
-  'Subscriber KYC incomplete',
-  'Agent ID mismatch',
-];
+// Window boundary used only to keep a realistic mix of due/paid in the demo
+// data: commissions whose due date already passed are mostly settled (`paid`);
+// recent / future ones are still outstanding (`due`).
+const _settledBefore = new Date(2026, 3, 1); // 2026-04-01
 
 // Generate commission records tied to agents + subscribers
 // A commission is created when a subscriber makes their first contribution.
@@ -811,71 +790,25 @@ Object.values(AGENTS).forEach((agent) => {
     const dueDate = new Date(firstContribDate.getTime() + 30 * 86400000);
     const dueDateStr = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
 
+    const amount = COMMISSION_CONFIG.ratePerSubscriber;
     const statusRoll = rand();
-    let status;
+    let status = 'due';
     let paidDate = null;
-    let runId = null;
     let txnRef = null;
-    let disputeReason = null;
-    let previousStatus = null;
-    let disputedAt = null;
-    let disputedBy = null;
-    let holdReason = null;
+    let paidAmount = null;
 
-    if (dueDate > _runOpenWindow.end) {
-      // Far-future due date — pure backlog
-      status = 'due';
-    } else if (dueDate >= _runReleasedWindow.end) {
-      // Inside or just before the currently-open run window. Most are in_run
-      // awaiting branch review; a smaller slice is held (branch pushed back),
-      // and a small tail is disputed (raised against an in_run line).
-      if (statusRoll < 0.78) {
-        status = 'in_run';
-        runId = RUN_OPEN_ID;
-      } else if (statusRoll < 0.92) {
-        status = 'held';
-        holdReason = pick(['Subscriber details unclear', 'Awaiting paperwork', 'Duplicate suspected']);
-      } else {
-        status = 'disputed';
-        disputeReason = pick(COMMISSION_DISPUTE_REASONS);
-        previousStatus = 'in_run';
-        disputedAt = '2026-04-12';
-        disputedBy = rand() < 0.7 ? 'agent' : 'branch';
-      }
-    } else {
-      // Should have been paid in the previous (released) run.
-      if (statusRoll < 0.7) {
-        status = 'confirmed';
-        runId = RUN_RELEASED_ID;
-        txnRef = `MM-${String(commissionCounter).padStart(7, '0')}`;
-        const paidOffset = randInt(0, 5);
-        const pd = new Date(_runReleasedWindow.end.getTime() + (1 + paidOffset) * 86400000);
-        paidDate = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}-${String(pd.getDate()).padStart(2, '0')}`;
-      } else if (statusRoll < 0.9) {
-        status = 'released';
-        runId = RUN_RELEASED_ID;
-        txnRef = `MM-${String(commissionCounter).padStart(7, '0')}`;
-        const paidOffset = randInt(0, 5);
-        const pd = new Date(_runReleasedWindow.end.getTime() + (1 + paidOffset) * 86400000);
-        paidDate = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}-${String(pd.getDate()).padStart(2, '0')}`;
-      } else if (statusRoll < 0.97) {
-        // Post-payment dispute: agent claims they didn't receive the money;
-        // previousStatus carries the released-side state we'd restore on
-        // resolution. paidDate / runId / txnRef stay populated so the audit
-        // trail is intact through the dispute lifecycle.
-        status = 'disputed';
-        disputeReason = pick(COMMISSION_DISPUTE_REASONS);
-        previousStatus = 'released';
-        runId = RUN_RELEASED_ID;
-        txnRef = `MM-${String(commissionCounter).padStart(7, '0')}`;
-        const paidOffset = randInt(0, 5);
-        const pd = new Date(_runReleasedWindow.end.getTime() + (1 + paidOffset) * 86400000);
-        paidDate = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}-${String(pd.getDate()).padStart(2, '0')}`;
-        disputedAt = '2026-04-20';
-        disputedBy = 'agent';
-      } else {
-        status = 'rejected';
-      }
+    // Older lines (due date before the settled-before boundary) are mostly
+    // already settled; ~12% remain `due` so a backlog is always visible.
+    // Newer lines are mostly still `due`, with a small slice settled early so
+    // every branch/agent shows some paid history.
+    const isSettled = dueDate < _settledBefore ? statusRoll < 0.88 : statusRoll < 0.15;
+    if (isSettled) {
+      status = 'paid';
+      txnRef = `MM-${String(commissionCounter).padStart(7, '0')}`;
+      paidAmount = amount;
+      const paidOffset = randInt(1, 6);
+      const pd = new Date(dueDate.getTime() + paidOffset * 86400000);
+      paidDate = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}-${String(pd.getDate()).padStart(2, '0')}`;
     }
 
     COMMISSIONS[id] = {
@@ -884,24 +817,13 @@ Object.values(AGENTS).forEach((agent) => {
       branchId: agent.parentId,
       subscriberId: sub.id,
       subscriberName: sub.name,
-      amount: COMMISSION_CONFIG.ratePerSubscriber,
+      amount,
       status,
       firstContributionDate: firstContribStr,
       dueDate: dueDateStr,
       paidDate,
-      runId,
       txnRef,
-      disputeReason,
-      // Dispute lifecycle — populated when status === 'disputed';
-      // cleared on resolve / withdraw.
-      previousStatus,
-      disputedAt,
-      disputedBy,
-      resolvedAt: null,
-      resolvedBy: null,
-      outcomeReason: null,
-      // Held lines carry a reason set by the branch admin.
-      holdReason,
+      paidAmount,
     };
   });
 });
@@ -920,96 +842,98 @@ Object.values(COMMISSIONS).forEach((c) => {
   commissionsByBranch[c.branchId].push(c);
 });
 
-// Pre-index commissions by run
-export const commissionsByRun = {};
-Object.values(COMMISSIONS).forEach((c) => {
-  if (!c.runId) return;
-  if (!commissionsByRun[c.runId]) commissionsByRun[c.runId] = [];
-  commissionsByRun[c.runId].push(c);
-});
-
-// ─── SETTLEMENT RUNS ────────────────────────────────────────────────────────
-// A run bundles many commissions paid out together. Distributor opens runs on
-// the network cadence; each affected branch must sign off before distributor
-// can release funds.
+// ─── SETTLEMENT BATCHES ──────────────────────────────────────────────────────
+// A settlement batch records one distributor "pay this agent's due slice"
+// action: it stamps a chunk of an agent's `due` commissions `paid`. Seeded
+// batches are consistent with the paid commissions generated above (a couple
+// of demo agents whose history already shows a prior settlement). The
+// commissions service clones this array into a session-mutable store; new
+// settlements push onto that clone.
 //
-// branchReviews[branchId] = { state: 'pending' | 'approved', reviewedBy?, reviewedAt? }
-// run.state ∈ { draft | branch_review | ready_to_release | released | cancelled | settled }
-function _summariseRun(runId) {
-  const lines = commissionsByRun[runId] || [];
-  const totalAmount = lines.reduce((s, c) => s + c.amount, 0);
-  const branchIds = Array.from(new Set(lines.map((c) => c.branchId)));
-  return { totalAmount, commissionCount: lines.length, branchIds };
-}
-
-const _releasedSummary = _summariseRun(RUN_RELEASED_ID);
-const _openSummary = _summariseRun(RUN_OPEN_ID);
-
-// Released run — every branch already approved, money transferred.
-const _releasedReviews = {};
-_releasedSummary.branchIds.forEach((bid) => {
-  _releasedReviews[bid] = {
-    state: 'approved',
-    reviewedBy: 'Branch admin',
-    reviewedAt: '2026-03-30',
-  };
-});
-
-// Open run — sprinkle approval state across branches: ~30% approved, the rest
-// pending. Deterministic via the seeded RNG so demos look the same on reload.
-const _openReviews = {};
-_openSummary.branchIds.forEach((bid) => {
-  if (rand() < 0.3) {
-    _openReviews[bid] = {
-      state: 'approved',
-      reviewedBy: 'Branch admin',
-      reviewedAt: '2026-04-15',
-    };
-  } else {
-    _openReviews[bid] = { state: 'pending', reviewedBy: null, reviewedAt: null };
-  }
-});
-
-export const SETTLEMENT_RUNS = {
-  [RUN_RELEASED_ID]: {
-    id: RUN_RELEASED_ID,
-    cadence: 'monthly-first',
-    openedAt: '2026-03-01',
-    closesAt: '2026-03-31',
-    state: 'released',
-    totalAmount: _releasedSummary.totalAmount,
-    commissionCount: _releasedSummary.commissionCount,
-    branchReviews: _releasedReviews,
-    releasedAt: '2026-04-01',
-    releasedBy: 'Distributor admin',
-    notes: '',
+// Shape: { id, agentId, branchId, pendingTotal, paidAmount, txnRef, paidDate,
+//          lineCount, createdAt }
+export const SETTLEMENT_BATCHES = [
+  {
+    id: 'sb-seed-0001',
+    agentId: 'a-001',
+    branchId: AGENTS['a-001']?.parentId || null,
+    pendingTotal: 25000,
+    paidAmount: 25000,
+    txnRef: 'MM-SEED-0001',
+    paidDate: '2026-04-05',
+    lineCount: 5,
+    createdAt: '2026-04-05T09:12:00.000Z',
   },
-  [RUN_OPEN_ID]: {
-    id: RUN_OPEN_ID,
-    cadence: 'monthly-first',
-    openedAt: '2026-04-01',
-    closesAt: '2026-04-30',
-    state: 'branch_review',
-    totalAmount: _openSummary.totalAmount,
-    commissionCount: _openSummary.commissionCount,
-    branchReviews: _openReviews,
-    releasedAt: null,
-    releasedBy: null,
-    notes: '',
+  {
+    id: 'sb-seed-0002',
+    agentId: 'a-002',
+    branchId: AGENTS['a-002']?.parentId || null,
+    pendingTotal: 15000,
+    paidAmount: 15000,
+    txnRef: 'MM-SEED-0002',
+    paidDate: '2026-04-12',
+    lineCount: 3,
+    createdAt: '2026-04-12T14:30:00.000Z',
   },
-};
+];
 
-// Pre-index runs by branch (most recent first)
-export const runsByBranch = {};
-Object.values(SETTLEMENT_RUNS).forEach((run) => {
-  Object.keys(run.branchReviews).forEach((bid) => {
-    if (!runsByBranch[bid]) runsByBranch[bid] = [];
-    runsByBranch[bid].push(run);
-  });
-});
-Object.values(runsByBranch).forEach((arr) => {
-  arr.sort((a, b) => (b.openedAt || '').localeCompare(a.openedAt || ''));
-});
+// ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
+// Seed feed so Phase 3's notification panel is non-empty in mock mode. Targets
+// a couple of seeded agents plus their branches. recipientId = agentId for
+// 'agent' rows, branchId for 'branch' rows. Some left unread.
+//
+// Shape: { id, recipientRole: 'agent'|'branch', recipientId, type,
+//          title, body, amount, refId, isRead, createdAt }
+export const NOTIFICATIONS = [
+  {
+    id: 'ntf-seed-0001',
+    recipientRole: 'agent',
+    recipientId: 'a-001',
+    type: 'commission_settled',
+    title: 'Commission settled',
+    body: 'UGX 25,000 paid for 5 commissions.',
+    amount: 25000,
+    refId: 'sb-seed-0001',
+    isRead: false,
+    createdAt: '2026-04-05T09:12:00.000Z',
+  },
+  {
+    id: 'ntf-seed-0002',
+    recipientRole: 'branch',
+    recipientId: AGENTS['a-001']?.parentId || null,
+    type: 'commission_settled',
+    title: 'Commission settled',
+    body: 'UGX 25,000 paid for 5 commissions.',
+    amount: 25000,
+    refId: 'sb-seed-0001',
+    isRead: true,
+    createdAt: '2026-04-05T09:12:00.000Z',
+  },
+  {
+    id: 'ntf-seed-0003',
+    recipientRole: 'agent',
+    recipientId: 'a-002',
+    type: 'commission_settled',
+    title: 'Commission settled',
+    body: 'UGX 15,000 paid for 3 commissions.',
+    amount: 15000,
+    refId: 'sb-seed-0002',
+    isRead: false,
+    createdAt: '2026-04-12T14:30:00.000Z',
+  },
+  {
+    id: 'ntf-seed-0004',
+    recipientRole: 'branch',
+    recipientId: AGENTS['a-002']?.parentId || null,
+    type: 'commission_settled',
+    title: 'Commission settled',
+    body: 'UGX 15,000 paid for 3 commissions.',
+    amount: 15000,
+    refId: 'sb-seed-0002',
+    isRead: false,
+    createdAt: '2026-04-12T14:30:00.000Z',
+  },
+];
 
 // ─── LEVEL CONSTANTS & LOOKUP MAPS ───────────────────────────────────────────
 export const LEVELS = { COUNTRY: 'country', REGION: 'region', DISTRICT: 'district', BRANCH: 'branch', AGENT: 'agent', SUBSCRIBER: 'subscriber', DISTRIBUTOR: 'distributor' };

@@ -1,6 +1,6 @@
 // POST /api/chat
 //
-// JWT-optional. If a valid token is present, `req.user.role` decides the
+// JWT-optional. If a valid token is present, `req.user.app_role` decides the
 // flavor of the reply (agent vs subscriber vs distributor/branch). If not,
 // we fall back to the request body's `context` flag, then to the
 // 'subscriber' default.
@@ -8,9 +8,11 @@
 // Body: { message: string, context?: 'admin' | 'agent' | 'subscriber' }
 // Returns: { reply: string, suggestions?: string[] }
 //
-// IMPORTANT: the role flavor is derived from the JWT (req.user.role) first.
-// `context` from the body is only honored when the caller is unauthenticated
-// — body-supplied roles must never override JWT-verified ones.
+// IMPORTANT: the role flavor is derived from the JWT (req.user.app_role) first
+// — NOT `req.user.role`, which is always the literal Postgres role
+// `"authenticated"` (see api/_lib/jwt.ts). `context` from the body is only
+// honored when the caller is unauthenticated — body-supplied roles must never
+// override JWT-verified ones.
 //
 // Port of src/services/chat.js — keyword matching, no LLM. The
 // distributor/admin/branch flavor reuses the same data-aware sentences as
@@ -232,9 +234,11 @@ function flavorForRole(role: string | undefined): ChatContext {
 // semantics. If you need to revisit this, sync with the demo-flow owners
 // first and check the landing-page chat embeds before shipping.
 function resolveFlavor(req: MaybeAuthedRequest, bodyContext: unknown): ChatContext {
-  // JWT-verified role takes precedence — never trust body for an
-  // authenticated caller.
-  if (req.user?.role) return flavorForRole(req.user.role);
+  // JWT-verified application role takes precedence — never trust body for an
+  // authenticated caller. Read `app_role` (the application role), NOT `role`:
+  // the JWT `role` claim is hardcoded to the Postgres role `"authenticated"`
+  // (api/_lib/jwt.ts), so gating on it always falls through to 'subscriber'.
+  if (req.user?.app_role) return flavorForRole(req.user.app_role);
   if (bodyContext === 'admin' || bodyContext === 'agent' || bodyContext === 'subscriber') {
     return bodyContext;
   }

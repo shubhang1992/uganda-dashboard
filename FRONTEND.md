@@ -63,8 +63,10 @@ See `CLAUDE.md` for the slim entry index, `BACKEND.md` for SQL/RPC/RLS detail, a
   - `vendor-tanstack` — `@tanstack/*`
   - `vendor-router` — `/react-router`, `/@remix-run`
   - `vendor-react` — `react`, `react-dom`, `scheduler`, `use-sync-external-store`, `object-assign`, `js-tokens`, `loose-envify` (kept together to prevent `forwardRef` undefined errors after hash shifts)
+  - `vendor-xlsx` — `xlsx` (SheetJS); only pulled when the settlement template is downloaded/uploaded (lazy-imported by `src/utils/xlsx.js`)
   - Fallthrough `vendor` for everything else
 - `chunkSizeWarningLimit: 700` (kB) — headroom for recharts/leaflet routes.
+- `build.sourcemap: 'hidden'` (BL-29 / H-5) — emits `.map` files to `dist/assets/` **without** the trailing `//# sourceMappingURL=` comment, so the shipped bundle stays minified to end users (no source leak in devtools) while the maps remain on disk for a future symbolication step. **There is intentionally no `@sentry/vite-plugin` upload wired.** This is a demo platform, so the frontend Sentry init in `src/main.jsx` is **best-effort**: when `VITE_SENTRY_DSN` is set, captured frontend stack frames are **minified** (`index-abc123.js:1:48211`) unless these maps are manually uploaded to the Sentry release. The PII scrubber + `release`/`environment` tags (BL-26) are wired; only symbolication is deferred. The backend `@sentry/node` traces (`server/index.ts`) are unaffected — Node runs the unminified `dist-server/` output.
 - Vitest block embedded in the same config: `globals: true`, `environment: 'jsdom'`, `setupFiles: './src/test/setup.js'`, CSS modules use `classNameStrategy: 'non-scoped'`, `exclude: ['node_modules', 'dist', 'e2e/**']`.
 
 **No Tailwind.** All styling is CSS Modules (`.module.css` per component, 118 files). Global design tokens live in `src/index.css`; no component-library imports.
@@ -101,14 +103,17 @@ src/
   config/env.js                   API_BASE_URL, IS_DEV/PROD, public URLs
   constants/                      levels.js, savings.js, signup.js
   data/                           mockData (1060 lines), mockBranchDefs, mockGeo
-  services/                       11 files (api, supabaseClient, auth, entities,
-                                  commissions, subscriber, agent, kyc, chat,
-                                  search, contact) + __tests__/
-  hooks/                          8 hooks + __tests__/
+  services/                       api, supabaseClient, auth, entities,
+                                  commissions, notifications, subscriber, agent,
+                                  kyc, chat, search, contact, tickets + __tests__/
+  hooks/                          incl. useCommission, useNotifications,
+                                  useSubscriber, useAgent, useEntity, useTickets
+                                  + __tests__/
   contexts/                       8 contexts; SignupContext lives in src/signup/
-  utils/                          10 files — finance, currency, date, dashboard,
-                                  csv, csvDownload, phone, settlementCycle,
-                                  navigation, motion + __tests__/
+  utils/                          finance, currency, date, dashboard, csv,
+                                  csvDownload, phone, navigation, motion, xlsx,
+                                  settlement, commissionMonths, memberId, policies
+                                  + __tests__/ (settlementCycle removed in 0029)
   components/                     Landing + shell-level (Navbar, Hero, Footer,
                                   SignInModal, Modal, Toast, ErrorBoundary,
                                   SkeletonRow, EmptyState, …) +
@@ -373,39 +378,36 @@ Returns camelCase shape; Supabase rows are mapped via internal `mapRegion / mapD
 
 `getEntitySync` uses an in-memory `_syncCache` for synchronous lookups during URL routing (`DashboardNavContext.parsePath`). First navigation can return `null` until the cache warms — known low-impact behaviour (audit F27).
 
-### 5.5 `commissions.js` — commission state machine (1490 lines)
+### 5.5 `commissions.js` — commission settlement service
 
-**Reads:** `getNetworkCadence` · `setNetworkCadence(cadence)` · `getCommissionRate` · `setCommissionRate(amount)` · `getCommissionSummary(branchId)` · `getEntityCommissionSummary(level, entityId)` · `getAgentCommissionList(statusFocus)` · `getAgentCommissionDetail(agentId)` · `getCommissionSubscribers(agentId, filter)` · `getDisputedAgentList` · `getCurrentRun` · `getRunById(runId)` · `listRuns({ limit, branchId })` · `getRunForBranch(runId, branchId)` · `getRunBranchBreakdown(runId)` · `getRunBranchAgents(runId, branchId)`.
+The 0029–0031 simplification removed all run / dispute / hold / cadence / confirm functions. The service is now read-focused plus the upload-driven settlement path.
 
-`getEntityCommissionSummary` returns: `{ totalPaid, totalDue, totalDisputed, countPaid, countDue, countDisputed, total, countTotal, settlementRate }`.
+**Reads:** `getCommissionRate` · `setCommissionRate(amount)` · `getCommissionSummary(branchId)` · `getEntityCommissionSummary(level, entityId)` · `getAgentCommissionList(statusFocus)` (`statusFocus ∈ 'paid' | 'due' | null`) · `getAgentCommissionDetail(agentId)` · `getCommissionSubscribers(agentId, filter)` · `getPendingDuesByAgent()` · `getPendingDuesByBranch()` · `listSettlements({ limit, branchId, agentId })` (`agentId` scopes the feed to one agent; LIVE relies on RLS, but the agent CommissionsPage passes it so MOCK mode — no RLS — never leaks another agent's batches).
 
-**Run lifecycle mutations (Distributor + Branch):**
+`getEntityCommissionSummary` returns: `{ totalPaid, totalDue, countPaid, countDue, total, countTotal, settlementRate }` (no more disputed buckets).
 
-```js
-openRun() · cancelRun(runId)
-releaseRun(runId, { txnRefByAgent }) · releaseBranch(runId, branchId, { txnRefByAgent })
-branchApproveAll(runId, branchId) · markBranchReviewed(runId, branchId)
-branchApproveLine(commissionId) · branchHoldLine(commissionId, reason)
-branchDisputeLine(commissionId, reason)
-```
-
-**Dispute lifecycle:**
+**Settlement upload (Distributor):**
 
 ```js
-disputeCommission(commissionId, reason, by = 'agent')
-   // by='branch' → branchDisputeLine; by='agent' → calls `agent_dispute_line` RPC
-   // (added in migration 0014 — mirrors the branch RPC, returns the same `pending_branch` state).
-approveDispute(commissionId, { outcomeReason, resolvedBy })
-rejectDispute(commissionId, { outcomeReason, resolvedBy })
-bulkApproveDisputes(commissionIds, options)
-bulkRejectDisputes(commissionIds, options)
-withdrawDispute(commissionId)
-confirmCommission(commissionId)   // agent-side maker-checker
+applySettlementUpload({ rows, nonce })   // → apply_settlement(p_rows, p_nonce) RPC
+   // rows are the parsed, normalized settlement-template rows (whole-UGX Amount
+   // Paid + payment reference/date per agent). Allocates each agent's Amount Paid
+   // FIFO oldest-first across their `due` lines: covered lines flip to `paid`
+   // (paid_amount = the line's own amount), uncovered lines stay `due` (partial
+   // payments do NOT over-clear — INFORM-NOT-BLOCK). Records a settlement_batches
+   // row (paid_amount = allocated total) + emits formatted agent + branch
+   // notifications. `nonce` is a per-upload idempotency key (minted in
+   // CommissionPanel when the confirm modal opens) — a replay returns the prior
+   // result without re-recording.
+   // Returns { agentsSettled, linesSettled, totalPaid, skipped: [{ agentId, reason }] }.
+   // skip reasons: missing_agent_id | no_due | amount_too_low
 ```
 
-Both paths (`branch` and `agent`) are live. The state-machine RPC transition table is in BACKEND.md §11.
+The settlement RPC transition is documented in BACKEND.md §11. `setCommissionRate` still writes the flat rate-per-subscriber to `commission_config`; commissions continue to auto-generate as `due` at that rate on a subscriber's first contribution.
 
-`invalidateSummaryCache()` clears the legacy memo cache (now a no-op when Supabase is on; React Query is canonical).
+### 5.5b `notifications.js` — in-app notification feed (new)
+
+Backs the agent + branch notification bell. Exports `listNotifications` · `getUnreadCount` · `markNotificationsRead(ids)` (→ `mark_notifications_read` RPC) · `createCommissionSettledNotifications(...)`. In mock mode `createCommissionSettledNotifications` is the creator; against Supabase the notifications are written server-side inside the `apply_settlement` RPC, so the client only reads + marks-read.
 
 ### 5.6 `subscriber.js` — per-session mutation store + Supabase reads/writes
 
@@ -475,7 +477,7 @@ Wraps the `search_entities` PG RPC (pg_trgm fuzzy). Hardcoded max 8 results. Moc
 export async function submitContactForm({ name, email, message }): Promise<{ submitted: true, id?, demo? }>
 ```
 
-POSTs to `/api/contact`. Returns `demo: false` on real persistence, `demo: true` under the rollback flag (or in dev when `/api/*` is unreachable). The frontend does **not** strictly validate the `{ submitted, id }` shape — known low-priority drift (audit X13, §16b).
+POSTs to `/api/contact`. Returns `demo: false` on real persistence, `demo: true` under the rollback flag (or in dev when `/api/*` is unreachable). The frontend **validates** the response shape: a real-path (`demo: false`) response without a non-empty string `id` is treated as a backend contract violation and shows the `SUPPORT_EMAIL` fallback rather than claiming success (`pages/Contact.jsx:49-54`). Audit X13 (formerly open) is resolved.
 
 ---
 
@@ -560,11 +562,25 @@ Audit F13 flags `['breadcrumb', currentLevel, selectedIds]` — the `selectedIds
 
 ### 7.2 `useCommission.js`
 
-Read keys: `['commissionSummary', branchId]` · `['agentCommissions', focus]` · `['agentCommissionDetail', agentId]` · `['commissionSubscribers', agentId, filter]` · `['disputedAgents']` · `['entityCommissionSummary', level, entityId]` · `['currentRun']` · `['settlementRun', runId]` · `['settlementRunsList', { limit, branchId }]` · `['runForBranch', runId, branchId]` · `['runBranchBreakdown', runId]` · `['runBranchAgents', runId, branchId]` · `['networkCadence']` · `['commissionRate']`.
+The 0029–0031 simplification removed the run / dispute / cadence / confirm hooks and added the settlement-upload + pending-dues hooks.
 
-Mutations: `useApproveDispute` · `useRejectDispute` · `useBulkApproveDisputes` · `useBulkRejectDisputes` · `useWithdrawDispute` · `useBranchDisputeLine` · `useOpenRun` · `useCancelRun` · `useBranchApproveLine` · `useBranchHoldLine` · `useBranchApproveAll` · `useMarkBranchReviewed` · `useReleaseRun` · `useReleaseBranch` · `useConfirmCommission` · `useDisputeCommission` · `useSetCommissionRate` · `useSetNetworkCadence`.
+Read keys: `['commissionSummary', branchId]` · `['agentCommissions', focus]` · `['agentCommissionDetail', agentId]` · `['commissionSubscribers', agentId, filter]` · `['entityCommissionSummary', level, entityId]` · `['pendingDuesByAgent']` · `['pendingDuesByBranch']` · `['settlementsList', branchId, agentId, limit]` · `['commissionRate']`.
 
-**Invalidation rule:** every mutation calls `invalidateAll(queryClient)`, which invalidates the full set `ALL_RUN_KEYS + ALL_COMMISSION_KEYS`. Coarse but safe — commission state changes ripple through every summary. Phase 4H (commit `b0e54a4`) added a memoization layer on commission filter pipelines (`CommissionPanel.jsx` `agentList` / `disputedAgents`) to address F28.
+Mutations: `useApplySettlement` · `useSetCommissionRate`. (Plus the read hooks `usePendingDuesByAgent`, `usePendingDuesByBranch`, `useSettlementsList`.)
+
+**Invalidation rule:** the settlement / rate mutations call `invalidateAll(queryClient)`, which invalidates the full `ALL_COMMISSION_KEYS` set (now including the pending-dues + settlements keys). Coarse but safe — a settlement ripples through every summary. The memoization layer on `CommissionPanel.jsx` filter pipelines (Phase 4H `b0e54a4`, F28) is preserved.
+
+### 7.2b `useNotifications.js` (new)
+
+Backs the notification bell. Hooks: `useNotifications` (`['notifications']`), `useUnreadNotificationCount` (`['notificationsUnread']`), `useMarkNotificationsRead` (mutation). Scoped via `useAgentScope` / `useBranchScope`.
+
+**Single-source unread count + lockstep polling.** Both `useNotifications` (the feed list) and `useUnreadNotificationCount` (the badge) poll on the same `UNREAD_REFETCH_MS = 30_000` cadence, and the list query sets `refetchOnMount: 'always'` so opening the bell popover always shows the latest feed rather than a stale cached list. The two notification surfaces both read the unread count from the **same** `['notificationsUnread']` cache entry — `NotificationBell` via `useUnreadNotificationCount`, and `NotificationCenterCard` also via `useUnreadNotificationCount` (it does *not* count its own list) — so the header bell badge and the inline card badge can never disagree within a session. Cross-session delivery beyond polling is intentionally out of scope (realtime is off — CLAUDE.md §9 "Realtime publication").
+
+**Mock-clock anchor for relative-time labels (BL-37).** The feed rows show a compact relative date (`formatRelativeTime`). Components never import the mock store (§4.1), so the *service* supplies the clock: in mock mode `listNotifications` stamps each row with `nowAnchor = currentTime().toISOString()` (the mock seed `createdAt`s are anchored to `MOCK_NOW`); in Supabase mode `nowAnchor` is `undefined` because the real `createdAt`s are wall-clock instants and `formatRelativeTime`'s default (wall clock) is correct. Both `NotificationList` and `NotificationCenterCard` pass `formatRelativeTime(n.createdAt, { now: n.nowAnchor })`.
+
+**Bell a11y — non-modal disclosure, not a dialog (BL-21).** `NotificationBell`'s popover is a non-modal disclosure: the trigger `<button>` carries `aria-expanded` + `aria-controls` pointing at the labelled popover region (`role="region"` + `aria-label="Notifications"`, a `useId()`-generated id set only while open). It is **not** `role="dialog"` — that ARIA contract requires focus trap / initial-focus move / focus restore, which a lightweight popover does not implement (use the shared `Modal` primitive when those are needed). Escape + click-outside (shared `useOutsideClick`) close it.
+
+**Unread-count a11y is standardised on the badge (BL-39).** Both the bell and the inline card expose the unread count the same way: the visible count badge carries `aria-label="N unread"`, and the trigger/card heading keep a static accessible name ("Notifications"). The bell button is no longer the count carrier (it previously read `"Notifications, N unread"`).
 
 ### 7.3 `useSubscriber.js`
 
@@ -685,7 +701,7 @@ Routes are URL-driven drill levels (`/dashboard/regions/:id`, `/dashboard/distri
 | Sub-areas | `sidebar/`, `overview/`, `agent/` |
 | Navigation | Single main view; panels for everything else |
 
-Single main view `BranchOverview` (no drill-down). Side panels reuse Distributor `ViewAgents`, `CommissionPanel`, `ViewReports`, `Settings` plus local `CreateAgent`, rendered with `splitMode` (backdrop suppressed; main reflows). `BranchHealthScore.jsx` (533 lines) — score gauge 0–100 from weighted formula (retention 30%, avg/subscriber 25%, agent activity 25%, growth 20%) + insights + contribution chart + embedded AI chat. `BranchSettlementBanner` surfaces open settlement runs.
+Single main view `BranchOverview` (no drill-down). Side panels reuse Distributor `ViewAgents`, `CommissionPanel`, `ViewReports`, `Settings` plus local `CreateAgent`, rendered with `splitMode` (backdrop suppressed; main reflows). `BranchHealthScore.jsx` (533 lines) — score gauge 0–100 from weighted formula (retention 30%, avg/subscriber 25%, agent activity 25%, growth 20%) + insights + contribution chart + embedded AI chat; its header now mounts the `NotificationBell` (branch-scoped). The old `BranchSettlementBanner` was deleted in the 0029 commission simplification (no more settlement runs).
 
 **Mobile drawer (`BranchDashboardShell` + `BranchSidebar`).** On viewports ≤768px the sidebar is hidden and a `MobileHeader` + Framer slide-in `MobileDrawer` take over. The drawer slides in `x: '-100%' → 0` with `EASE_OUT_EXPO` over 320ms, locks body scroll, closes on Escape, and auto-closes on route change (a `useEffect` watching `location.pathname`). `BranchSidebar` accepts `mode='desktop'|'drawer'` + `onNavigate` — drawer mode renders a full-width vertical menu and invokes `onNavigate` after each item click so the drawer dismisses itself.
 
@@ -699,9 +715,9 @@ Single main view `BranchOverview` (no drill-down). Side panels reuse Distributor
 | Sub-areas | `shell/` (SideNav + BottomTabBar + PageHeader + AgentShell), `home/` (HomePage + widgets/), `onboarding/`, `pages/` |
 | Navigation | **All routed** — no Distributor-style drill panels |
 
-Home: 2 widgets — `PortfolioPulseCard` (dark indigo hero, count-up, cadence-aware "Next payout" via `cycleWindow()`) + `CoPilotWidget` (see §13). CommissionsPage owns cadence editor (`upensions_agent_settlement_cadence` localStorage) and **automatic settlement on cadence** — bulk "Request settlement" CTA was retired. KYC rule: every subscriber is KYC-verified by definition (no reminders, no filters).
+Home: 2 widgets — `PortfolioPulseCard` (dark indigo hero, count-up) + `CoPilotWidget` (see §13). The `SideNav` mounts the `NotificationBell` (agent-scoped) so settlement notifications surface in-app. KYC rule: every subscriber is KYC-verified by definition (no reminders, no filters).
 
-Agent-side dispute path is **live** — `useDisputeCommission` → `services/commissions.disputeCommission(_, _, by='agent')` → `agent_dispute_line` SECURITY DEFINER RPC (added in migration 0014). Earlier revisions of this doc incorrectly claimed the flow was unbuilt; that claim has been removed (X3).
+Agent-side disputes were **removed** in the 0029 commission simplification — the agent no longer files disputes or confirms receipt; commissions simply read as Earned (`paid`) or Owed (`due`). The distributor settles them via the upload flow (BACKEND.md §11) and the agent is notified.
 
 ### 9.4 Subscriber — `src/subscriber-dashboard/`
 
@@ -723,15 +739,15 @@ Agent-side dispute path is **live** — `useDisputeCommission` → `services/com
 
 | Surface | File | Pattern |
 | --- | --- | --- |
-| Distributor `CommissionPanel` | `src/dashboard/commissions/CommissionPanel.jsx` (1682 lines) | Slide-in. **Replace-model nav**: home → agents (filter paid/due) → agent-detail → subscribers \| disputed-agents → dispute-detail \| settlement-requests → request-detail. Single panel swaps content with breadcrumb trail. Accepts `splitMode` prop |
-| Branch reuse | imported into `BranchDashboardShell` with `splitMode` | Backdrop suppressed; reflows main beside |
-| Agent `CommissionsPage` | `src/agent-dashboard/pages/CommissionsPage.jsx` | Routed page. Home view: Payout-schedule card (cadence + next payout + total) with inline edit (Weekly Friday / Bi-weekly Friday / Monthly 1st), summary strip, Earned/Owed cards, Needs Attention (Confirm receipts + Disputes), Past cycles history grouped by paid month/week. Sub-routes `:view ∈ {earned, owed, confirm, disputes}` |
+| Distributor `CommissionPanel` | `src/dashboard/commissions/CommissionPanel.jsx` (rewritten, ~930 lines) | Slide-in. Distributor home = rate card + summary (Total / Settled / Outstanding — no Disputed) + pending dues (Branch⇄Agent toggle) + Download template + Upload settlement (with confirm modal) + settlement history. Keeps the agents → agent-detail → subscribers drill-downs. The disputed / dispute-detail / run-detail / run-branch-detail / branch-review / runs-history views were deleted. Accepts `splitMode` prop |
+| Branch reuse | imported into `BranchDashboardShell` with `splitMode` | Read-only: own branch's dues + settlement history. Backdrop suppressed; reflows main beside |
+| Agent `CommissionsPage` | `src/agent-dashboard/pages/CommissionsPage.jsx` | Routed page. Trimmed to Earned / Owed (Confirm + Disputes removed, dispute modal gone). Earned is grouped by paid month. |
 
-**Cadence persistence (agent):** `upensions_agent_settlement_cadence` in localStorage via helpers in `src/utils/settlementCycle.js`. `cycleWindow(cadence, ref)` → `{ start, end }`; `nextCycleEnd`, `formatCycleLabel`, `formatPayoutDate`, `groupCommissionsByPaidCycle` exported alongside `CADENCES` (`WEEKLY_FRIDAY`, `BIWEEKLY_FRIDAY`, `MONTHLY_FIRST`).
+**Settlement upload (distributor).** The distributor pays offline, downloads a per-agent Excel template prefilled with pending dues, fills Amount Paid + payment reference/date, and re-uploads. The frontend parses the sheet (`src/utils/xlsx.js` + `src/utils/settlement.js`), rounds each Amount Paid to whole UGX (canonical `parseAmount`), mints a per-upload idempotency nonce, and calls `applySettlementUpload({ rows, nonce })` → `apply_settlement` RPC, which FIFO-allocates the amount across the agent's `due` lines (covered lines → `paid`, uncovered stay `due`) and notifies the agent + branch. The confirm modal shows per-agent mismatches before applying (informs, does not block — a mismatch switches the confirm button to a cautionary amber "Settle despite mismatches" variant, BL-20); after applying, any server-skipped rows (`no_due`/`amount_too_low`) are held on a result panel that names each agent + a concrete fix rather than a count toast (BL-19). On a short-paid settlement the agent's commissions page raises an "Ask for reason" banner (a prefilled `mailto:` — demo affordance, not a backend integration). No cadence, no maker-checker, no agent confirmation.
 
-**Maker-checker:** Admin `settleCommissions` flips status `due → released`; agent confirms via `confirmCommission` (idempotent). Agent-side automatic settlement on cadence means the bulk "Request settlement" CTA has been retired; the service-layer `requestCommissionSettlement` is still exported for future server-driven cycle jobs.
+**Notifications.** Agent + branch get an in-app `commission_settled` notification when their dues are settled, surfaced via the `NotificationBell` (`src/components/notifications/NotificationBell.jsx` + `NotificationList.jsx`) mounted in the agent `SideNav` and the branch `BranchHealthScore` header. The distributor bell is not mounted.
 
-**State machine RPCs:** see BACKEND.md §11 for the full transition table (`due → in_run → [held|disputed] → released → confirmed/paid → rejected`).
+**Settlement RPC:** see BACKEND.md §11 for the two-state flow (`due → paid` via `apply_settlement`).
 
 ---
 
@@ -753,6 +769,8 @@ Agent-side dispute path is **live** — `useDisputeCommission` → `services/com
 | 8 | `consent` | `ConsentStep` — plain-English summary + timestamp | — |
 | 9 | `done` | `ActivatedStep` — success screen, member ID card | — |
 
+> **Terminal transition (`SignupPage.SignupFlow`).** `consent` is the last step `SignupFlow` renders: activating it does **not** advance `goNext()` into a `case 'done'` here — it `navigate('/signup/contribution')`, and `ContributionRoute` mounts its own `<SignupShell stepId="done">` for the completion ring + `ActivatedStep`. So `STEPS` keeps the trailing `'done'` entry (it is the contribution route's wired terminal **and** the end-of-flow sentinel for the agent `OnboardKycFlow`, which fires `onComplete()` when `next.id === 'done'`), and `SignupFlow.renderStep()` has no `case 'done'` by design — its `default: null` covers only that intentionally-unhandled id.
+
 **Terminal states** (outside the numbered sequence; freeze progress ring at `pausedAt`, hide back button):
 
 | id | Trigger | Component |
@@ -767,6 +785,7 @@ Agent-side dispute path is **live** — `useDisputeCommission` → `services/com
 - Lazy initialiser reads persisted state; ephemeral fields are re-nulled on rehydrate.
 - **`EPHEMERAL_KEYS = ['idFrontFile', 'idBackFile', 'selfieFile', 'idFrontPreviewUrl', 'idBackPreviewUrl', 'password']`** dropped on serialise. User re-uploads images on refresh; OCR result + phone + beneficiaries + consent + KYC outcomes survive. **Raw passwords MUST NOT touch localStorage** — `password` lives in memory only and is re-entered on remount if the user navigates back to `ReviewStep`.
 - `onboardingSessionId` minted via `crypto.randomUUID()` (fallback to time+random) — backend uses it to correlate every KYC stage.
+- **Wizard position (`stepId`) is persisted** (non-ephemeral string in `SignupContext`, written by `SignupFlow.goTo`) so a mid-flow refresh resumes the user's step instead of dropping to step 1 (BL-22). `SignupFlow` lazily rehydrates via `resolveResumeStep()`, which **clamps** the persisted step back to the first file-gated step (`id-upload`, then `liveness`, in flow order) whose re-uploadable File is now `null` after the refresh — preserving the documented "re-upload files on refresh" behaviour without letting the user land past an empty upload gate. Terminal screens (`agent`/`pending-review`) route via `setStepId` (not `goTo`) and are intentionally **not** persisted, so a refresh on a failure screen resumes the last real step that preceded it.
 - `isSignupComplete()` (in `src/signup/signupState.js`) returns `state.consent === true`. Used by `SignInModal.handleVerify` to send subscribers with incomplete KYC back to `/signup` instead of `/dashboard`.
 
 ### 11.2 Contribution sub-flow (`/signup/contribution`)
@@ -875,11 +894,11 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 
 ## 15. Shared utilities, constants & component subdirs
 
-### 15.1 `src/utils/` (12 files)
+### 15.1 `src/utils/` (15 files)
 
 | File | Key exports |
 | --- | --- |
-| `finance.js` | `MONTHLY_RATE`, `ANNUAL_RATE`, `FREQUENCY` constants, `FREQUENCY_LABEL`, `normalizeFrequency`, `periodsPerYear`, `monthlyEquivalent`, `parseAmount`, `calcFV`, `formatUGX`, `formatUGXExact`, `fmtShort`, `sliderToAmt`, `amtToSlider`. **Re-exports `EASE_OUT_EXPO` from `./motion` for backwards compat** (commit `fccfa7b`). |
+| `finance.js` | `MONTHLY_RATE`, `ANNUAL_RATE`, `FREQUENCY` constants, `FREQUENCY_LABEL`, `normalizeFrequency`, `periodsPerYear`, `monthlyEquivalent`, **`parseAmount`** (the canonical money parser — strips grouping/currency, parses decimals, **rounds to a whole-UGX integer**, returns `null` for blank/non-finite/non-positive; `settlement.js` imports this, no second copy), `calcFV`, `formatUGX`, `formatUGXExact`, `fmtShort`, `sliderToAmt`, `amtToSlider`. **Re-exports `EASE_OUT_EXPO` from `./motion` for backwards compat** (commit `fccfa7b`). |
 | `motion.js` | `EASE_OUT_EXPO = [0.16, 1, 0.3, 1]` — canonical Framer Motion easing curve (Phase 5D promoted from inline). Mirrors `--ease-out-expo` CSS token in `src/index.css`. |
 | `navigation.js` | `goBackOrFallback(navigate, fallback)` — extracted in Phase 4B (`bd5ea82`); reads `window.history.state.idx` to detect a poppable in-app entry. See §4.1. |
 | `currency.js` | `formatUGX(value, { compact? = true })` (compact `'UGX 1.2M'` / exact `'UGX 50,000'` — non-positive → `'—'` in compact mode, `'UGX 0'` in exact), `formatNumber(value)` (locale-grouped count `'12,345'` — non-finite → `'0'`), `formatUGXShort(value)` (axis-label form `'1.2M'`, no UGX prefix). Single source of truth for money rendering. |
@@ -888,9 +907,13 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 | `csv.js` | `toCsv(rows, columns)`, `toCsvStream(rows, columns)` (async-iterable), `MAX_ROWS`, `downloadCSV(filename, headers, rows)` legacy. RFC 4180 escape + OWASP formula-injection defence (`= + - @ \t \r` prefixed with `'` and quote-wrapped) + UTF-8 BOM. |
 | `csvDownload.js` | `downloadCsv({ rows, columns, filename, isMobile?, onCapNotice? })`, `dateStampedFilename(slug)`, `MOBILE_ROW_CAP = 5000`, `STREAM_THRESHOLD = MAX_ROWS`. Composes `toCsv` / `toCsvStream` with the browser-side Blob + hidden `<a download>` trigger; caps mobile exports at 5,000 rows and fires `onCapNotice({ capped, total })` so callers can surface a toast without coupling the util to a toast context. |
 | `phone.js` | `parseUGPhoneLocal`, `isValidUGPhone`, `formatUGPhone`, `toCanonicalUGPhone` (9-digit local, valid prefixes `70/71/74/75/76/77/78`, canonical storage `+256XXXXXXXXX`) |
-| `settlementCycle.js` | `CADENCES`, `cadenceLabel`, `cadenceShortLabel`, `nextCycleEnd`, `cycleWindow`, `formatCycleLabel`, `formatPayoutDate`, `groupCommissionsByPaidCycle`. |
+| `xlsx.js` (new) | `downloadSheet(...)`, `parseSheet(...)`. Client-side Excel I/O; **lazy-imports** the `xlsx` (SheetJS) dependency so it only loads when a template is downloaded/uploaded (split into the `vendor-xlsx` chunk — see §1). `parseSheet` is **hardened before the bytes reach SheetJS** (B-Excel / BL-14 defense-in-depth): rejects files over **5 MB** (`MAX_UPLOAD_BYTES`) on the declared `.size` (never calls `arrayBuffer()` on an oversize file), validates extension (`.xlsx/.xls/.csv`) and a clearly-wrong MIME type (the input `accept` attr is a non-enforced hint), and passes `{ sheetRows: 50_000 }` (`MAX_PARSE_ROWS`) to `XLSX.read` to bound the row walk. Every rejection returns the same `{ rows: [], errors }` shape with a human-readable first error. The `xlsx` dependency is the **SheetJS-maintained CDN build** (`https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`, pinned in `package.json`), which carries the prototype-pollution + ReDoS fixes the abandoned npm `0.18.5` build never received (same API; clears the `npm audit` finding — BL-14). The parse-hardening above remains as defense-in-depth. |
+| `settlement.js` (new) | `SETTLEMENT_TEMPLATE_COLUMNS`, `REQUIRED_UPLOAD_COLUMNS` (`Agent ID` + `Amount Paid (UGX)` — the headers a row needs to settle), `buildTemplateRows(...)` (prefill the per-agent template from pending dues), `detectMissingColumns(rawRows)` (order-independent header-mapping check → `{ ok, missing, found }`; the panel surfaces "expected vs found" when a distributor renames/reorders headers, instead of an opaque per-row skip), `normalizeUploadedRows(...)` (parse + validate the re-uploaded sheet into `apply_settlement` rows — money via the canonical `parseAmount`), `formatSettlementNotificationBody(amount, lineCount)` (canonical "UGX 25,000 paid for N commissions." body, mirrored by the RPC), `SETTLEMENT_SKIP_REASONS` + `describeSkippedReason(reason)` (one `{ label, fix }` source of truth for every skip reason — client `missing_agent_id`/`no_amount` and server `no_due`/`amount_too_low` — so the confirm modal and the post-settlement result panel name each skipped agent with a concrete fix; BL-19). |
+| `commissionMonths.js` (new) | `groupByPaidMonth(...)` — buckets paid commissions by month for the agent Earned view. |
+| `settlementCycle.js` | **Deleted in the 0029 commission simplification** (along with its test) — cadence-based payout cycles no longer exist. |
 | `memberId.js` | `formatMemberId(phone)` — renders a subscriber's member ID from their phone (used on certificates / policy surfaces). |
 | `policies.js` | `derivePolicies(subscriber, { now, renewalOverrides })`, `derivePolicyStatus`, `synthesizeHealthPolicy`, `hashId`. Pure: builds the subscriber's insurance policy list (life from `insurance`, health synthesised deterministically by phone hash), computing `active`/`expired` from the renewal date. **Must NOT import mockData (§4.1)** — the service passes `now = currentTime()`. Consumed by `services/subscriber.js` (`attachPolicies`), `PoliciesPage`, and `PoliciesWidget`. |
+| `sentryScrub.js` (new) | `scrubEvent`, `scrubBreadcrumb`, `scrubValue`, `scrubString` — the frontend Sentry PII scrubber wired into `src/main.jsx`'s `beforeSend`/`beforeBreadcrumb` (BL-26 / H-4). Redacts Ugandan phone numbers, `role:phone` ids (the JWT `sub`), bearer tokens / JWTs, and password/auth fields from event messages, exception values, breadcrumbs, request data/headers, extra, contexts, and user. Pure (no Sentry import) so it unit-tests cleanly. **Intentionally identical to `server/sentryScrub.ts`** (the `@sentry/node` half) — separate build graphs, keep the two in sync. |
 
 **Frequency normalisation rule:** ALWAYS pass schedules through `normalizeFrequency(value)` — defends against legacy aliases (`half-yearly`, `halfYearly`, `semi-annually`, `semiAnnually`).
 
@@ -1146,7 +1169,7 @@ These are residual issues that survived the Phase 4–5 cleanup. Listed so anyon
 - **X6 (resolved)** — Phase 7A hard-fails on missing `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` in production builds (see §5.2).
 - **X11 / X17 (resolved at unit layer)** — every service mock branch now has Phase 2 unit tests (see §17).
 - **X12 (med)** — `useSubscriber.useSubscriberTransactions` keys `[id, filters]`; agent-side variants drop `filters`. Cross-context cache key drift.
-- **X13 (low)** — `pages/Contact.jsx` doesn't validate `{ submitted, id }` response shape from `/api/contact`.
+- **X13 (resolved)** — `pages/Contact.jsx:49-54` now validates the `/api/contact` response shape; a real-path response missing a non-empty `id` shows the support-email fallback instead of a false success.
 - **X15 (resolved)** — `src/services/api.js` now consumes `VITE_API_BASE_URL` from `src/config/env.js`. Post-Render-migration Vercel bakes the absolute URL into the bundle at build time (Production / Preview / Development scopes); local dev uses `http://localhost:3001/api`. See `BACKEND.md §2`.
 
 **Closed in this cleanup pass:**
@@ -1166,14 +1189,14 @@ These are residual issues that survived the Phase 4–5 cleanup. Listed so anyon
 - **F21** — 9 ad-hoc easing curves migrated to `EASE_OUT_EXPO` (Phase 5D `fccfa7b`).
 - **F25** — `--color-white` token introduced; indigo migration 658 → 223 (Phase 5E `56c4839`).
 - **F26** — CoPilotWidget intentional duplication documented (Phase 4I `f60bed1`, §13).
-- **X3** — stale agent-dispute "unbuilt" claim removed; the flow is fully built and ships against the `agent_dispute_line` SECURITY DEFINER RPC.
+- **X3 (now moot)** — the agent-dispute flow it once tracked was removed wholesale in the 0029 commission simplification; there is no longer a dispute path on either side.
 
 **Largest files** (lines only — candidates for extraction when next touched):
 
 | File | Lines |
 | --- | --- |
-| `src/dashboard/commissions/CommissionPanel.jsx` | 1682 |
 | `src/data/mockData.js` | 1060 |
+| `src/dashboard/commissions/CommissionPanel.jsx` | ~930 (rewritten in the 0029 simplification, down from 1682) |
 | `src/dashboard/branch/ViewBranches.jsx` | 979 |
 | `src/dashboard/sidebar/Sidebar.jsx` | 618 |
 | `src/dashboard/overlay/OverlayPanel.jsx` | 569 |
@@ -1200,25 +1223,26 @@ These are residual issues that survived the Phase 4–5 cleanup. Listed so anyon
 | `src/services/__tests__/contact.test.js` | `submitContactForm` real + demo branches (Phase 2D `9bf8914`) |
 | `src/services/__tests__/search.test.js` | `searchEntities` real + mock (Phase 2D `9bf8914`) |
 | `src/services/__tests__/supabaseClient.test.js` | Singleton + token rotation + 401 propagation (Phase 2D `9bf8914`) |
-| `src/services/__tests__/commissions.test.js` | Commission service: rate, summary, agent list/detail, run lifecycle, dispute flow |
+| `src/services/__tests__/commissions.test.js` | Commission service: rate, summary, agent list/detail, pending dues, settlement-upload (`applySettlementUpload`) + settlements list |
 | `src/services/__tests__/entities.test.js` | Entity reads + writes, branch/agent create, breadcrumb |
 | `src/hooks/__tests__/useEntity.test.js` | React Query wiring + optimistic-rollback semantics (Phase 2E `ec72ffc`); canonical scaffold — see §8 |
-| `src/hooks/__tests__/useCommission.test.js` | Read keys + 18 mutations + `invalidateAll` (Phase 2E `ec72ffc`) |
+| `src/hooks/__tests__/useCommission.test.js` | Read keys (incl. pending dues + settlements) + `useApplySettlement` / `useSetCommissionRate` + `invalidateAll` |
 | `src/hooks/__tests__/useSubscriber.test.js` | 7 reads + 7 mutations + `invalidateSubscriber` (Phase 2E `ec72ffc`) |
 | `src/hooks/__tests__/useAgent.test.js` | `useAgentSubscribers` + `useUpdateSubscriberSchedule` invalidation (Phase 2E `ec72ffc`) |
 | `src/hooks/useDebouncedValue.test.js` | Fake timers; `delayMs` normalization; cancellation |
 | `src/utils/__tests__/csvDownload.test.js` | Mobile row cap + cap-notice callback + Blob shape (Phase 2F `021570d`) |
-| `src/utils/__tests__/settlementCycle.test.js` | All cadences + `cycleWindow` + `groupCommissionsByPaidCycle` (Phase 2F `021570d`) |
+| `src/utils/__tests__/settlement.test.js` | `buildTemplateRows` + `normalizeUploadedRows` (template build / parse). The old `settlementCycle.test.js` was deleted with `settlementCycle.js` in the 0029 simplification. |
 | `src/utils/__tests__/phone.test.js` | UG phone parse/format/validate/canonicalise |
+| `src/utils/__tests__/sentryScrub.test.js` | Sentry PII scrubber — phone / `role:phone` id / JWT / Bearer / password redaction across event + breadcrumb shapes, cycle + depth guards (BL-26 / H-4) |
 | `src/utils/__tests__/dashboard.test.js` | `getInitials`, `getTrend`, `perfLevel` |
-| `src/utils/__tests__/finance.test.js` | Frequency normalisation, `parseAmount`, `calcFV`, `formatUGX*`, slider helpers |
+| `src/utils/__tests__/finance.test.js` | `parseAmount` (grouping / currency-prefix / decimal-rounds-to-integer-UGX / negative-and-zero → `null`), `formatUGX`, `fmtShort` |
 | `src/utils/__tests__/currency.test.js` | `formatUGX`, `formatNumber`, `formatUGXShort` edge cases |
 | `src/utils/__tests__/date.test.js` | All `formatDate` variants + `'—'` fallback |
 | `src/utils/csv.test.js` | RFC 4180 + OWASP formula-injection defence |
 | `src/components/Modal.test.jsx` | Portal, focus trap, Escape, backdrop dismiss, scroll lock |
 | `src/test/jwt-claim-contract.test.js` | JWT claim shape contract |
 
-**40 test files, 707 passing tests at last sync.** The earlier T2 / T5 / T6 gaps are closed at the unit layer. The E2E suite (Playwright) still owns happy-path regression coverage; see `.claude/skills/qa.md`.
+**46 test files, 766 passing tests at last sync** (`npm test`). The earlier T2 / T5 / T6 gaps are closed at the unit layer. The E2E suite (Playwright) still owns happy-path regression coverage; see `.claude/skills/qa.md`.
 
 **Coverage script.** `npm run test:coverage` is wired in `package.json` (Phase 2G `3002c14`) and reads the coverage config from the embedded Vitest block in `vite.config.js`. **`@vitest/coverage-v8` is currently NOT installed** — run `npm i -D @vitest/coverage-v8` to enable coverage reports. The script will fail with a clear "missing dependency" message until then.
 

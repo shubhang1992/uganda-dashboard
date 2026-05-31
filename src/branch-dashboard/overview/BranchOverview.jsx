@@ -7,7 +7,7 @@ import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import BranchHealthScore from './BranchHealthScore';
 import OperationsSection from './OperationsSection';
-import BranchSettlementBanner from './BranchSettlementBanner';
+import NotificationCenterCard from '../../components/notifications/NotificationCenterCard';
 import styles from './BranchOverview.module.css';
 
 // Panel widths in split mode → used to compute the overview's right padding
@@ -87,11 +87,15 @@ export default function BranchOverview() {
         split={splitState}
       />
 
+      {branchId && (
+        <div className={styles.notifyWrap}>
+          <NotificationCenterCard role="branch" entityId={branchId} />
+        </div>
+      )}
+
       <div className={styles.opsWrap}>
         <OperationsSection agents={agents} commissionSummary={commissionSummary} metrics={metrics} />
       </div>
-
-      <BranchSettlementBanner />
     </div>
   );
 }

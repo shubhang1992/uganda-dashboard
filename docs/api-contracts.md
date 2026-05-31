@@ -139,31 +139,22 @@ The frontend authenticates to Supabase as `authenticated` and calls `SECURITY DE
 | `get_top_branch` | `p_level text, p_entity_id text` | `{ name, contribution } \| null` | Highest-contribution branch under the given scope. |
 | `get_breadcrumb` | `p_level text, p_ids jsonb` | `Array<{ level, id, name }>` | Path from country down to the currently-selected entity. |
 | `search_entities` | `p_q text` | `Array<{ id, name, level, label, parentId }>` (max 8) | Top-bar entity search across regions/districts/branches/agents. |
-| `get_commission_summary` | `p_branch_id text \| null` | Summary row (totals + counts by status) | Commission KPI cards. |
-| `get_entity_commission_summary` | `p_level text, p_entity_id text` | Summary row | Per-entity commission breakdown (drill-down overlays). |
-| `get_agent_commission_detail` | `p_agent_id text` | Agent-level detail object (paid + due transactions, subscriber portfolio) | Agent drawer in commission panel. |
-| `get_run_branch_breakdown` | `p_run_id text` | Per-branch settlement run breakdown | Run review UI in commission panel. |
+| `get_commission_summary` | `p_branch_id text \| null` | `{ totalCommissions, totalPaid, totalDue, countTotal, countPaid, countDue }` | Commission KPI cards. |
+| `get_entity_commission_summary` | `p_level text, p_entity_id text` | `{ totalPaid, totalDue, countPaid, countDue, total, countTotal, settlementRate }` | Per-entity commission breakdown (drill-down overlays). |
+| `get_agent_commission_detail` | `p_agent_id text` | Agent-level detail object (`{ …, totalPaid, totalDue, paidTransactions[], dueTransactions[] }`; paid lines expose `paidAmount`) | Agent drawer in commission panel. |
 
-### 3.2 Write RPCs (state machine)
+> These three read RPCs were re-emitted in `0029_commission_simplify.sql` in slimmed paid/due-only form — the disputed/run buckets were dropped.
 
-Every write to the commission state machine goes through one of these. The state graph is `due → in_run → [held \| disputed] → released → confirmed/paid → rejected (terminal)`. See `BACKEND.md §10` for the full diagram and trigger logic.
+### 3.2 Write RPCs (settlement + notifications)
+
+The maker-checker commission state machine was removed in `0029`. There is one transition (`due → paid`) and it goes through `apply_settlement`. See `BACKEND.md §11` for the flow.
 
 | RPC | Args | Effect |
 | --- | --- | --- |
-| `open_run` | — | Opens a new settlement run; returns the new `run_id`. |
-| `cancel_run` | `p_run_id text` | Cancels an open run. |
-| `release_run` | `p_run_id text` | Releases all lines in the run for agent confirmation. |
-| `release_branch` | `p_run_id text, p_branch_id text` | Releases lines for a specific branch within a run. |
-| `branch_approve_all` | `p_run_id text` | Bulk-approve all due lines for the branch in this run. |
-| `mark_branch_reviewed` | `p_run_id text` | Mark branch's review of the run as complete. |
-| `branch_approve_line` | `p_commission_id text` | Approve a single commission line. |
-| `branch_hold_line` | `p_commission_id text, p_hold_reason text` | Put a line on hold pending investigation. |
-| `branch_dispute_line` | `p_commission_id text, p_dispute_reason text` | Mark a line as disputed (branch-initiated). |
-| `agent_dispute_line` | `p_commission_id text, p_dispute_reason text` | Mark a line as disputed (agent-initiated — maker-checker counterpart). |
-| `approve_dispute` | `p_commission_id text, p_outcome_reason text?` | Resolve a dispute in the agent's favour. |
-| `reject_dispute` | `p_commission_id text, p_outcome_reason text` | Resolve a dispute against the agent (terminal `rejected`). |
-| `withdraw_dispute` | `p_commission_id text` | Agent withdraws their own dispute. |
-| `agent_confirm_commission` | `p_commission_id text` | Agent confirms receipt of payment (closes the maker-checker loop). |
+| `apply_settlement` | `p_rows jsonb, p_nonce text` | Distributor-only (signature changed in **0032**). Allocates each agent's whole-UGX-rounded `amountPaid` FIFO oldest-first across that agent's `due` lines: covered lines flip to `paid` (`paid_amount = own amount`/`paid_date`/`txn_ref`), uncovered lines stay `due` (INFORM-NOT-BLOCK partial). Records a `settlement_batches` row (`paid_amount` = allocated total), emits agent + branch `commission_settled` notifications (formatted body). `p_nonce` is a per-upload idempotency key — a replay returns the prior result (`settlement_uploads` ledger) without re-recording. Skip reasons: `missing_agent_id`, `no_due`, `amount_too_low`. Returns `{ agentsSettled, linesSettled, totalPaid, skipped: [{ agentId, reason }] }`. |
+| `mark_notifications_read` | `p_ids text[]` | Owner-scoped (agent / branch). Sets `is_read = TRUE` on the caller's own notification rows. |
+
+The dropped RPCs (`open_run`, `cancel_run`, `release_run`, `release_branch`, `branch_approve_all`, `mark_branch_reviewed`, `branch_approve_line`, `branch_hold_line`, `branch_dispute_line`, `agent_dispute_line`, `approve_dispute`, `reject_dispute`, `withdraw_dispute`, `agent_confirm_commission`, `get_run_branch_breakdown`) no longer exist.
 
 ### 3.3 Other write RPCs
 
@@ -173,13 +164,13 @@ Every write to the commission state machine goes through one of these. The state
 | `create_subscriber_from_agent_onboard` | (named args) | Same shape as above but invoked from the agent's onboard flow; differs in audit trail. |
 | `upsert_nominees` | `(p_subscriber_id text, p_pension jsonb, p_insurance jsonb)` | Replaces pension / insurance nominee lists; atomically validates share-sum invariants. |
 
-See `supabase/migrations/0002_rpc_functions.sql`, `0004_commission_run_rpcs.sql`, `0014_signup_phone_and_agent_dispute.sql`, `0024_upsert_nominees.sql` for the canonical PL/pgSQL.
+See `supabase/migrations/0002_rpc_functions.sql`, `0024_upsert_nominees.sql`, `0029_commission_simplify.sql` (slimmed commission reads), and `0031_notifications.sql` (`apply_settlement`, `mark_notifications_read`) for the canonical PL/pgSQL.
 
 ---
 
 ## 4. PostgREST reads (RLS-governed)
 
-Reads of tables like `subscribers`, `subscriber_balances`, `transactions`, `claims`, `withdrawals`, `nominees`, `insurance`, `commissions`, `settlement_runs`, `agent_referrals`, `entities`, etc. happen directly via the `supabase-js` query builder (`supabase.from('subscribers').select(...)`).
+Reads of tables like `subscribers`, `subscriber_balances`, `transactions`, `claims`, `withdrawals`, `nominees`, `insurance`, `commissions`, `settlement_batches`, `notifications`, `agent_referrals`, `entities`, etc. happen directly via the `supabase-js` query builder (`supabase.from('subscribers').select(...)`). (`settlement_runs` / `settlement_run_branch_reviews` were dropped in `0029`.)
 
 Every table has RLS enabled. Policies read `auth.jwt() ->> 'app_role'` (the application role) plus `auth.jwt() ->> '<role>Id'` to scope rows. Defer to:
 
@@ -194,12 +185,7 @@ Writes are NEVER permitted directly through PostgREST — all writes flow throug
 
 ## 5. Realtime channels
 
-Supabase realtime is enabled on **three** tables only:
-- `commissions`
-- `settlement_runs`
-- `settlement_run_branch_reviews`
-
-Realtime is intentionally OFF for `transactions`, `subscribers`, `subscriber_balances` (high-churn, low-value-for-UI). See migration `0025_drop_realtime_publication.sql`.
+Supabase realtime is **off for all `public.*` tables**. `0025_drop_realtime_publication.sql` removed the original `commissions` / `settlement_runs` / `settlement_run_branch_reviews` publication (zero `.channel()` subscribers), and the new `settlement_batches` + `notifications` tables (0030/0031) are not published either — the notification bell polls via React Query. Cross-laptop demo sync relies on React Query staleTime + manual invalidation.
 
 ---
 
@@ -208,10 +194,10 @@ Realtime is intentionally OFF for `transactions`, `subscribers`, `subscriber_bal
 | Surface | Count | Where defined |
 | --- | --- | --- |
 | API routes | 14 | `api/**/*.ts` (excl. `_lib/`, `*.test.ts`) |
-| Migrations | 28 | `supabase/migrations/*.sql` |
-| RPCs (read) | 8 | `0002_rpc_functions.sql`, `0018_entity_metrics_rollup.sql`, `0020_entity_metrics_rollup_v3.sql` |
-| RPCs (state machine) | 14 | `0004_commission_run_rpcs.sql`, `0014_signup_phone_and_agent_dispute.sql`, `0021_commission_rpcs_app_role.sql` |
+| Migrations | 0001–0031 | `supabase/migrations/*.sql` |
+| RPCs (read) | 7 | `0002_rpc_functions.sql`, `0020_entity_metrics_rollup_v3.sql`, slimmed commission reads in `0029_commission_simplify.sql` |
+| RPCs (settlement / notification) | 2 | `0031_notifications.sql` (`apply_settlement`, `mark_notifications_read`) — replaced the 14 commission state-machine RPCs dropped in `0029` |
 | RPCs (other write) | 3 | `0002_rpc_functions.sql`, `0024_upsert_nominees.sql` |
-| Tables with realtime | 3 | `0025_drop_realtime_publication.sql` |
+| Tables with realtime | 0 | publication empty post-`0025`; `settlement_batches` / `notifications` not published |
 
 For runtime detail (env vars, auth flow, JWT shape, trigger logic, the `app_role` vs `role` trap), open `BACKEND.md`. For role × capability questions, open `docs/role-permissions.md`. For the legacy aspirational REST design, open `docs/archive/api-contracts-2024-original.md`.

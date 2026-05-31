@@ -50,7 +50,7 @@ export default function OperationsSection({ agents = [], commissionSummary }) {
   const [sortKey, setSortKey] = useState('contributions');
   const [tab, setTab] = useState('commissions');
 
-  const { totalPaid = 0, totalDue = 0, totalDisputed = 0, settlementRate = 0 } = commissionSummary || {};
+  const { totalPaid = 0, totalDue = 0, settlementRate = 0 } = commissionSummary || {};
 
   const sorted = useMemo(() => sortAgents(agents, sortKey), [agents, sortKey]);
   const maxVal = sorted.length ? (getVal(sorted[0], sortKey) || 1) : 1;
@@ -74,10 +74,9 @@ export default function OperationsSection({ agents = [], commissionSummary }) {
   }, [agents]);
 
   const ageMax = Math.max(...ageData, 1);
-  const commTotal = totalPaid + totalDue + totalDisputed || 1;
+  const commTotal = totalPaid + totalDue || 1;
   const paidPct = (totalPaid / commTotal) * 100;
   const duePct = (totalDue / commTotal) * 100;
-  const disputedPct = (totalDisputed / commTotal) * 100;
 
   function openAgent(agentId) {
     closeAllPanels();
@@ -266,9 +265,6 @@ export default function OperationsSection({ agents = [], commissionSummary }) {
                 {totalDue > 0 && <motion.div className={styles.stackedSegment} data-type="due"
                   initial={{ width: 0 }} animate={{ width: `${duePct}%` }}
                   transition={{ duration: 0.7, delay: 0.3, ease: EASE_OUT_EXPO }} />}
-                {totalDisputed > 0 && <motion.div className={styles.stackedSegment} data-type="disputed"
-                  initial={{ width: 0 }} animate={{ width: `${disputedPct}%` }}
-                  transition={{ duration: 0.7, delay: 0.4, ease: EASE_OUT_EXPO }} />}
               </div>
 
               <div className={styles.commissionStats}>
@@ -281,11 +277,6 @@ export default function OperationsSection({ agents = [], commissionSummary }) {
                   <span className={styles.statDot} data-type="due" />
                   <span className={styles.statLabel}>Due</span>
                   <span className={styles.statValue}>{formatUGX(totalDue)}</span>
-                </div>
-                <div className={styles.commissionStat}>
-                  <span className={styles.statDot} data-type="disputed" />
-                  <span className={styles.statLabel}>Disputed</span>
-                  <span className={styles.statValue}>{formatUGX(totalDisputed)}</span>
                 </div>
               </div>
             </motion.div>

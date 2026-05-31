@@ -341,8 +341,14 @@ export default function ViewAgents({ splitMode = false }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [viewAgentsOpen, handleClose]);
 
-  useOutsideClick(regionDropOpen, () => setRegionDropOpen(false), [regionBtnRef]);
-  useOutsideClick(sortDropOpen, () => setSortDropOpen(false), [sortBtnRef]);
+  // Memoise the refs arrays + close callbacks so useOutsideClick doesn't tear
+  // down + re-add its document listeners on every render while a dropdown is open.
+  const regionOutsideRefs = useMemo(() => [regionBtnRef], []);
+  const sortOutsideRefs = useMemo(() => [sortBtnRef], []);
+  const closeRegionDrop = useCallback(() => setRegionDropOpen(false), []);
+  const closeSortDrop = useCallback(() => setSortDropOpen(false), []);
+  useOutsideClick(regionDropOpen, closeRegionDrop, regionOutsideRefs);
+  useOutsideClick(sortDropOpen, closeSortDrop, sortOutsideRefs);
 
   function handleSelectAgent(agent) { setSelectedAgent(agent); setView('detail'); }
   function handleBack() {

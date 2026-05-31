@@ -2,7 +2,8 @@
  * Universal Pensions Uganda — Phase 1 Step 3: Supabase seed script.
  *
  * Materializes the full mockData hierarchy (regions → … → commissions →
- * settlement runs → demo personas) into a Supabase Postgres DB.
+ * settlement batches + notifications → demo personas) into a Supabase
+ * Postgres DB.
  *
  * Usage:
  *   1. Add SUPABASE_DB_URL=postgres://... to .env.local (use the connection
@@ -40,7 +41,6 @@ const {
   SUBSCRIBERS,
   COMMISSIONS,
   COMMISSION_CONFIG,
-  SETTLEMENT_RUNS,
   DISTRICTS,
 } = mockData;
 
@@ -221,7 +221,6 @@ async function main() {
   const districts = Object.values(DISTRICTS);
   const regions = Object.values(REGIONS);
   const commissions = Object.values(COMMISSIONS);
-  const runs = Object.values(SETTLEMENT_RUNS);
 
   console.log(
     `  regions=${regions.length} districts=${districts.length} branches=${branches.length} ` +
@@ -759,43 +758,17 @@ async function main() {
       ]
     );
 
-    // ── settlement_runs (parents of commissions.run_id FK) ─────────────────
-    console.log('• settlement_runs…');
-    await bulkInsert(
-      client,
-      'settlement_runs',
-      [
-        { name: 'id', type: 'text' },
-        { name: 'cadence', type: 'text' },
-        { name: 'opened_at', type: 'timestamptz' },
-        { name: 'closes_at', type: 'timestamptz' },
-        { name: 'state', type: 'settlement_run_state' },
-        { name: 'total_amount', type: 'numeric' },
-        { name: 'commission_count', type: 'integer' },
-        { name: 'released_at', type: 'timestamptz' },
-        { name: 'released_by', type: 'text' },
-        { name: 'notes', type: 'text' },
-      ],
-      [
-        runs.map((r) => r.id),
-        runs.map((r) => r.cadence),
-        runs.map((r) => toTimestamptz(r.openedAt)),
-        runs.map((r) => toTimestamptz(r.closesAt)),
-        runs.map((r) => r.state),
-        runs.map((r) => r.totalAmount ?? 0),
-        runs.map((r) => r.commissionCount ?? 0),
-        runs.map((r) => toTimestamptz(r.releasedAt)),
-        runs.map((r) => r.releasedBy ?? null),
-        runs.map((r) => r.notes ?? null),
-      ],
-      'id'
-    );
-
     // ── commissions ────────────────────────────────────────────────────────
-    // For the released run (r-2026-03): commissions in the 'confirmed',
-    // 'released', or 'disputed' (post-payment) state must carry paid_date +
-    // txn_ref so getRunBranchBreakdown.releasedAmount adds up.
+    // Phase 1 commission-flow simplification (migration 0029): the run /
+    // dispute / hold / confirm state machine is retired. commission_status is
+    // now just ('due','paid'). Map every legacy mockData status onto the two
+    // surviving states: released/confirmed → paid; everything else → due.
+    // `paid_amount` carries the amount for paid lines (NULL for due). run_id
+    // and all dispute/hold/confirm columns no longer exist on the table.
     console.log('• commissions…');
+    const COMMISSION_PAID_STATUSES = new Set(['released', 'confirmed']);
+    const commissionStatus = (c) =>
+      COMMISSION_PAID_STATUSES.has(c.status) ? 'paid' : 'due';
     await bulkInsert(
       client,
       'commissions',
@@ -810,13 +783,8 @@ async function main() {
         { name: 'first_contribution_date', type: 'date' },
         { name: 'due_date', type: 'date' },
         { name: 'paid_date', type: 'date' },
-        { name: 'run_id', type: 'text' },
         { name: 'txn_ref', type: 'text' },
-        { name: 'previous_status', type: 'commission_status' },
-        { name: 'dispute_reason', type: 'text' },
-        { name: 'disputed_at', type: 'timestamptz' },
-        { name: 'disputed_by', type: 'text' },
-        { name: 'hold_reason', type: 'text' },
+        { name: 'paid_amount', type: 'numeric' },
       ],
       [
         commissions.map((c) => c.id),
@@ -825,57 +793,121 @@ async function main() {
         commissions.map((c) => c.subscriberId),
         commissions.map((c) => c.subscriberName ?? null),
         commissions.map((c) => c.amount),
-        commissions.map((c) => c.status),
+        commissions.map(commissionStatus),
         commissions.map((c) => c.firstContributionDate ?? null),
         commissions.map((c) => c.dueDate ?? null),
-        commissions.map((c) => c.paidDate ?? null),
-        commissions.map((c) => c.runId ?? null),
-        commissions.map((c) => c.txnRef ?? null),
-        commissions.map((c) => c.previousStatus ?? null),
-        commissions.map((c) => c.disputeReason ?? null),
-        commissions.map((c) => toTimestamptz(c.disputedAt)),
-        commissions.map((c) => c.disputedBy ?? null),
-        commissions.map((c) => c.holdReason ?? null),
+        // Paid lines keep their paid_date; due lines have none.
+        commissions.map((c) => (commissionStatus(c) === 'paid' ? c.paidDate ?? null : null)),
+        commissions.map((c) => (commissionStatus(c) === 'paid' ? c.txnRef ?? null : null)),
+        commissions.map((c) => (commissionStatus(c) === 'paid' ? c.amount : null)),
       ],
       'id'
     );
 
-    // ── settlement_run_branch_reviews ──────────────────────────────────────
-    console.log('• settlement_run_branch_reviews…');
-    const reviewRunIds = [];
-    const reviewBranchIds = [];
-    const reviewStates = [];
-    const reviewBy = [];
-    const reviewAt = [];
-    const reviewReleasedAt = [];
-    for (const r of runs) {
-      for (const [bid, review] of Object.entries(r.branchReviews ?? {})) {
-        reviewRunIds.push(r.id);
-        reviewBranchIds.push(bid);
-        // mockData 'approved' maps to ENUM 'approved'; if the run is released,
-        // promote per-branch state to 'released' so query-side filtering
-        // (released runs show as fully closed out) lines up.
-        let state = review.state;
-        if (r.state === 'released' && state === 'approved') state = 'released';
-        reviewStates.push(state);
-        reviewBy.push(review.reviewedBy ?? null);
-        reviewAt.push(toTimestamptz(review.reviewedAt));
-        reviewReleasedAt.push(r.state === 'released' ? toTimestamptz(r.releasedAt) : null);
+    // ── settlement_batches + notifications (demo feed) ─────────────────────
+    // Seed a couple of historical settlement batches (and matching
+    // `commission_settled` notifications) so Supabase-mode demos show a
+    // non-empty feed without anyone having to run apply_settlement first. We
+    // target the default agent persona (a-001) and its branch, plus the
+    // northern-region agent (a-042), using a recent paid_date.
+    console.log('• settlement_batches + notifications…');
+    const seedBatches = [
+      {
+        id: 'sb-seed-0001',
+        agentId: 'a-001',
+        branchId: 'b-kam-015',
+        pendingTotal: 90000,
+        paidAmount: 90000,
+        txnRef: 'MM-SEED-0001',
+        paidDate: '2026-05-15',
+        lineCount: 9,
+      },
+      {
+        id: 'sb-seed-0002',
+        agentId: 'a-042',
+        branchId: 'b-mba-290',
+        pendingTotal: 50000,
+        paidAmount: 50000,
+        txnRef: 'MM-SEED-0002',
+        paidDate: '2026-05-22',
+        lineCount: 5,
+      },
+    ];
+    await bulkInsert(
+      client,
+      'settlement_batches',
+      [
+        { name: 'id', type: 'text' },
+        { name: 'agent_id', type: 'text' },
+        { name: 'branch_id', type: 'text' },
+        { name: 'pending_total', type: 'numeric' },
+        { name: 'paid_amount', type: 'numeric' },
+        { name: 'txn_ref', type: 'text' },
+        { name: 'paid_date', type: 'date' },
+        { name: 'line_count', type: 'integer' },
+      ],
+      [
+        seedBatches.map((b) => b.id),
+        seedBatches.map((b) => b.agentId),
+        seedBatches.map((b) => b.branchId ?? null),
+        seedBatches.map((b) => b.pendingTotal),
+        seedBatches.map((b) => b.paidAmount),
+        seedBatches.map((b) => b.txnRef ?? null),
+        seedBatches.map((b) => b.paidDate ?? null),
+        seedBatches.map((b) => b.lineCount),
+      ],
+      'id'
+    );
+
+    // One notification per batch for the agent, plus one for its branch.
+    const seedNotifications = [];
+    for (const b of seedBatches) {
+      const body = `UGX ${b.paidAmount} paid for ${b.lineCount} commissions.`;
+      seedNotifications.push({
+        id: `ntf-seed-${b.id}-a`,
+        recipientRole: 'agent',
+        recipientId: b.agentId,
+        body,
+        amount: b.paidAmount,
+        refId: b.id,
+      });
+      if (b.branchId) {
+        seedNotifications.push({
+          id: `ntf-seed-${b.id}-b`,
+          recipientRole: 'branch',
+          recipientId: b.branchId,
+          body,
+          amount: b.paidAmount,
+          refId: b.id,
+        });
       }
     }
     await bulkInsert(
       client,
-      'settlement_run_branch_reviews',
+      'notifications',
       [
-        { name: 'run_id', type: 'text' },
-        { name: 'branch_id', type: 'text' },
-        { name: 'state', type: 'settlement_run_branch_review_state' },
-        { name: 'reviewed_by', type: 'text' },
-        { name: 'reviewed_at', type: 'timestamptz' },
-        { name: 'released_at', type: 'timestamptz' },
+        { name: 'id', type: 'text' },
+        { name: 'recipient_role', type: 'text' },
+        { name: 'recipient_id', type: 'text' },
+        { name: 'type', type: 'text' },
+        { name: 'title', type: 'text' },
+        { name: 'body', type: 'text' },
+        { name: 'amount', type: 'numeric' },
+        { name: 'ref_id', type: 'text' },
+        { name: 'is_read', type: 'boolean' },
       ],
-      [reviewRunIds, reviewBranchIds, reviewStates, reviewBy, reviewAt, reviewReleasedAt],
-      'run_id, branch_id'
+      [
+        seedNotifications.map((n) => n.id),
+        seedNotifications.map((n) => n.recipientRole),
+        seedNotifications.map((n) => n.recipientId),
+        seedNotifications.map(() => 'commission_settled'),
+        seedNotifications.map(() => 'Commission settled'),
+        seedNotifications.map((n) => n.body),
+        seedNotifications.map((n) => n.amount),
+        seedNotifications.map((n) => n.refId),
+        seedNotifications.map(() => false),
+      ],
+      'id'
     );
 
     // ── distributors ───────────────────────────────────────────────────────
@@ -1027,7 +1059,7 @@ async function main() {
     console.log(
       `Subscribers: ~${subscribers.length}, Agents: ~${agents.length}, ` +
         `Branches: ~${branches.length}, Commissions: ~${commissions.length}, ` +
-        `Runs: ${runs.length}, Personas: ${personas.length}`
+        `Personas: ${personas.length}`
     );
   } catch (err) {
     console.error('\n✗ Seed failed — rolling back:', err.message);

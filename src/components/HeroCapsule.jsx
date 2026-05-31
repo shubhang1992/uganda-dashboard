@@ -9,7 +9,7 @@ import styles from './HeroCapsule.module.css';
  * in-page navigation make it redundant; any `onBack` prop is now ignored.)
  *
  * Layout (top → bottom):
- *   [ (spacer)    ·   TITLE (centered)   ·   ⋮menu? ]
+ *   [ leadingSlot? / (spacer)  ·  TITLE (centered)  ·  trailingSlot? / ⋮menu? ]
  *   [ eyebrow? ]        small uppercase caption above the amount
  *   [ prefix amount ]   big white number (e.g. "UGX" + "4,820,000")
  *   [ subtitle? ]       muted supporting line
@@ -22,6 +22,12 @@ import styles from './HeroCapsule.module.css';
  * The ⋮ menu button defaults to a three-dot kebab with aria-label "More
  * options"; pass `menuIcon` (any node) and/or `menuLabel` to repurpose it
  * (e.g. a helpdesk/headset icon labelled "Get help").
+ *
+ * `leadingSlot` / `trailingSlot` let a caller inject an arbitrary node into the
+ * left / right top-bar cell (e.g. a notification bell, an inbox button). When
+ * present they replace the spacer / built-in menu button; each should keep the
+ * 44px footprint so the centered title stays optically centered. `trailingSlot`
+ * takes precedence over `onMenu`.
  *
  * Captions/eyebrow/subtitle use --color-on-indigo-muted (contrast-checked
  * ≥4.5:1 over the dome); the amount stays solid white. The amount line reserves
@@ -37,6 +43,8 @@ export default function HeroCapsule({
   onMenu,
   menuIcon,
   menuLabel = 'More options',
+  leadingSlot,
+  trailingSlot,
   variant = 'default',
   className = '',
   children,
@@ -45,10 +53,11 @@ export default function HeroCapsule({
   return (
     <header className={`${styles.hero} ${compact ? styles.compact : ''} ${className}`}>
       <div className={styles.topBar}>
-        {/* Left spacer keeps the title optically centered (back chevron removed). */}
-        <span className={styles.iconSpacer} aria-hidden="true" />
+        {/* Left cell: caller-supplied slot, else a spacer that keeps the title
+            optically centered (the back chevron was removed dashboard-wide). */}
+        {leadingSlot ?? <span className={styles.iconSpacer} aria-hidden="true" />}
         {title && <h1 className={styles.title}>{title}</h1>}
-        {onMenu ? (
+        {trailingSlot ?? (onMenu ? (
           <button type="button" className={styles.iconBtn} onClick={onMenu} aria-label={menuLabel}>
             {menuIcon ?? (
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
@@ -60,7 +69,7 @@ export default function HeroCapsule({
           </button>
         ) : (
           <span className={styles.iconSpacer} aria-hidden="true" />
-        )}
+        ))}
       </div>
 
       {!compact && (

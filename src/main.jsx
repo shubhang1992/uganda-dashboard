@@ -8,6 +8,7 @@ import { AuthProvider } from './contexts/AuthContext.jsx';
 import { ToastProvider } from './contexts/ToastContext.jsx';
 import ToastContainer from './components/Toast.jsx';
 import WarmupBanner from './components/WarmupBanner.jsx';
+import { scrubEvent, scrubBreadcrumb } from './utils/sentryScrub.js';
 import './index.css';
 import App from './App.jsx';
 
@@ -15,10 +16,23 @@ import App from './App.jsx';
 // leaves the bundle inert (no side effects, no network). When the DSN is
 // present we report unhandled errors + a small trace sample. The
 // ErrorBoundary's componentDidCatch also forwards into this when configured.
+//
+// PII hardening (BL-26 / H-4): `beforeSend`/`beforeBreadcrumb` run the shared
+// scrubber (`src/utils/sentryScrub.js`) which redacts Ugandan phone numbers,
+// `role:phone` ids (the JWT `sub`), bearer tokens / JWTs, and password fields.
+// `sendDefaultPii` stays explicitly false. `release`/`environment` tag events
+// to a build + scope. `release` is optional: it reads VITE_SENTRY_RELEASE if a
+// build wires it (e.g. to the commit SHA) — Vite only exposes VITE_*-prefixed
+// vars to `import.meta.env`, so platform SHAs aren't auto-available here.
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
     tracesSampleRate: 0.1,
+    sendDefaultPii: false,
+    environment: import.meta.env.MODE,
+    release: import.meta.env.VITE_SENTRY_RELEASE || undefined,
+    beforeSend: scrubEvent,
+    beforeBreadcrumb: scrubBreadcrumb,
   });
 }
 

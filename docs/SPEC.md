@@ -68,7 +68,7 @@ Universal Pensions is a digital long-term savings and pension platform designed 
 - **Real-world role:** Field worker who enrolls subscribers and collects contributions
 - **Why they use the platform:** Register subscribers, record collections, track commissions
 - **Key needs:** Guided workflows, fast mobile actions, commission visibility
-- **Status:** **Built** — routed mobile-first dashboard with PortfolioPulseCard, CoPilot, 4-stage Onboard flow, Subscribers list + detail + schedule edit, Recharts Analytics, cadence-aware Commissions with maker-checker confirm/dispute, and Settings.
+- **Status:** **Built** — routed mobile-first dashboard with PortfolioPulseCard, CoPilot, 4-stage Onboard flow, Subscribers list + detail + schedule edit, Recharts Analytics, a Commissions view that lists `due`/`paid` lines (with a NotificationBell for settlement notifications), and Settings.
 
 ### Platform Admin
 - **Real-world role:** System administrator at head office
@@ -155,46 +155,40 @@ Country (Uganda)
 
 ### 4.3 Commission Lifecycle
 
-**Current state:** Fully built — commission creation, settlement, disputes, and bulk operations are all functional.
+**Current state:** Built — a flat two-state `due → paid` flow. The earlier maker-checker design (settlement runs, branch review, holds, agent confirmation, disputes, cadence) was removed in the 0029–0031 simplification and no longer exists.
 
 **Complete flow:**
 
 ```
 1. Subscriber registers with an agent
 2. Subscriber makes first contribution
-   └── Commission created: status = "due"
-       amount = COMMISSION_CONFIG.ratePerSubscriber (5,000 UGX)
-       dueDate = firstContributionDate + 30 days
-3. Commission enters settlement queue
-   ├── Agent can request settlement (settlementRequested = true)
-   ├── Distributor/Branch Admin can settle:
-   │   └── status → "paid", paidDate set, agentConfirmed = false
-   │       └── Agent confirms receipt: agentConfirmed = true
-   └── Commission can be disputed:
-       └── status → "disputed", disputeReason set
-           ├── Admin approves dispute resolution:
-           │   └── status → "due" (re-enters queue)
-           └── Admin rejects:
-               └── status → "rejected" (voided, permanent)
+   └── Commission auto-created: status = "due"
+       amount = the distributor's flat rate-per-subscriber (e.g. 5,000 UGX)
+3. Distributor pays the agent OFFLINE (outside the platform)
+4. Distributor downloads a per-agent Excel template
+   (prefilled with that agent's pending "due" lines)
+5. Distributor fills in Amount Paid + payment reference + payment date,
+   then re-uploads the template
+6. apply_settlement(p_rows jsonb) RPC:
+   ├── flips that agent's "due" commissions → "paid" (records paid_amount)
+   ├── records a settlement_batches row (one per agent:
+   │   pending total, amount paid, txn ref, paid date, line count)
+   └── emits in-app notifications (type = commission_settled)
+       to the affected agent + branch (surfaced via NotificationBell)
 ```
 
+There are only two statuses: `due` and `paid` (the `commission_status` ENUM is now `('due','paid')`). There is no `disputed`, `rejected`, `held`, or run/review state.
+
 **Commission Rate:**
-- Flat fee per subscriber: currently 5,000 UGX
-- Configurable via `setCommissionRate()` — distributor admin can change it
+- Flat fee per subscriber, set by the distributor (e.g. 5,000 UGX)
+- Distributor sets/changes the flat rate-per-subscriber; commissions auto-generate as `due` at the configured rate when a subscriber makes their first contribution
 - UNCLEAR — confirm: Should rate changes apply retroactively to existing "due" commissions?
 
-**Settlement Operations:**
-- Settle individual commission by ID
-- Settle all due commissions for an agent
-- Settle all due commissions (optionally scoped to branch)
-- Bulk approve/reject multiple disputed commissions
-
-**Dispute Reasons (5 predefined):**
-1. Subscriber denies onboarding
-2. Duplicate commission entry
-3. Incorrect commission amount
-4. Subscriber KYC incomplete
-5. Agent ID mismatch
+**Settlement mechanics:**
+- Settlement is driven by the per-agent Excel download → offline pay → re-upload loop
+- `apply_settlement` is keyed per agent: it flips that agent's outstanding `due` lines to `paid` in one transaction
+- `mark_notifications_read` flips the read flag on settlement notifications
+- No individual/bulk approve, reject, or dispute operations remain
 
 ### 4.4 Withdrawal / Payout
 
@@ -364,9 +358,9 @@ Country (Uganda)
 ### By Role
 | Role | Can See | Can Modify |
 |------|---------|------------|
-| Distributor Admin | All entities at all levels | Create branches, settle/approve/reject commissions, set rates, own profile |
-| Branch Admin | Own branch, own agents, own subscribers | Create agents, settle/approve/reject own branch's commissions, own profile |
-| Agent (planned) | Own record, own subscribers, own commissions | Register subscribers, record collections, request settlement, confirm receipt |
+| Distributor Admin | All entities at all levels | Create branches, set the flat commission rate, settle commissions via the per-agent Excel upload (`apply_settlement`), own profile |
+| Branch Admin | Own branch, own agents, own subscribers | Create agents, view own branch's commissions, receive settlement notifications, own profile |
+| Agent (planned) | Own record, own subscribers, own commissions | Register subscribers, record collections, view own `due`/`paid` commissions, receive settlement notifications |
 | Subscriber (planned) | Own record only | Own profile, withdrawal requests |
 | Employer (planned) | Own organization's employees | Employee management, bulk contributions |
 | Admin (planned) | Everything | Everything (system configuration, user management) |
@@ -388,8 +382,7 @@ The frontend applies scoping via:
 |---------|--------------|-------------------|
 | OTP Authentication | Mock (`services/auth.js` returns any 6-digit code; throws structured `AuthError` for QA force-flags) | Real SMS OTP service + JWT token issuance. Errors must use the same `{ code, retryAfterSeconds? }` shape consumed by `OtpVerify`. |
 | Entity CRUD | Mock (in-memory) | REST API for all entity operations |
-| Commission Settlement | Mock (in-memory mutations); React Query optimistic-update + rollback pattern in place | Transactional settlement with payment integration |
-| Commission Disputes | Mock (status changes) | Dispute workflow with audit trail |
+| Commission Settlement | **Built** — `due → paid` via offline pay + per-agent Excel download/re-upload → `apply_settlement` RPC (records a `settlement_batches` row + notifies agent + branch). React Query invalidation in place. | Real payment integration (the actual payout is offline today) |
 | AI Chat Assistant | Mock (keyword matching) — six chat surfaces: distributor copilot, branch copilot, agent copilot, subscriber copilot, subscriber Help, subscriber↔agent DM | LLM integration (e.g., Claude API) with DB access, scoped to user's data visibility |
 | Search | Mock (client-side filter) | Server-side full-text search (Elasticsearch or PostgreSQL tsvector) |
 | Report Export (CSV) | **Wired** — `utils/csv.js` produces RFC 4180 + formula-injection-safe CSVs. Distributor TopBar + subscriber report views all export. | Server-side CSV generation needed for very large datasets (e.g. all 30K subscribers) but client pipeline is complete. |
@@ -469,7 +462,7 @@ These are things that could not be determined from the frontend code alone. The 
 4. **Is the Branch Health Score formula the real one?** It's implemented in both mockData.js and BranchHealthScore.jsx with specific weights. Was this designed by product, or is it a prototype approximation?
 5. **What are the withdrawal eligibility rules?** No withdrawal UI exists. Need: eligibility criteria, approval flow, disbursement method, penalties.
 6. **Can subscribers contribute before KYC is complete?** Mock data doesn't enforce this. What's the policy?
-7. **Is `rejected` a terminal state for commissions?** Can a rejected commission ever be reopened?
+7. **Is `paid` a terminal state for commissions?** The flow is now flat `due → paid` (no dispute/reject path). Once `apply_settlement` flips a line to `paid`, is there any correction/reversal path, or is `paid` final?
 
 ### Scoping & Multi-tenancy
 8. **Should distributor admin be scoped to a specific distributor?** Currently sees the entire network. If multiple distributors exist, each should only see their own.

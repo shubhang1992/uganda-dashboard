@@ -170,8 +170,27 @@ export default function AgentPage() {
   const reducedMotion = useReducedMotion();
   const { data: sub } = useCurrentSubscriber();
   const subId = sub?.id;
-  const { data: agent } = useSubscriberAgent(subId);
+  const {
+    data: agent,
+    isLoading: agentLoading,
+    isError: agentError,
+    error: agentErrorObj,
+    refetch: refetchAgent,
+  } = useSubscriberAgent(subId);
   const { addToast } = useToast();
+
+  // A resolved `agent` (vs `null`) drives both the perpetual-spinner guard below
+  // and the ticket routing: the create call carries the subscriber's LIVE agent
+  // assignment so the ticket reaches the real agent's inbox in Supabase mode
+  // (the mockData org chain doesn't mirror the live seed). `null` when no agent
+  // is assigned — the ticket still files (to branch/distributor oversight) but we
+  // don't claim it reached an agent.
+  const hasAgent = !!agent?.id;
+  // Show the spinner while either the subscriber OR its agent is still loading.
+  // The agent query is disabled (and reports isLoading=false) until subId exists,
+  // so the bare `agentLoading` flag would otherwise flash the "no agent" state
+  // before the subscriber resolves — guard with the missing subId too.
+  const loadingAgent = !subId || agentLoading;
 
   // Local view state mirrors HelpPage's list ⇄ thread idiom.
   const [view, setView] = useState('list'); // list | thread
@@ -189,7 +208,10 @@ export default function AgentPage() {
     refetch,
   } = useSubscriberTickets(subId);
 
-  const createTicket = useCreateTicket(subId);
+  const createTicket = useCreateTicket(
+    subId,
+    agent?.id ? { agentId: agent.id, branchId: agent.branchId ?? agent.parentId ?? null } : undefined,
+  );
 
   const counts = useMemo(() => {
     let open = 0;
@@ -216,8 +238,15 @@ export default function AgentPage() {
 
   const handleCreate = useCallback(
     async (payload) => {
-      await createTicket.mutateAsync(payload);
-      addToast('success', 'Your issue has been sent to your agent.');
+      // The created ticket carries the resolved routing. When an agent resolved,
+      // confirm it reached them; otherwise be honest — the issue is filed for
+      // the branch/distributor support team to pick up, not "sent to your agent".
+      const created = await createTicket.mutateAsync(payload);
+      if (created?.agentId) {
+        addToast('success', 'Your issue has been sent to your agent.');
+      } else {
+        addToast('success', "Your issue has been logged — our support team will pick it up.");
+      }
       setSheetOpen(false);
     },
     [createTicket, addToast],
@@ -240,10 +269,16 @@ export default function AgentPage() {
       />
 
       <div className={styles.body}>
-        {!agent ? (
+        {loadingAgent ? (
           <div className={styles.loading}>
             <span className={styles.spinner} aria-hidden="true" />
           </div>
+        ) : agentError ? (
+          <ErrorCard
+            title="We couldn't load your agent"
+            message={agentErrorObj}
+            onRetry={refetchAgent}
+          />
         ) : (
           <AnimatePresence mode="wait" initial={false}>
             {view === 'list' ? (
@@ -255,6 +290,7 @@ export default function AgentPage() {
                 exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
                 transition={{ duration: reducedMotion ? 0 : 0.3, ease: EASE_OUT_EXPO }}
               >
+                {hasAgent ? (
                 <section className={styles.profile}>
                   <div className={styles.profileTop}>
                     <span
@@ -324,6 +360,16 @@ export default function AgentPage() {
                     </dl>
                   )}
                 </section>
+                ) : (
+                  <section className={styles.noAgent} aria-live="polite">
+                    <div className={styles.noAgentTitle}>No agent assigned yet</div>
+                    <p className={styles.noAgentBody}>
+                      You don&rsquo;t have a personal agent assigned right now. You can
+                      still raise an issue below — our support team will pick it up and
+                      connect you with an agent.
+                    </p>
+                  </section>
+                )}
 
                 <section className={styles.tickets}>
                   <div className={styles.ticketsHead}>
@@ -370,7 +416,11 @@ export default function AgentPage() {
                       <EmptyState
                         kind="no-data"
                         title="No issues yet"
-                        body="Have a question for your agent? Raise an issue and they'll reply right here."
+                        body={
+                          hasAgent
+                            ? "Have a question for your agent? Raise an issue and they'll reply right here."
+                            : 'Have a question? Raise an issue and our support team will reply right here.'
+                        }
                         cta={{ label: 'Raise an issue', onClick: () => setSheetOpen(true) }}
                       />
                     )}
@@ -410,7 +460,7 @@ export default function AgentPage() {
               >
                 <TicketThread
                   ticketId={selectedTicketId}
-                  agentName={agent.name}
+                  agentName={agent?.name || 'Support'}
                   onBack={() => setView('list')}
                 />
               </motion.div>

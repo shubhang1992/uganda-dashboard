@@ -15,6 +15,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 const SIMULATED_LATENCY_MS = 2200;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Set once at the top so every response path (success + 4xx + 405) is
+  // uncacheable. This route returns identity PII (name, NIN, DOB) and must
+  // never be cached — same contract as agent-referral.ts (B13).
+  res.setHeader('Cache-Control', 'no-store');
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ code: 'method_not_allowed' });

@@ -10,8 +10,9 @@ import styles from './PageHeader.module.css';
  * The default variant renders the flat header (existing behaviour — unchanged).
  * `variant="hero"` renders the subscriber mobile <HeroCapsule> instead, so any
  * page can opt into the curved indigo dome cheaply. The hero-only props
- * (eyebrow/prefix/amount/statRow/onMenu) are ignored by the default variant.
- * Pass `showBack={false}` to suppress the back chevron on tab-root pages.
+ * (eyebrow/prefix/amount/statRow/onMenu/leadingSlot/trailingSlot) are ignored by
+ * the default variant. Pass `showBack={false}` to suppress the back chevron on
+ * tab-root pages.
  */
 export default function PageHeader({
   title,
@@ -27,6 +28,8 @@ export default function PageHeader({
   amount,
   statRow,
   onMenu,
+  leadingSlot,
+  trailingSlot,
 }) {
   const navigate = useNavigate();
   function handleBack() {
@@ -46,6 +49,8 @@ export default function PageHeader({
         statRow={statRow}
         onBack={showBack ? handleBack : undefined}
         onMenu={onMenu}
+        leadingSlot={leadingSlot}
+        trailingSlot={trailingSlot}
       />
     );
   }

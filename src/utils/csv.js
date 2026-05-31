@@ -103,7 +103,7 @@ export async function* toCsvStream(rows, columns) {
   if (!Array.isArray(columns) || columns.length === 0) {
     throw new TypeError('toCsvStream: columns must be a non-empty array');
   }
-  if (rows == null || typeof rows[Symbol.asyncIterator] !== 'function' && typeof rows[Symbol.iterator] !== 'function') {
+  if (rows == null || (typeof rows[Symbol.asyncIterator] !== 'function' && typeof rows[Symbol.iterator] !== 'function')) {
     throw new TypeError('toCsvStream: rows must be (async-)iterable');
   }
 

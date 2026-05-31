@@ -121,6 +121,58 @@ describe('tickets service — mutations', () => {
     await expect(createTicket(SUB, draft({ body: '  ' }))).rejects.toThrow();
   });
 
+  it('createTicket routes by the caller-supplied LIVE routing when the subscriber has no prior thread (BL-4)', async () => {
+    // A subscriber whose id is NOT in the frozen mockData chain (mirrors the live
+    // demo, where the live seed and mockData generate separate subscriber sets).
+    // The mockData chain would resolve to null; the live routing must win.
+    const ORPHAN = 's-orphan-live-routing';
+    const t = await createTicket(
+      ORPHAN,
+      draft(),
+      { agentId: AGENT, branchId: BRANCH },
+    );
+    expect(t.agentId).toBe(AGENT);
+    expect(t.branchId).toBe(BRANCH);
+
+    // It reaches the routed agent's inbox + that branch's oversight.
+    const agentList = await listTicketsForAgent(AGENT);
+    expect(agentList.some((x) => x.id === t.id)).toBe(true);
+    const branchList = await listTicketsForBranch(BRANCH);
+    expect(branchList.some((x) => x.id === t.id)).toBe(true);
+  });
+
+  it('createTicket does NOT dead-letter: with no routing AND an unknown subscriber it files with agentId=null (BL-4)', async () => {
+    // No live routing passed and the id isn't a mockData key → resolveRouting
+    // returns null. The ticket must still be created (so it surfaces in the
+    // distributor's unfiltered oversight, not silently lost) — and the caller can
+    // detect agentId===null to avoid a false "sent to your agent" success toast.
+    const ORPHAN = 's-orphan-null-agent';
+    const t = await createTicket(ORPHAN, draft());
+    expect(t.agentId).toBeNull();
+    expect(t.branchId).toBeNull();
+    expect(t.status).toBe(TICKET_STATUS.OPEN);
+
+    // Invisible to every agent + branch inbox, but visible to distributor oversight.
+    const distList = await listTicketsForDistributor(DISTRIBUTOR);
+    expect(distList.some((x) => x.id === t.id)).toBe(true);
+  });
+
+  it('createTicket prefers an existing thread assignment over caller routing (keeps a saver with one agent)', async () => {
+    // First ticket via the mock chain pins SUB to AGENT/BRANCH.
+    const first = await createTicket(SUB, draft());
+    expect(first.agentId).toBe(AGENT);
+
+    // A second ticket that passes DIFFERENT live routing still re-uses the
+    // subscriber's existing assignment — threads don't scatter across agents.
+    const second = await createTicket(
+      SUB,
+      draft({ subject: 'Second issue' }),
+      { agentId: 'a-999-different', branchId: 'b-999-different' },
+    );
+    expect(second.agentId).toBe(AGENT);
+    expect(second.branchId).toBe(BRANCH);
+  });
+
   it('sendMessage appends and bumps the recipient’s unread counter; throws on a blank body', async () => {
     const t = await createTicket(SUB, draft()); // unread.agent = 1
     const afterAgent = await sendMessage(t.id, { sender: SENDER_ROLE.AGENT, body: 'On it — checking now.' });

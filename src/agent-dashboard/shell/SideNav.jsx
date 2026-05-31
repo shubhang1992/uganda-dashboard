@@ -1,5 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAgentScope } from '../../contexts/AgentScopeContext';
+import NotificationBell from '../../components/notifications/NotificationBell';
 import logoWhite from '../../assets/logo-white.png';
 import styles from './SideNav.module.css';
 
@@ -79,6 +81,7 @@ const SECONDARY = [
 export default function SideNav() {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const { agentId } = useAgentScope();
 
   function handleLogout() {
     logout();
@@ -95,6 +98,11 @@ export default function SideNav() {
           height="56"
           className={styles.brandLogo}
         />
+        {agentId && (
+          <div className={styles.brandBell}>
+            <NotificationBell role="agent" entityId={agentId} align="left" />
+          </div>
+        )}
       </div>
 
       <div className={styles.group}>

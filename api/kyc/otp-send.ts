@@ -13,6 +13,11 @@ import { toCanonicalUGPhone } from '../_lib/phone.js';
 const SIMULATED_LATENCY_MS = 600;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Set once at the top so every response path (success + 4xx + 405) is
+  // uncacheable. KYC responses can carry verification state / PII and must
+  // never be cached — same contract as agent-referral.ts (B13).
+  res.setHeader('Cache-Control', 'no-store');
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ code: 'method_not_allowed' });

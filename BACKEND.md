@@ -56,8 +56,10 @@ The canonical template is `.env.local.example`. Three keys are public (`VITE_*` 
 | `VITE_API_BASE_URL` | Public (Vercel frontend, all 3 scopes) | `src/config/env.js` → `src/services/api.js` | Absolute backend URL baked into the bundle at Vite build time. Local: `http://localhost:3001/api`. Prod: `https://uganda-dashboard-api.onrender.com/api`. | Yes |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Server-only (Render)** | `api/_lib/supabase-admin.ts` | Admin client used by all Express routes (bypasses RLS) | Yes |
 | `SUPABASE_JWT_SECRET` | **Server-only (Render)** | `api/_lib/jwt.ts` | HS256 signing secret; same secret PostgREST uses to verify JWTs. **Copy verbatim from Supabase Dashboard → API → JWT Settings.** Do NOT regenerate during the Render migration (B21) — `withOptionalAuth` swallows verification errors and fails open. | Yes |
-| `SENTRY_DSN` | **Server-only (Render)** | `server/index.ts` | Optional. Sentry error aggregation (free 5k events/mo). | Yes (commented placeholder) |
-| `VITE_SENTRY_DSN` | Public (Vercel frontend, optional) | `src/main.jsx` | Same Sentry project, frontend-side capture. | Yes (commented placeholder) |
+| `SENTRY_DSN` | **Server-only (Render)** | `server/index.ts` | Optional. Sentry error aggregation (free 5k events/mo). Init is DSN-gated and runs a PII scrubber (`server/sentryScrub.ts`) via `beforeSend`/`beforeBreadcrumb`; `sendDefaultPii: false`. | Yes (commented placeholder) |
+| `VITE_SENTRY_DSN` | Public (Vercel frontend, optional) | `src/main.jsx` | Same Sentry project, frontend-side capture. Init runs the parallel scrubber (`src/utils/sentryScrub.js`); `sendDefaultPii: false`. | Yes (commented placeholder) |
+| `SENTRY_RELEASE` | Server-only (Render, optional) | `server/index.ts` | Optional Sentry `release` tag. Falls back to Render's auto-injected `RENDER_GIT_COMMIT`; unset → no `release`. | No |
+| `VITE_SENTRY_RELEASE` | Public (Vercel frontend, optional) | `src/main.jsx` | Optional Sentry `release` tag for the frontend (e.g. wired to a commit SHA at build). Vite only exposes `VITE_*` to `import.meta.env`, so a platform SHA must be re-exported under this name to reach the bundle; unset → no `release`. | No |
 | `SUPABASE_DB_URL` | **Local-only** | `scripts/seed-supabase.mjs` | Postgres pooler URL (port 6543) for `npm run seed` | Yes |
 | `PORT` | **Server-only (Render + local dev)** | `server/index.ts` | Express listen port. Render injects this automatically; local dev defaults to `3001`. | Yes |
 
@@ -81,6 +83,8 @@ These keys are read by the frontend but **missing from `.env.local.example`** (a
 - `api/_lib/jwt.ts` treats `SUPABASE_JWT_SECRET` as **raw UTF-8** (`new TextEncoder().encode(raw)`). PostgREST / GoTrue verify HS256 with the same UTF-8 byte interpretation; base64-decoding would mint tokens PostgREST rejects (`PGRST301`).
 - `api/_lib/supabase-admin.ts` and `api/_lib/jwt.ts` both hard-fail at first invocation if their env vars are missing (no deploy-time preflight — audit X14). Cold-boot 500s with a "X is not set" message are diagnostic.
 - `src/services/supabaseClient.js` falls back silently to `http://localhost:54321` / `'public-anon-key'` if the `VITE_*` keys are absent (audit X6); a misconfigured Vercel preview ships a broken-but-running app.
+- **Sentry PII scrubber (BL-26 / H-4).** Both Sentry inits (`server/index.ts` §0, `src/main.jsx`) run a `beforeSend`/`beforeBreadcrumb` scrubber that redacts Ugandan phone numbers, `role:phone` ids (the JWT `sub` / `users.id`), bearer tokens / JWTs, and password/auth fields from event messages, exception values, breadcrumbs, request data/headers, extra, contexts, and user. `sendDefaultPii` is explicitly `false`. The two scrubber modules (`server/sentryScrub.ts` for `@sentry/node`, `src/utils/sentryScrub.js` for `@sentry/react`) are **intentionally identical** and must be kept in sync — they live in separate build graphs (tsc NodeNext `rootDir: ..` can't reach `src/`, and Vite bundles the frontend copy). Frontend coverage is unit-tested in `src/utils/__tests__/sentryScrub.test.js`.
+- **Frontend source maps (BL-29 / H-5).** `vite.config.js` sets `build.sourcemap: 'hidden'` — `.map` files are emitted to `dist/assets/` but the bundle carries no `//# sourceMappingURL=` comment, so it stays minified to end users while maps remain on disk for a future symbolication step. There is intentionally **no `@sentry/vite-plugin`** upload (demo posture — don't over-build). Consequence: the frontend Sentry init (`src/main.jsx`) is **best-effort**; when `VITE_SENTRY_DSN` is set, captured frontend stack frames are minified unless the emitted maps are manually uploaded to the matching Sentry `release`. Backend `@sentry/node` traces are unaffected (Node runs unminified `dist-server/`).
 
 ---
 
@@ -116,7 +120,7 @@ The count went from 12 → 14 with the Phase 1 password rollout (`verify-passwor
 - `agent-referral.ts` and `contact.ts` write through `supabaseAdmin` (service-role) because the caller has no JWT — RLS would otherwise block the INSERT.
 - All KYC stubs simulate realistic latencies (600–2200 ms) so the live demo's animated checks remain visible.
 - Force-overrides via `x-qa-force` header are documented inline at each KYC file (e.g. `fail-blur`, `partial`, `flagged`, `liveness-fail`).
-- All 14 routes set `Cache-Control: no-store` on every response path (Phase 1G `1f0e2e1`). Auth tokens, KYC tracking IDs, and contact-form IDs must never be cached.
+- All 14 routes set `Cache-Control: no-store` at the top of the handler, so every response path (success + 4xx + 405) is uncacheable (Phase 1G `1f0e2e1`; the 7 KYC mock routes had it added in BL-16 — they previously omitted it). Auth tokens, KYC verification state / identity PII (`id-ocr`), and contact-form IDs must never be cached.
 - All 14 routes use a unified error envelope `{ code: '<snake>', message?: '<ops-detail>' }`. Full vocabulary in §5.
 
 ### KYC phone canonicalization (Phase 1E `d0b805d`)
@@ -284,9 +288,11 @@ Every route returns `{ code: '<snake>', message?: '<ops-detail>' }` for non-200 
 
 **`db_error` (real DB failures, distinct from auth fails).** `500 { code: 'db_error', message: '<supabase error.code or message>' }` (Phase 1F `dbe12e2`). Ops can grep `db_error` in logs to triage actual Supabase failures without it being masked by the demo's `invalid_otp` / `password_not_set` UX codes.
 
+**`unexpected_error` (generic 500).** `500 { code: 'unexpected_error' }` — the generic-catch path for `verify-otp` / `verify-password` when an unanticipated error (e.g. `signJwt` failure) bubbles up that isn't a typed `DbError` (BL-39). Status and code agree: the 4xx UX vocabulary (`invalid_otp` / `invalid_request`) is reserved for client-correctable shape failures and is never returned with a 500. The frontend's `mapAuthErrorMessage` has no explicit branch for `unexpected_error`, so it degrades to the default error message. Matches the server's final error-handler shape (`server/index.ts §12`).
+
 **405 envelope.** Every route returns `{ code: 'method_not_allowed' }` with an `Allow: POST` response header (Phase 1D `43f67e5`).
 
-**`Cache-Control: no-store`** — set unconditionally on every response path of every route, including 405s (Phase 1G `1f0e2e1`).
+**`Cache-Control: no-store`** — set unconditionally at the top of every handler, so every response path (success + 4xx + 405) is uncacheable (Phase 1G `1f0e2e1`; extended to the 7 KYC mock routes — `otp-send`, `otp-verify`, `id-ocr`, `id-quality`, `face-match`, `aml-screen`, `nira-verify` — in BL-16, which previously lacked it). Auth tokens, KYC verification state / identity PII (`id-ocr`), and contact-form IDs must never be cached.
 
 ---
 
@@ -366,6 +372,11 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 | `0024_upsert_nominees.sql` (+ `.down.sql`) | 147 | `nominees_share_range_chk` (`NOT VALID`) + `upsert_nominees` RPC |
 | `0025_drop_realtime_publication.sql` (+ `.down.sql`) | 18 | Drops 3 tables from `supabase_realtime` (zero subscribers — Phase 1+2 confirmed) |
 | `0026_users_password_hash.sql` (+ `.down.sql`) | 22 | Adds nullable `users.password_hash TEXT` for bcrypt digests |
+| `0029_commission_simplify.sql` (+ `.down.sql`) | 380 | **Commission simplification.** Drops the 14 state-machine + dispute RPCs, `get_run_branch_breakdown`, the `commissions_before_update` trigger/function, and the `settlement_runs` / `settlement_run_branch_reviews` tables (+ their enum types). Collapses `commission_status` to `('due','paid')`. Drops `commissions.{run_id, agent_confirmed, previous_status, dispute_reason, disputed_at, disputed_by, resolved_at, resolved_by, outcome_reason, hold_reason}`; adds `paid_amount NUMERIC`. Re-emits the 3 read RPCs (`get_commission_summary`, `get_entity_commission_summary`, `get_agent_commission_detail`) in slimmed paid/due-only form. |
+| `0030_settlement_batches.sql` (+ `.down.sql`) | 72 | NEW `settlement_batches` table (one row per agent-settlement; SELECT-only RLS — distributor all, branch/agent own). |
+| `0031_notifications.sql` (+ `.down.sql`) | 280 | NEW `notifications` table (`recipient_role` ∈ `agent`/`branch`; SELECT-only RLS) + the `apply_settlement(p_rows jsonb)` and `mark_notifications_read(p_ids text[])` RPCs. |
+| `0032_fix_settlement_apply.sql` (+ `.down.sql`) | ~290 | **Settlement-apply correctness + idempotency.** `CREATE OR REPLACE`s `apply_settlement` as `(p_rows jsonb, p_nonce text)` — FIFO per-line allocation (BL-1/BL-2), whole-UGX `round()` (BL-8), formatted notification bodies (BL-18). Adds the `settlement_uploads` idempotency ledger (PK `nonce`, RPC-internal, RLS-forced, no grants) and `settlement_batches.client_nonce` (BL-13). Drops the 0031 single-arg `apply_settlement(jsonb)`. **NOT YET APPLIED TO LIVE** — gated cutover step. |
+| `0033_post_audit_hardening.sql` (+ `.down.sql`) | ~115 | **Post-audit DB hardening (pure DDL, no RPC change).** Adds `notifications.ref_id` FK → `settlement_batches(id) ON DELETE SET NULL` + a covering index (BL-15 — `ref_id` is provably only ever a batch id). Aligns the `settlement_batches` FK `ON DELETE` actions to the commissions convention: `agent_id` → `agents(id) ON DELETE CASCADE`, `branch_id` → `branches(id) ON DELETE SET NULL` (F-12). `ALTER TABLE distributors FORCE ROW LEVEL SECURITY` — the last RLS-enabled-but-not-FORCE'd table (BL-24). Fully guarded/idempotent. **NOT YET APPLIED TO LIVE** — gated cutover step; apply after 0032 + a verified backup. |
 
 ### Supersession history: 0018 → 0019 (missing) → 0020
 
@@ -413,14 +424,15 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 | `claims` | Insurance claims; per-subscriber. |
 | `withdrawals` | Withdrawal records; per-subscriber. |
 
-### Domain: Commissions (4 tables)
+### Domain: Commissions + notifications (3 tables)
 
 | Table | Purpose |
 |---|---|
-| `commission_config` | Singleton row (`CHECK id = 'default'`); `rate`, `cadence`, `next_run_date`. |
-| `settlement_runs` | Bundles many commissions paid out together; `state` ∈ `draft / branch_review / released / cancelled`. |
-| `settlement_run_branch_reviews` | Composite PK `(run_id, branch_id)`; per-branch state inside a run. |
-| `commissions` | State-machine row (see §10). Denormalises `branch_id` + `subscriber_name` for cheap RLS + run listings. |
+| `commission_config` | Singleton row (`CHECK id = 'default'`); `rate` is the flat amount-per-subscriber. The legacy `cadence` / `next_run_date` columns remain on the row but are no longer read (settlement is upload-driven, not scheduled). |
+| `commissions` | Two-state row (`due → paid`, see §11). Columns: `id, agent_id, branch_id, subscriber_id, subscriber_name, amount, status, first_contribution_date, due_date, paid_date, txn_ref, paid_amount, created_at`. Denormalises `branch_id` + `subscriber_name` for cheap RLS + listings. The `0029` simplification dropped the old run/dispute/hold columns. |
+| `settlement_batches` (0030, +`client_nonce` in 0032) | One row per agent-settlement recorded by `apply_settlement`: `id, agent_id, branch_id, pending_total, paid_amount` (the actually-allocated total), `txn_ref, paid_date, line_count, created_at, client_nonce`. SELECT-only RLS (distributor all; branch/agent own). FKs (`ON DELETE` actions added in 0033, matching commissions): `agent_id` → `agents(id) ON DELETE CASCADE`, `branch_id` → `branches(id) ON DELETE SET NULL`. |
+| `notifications` (0031) | In-app feed: `id, recipient_role` (`'agent'`/`'branch'`)`, recipient_id, type` (`'commission_settled'`)`, title, body, amount, ref_id, is_read, created_at`. SELECT-only RLS (agent/branch own; distributor all); writes via `apply_settlement` / reads cleared via `mark_notifications_read`. `ref_id` is a real FK → `settlement_batches(id) ON DELETE SET NULL` (0033, BL-15) — it is only ever a batch id; SET NULL keeps the append-only feed row if a batch is deleted/re-seeded. |
+| `settlement_uploads` (0032) | Per-upload idempotency ledger (BL-13): `nonce` (PK), `result` (the JSONB the RPC returned), `created_at`. RPC-internal — RLS-forced with **no policies and no grants**; only the `apply_settlement` SECURITY DEFINER RPC reads/writes it (short-circuits a replayed `p_nonce`). |
 
 ### Domain: KYC / Auth (4 tables)
 
@@ -435,18 +447,18 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 
 | ENUM | Values |
 |---|---|
-| `commission_status` | `due, in_run, held, disputed, released, confirmed, rejected` |
-| `settlement_run_state` | `draft, branch_review, released, cancelled` |
-| `settlement_run_branch_review_state` | `pending, approved, released` |
+| `commission_status` | `due, paid` (collapsed from 7 states in `0029`) |
 | `nominee_type` | `pension, insurance` |
+
+`settlement_run_state` and `settlement_run_branch_review_state` were dropped in `0029` along with their tables.
 
 ### Status columns are TEXT with implicit enums (audit D8)
 
-`subscribers.kyc_status`, `withdrawals.status`, `claims.status`, `insurance_policies.status`, `agent_referrals.status`, `distributors.status` — all `TEXT` with documented value sets but no `CHECK` constraint. Discipline lives in client code (and the BEFORE-UPDATE trigger for `subscribers`). The four `commission_status` / `settlement_run_state` / `settlement_run_branch_review_state` / `nominee_type` enums are properly enforced.
+`subscribers.kyc_status`, `withdrawals.status`, `claims.status`, `insurance_policies.status`, `agent_referrals.status`, `distributors.status` — all `TEXT` with documented value sets but no `CHECK` constraint. Discipline lives in client code (and the BEFORE-UPDATE trigger for `subscribers`). The two surviving enums (`commission_status`, `nominee_type`) are properly enforced.
 
 ### Indexes
 
-From `0001` (8): `subscribers (agent_id)`, partial `subscribers (phone) WHERE NOT is_demo_signup`, `transactions (subscriber_id, date DESC)`, `commissions (agent_id, status)`, `commissions (branch_id, status)`, `commissions (run_id)`, `settlement_run_branch_reviews (branch_id)`, plus `users (phone)` + `demo_personas (phone, role)`.
+From `0001` (8): `subscribers (agent_id)`, partial `subscribers (phone) WHERE NOT is_demo_signup`, `transactions (subscriber_id, date DESC)`, `commissions (agent_id, status)`, `commissions (branch_id, status)`, plus `users (phone)` + `demo_personas (phone, role)`. (The original `commissions (run_id)` and `settlement_run_branch_reviews (branch_id)` indexes were dropped with the `run_id` column + the `settlement_run_branch_reviews` table in `0029`.)
 
 Added in `0017_unique_constraints.sql` (3 partial / full unique): `ux_agents_email`, `ux_subscribers_nin`, `ux_commissions_agent_subscriber` (closes the first-contribution race — see §11).
 
@@ -473,8 +485,8 @@ Columns the seed populates but no API code path updates (some are read-only metr
 - Every JWT signed by `signJwt` carries `role: 'authenticated'` (Postgres role) + `app_role: <JwtRole>` (application role).
 - **Every active RLS policy reads `auth.jwt() ->> 'app_role'`** — never `'role'`. Audit D1 verified all 65 policies in live state are correct.
 - **0 policies use `auth.uid()`** — would return `NULL` for our custom JWTs.
-- Every table is both `ENABLE` and `FORCE` ROW LEVEL SECURITY — table owners are not exempt.
-- The `commissions`, `settlement_runs`, and `settlement_run_branch_reviews` tables have **no direct INSERT/UPDATE/DELETE policies**. Every write flows through the SECURITY DEFINER state-machine RPCs in `0004` / `0021` (§10).
+- Every table is both `ENABLE` and `FORCE` ROW LEVEL SECURITY — table owners are not exempt. **Exception until 0033 applies:** in current live state `distributors` is `ENABLE`-only (it was never FORCE'd by `0016`, BL-24); `0033_post_audit_hardening.sql` adds the missing `ALTER TABLE distributors FORCE ROW LEVEL SECURITY`, after which all 21 tables are FORCE'd. (Practical exposure is minimal — all writes flow through service-role/DEFINER paths.)
+- The `commissions`, `settlement_batches`, and `notifications` tables have **no direct INSERT/UPDATE/DELETE policies** (all three are SELECT-only). Commission `due → paid` transitions, `settlement_batches` rows, and `notifications` rows are all written by the `apply_settlement` SECURITY DEFINER RPC (0031, re-emitted in 0032); `mark_notifications_read` (0031) is the only other writer (it updates `is_read` on the owner's own rows). The `settlement_uploads` idempotency ledger (0032) is RPC-internal: RLS-forced with **no policies and no grants at all** (not even SELECT to `authenticated`), so it is reachable only from inside the DEFINER RPC.
 - Most predicates are wrapped in `(SELECT auth.jwt())` (per `0008`) so PostgREST hoists the call into an InitPlan node instead of re-evaluating per row.
 
 ### Per-role permission grid
@@ -497,8 +509,8 @@ Columns the seed populates but no API code path updates (some are read-only metr
 | `claims` | R + I (self) | R (own subscribers) | R (own branch's subscribers) | R |
 | `withdrawals` | R + I (self) | R (own subscribers) | R (own branch's subscribers) | R |
 | `commissions` | — | R (`agent_id = agentId`) | R (`branch_id = branchId`) | R |
-| `settlement_runs` | — | R (own runs via `commissions.run_id`) | R (own runs via `branch_reviews`) | R |
-| `settlement_run_branch_reviews` | — | — | R (`branch_id = branchId`) | R |
+| `settlement_batches` | — | R (`agent_id = agentId`) | R (`branch_id = branchId`) | R |
+| `notifications` | — | R (`recipient_role='agent'` + `recipient_id = agentId`) | R (`recipient_role='branch'` + `recipient_id = branchId`) | R |
 | `users` | — | — | — | R |
 | `agent_referrals` | — | — | — | R |
 | `contact_submissions` | — | — | — | R |
@@ -517,34 +529,32 @@ Legend: R = SELECT, I = INSERT, U = UPDATE, D = DELETE. **Employer + admin roles
 
 ## §10. RPC inventory
 
-**29 functions** total (24 SECURITY DEFINER + 5 INVOKER), all with `SET search_path` pinned (audit D2). All 29 read `auth.jwt() ->> 'app_role'` (never `'role'`) — audit D2 verified zero `auth.uid()` usage.
+Post-`0029`/`0031`, the active set is **15 functions** (DEFINER + INVOKER), all with `SET search_path` pinned (audit D2) and all reading `auth.jwt() ->> 'app_role'` (never `'role'`) — zero `auth.uid()` usage. The `0029` simplification dropped the 14 commission state-machine + dispute RPCs, `get_run_branch_breakdown`, and the `commissions_before_update` trigger function; `0031` added two new write RPCs.
 
 Breakdown:
 
-- 4 trigger functions (0002) — see §11
+- 3 trigger functions (0002) — see §11 (`commissions_before_update` dropped in 0029)
 - 1 trigger function (0005) — `trg_subscribers_enforce_editable_cols`
 - 2 private helpers (0002, then rewritten in 0014 + 0015) — `_validate_signup_payload`, `_insert_subscriber_chain`
 - 1 helper (0014) — `_canonical_ug_phone`
 - 1 helper (0020 / 0023) — `_demo_now()` (IMMUTABLE; pinned search_path)
-- 7 read RPCs (0002, with `get_entity_metrics_rollup` introduced in 0018 and superseded in 0020, plus `get_top_branch` rewritten in 0022)
+- 6 read RPCs (0002, with `get_entity_metrics_rollup` introduced in 0018 and superseded in 0020, `get_top_branch` rewritten in 0022, and the 3 commission read RPCs re-emitted in 0029)
 - 2 atomic-write RPCs (0002) — `create_subscriber_from_signup`, `create_subscriber_from_agent_onboard`
-- 13 commission state-machine RPCs (0004 → re-emitted in 0021)
-- 1 agent-side dispute RPC (0014) — `agent_dispute_line`
 - 1 nominees upsert RPC (0024) — `upsert_nominees`
+- 2 settlement / notification write RPCs — `apply_settlement` (0031, re-emitted with FIFO + idempotency as `(p_rows, p_nonce)` in 0032), `mark_notifications_read` (0031)
 
-### Read RPCs (7)
+### Read RPCs (6)
 
-All `LANGUAGE plpgsql STABLE`. Most are SECURITY DEFINER + role-gated; `search_entities` and `get_breadcrumb` are reference-data reads. `GRANT EXECUTE ... TO authenticated`.
+All `LANGUAGE plpgsql STABLE`. Most are SECURITY DEFINER + role-gated; `search_entities` and `get_breadcrumb` are reference-data reads. `GRANT EXECUTE ... TO authenticated`. The 3 commission read RPCs were re-emitted in `0029` in slimmed paid/due-only form (dispute/run fields removed).
 
 | RPC | Signature | Returns | Caller |
 |---|---|---|---|
-| `get_entity_commission_summary` | `(p_level TEXT, p_entity_id TEXT)` | `jsonb` (totalPaid/Due/Disputed/etc.) | `src/services/commissions.js#getEntityCommissionSummary` |
+| `get_entity_commission_summary` | `(p_level TEXT, p_entity_id TEXT)` | `jsonb { totalPaid, totalDue, countPaid, countDue, total, countTotal, settlementRate }` (0029 — dropped `totalDisputed`/`countDisputed`) | `src/services/commissions.js#getEntityCommissionSummary` |
 | `get_top_branch` | `(p_level TEXT, p_parent_id TEXT)` | `jsonb { name, contribution }` or `NULL` | `entities.js#getTopPerformingBranch`. SECURITY DEFINER (0022) + aggregate-first body using `idx_transactions_type_date`. |
 | `get_breadcrumb` | `(p_level TEXT, p_ids jsonb)` | `jsonb[]` of `{ level, id, name }` | `entities.js#getBreadcrumb` |
 | `search_entities` | `(p_q TEXT)` | `TABLE(entity_id, entity_name, level, label, parent_id, score)`, hardcoded `LIMIT 8` | `search.js#searchEntities`. Uses `pg_trgm`'s `%` operator + `similarity()` for fuzzy matching. |
-| `get_agent_commission_detail` | `(p_agent_id TEXT)` | `jsonb` (paid + due txn arrays, totals, breakdown) | `commissions.js#getAgentCommissionDetail` |
-| `get_commission_summary` | `(p_period TEXT DEFAULT NULL)` | `jsonb` of network-wide totals | `commissions.js#getCommissionSummary` |
-| `get_run_branch_breakdown` | `(p_run_id TEXT)` | `jsonb` of per-branch run rollups | `commissions.js#getRunBranchBreakdown` |
+| `get_agent_commission_detail` | `(p_agent_id TEXT)` | `jsonb { …, totalPaid, totalDue, paidTransactions[], dueTransactions[] }` (0029 — no disputed/run fields; paid lines expose `paidAmount`) | `commissions.js#getAgentCommissionDetail` |
+| `get_commission_summary` | `(p_branch_id TEXT DEFAULT NULL)` | `jsonb { totalCommissions, totalPaid, totalDue, countTotal, countPaid, countDue }` (0029) | `commissions.js#getCommissionSummary` |
 | `get_entity_metrics_rollup` | `(p_level TEXT, p_entity_ids TEXT[])` | `jsonb` keyed by entity id; 8 base counts + time-period buckets (`daily/weekly/monthlyContributions[12]/Withdrawals` + `prev*`), `newSubscribers*`, `genderRatio`, `ageDistribution`, `kycPending/Incomplete` | `entities.js#getEntityMetricsRollup`. **Canonical body in 0020** (supersedes 0018 + the remote `fix_metrics_rollup_app_role`). Time buckets anchor on `_demo_now()` = `'2026-05-18 23:59:59+00'`. |
 
 ### Atomic-write RPCs (2)
@@ -569,28 +579,16 @@ Shared work (`_insert_subscriber_chain`, rewritten in 0014 then 0015):
 
 `create_subscriber_from_signup` is granted to `anon, authenticated` so the signup flow works without a JWT yet. `create_subscriber_from_agent_onboard` is `authenticated`-only and cross-checks `calling_agent_id` against `auth.jwt() ->> 'agentId'`.
 
-### Commission state-machine RPCs (13 + 1 agent-side)
+### Settlement + notification RPCs (2, added in 0031)
 
-All `LANGUAGE plpgsql SECURITY DEFINER SET search_path = public`. Each validates `auth.jwt() ->> 'app_role'` against the allowed actor and raises on mismatch. Full state diagram in §11.
+The old 14 commission state-machine + dispute RPCs (`open_run`, `cancel_run`, `release_run`, `release_branch`, `branch_approve_all`, `mark_branch_reviewed`, `branch_approve_line`, `branch_hold_line`, `branch_dispute_line`, `agent_dispute_line`, `approve_dispute`, `reject_dispute`, `withdraw_dispute`, `agent_confirm_commission`) and `get_run_branch_breakdown` were **all dropped in `0029`**. Settlement is now a single upload-driven RPC plus a notification-read RPC, both `LANGUAGE plpgsql SECURITY DEFINER SET search_path = public`, each reading `auth.jwt() ->> 'app_role'`.
 
 | RPC | Allowed role | What it does |
 |---|---|---|
-| `open_run()` | distributor | Bundles all `due` commissions into a new `r-YYYY-MM` run; sweeps them to `in_run`; seeds per-branch review rows. |
-| `cancel_run(p_run_id)` | distributor | Reverses `open_run`. |
-| `release_run(p_run_id)` | distributor | Flips lines to `released`, sets `paid_date`; marks run `released`. |
-| `release_branch(p_run_id, p_branch_id)` | distributor | Per-branch release; sets `released_at` on the branch review row. |
-| `branch_approve_all(p_run_id)` | branch | Approves every line in the caller's branch. Returns count. |
-| `mark_branch_reviewed(p_run_id)` | branch | Flips branch review state `pending → approved`. |
-| `branch_approve_line(p_commission_id)` | branch | Approves a single line. |
-| `branch_hold_line(p_commission_id, p_hold_reason)` | branch | `in_run → held`. Reason stored. |
-| `branch_dispute_line(p_commission_id, p_dispute_reason)` | branch | `previous_status` snapshot via BEFORE UPDATE; `disputed_by='branch'`, `disputed_at=now()`. |
-| `agent_dispute_line(p_commission_id, p_dispute_reason)` | agent | Mirrors branch dispute; `disputed_by='agent'`. Shipped in 0014, role-gate canonicalised in 0021. The frontend `services/commissions.js#disputeCommission(by='agent')` wires to this RPC. |
-| `approve_dispute(p_commission_id, p_outcome_reason?)` | distributor | Restores `previous_status` (fallback `due`); clears dispute fields. |
-| `reject_dispute(p_commission_id, p_outcome_reason)` | distributor | Terminal `rejected`. |
-| `withdraw_dispute(p_commission_id)` | agent | Restores `previous_status`; clears dispute fields. |
-| `agent_confirm_commission(p_commission_id)` | agent | Sets `agent_confirmed = TRUE` on a released line. Maker-checker counterpart to admin settlement. |
+| `apply_settlement(p_rows jsonb, p_nonce text)` | distributor | Processes the re-uploaded settlement template. For each agent's rows: allocates the (whole-UGX-rounded) `amountPaid` **FIFO** across that agent's `due` lines oldest-first — a line flips to `paid` (with `paid_amount = its own amount`, `paid_date`, `txn_ref`) only while the remaining budget covers it in full; uncovered lines stay genuinely `due` (INFORM-NOT-BLOCK partial semantics — see §11). Records one `settlement_batches` row (`paid_amount` = the actually-allocated total, reconciles with `SUM(paid_amount)`), and inserts `commission_settled` notifications (formatted body, BL-18) for the affected agent + branch. `p_nonce` is a per-upload idempotency key: a replay returns the prior result via the `settlement_uploads` ledger without re-recording. Skip reasons: `missing_agent_id`, `no_due`, `amount_too_low`. Returns `{ agentsSettled, linesSettled, totalPaid, skipped: [{ agentId, reason }] }`. **Signature changed in 0032** (added `p_nonce`; the 0031 single-arg overload is dropped). |
+| `mark_notifications_read(p_ids text[])` | agent / branch | Owner-scoped — sets `is_read = TRUE` on the caller's own `notifications` rows whose ids are in `p_ids`. |
 
-The 13 RPCs from 0004 were re-emitted in `0021_commission_rpcs_app_role.sql` with the role gate inlined (reading `app_role` directly rather than via 0007's `pg_get_functiondef` literal-replace). The 0014 `agent_dispute_line` body got the same treatment in 0021.
+Both follow the house grant pattern (`REVOKE ALL … FROM PUBLIC; GRANT EXECUTE … TO authenticated`).
 
 ### `upsert_nominees` (0024)
 
@@ -607,74 +605,55 @@ Every other RPC in the codebase precedes the `GRANT EXECUTE ... TO authenticated
 
 ---
 
-## §11. Commission state machine
+## §11. Commission settlement flow
 
-States are `commission_status` ENUM values. Transitions are RPC-driven (each RPC validates the role) plus the BEFORE UPDATE trigger that snapshots `previous_status` whenever a row enters `disputed`.
+`commission_status` is now a two-value ENUM (`due`, `paid`). The old maker-checker state machine — settlement runs, branch review, holds, the full dispute lifecycle, agent confirmation, and the settlement cadence — was removed in `0029`. There is only one transition (`due → paid`) and it happens through the `apply_settlement` RPC.
 
 ### State diagram
 
 ```
-                       ┌──────────┐
-              insert → │   due    │ ← cancel_run / withdraw_dispute / approve_dispute (fallback)
-                       └────┬─────┘
-                 open_run() │
-                            ▼
-                       ┌──────────┐
-              ┌────────│  in_run  │
-              │        └───┬──┬───┘
-   branch_    │ branch_    │  │ branch_dispute_line / agent_dispute_line
-   hold_line  │ approve_   │  │   (snapshot previous_status)
-              │ line       │  │
-              ▼            │  ▼
-       ┌──────────┐        │  ┌──────────┐ ← agent/branch_dispute_line
-       │   held   │────────┘  │ disputed │ ← withdraw_dispute (agent) restores prev
-       └─────┬────┘           │          │ ← approve_dispute (dist) restores prev / due
-             │ release_run    │          │ ← reject_dispute (dist) → rejected
-             │ release_branch │          │
-             ▼                ▼          │
-       ┌─────────────────────────┐       │
-       │       released          │       │
-       └────┬────────────────────┘       │
-            │ agent_confirm_commission   │
-            ▼                            ▼
-       ┌──────────┐                ┌──────────┐
-       │ confirmed│                │ rejected │ (terminal)
-       └──────────┘                └──────────┘
+              insert (trigger)         apply_settlement (distributor)
+   ┌──────────┐                 ┌──────────┐
+ → │   due    │ ──────────────▶ │   paid   │  (paid_amount / paid_date / txn_ref set)
+   └──────────┘                 └──────────┘
 ```
+
+### How it works
+
+1. **Generation.** A subscriber's first contribution fires `trg_transactions_contribution`, which inserts a `due` commission at `commission_config.rate` (unchanged by 0029).
+2. **Offline payment + upload.** The distributor pays the agent offline, then in the UI downloads a per-agent Excel template prefilled with that agent's pending dues, fills in **Amount Paid** + payment reference/date, and re-uploads it. The frontend parses the sheet, **rounds each Amount Paid to whole UGX** (canonical `parseAmount`, `src/utils/finance.js`), mints a per-upload idempotency nonce, and calls `apply_settlement(p_rows, p_nonce)`.
+3. **Apply (FIFO partial, INFORM-NOT-BLOCK).** `apply_settlement` (distributor-only, migration **0032**) allocates each agent's (rounded) Amount Paid across that agent's `due` lines **oldest-first**: a line flips to `paid` (with `paid_amount = its OWN amount`, `paid_date`, `txn_ref`) only while the remaining budget covers it in full. When the entered amount is **less** than the agent's due total, the uncovered lines stay genuinely `due` — a partial payment never clears unpaid lines. It records one `settlement_batches` row per agent (`paid_amount` = the actually-allocated total, so `SUM(commissions.paid_amount)` reconciles with the batch), emits `commission_settled` notifications (formatted body) to the affected agent + branch, and returns `{ agentsSettled, linesSettled, totalPaid, skipped: [{ agentId, reason }] }`.
+
+   - **Mismatch surfacing.** The distributor's confirm modal shows per-agent mismatches before applying (it does **not** block). On the agent side, the most recent short-paid settlement raises an amber banner on the commissions page with an "Ask for reason" client-side `mailto:` (prefilled with the batch ref, due total, and paid total) — a demo affordance, not a backend integration.
+   - **Idempotency (BL-13).** `p_nonce` is a per-upload UUID minted when the confirm modal opens. A re-submit / reload / second-tab / network-retry replay with the same nonce short-circuits via the `settlement_uploads` ledger (PK on `nonce`) and returns the original result without recording a duplicate batch or duplicate notifications.
+   - **Product redirect point.** The FIFO partial behaviour is a deliberate product choice. To switch to "any payment clears ALL of an agent's due lines" (all-or-nothing per agent), the change is localised to the FIFO loop in `0032_fix_settlement_apply.sql` and the mirrored mock in `src/services/commissions.js`. Both files carry a marked `>>> PRODUCT-OWNER REDIRECT POINT <<<` comment.
+
+### Rollback ordering across 0030 / 0031 / 0032 (BL-23)
+
+The settlement stack is split across three migrations with a cross-file ownership coupling, so the `.down.sql` files **must be run in reverse-dependency order**, not just reverse-numeric:
+
+- **`settlement_batches` table is created in `0030`**, but its only writer — the `apply_settlement` RPC — is defined in **`0031`** (and re-emitted in `0032`). `0030_settlement_batches.down.sql` deliberately does **not** drop the RPC; `0031_notifications.down.sql:13` does. **Rolling back only `0030` while keeping `0031` would leave `apply_settlement` referencing a dropped table.** Therefore `0030` and `0031` roll back **as a pair, `0031`-then-`0030`** (drop the RPC + `notifications` first, then the `settlement_batches` table).
+- **`0032`** only `CREATE OR REPLACE`s the RPC and adds the `settlement_uploads` ledger + `settlement_batches.client_nonce`; its down restores the 0031 single-arg RPC and is self-contained. **`0033`** adds the `notifications.ref_id` FK (→ `settlement_batches`), the `settlement_batches` FK `ON DELETE` actions, and `distributors FORCE` RLS; its down is likewise self-contained.
+- **Full-stack rollback order is therefore:** `0033` → `0032` → (`0031`-then-`0030`). Because `0033` adds a FK from `notifications.ref_id` **to** `settlement_batches.id`, it must be undone **before** `0030` drops `settlement_batches` (otherwise the `DROP TABLE` would fail or cascade). The `0033.down.sql` header records this ordering. All `.down.sql` files are emergency-use only and not part of the forward-only chain.
 
 ### Transition table
 
-| From | To | Actor | RPC | Role check | Side effects |
+| From | To | Actor | RPC / trigger | Role check | Side effects |
 |---|---|---|---|---|---|
 | (insert) | `due` | trigger | `trg_transactions_contribution` | n/a (DEFINER) | First-contribution commission row at `commission_config.rate` |
-| `due` | `in_run` | distributor | `open_run()` | `app_role = 'distributor'` | Creates `settlement_runs` row + branch_reviews rows |
-| `in_run` | `due` | distributor | `cancel_run(run_id)` | distributor | Deletes branch reviews; run state → `cancelled` |
-| `in_run` | `held` | branch | `branch_hold_line(c_id, reason)` | branch + ownership | `hold_reason` set |
-| `held` | `in_run` | branch | `branch_approve_line(c_id)` | branch + ownership | `hold_reason` cleared |
-| `in_run`/`held` | `disputed` | branch | `branch_dispute_line(c_id, reason)` | branch + ownership | `previous_status` snapshot via BEFORE UPDATE; `disputed_by='branch'` |
-| `in_run`/`held` | `disputed` | agent | `agent_dispute_line(c_id, reason)` | agent + ownership | `previous_status` snapshot; `disputed_by='agent'` |
-| `disputed` | `<previous_status>` or `due` | distributor | `approve_dispute(c_id, outcome?)` | distributor | Clears dispute fields; sets `resolved_at`/`resolved_by`/`outcome_reason` |
-| `disputed` | `rejected` | distributor | `reject_dispute(c_id, outcome)` | distributor | Terminal; `outcome_reason` required |
-| `disputed` | `<previous_status>` | agent | `withdraw_dispute(c_id)` | agent + ownership | Clears dispute fields |
-| `in_run`/`held` | `released` | distributor | `release_run(run_id)` or `release_branch(run_id, branch_id)` | distributor | `paid_date = now()`; run/branch state → `released` |
-| `released` | `confirmed` | agent | `agent_confirm_commission(c_id)` | agent + ownership | `agent_confirmed = TRUE` (maker-checker) |
-
-### Dispute snapshot
-
-`trg_commissions_before_update` (0002) sets `commissions.previous_status` whenever `status` transitions into `disputed`. `approve_dispute` / `withdraw_dispute` read it back to restore the pre-dispute state; if NULL (e.g. an external write), they fall back to `due`. `disputed_by` is a TEXT column storing the literal `'agent'` / `'branch'`.
+| `due` | `paid` | distributor | `apply_settlement(p_rows, p_nonce)` | `app_role = 'distributor'` | FIFO-allocates Amount Paid oldest-first; settled lines get `paid_amount = own amount` + `paid_date`/`txn_ref`; uncovered lines stay `due`. Inserts a `settlement_batches` row (per-agent, `paid_amount` = allocated total) + agent & branch `commission_settled` notifications. Idempotent on `p_nonce` |
 
 ---
 
 ## §12. Triggers
 
-Five triggers across the migrations. All four cross-table triggers are SECURITY DEFINER + `search_path` pinned.
+Four triggers across the migrations (the `commissions_before_update` dispute-snapshot trigger was dropped in `0029`). All three cross-table triggers are SECURITY DEFINER + `search_path` pinned.
 
 | Trigger | Table | Timing | Function | Security |
 |---|---|---|---|---|
 | `subscribers_after_insert` | `subscribers` | AFTER INSERT | `trg_subscribers_after_insert()` | DEFINER (0006) — seeds `subscriber_balances`, `ON CONFLICT DO NOTHING` |
 | `transactions_after_insert_contribution` | `transactions` WHEN `type='contribution'` | AFTER INSERT | `trg_transactions_contribution()` | DEFINER (0006) — bumps balances, applies 80/20 default or explicit split, creates first-contribution commission at **hardcoded `v_unit_price NUMERIC := 1000` at line 113 of `0002_rpc_functions.sql`** |
 | `transactions_after_insert_withdrawal` | `transactions` WHEN `type='withdrawal'` | AFTER INSERT | `trg_transactions_withdrawal()` | DEFINER (0006) — decrements balances; emergency-first fallback when split is missing |
-| `commissions_before_update` | `commissions` | BEFORE UPDATE | `trg_commissions_before_update()` | INVOKER (no cross-table writes) — snapshots `previous_status` when entering `disputed`. `search_path` pinned by 0010. |
 | `subscribers_enforce_editable_cols` | `subscribers` | BEFORE UPDATE | `trg_subscribers_enforce_editable_cols()` (0005) | INVOKER (`search_path` pinned by 0010, role-claim rewritten by 0007). Rejects any change outside `name/email/phone/occupation/consent_at` from `app_role='subscriber'` callers. |
 
 **Why 0006 exists.** The three cross-table trigger functions in 0002 originally ran as the caller's invoker context. When a subscriber-role direct INSERT into `transactions` fired the contribution trigger, the trigger tried to write to `subscriber_balances` + `commissions` — but the subscriber JWT has no INSERT policy on those tables, so RLS rejected and the whole INSERT aborted. 0006 promotes the three functions to `SECURITY DEFINER` + pins `search_path = public, pg_temp`.
@@ -685,11 +664,11 @@ Five triggers across the migrations. All four cross-table triggers are SECURITY 
 
 ## §13. Realtime publication
 
-`0003_rls_policies.sql` originally added `commissions`, `settlement_runs`, `settlement_run_branch_reviews` to `supabase_realtime`. `0025_drop_realtime_publication.sql` dropped all three — Phase 1 + 2 audits confirmed **zero `.channel()` subscribers** across `src/` and `api/`, so the WAL replication overhead bought nothing.
+`0003_rls_policies.sql` originally added `commissions`, `settlement_runs`, `settlement_run_branch_reviews` to `supabase_realtime`. `0025_drop_realtime_publication.sql` dropped all three — Phase 1 + 2 audits confirmed **zero `.channel()` subscribers** across `src/` and `api/`, so the WAL replication overhead bought nothing. (`settlement_runs` + `settlement_run_branch_reviews` were themselves later dropped entirely in `0029`.)
 
-**Current state:** `supabase_realtime` membership for `public.*` is empty (audit D19 confirmed this matches intent, modulo the supersession by 0025 itself). High-write tables (`transactions`, `subscribers`, `subscriber_balances`) were never added to begin with. React Query's 5-minute staleTime + manual invalidation handles cross-laptop demo sync at sufficient resolution.
+**Current state:** `supabase_realtime` membership for `public.*` is empty (audit D19 confirmed this matches intent, modulo the supersession by 0025 itself). High-write tables (`transactions`, `subscribers`, `subscriber_balances`) were never added to begin with, and the new `settlement_batches` + `notifications` tables (0030/0031) are not published either — the notification bell polls via React Query. React Query's 5-minute staleTime + manual invalidation handles cross-laptop demo sync at sufficient resolution.
 
-If a future feature wires `.channel()` subscribers, the 0025 down migration restores the three-table publication.
+If a future feature wires `.channel()` subscribers, the 0025 down migration restores the original `commissions`-only publication.
 
 ---
 
@@ -710,6 +689,7 @@ Run via `npm run seed`. Materialises the full `src/data/mockData.js` hierarchy i
 - **Phone dedup:** subscribers with duplicate phones get reassigned to a synthetic `+25671XXXXXXX` range so the partial unique index `subscribers(phone) WHERE NOT is_demo_signup` stays satisfied. Per-run state (a `Set`); if live subscribers exist when seed re-runs, dupes silently reassign to different `+25671XXXXXXX` numbers (audit D14).
 - `demo_personas` seeded with 7 rows: agents `a-001/a-042/a-118` at phones `+2567000000{1,2,3}`, branches `b-kam-015/b-mba-290` at `+2567000000{11,12}`, distributors `d-001/d-002` at `+2567000000{21,22}`.
 - Both `distributors` rows (`d-001`, `d-002`) are inserted by the seed; the `0016` migration also seeds `d-001` on-conflict-do-nothing.
+- **Commissions are `due`/`paid` only** (post-0029 simplification — no `settlement_runs`); `paid` rows carry `paid_amount`. The seed also inserts a few `settlement_batches` rows + matching `commission_settled` notifications so the settlement history + notification bell have demo data.
 
 **Approximate row volumes after seed:**
 
@@ -720,8 +700,9 @@ Run via `npm run seed`. Materialises the full `src/data/mockData.js` hierarchy i
 | branches | ~314 |
 | agents | ~500–2,000 |
 | subscribers | ~30,000 |
-| commissions | ~30,000 |
-| settlement_runs | ~10 |
+| commissions | ~30,000 (mix of `due` + `paid`; paid rows carry `paid_amount`) |
+| settlement_batches | a few (0030) |
+| notifications | a few (0031, `commission_settled`) |
 | distributors | 2 |
 | demo_personas | 7 |
 
@@ -770,7 +751,10 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 **Auth-route subtleties (open / by-design):**
 
 - `chat.ts` body `context` overrides role for unauthenticated callers; intentional but inconsistent with the strict role discipline elsewhere (audit B14). Documented at the call-site.
+- `chat.ts` `resolveFlavor` reads the JWT **`app_role`** claim (not `role`) for authenticated callers — fixing audit BL-12/H1, where reading `role` (always the literal Postgres role `"authenticated"`) made every signed-in distributor/branch/agent fall through to the subscriber chat flavor. The §5.7 `'role'` vs `'app_role'` trap. Covered by `api/chat.test.ts` (each app_role → correct flavor; body context only honoured when unauthenticated).
 - `chat.ts` type-checks `body.message` before `.trim()` (Phase 1G `1f0e2e1` — non-string bodies short-circuit to `invalid_message` instead of crashing).
+- `change-password` now mounts behind `authLimiter` (`server/index.ts §9`, BL-17) — consistent with `verify-otp` / `verify-password`. It verifies a JWT then runs bcrypt + a DB write, so an already-authenticated token holder could otherwise hammer that CPU/DB path. This is a per-route throttle only; a real lockout/HIBP flow is out of demo scope (CLAUDE.md §10a).
+- `verify-otp` / `verify-password` generic-catch 500 now returns `{ code: 'unexpected_error' }` (BL-39), not the 4xx `invalid_otp` / `invalid_request` vocabulary that previously rode a 500 status. See the error-envelope section above.
 
 **Database invariants:**
 
@@ -791,11 +775,10 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 **Existing awareness items (already in CLAUDE.md §10b):**
 
 - Employer + admin roles unbuilt — no RLS policies, no dashboards, no shells.
-- Dispute `reason` is free-text TEXT on `commissions.dispute_reason`. UI shows whatever was typed.
 - `agent_referrals` row PK `ar-<epoch>-<rand>` and public `UAG-XXXX` ticket ID (~1.7M space) — collision-tolerant but not cryptographic.
 - No retry / idempotency keys on `/api/contact` or `/api/kyc/agent-referral`. A resubmit creates a second row.
 
-**Agent-side dispute flow exists.** The `agent_dispute_line` RPC ships in `0014_signup_phone_and_agent_dispute.sql` and was canonicalised in `0021_commission_rpcs_app_role.sql`; the frontend service `src/services/commissions.js#disputeCommission(by='agent')` calls it successfully (audit X3). Prior documentation drift around this is resolved.
+**Commission dispute flow removed.** The entire maker-checker + dispute lifecycle (`agent_dispute_line`, `branch_dispute_line`, `approve/reject/withdraw_dispute`, `agent_confirm_commission`, settlement runs, holds) was dropped in `0029_commission_simplify.sql`, along with the `commissions.dispute_reason` and related columns. Settlement is now the single upload-driven `apply_settlement` RPC (§11). The historical migration `0014_signup_phone_and_agent_dispute.sql` (which once added `agent_dispute_line`) remains in the tree as forward-only history.
 
 ### §15c. Test coverage
 
@@ -804,7 +787,7 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 | Layer | Files | Notes |
 |---|---|---|
 | `api/auth/*.test.ts` | 4 (`send-otp`, `verify-otp`, `verify-password`, `change-password`) | Phase 2B `93c51f2`. ~81 tests. Cover OTP-shape errors, password-shape errors, role enum, phone canonicalisation, password set vs change flows, JWT round-trip, DB-error → `db_error` envelope (Phase 1F). |
-| `api/kyc/*.test.ts` | 8 (one per route) | Phase 2C `91f413e`. ~57 tests. Cover phone canonicalisation on the 3 phone-accepting routes, every `x-qa-force` branch, `Cache-Control: no-store` + `Allow: POST` headers, the demo-scope 200-with-refusal contract on the 3 verifier routes. |
+| `api/kyc/*.test.ts` | 8 (one per route) | Phase 2C `91f413e`. ~57 tests. Cover phone canonicalisation on the 3 phone-accepting routes, every `x-qa-force` branch, `Allow: POST` headers, the demo-scope 200-with-refusal contract on the 3 verifier routes. `Cache-Control: no-store` is now asserted on every route (success + 405, plus the 400 path on `id-ocr`/`face-match`): `agent-referral` since Phase 2C, the 7 mock routes added in BL-16 (the §15c claim previously held only for `agent-referral`). |
 | `api/auth/_lib/password.test.ts` | 1 | Pre-existing. Shape validation + bcrypt hash/verify round-trip. |
 
 `npm test` runs all vitest files (`api/**/*.test.ts` + `src/tests/**/*.test.{js,ts}`). For backend-only iteration: `npm test -- api/auth api/kyc`.
@@ -833,7 +816,7 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 |---|---|
 | Start local Supabase | `supabase start` |
 | Apply migrations locally | `supabase db reset` (re-runs every `00NN_*.sql`) |
-| Push migrations to hosted project | `supabase db push` |
+| Push migrations to hosted project | `supabase db push` — **NOT the live deploy path; do NOT run against live without first reconciling the ledger. See "Migration-ledger drift" below (BL-6).** |
 | Apply a single migration via MCP | `mcp__supabase__apply_migration` (note: wraps DDL in a transaction; split `CREATE INDEX CONCURRENTLY` out via `execute_sql` — see 0022 header) |
 | Tail backend (Render) logs | Render dashboard → `uganda-dashboard-api` → Logs (live tail; ~7-day retention per `docs/render-operational.md` §Log Retention). Or via MCP: `mcp__render__list_logs`. |
 | Tail frontend (Vercel) build/runtime logs | `vercel logs <deployment-url>` — note: post-migration there are no functions, so runtime logs are SPA build/serve only. |
@@ -856,7 +839,15 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 - `POST /api/contact` with a dummy body → verify row in `contact_submissions`.
 - `POST /api/auth/send-otp` then `verify-otp` with a known demo persona phone (`+256700000001` → agent `a-001`) → verify `users` row upserts and JWT round-trips.
 - Open `/dashboard` as that agent → verify agent-scoped queries return rows (RLS predicate `agent_id = auth.jwt() ->> 'agentId'` matches).
-- Run an `open_run()` from the distributor account; PostgREST returns the new run row. (Realtime no longer propagates — 0025 dropped the publication; React Query manual invalidation handles refresh.)
+- From the distributor account, call `apply_settlement(p_rows)` with a small payload of one agent's pending dues; verify the matching `commissions` lines flip to `paid`, a `settlement_batches` row appears, and agent + branch `notifications` rows are emitted. (Realtime no longer propagates — 0025 dropped the publication; React Query manual invalidation handles refresh.)
+
+### Migration-ledger drift — `db push` is NOT the live deploy path (BL-6)
+
+**Live schema reaches the hosted project via the Supabase MCP (`mcp__supabase__apply_migration` / `execute_sql`) + `scripts/seed-supabase.mjs`, NOT via `supabase db push`.** Do **not** run `supabase db push` (or `supabase db reset`) against live without first reconciling the migration ledger — it can half-apply and abort mid-stream.
+
+- **The drift:** the live `supabase_migrations.schema_migrations` ledger is missing **6 local migrations** — `0022_audit_perf`, `0023_rls_initplan_fixes`, `0024_upsert_nominees`, `0025_drop_realtime_publication`, `0027_post_audit_polish`, `0028_replay_safety_guards`. Their *effects* are already applied to live (verified out-of-band), but the ledger does not record them. (The ledger also carries a remote-only `20260519165115 fix_metrics_rollup_app_role` with no local file. The 0029/0030/0031 trio is ledger-tracked + applied; the `0032` fix and `0033` hardening migration are committed forward files that are **NOT yet applied to live** — they are gated cutover steps to run, in order, after a verified backup.)
+- **Why it's dangerous:** `db push` re-attempts any migration the ledger doesn't record. Re-running the 6 missing files would re-execute known **non-idempotent** legacy statements (`0003`/`0006`/`0010`/`0025` — see §15b audit D12; e.g. `0025`'s unguarded `ALTER PUBLICATION … DROP TABLE` against an already-removed member errors on a second run). A failure part-way leaves the ledger + schema half-applied.
+- **Before any future `db push` against live (cutover gate):** reconcile the ledger first — `supabase migration repair --status applied 0022 0023 0024 0025 0027 0028` (and reconcile/retire `fix_metrics_rollup_app_role`) so the 6 rows are marked applied — **or** continue treating `db push` as out-of-band and keep applying schema via the MCP path + `npm run seed`. Either way, take and verify a full backup before touching the live ledger (pairs with the lossy-`0029.down.sql` backup gate, BL-9). This subsection is the canonical record of "how migrations reach live."
 
 ### Migration discipline (forward-only)
 

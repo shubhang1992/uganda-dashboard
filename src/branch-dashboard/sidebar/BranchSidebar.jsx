@@ -169,15 +169,22 @@ export default function BranchSidebar({ mode = 'desktop', onNavigate }) {
   }, [viewAgentsOpen, createAgentOpen, viewReportsOpen, commissionsOpen, viewTicketsOpen, settingsOpen]);
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
+  const closeAgentPopover = useCallback(() => setAgentPopover(false), []);
+
+  // Memoise the refs arrays so useOutsideClick doesn't tear down + re-add its
+  // document listeners on every render while a popover is open — the ref
+  // identities are stable, so these never recompute.
+  const moreOutsideRefs = useMemo(() => [moreWrapRef], []);
+  const agentOutsideRefs = useMemo(() => [agentPopoverRef], []);
 
   // Close the "More" popover on outside click + Escape via the shared hook.
   // Replaces a hand-rolled `document.addEventListener('click', ...)` effect
   // that fired on any click (including the trigger itself) and skipped the
   // Escape key entirely.
-  useOutsideClick(moreOpen, closeMore, [moreWrapRef]);
+  useOutsideClick(moreOpen, closeMore, moreOutsideRefs);
 
   // Close agent popover on outside click + Escape.
-  useOutsideClick(agentPopover, () => setAgentPopover(false), [agentPopoverRef]);
+  useOutsideClick(agentPopover, closeAgentPopover, agentOutsideRefs);
 
   function closeAllPanels() {
     setViewAgentsOpen(false);

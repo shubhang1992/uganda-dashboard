@@ -7,6 +7,7 @@ import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../../components/PageHeader';
+import { useAgentHeaderChrome } from '../shell/AgentHeaderChrome';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
@@ -39,6 +40,7 @@ export default function SubscribersPage() {
   const reducedMotion = useReducedMotion();
   const { agentId } = useAgentScope();
   const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
+  const headerChrome = useAgentHeaderChrome();
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -76,6 +78,8 @@ export default function SubscribersPage() {
         variant="hero"
         title="My subscribers"
         showBack={false}
+        leadingSlot={headerChrome.leadingSlot}
+        trailingSlot={headerChrome.trailingSlot}
         eyebrow="YOUR PORTFOLIO"
         amount={loading ? '—' : counts.all}
         subtitle={loading ? undefined : 'subscribers onboarded'}

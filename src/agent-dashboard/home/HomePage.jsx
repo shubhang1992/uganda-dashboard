@@ -5,6 +5,7 @@ import PulseCard from './widgets/PulseCard';
 import PortfolioCard from './widgets/PortfolioCard';
 import CommissionsSnapshotCard from './widgets/CommissionsSnapshotCard';
 import CoPilotWidget from './widgets/CoPilotWidget';
+import NotificationCenterCard from '../../components/notifications/NotificationCenterCard';
 import styles from './HomePage.module.css';
 
 const stagger = {
@@ -36,6 +37,9 @@ export default function HomePage() {
       </motion.div>
       <motion.div variants={itemVariants} className={styles.slotCommissions}>
         <CommissionsSnapshotCard agentId={agentId} />
+      </motion.div>
+      <motion.div variants={itemVariants} className={styles.slotNotifications}>
+        <NotificationCenterCard role="agent" entityId={agentId} />
       </motion.div>
       <motion.div variants={itemVariants} className={styles.slotCopilot}>
         <CoPilotWidget agentId={agentId} />

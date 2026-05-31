@@ -8,8 +8,8 @@ import { useEntity } from '../../../hooks/useEntity';
 import { useAgentSubscribers } from '../../../hooks/useAgent';
 import { useAgentCommissionDetail } from '../../../hooks/useCommission';
 import { useCountUp } from '../../../hooks/useCountUp';
-import { useAgentTickets } from '../../../hooks/useTickets';
-import { TICKET_STATUS } from '../../../data/ticketsSeed';
+import { useAgentUnreadTicketCount } from '../../../hooks/useTickets';
+import { useAgentHeaderChrome } from '../../shell/AgentHeaderChrome';
 import HeroCapsule from '../../../components/HeroCapsule';
 import styles from './PulseCard.module.css';
 
@@ -42,17 +42,15 @@ export default function PulseCard({ agentId }) {
   const { data: subscribers = [] } = useAgentSubscribers(agentId);
   const { data: commissionDetail } = useAgentCommissionDetail(agentId);
 
-  // Unread support badge for the inbox action. Calling useAgentTickets with no
-  // status arg shares the ['tickets','agent',id,'all'] cache key with the Inbox
-  // page + BottomTabBar, so this dedupes into the same fetch/poll (no extra
-  // request). Sum the agent's unread counter over OPEN tickets only — a closed
-  // ticket carries no actionable unread.
-  const { data: agentTickets } = useAgentTickets(agentId);
-  const unreadCount = (agentTickets ?? []).reduce(
-    (sum, t) => (t.status === TICKET_STATUS.OPEN ? sum + (t.unread?.agent ?? 0) : sum),
-    0,
-  );
+  // Unread support badge for the inbox action — shared hook dedupes into the
+  // same ['tickets','agent',id,'all'] fetch/poll as the Inbox page + BottomTabBar.
+  const unreadCount = useAgentUnreadTicketCount(agentId);
   const hasUnread = unreadCount > 0;
+
+  // Notification bell for the dome's top-left (mobile only; desktop sidebar owns
+  // the bell). The inbox stays the dome's own top-right action below, so we omit
+  // the chrome's inbox to avoid doubling it up.
+  const headerChrome = useAgentHeaderChrome({ showInbox: false });
 
   const firstName = (user?.name || agent?.name || 'there').split(' ')[0];
   const greeting = `Good ${hourGreeting()}, ${firstName}`;
@@ -70,12 +68,13 @@ export default function PulseCard({ agentId }) {
   }, [subscribers]);
 
   const commissionsTotal = useMemo(() => {
-    const all = commissionDetail?.commissions || [];
-    let paid = 0;
-    for (const c of all) {
-      if (c.status === 'released' || c.status === 'confirmed') paid += c.amount || 0;
-    }
-    return paid;
+    // Flat `due → paid` flow: lifetime commissions = the total paid figure the
+    // detail already sums (falls back to summing paid lines if absent).
+    if (commissionDetail?.totalPaid != null) return commissionDetail.totalPaid;
+    return (commissionDetail?.paidTransactions || []).reduce(
+      (sum, c) => sum + (c.amount || 0),
+      0,
+    );
   }, [commissionDetail]);
 
   // useCountUp returns 0 when run is false (reduced-motion), so snap to the
@@ -120,6 +119,7 @@ export default function PulseCard({ agentId }) {
         prefix="UGX"
         amount={amountLabel}
         statRow={statRow}
+        leadingSlot={headerChrome.leadingSlot}
         menuIcon={inboxIcon}
         menuLabel={hasUnread ? `Open your inbox (${unreadCount} unread)` : 'Open your inbox'}
         onMenu={() => navigate('/dashboard/inbox')}

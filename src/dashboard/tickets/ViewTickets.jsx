@@ -176,7 +176,12 @@ export default function ViewTickets() {
     return () => document.removeEventListener('keydown', onKey);
   }, [viewTicketsOpen, handleClose]);
 
-  useOutsideClick(branchDropOpen, () => setBranchDropOpen(false), [branchBtnRef]);
+  // Memoise the refs array + close callback so useOutsideClick doesn't tear
+  // down + re-add its document listeners on every render while the dropdown
+  // is open.
+  const branchOutsideRefs = useMemo(() => [branchBtnRef], []);
+  const closeBranchDrop = useCallback(() => setBranchDropOpen(false), []);
+  useOutsideClick(branchDropOpen, closeBranchDrop, branchOutsideRefs);
 
   const headerTitle = view === 'thread' ? (thread?.subject || 'Conversation') : 'Network Support';
   const headerSubtitle =

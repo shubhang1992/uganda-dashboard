@@ -236,6 +236,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
     console.error('[verify-otp] unexpected error', err);
-    res.status(500).json({ code: 'invalid_otp' });
+    // A 500 must not borrow the 4xx `invalid_otp` vocabulary — that code is
+    // reserved for client-correctable shape failures. Use a distinct
+    // `unexpected_error` so the status and code agree (BL-39); the frontend's
+    // error map falls back to its default message for unknown codes.
+    res.status(500).json({ code: 'unexpected_error' });
   }
 }

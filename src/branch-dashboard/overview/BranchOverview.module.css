@@ -52,6 +52,12 @@
   transform: scaleY(0.94);
 }
 
+/* Notification centre widget — fixed height, sits between the hero and ops
+   without growing or being squished by the flex column. */
+.notifyWrap {
+  flex: 0 0 auto;
+}
+
 /* ── Loading state ── */
 .loading {
   display: flex;

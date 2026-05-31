@@ -34,12 +34,15 @@
   .page > :global(*) > :global(*) {
     flex: 1 1 auto;
   }
-  /* Pulse dome + Co-Pilot span full width; Portfolio + Commissions pair up. */
+  /* Pulse dome, Notifications + Co-Pilot span full width; Portfolio +
+     Commissions pair up. */
   .slotPulse,
+  .slotNotifications,
   .slotCopilot {
     grid-column: 1 / -1;
   }
 }
 
 /* Mobile + desktop stack order:
-   PulseCard → PortfolioCard → CommissionsSnapshotCard → CoPilotWidget */
+   PulseCard → PortfolioCard → CommissionsSnapshotCard →
+   NotificationCenterCard → CoPilotWidget */

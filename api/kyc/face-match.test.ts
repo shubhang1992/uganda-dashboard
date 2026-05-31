@@ -156,4 +156,28 @@ describe('POST /api/kyc/face-match', () => {
     expect(res.body).toEqual({ code: 'method_not_allowed' });
     expect(res.headers.Allow).toBe('POST');
   });
+
+  it('sets Cache-Control: no-store on the success path (B13)', async () => {
+    const req = buildReq({ body: { selfieFile: 'selfie-token', nin: 'CF92018AB3CD45' } });
+    const res = buildRes();
+    const pending = handler(req, res);
+    await vi.advanceTimersByTimeAsync(1500);
+    await pending;
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
+
+  it('sets Cache-Control: no-store on the 400 path (B13)', async () => {
+    const req = buildReq({ body: { nin: 'CF92018AB3CD45' } });
+    const res = buildRes();
+    await handler(req, res);
+    expect(res.statusCode).toBe(400);
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
+
+  it('sets Cache-Control: no-store on the 405 path (B13)', async () => {
+    const req = buildReq({ method: 'GET' });
+    const res = buildRes();
+    await handler(req, res);
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
 });

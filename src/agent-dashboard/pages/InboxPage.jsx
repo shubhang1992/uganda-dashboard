@@ -15,6 +15,7 @@ import {
 import { SENDER_ROLE, TICKET_STATUS } from '../../data/ticketsSeed';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../../components/PageHeader';
+import { useAgentHeaderChrome } from '../shell/AgentHeaderChrome';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
@@ -168,6 +169,8 @@ function ThreadPanel({ ticketId, participantLabel, onBack }) {
 export default function InboxPage() {
   const reducedMotion = useReducedMotion();
   const { agentId } = useAgentScope();
+  // Bell only — an inbox button on the inbox page itself would be redundant.
+  const headerChrome = useAgentHeaderChrome({ showInbox: false });
   const [searchParams, setSearchParams] = useSearchParams();
 
   // ?subscriberId= pre-filters the list to one subscriber's threads (the
@@ -256,6 +259,7 @@ export default function InboxPage() {
         eyebrow="SUPPORT"
         title="Inbox"
         showBack={false}
+        leadingSlot={headerChrome.leadingSlot}
         amount={loading ? '—' : counts.open}
         subtitle={loading ? undefined : 'open conversations'}
         statRow={loading ? (

@@ -504,10 +504,11 @@ describe('POST /api/auth/verify-otp', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Generic catch — signJwt blowing up surfaces as 500 invalid_otp.
+  // Generic catch — signJwt blowing up surfaces as 500 unexpected_error
+  // (distinct from the 4xx invalid_otp vocabulary; BL-39).
   // -------------------------------------------------------------------------
 
-  it('returns 500 invalid_otp on unexpected error (e.g. signJwt failure)', async () => {
+  it('returns 500 unexpected_error on unexpected error (e.g. signJwt failure)', async () => {
     queueFrom('subscribers', {
       data: { id: 's-0001', name: 'Brian' },
       error: null,
@@ -526,6 +527,6 @@ describe('POST /api/auth/verify-otp', () => {
       res,
     );
     expect(res.__getStatus()).toBe(500);
-    expect(res.__getPayload()).toEqual({ code: 'invalid_otp' });
+    expect(res.__getPayload()).toEqual({ code: 'unexpected_error' });
   });
 });

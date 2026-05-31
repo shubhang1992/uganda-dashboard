@@ -128,4 +128,20 @@ describe('POST /api/kyc/id-quality', () => {
     expect(res.body).toEqual({ code: 'method_not_allowed' });
     expect(res.headers.Allow).toBe('POST');
   });
+
+  it('sets Cache-Control: no-store on the success path (B13)', async () => {
+    const req = buildReq({ body: {} });
+    const res = buildRes();
+    const pending = handler(req, res);
+    await vi.advanceTimersByTimeAsync(900);
+    await pending;
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
+
+  it('sets Cache-Control: no-store on the 405 path (B13)', async () => {
+    const req = buildReq({ method: 'PUT' });
+    const res = buildRes();
+    await handler(req, res);
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
 });

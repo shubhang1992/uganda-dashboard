@@ -115,5 +115,12 @@ describe('currency utils', () => {
       expect(formatUGXShort(0)).toBe('0');
       expect(formatUGXShort(-100)).toBe('0');
     });
+
+    it('shows the exact rounded amount below 1,000 (BL-33: no misleading "0K"/"1K")', () => {
+      expect(formatUGXShort(400)).toBe('400');
+      expect(formatUGXShort(500)).toBe('500');
+      expect(formatUGXShort(999)).toBe('999');
+      expect(formatUGXShort(999.6)).toBe('1,000');
+    });
   });
 });

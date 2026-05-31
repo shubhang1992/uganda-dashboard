@@ -1,0 +1,114 @@
+// Regression spec (BL-39 / R9): pin two known StubPage routes + nominee-sum.
+//
+// Why:
+//   1. StubPages — CLAUDE.md §10b / FRONTEND.md §16b document that the
+//      subscriber Settings → Notifications and Settings → Security pages are
+//      intentional `StubPage` placeholders (SubscriberDashboardShell.jsx:68-69
+//      route them to `<StubPage title="Notifications" />` /
+//      `<StubPage title="Security" />`). They are NOT bugs — but nothing
+//      pinned them, so a future contributor could wire a half-finished page,
+//      change the route, or accidentally surface a broken screen and no test
+//      would notice. This spec asserts each renders its stub state
+//      (the "Coming up next" / "migrating … to the new dashboard" copy).
+//
+//   2. Nominee-sum validation — FRONTEND.md / NomineesPage.jsx:206-207 gate
+//      the Save CTA on `totalShare === 100`. Adding a nominee while the list
+//      already sums to 100% pushes the total past 100, flips the share banner
+//      out of its valid state, surfaces the "Balance" auto-fix button, and
+//      disables Save. We drive that purely through the UI (no network writes)
+//      so the sum-to-100 invariant the backend RPC also enforces has a
+//      front-end regression guard.
+//
+// All assertions here are read-only / client-only (no service-role writes,
+// no destructive DB ops), so this spec is safe under the default --workers
+// setting alongside the other regression specs.
+
+import { test, expect } from '@playwright/test';
+import { storageStatePathFor } from '../../fixtures/auth';
+import { disableAnimations } from '../../fixtures/motion';
+
+test.use({ storageState: storageStatePathFor('subscriber') });
+
+test.describe('subscriber settings → StubPage routes', () => {
+  test.beforeEach(async ({ page }) => {
+    await disableAnimations(page);
+  });
+
+  // Both StubPage routes share the same body; titled by the route element.
+  const STUBS = [
+    { path: '/dashboard/settings/notifications', title: 'Notifications' },
+    { path: '/dashboard/settings/security', title: 'Security' },
+  ];
+
+  for (const { path, title } of STUBS) {
+    test(`${title} settings renders the StubPage placeholder`, async ({ page }) => {
+      await page.goto(path);
+
+      // StubPage renders the route title via the hero PageHeader <h1>.
+      await expect(
+        page.getByRole('heading', { level: 1, name: new RegExp(`^${title}$`, 'i') }),
+      ).toBeVisible({ timeout: 15_000 });
+
+      // The stub body — the load-bearing "this is a placeholder" signal.
+      await expect(
+        page.getByRole('heading', { level: 2, name: /coming up next/i }),
+      ).toBeVisible();
+      await expect(
+        page.getByText(/migrating .* to the new dashboard/i),
+      ).toBeVisible();
+
+      // And the back-to-home affordance the stub always offers.
+      await expect(
+        page.getByRole('button', { name: /back to home/i }),
+      ).toBeVisible();
+    });
+  }
+});
+
+test.describe('subscriber nominees → sum-to-100 validation', () => {
+  test.beforeEach(async ({ page }) => {
+    await disableAnimations(page);
+  });
+
+  test('exceeding 100% total share disables Save and offers Balance', async ({ page }) => {
+    await page.goto('/dashboard/settings/nominees');
+
+    // Page mounts via the hero header.
+    await expect(
+      page.getByRole('heading', { level: 1, name: /^nominees$/i }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Share-banner value carries `{totalShare}%`. CSS Modules preserve the
+    // source class name as a substring (default Vite scoping), so a
+    // `[class*=…]` anchor is stable across dev + prod builds.
+    const shareBannerValue = page.locator('[class*="shareBannerValue"]').first();
+    await expect(shareBannerValue).toBeVisible({ timeout: 10_000 });
+    const addBtn = page.getByRole('button', { name: /add nominee/i });
+    const balanceBtn = page.getByRole('button', { name: /^balance$/i });
+
+    // Drive the list into an invalid (≠100%) total. addNominee() seeds a new
+    // row with `Math.max(1, floor(100 - totalShare))`, so:
+    //   - from a 100%-summed list, one add → 101% (invalid).
+    //   - from an empty list, the first add → 100% (valid), the second → 101%.
+    // Add until the "Balance" affordance (which only renders while invalid)
+    // appears, capped at MAX_NOMINEES (5) to avoid a runaway loop.
+    for (let i = 0; i < 5; i += 1) {
+      if (await balanceBtn.isVisible().catch(() => false)) break;
+      if (!(await addBtn.isEnabled().catch(() => false))) break;
+      await addBtn.click();
+    }
+
+    // Now the sum is invalid: the valid "Balanced" badge is gone, the auto-fix
+    // "Balance" button is present, and Save is gated off.
+    await expect(balanceBtn).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/^balanced$/i)).toHaveCount(0);
+    await expect(shareBannerValue).not.toHaveText(/^100%$/);
+    await expect(page.getByRole('button', { name: /save changes/i })).toBeDisabled();
+
+    // Clicking Balance redistributes shares back to a 100% total, restoring
+    // the valid state — proves the recovery path the validation gates.
+    await balanceBtn.click();
+    await expect(shareBannerValue).toHaveText(/100%/, { timeout: 10_000 });
+    await expect(page.getByText(/^balanced$/i)).toBeVisible();
+  });
+});

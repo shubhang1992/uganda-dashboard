@@ -8,6 +8,7 @@ import { useEntity } from '../../hooks/useEntity';
 import { useToast } from '../../contexts/ToastContext';
 import { getInitials } from '../../utils/dashboard';
 import PageHeader from '../../components/PageHeader';
+import { useAgentHeaderChrome } from '../shell/AgentHeaderChrome';
 import styles from './SettingsPage.module.css';
 
 function formatPhone(raw) {
@@ -23,6 +24,7 @@ export default function SettingsPage() {
   const { setSettingsOpen } = useDashboard();
   const { data: agent } = useEntity('agent', user?.agentId);
   const { addToast } = useToast();
+  const headerChrome = useAgentHeaderChrome();
   const hasPassword = user?.hasPassword === true;
 
   const [name, setName] = useState('');
@@ -81,7 +83,7 @@ export default function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader variant="hero" showBack={false} title="Settings" subtitle="Manage your profile and security" />
+      <PageHeader variant="hero" showBack={false} leadingSlot={headerChrome.leadingSlot} trailingSlot={headerChrome.trailingSlot} title="Settings" subtitle="Manage your profile and security" />
 
       <form className={styles.form} onSubmit={handleSave} noValidate>
         <motion.div

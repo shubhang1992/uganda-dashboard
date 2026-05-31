@@ -21,8 +21,6 @@
 // generated for the admin client). Callers must supply the service-role
 // client from `api/_lib/supabase-admin.ts`. Never wire this to an anon
 // client — the queries below are RLS-blind by design.
-//
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 import type { JwtRole } from '../../_lib/jwt.js';
 
 // Demo-stable fallback entity IDs when the phone isn't recognised. Matches

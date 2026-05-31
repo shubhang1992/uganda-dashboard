@@ -81,7 +81,11 @@ export default function TopBar() {
   }
 
   // Close on outside click + Escape (handled together by useOutsideClick).
-  useOutsideClick(filterOpen, () => setFilterOpen(false), [filterRef, filterBtnRef]);
+  // Memoise the refs array + close callback so the hook doesn't tear down +
+  // re-add its document listeners on every render while the filter popover is open.
+  const filterOutsideRefs = useMemo(() => [filterRef, filterBtnRef], []);
+  const closeFilter = useCallback(() => setFilterOpen(false), []);
+  useOutsideClick(filterOpen, closeFilter, filterOutsideRefs);
 
   // Filter config for current level
   const filterConfig = getFilterOptions(level, children);
