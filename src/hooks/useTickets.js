@@ -124,6 +124,22 @@ export function useDistributorTickets(distributorId, filters = {}) {
 }
 
 /**
+ * Employer support inbox (Phase 7) — employer↔platform tickets owned by one
+ * employer, newest-updated first. Scoped by the denormalized employerId; the
+ * mirror of useSubscriberTickets for the employer role.
+ * @param {string|null|undefined} employerId
+ * @param {{ status?: string }} [opts]
+ */
+export function useEmployerTickets(employerId, { status } = {}) {
+  return useQuery({
+    queryKey: ['tickets', 'employer', employerId, status || 'all'],
+    queryFn: () => tickets.listTicketsForEmployer(employerId, { status }),
+    enabled: !!employerId,
+    refetchInterval: POLL_INBOX,
+  });
+}
+
+/**
  * Full thread for one ticket, messages oldest → newest. The most live surface,
  * so it polls fastest; useSendMessage also patches this cache optimistically.
  * @param {string|null|undefined} ticketId
@@ -163,6 +179,21 @@ export function useDistributorTicketMetrics(distributorId, filters = {}) {
     queryKey: ['ticketMetrics', 'distributor', distributorId, filters],
     queryFn: () => tickets.getDistributorTicketMetrics(distributorId, filters),
     enabled: !!distributorId,
+    refetchInterval: POLL_METRICS,
+  });
+}
+
+/**
+ * Employer support metrics (Phase 7) — open/closed/unanswered counts + response
+ * averages for one employer's employer↔platform tickets. Same TicketMetrics
+ * shape as the oversight reads; the employer UI consumes only the scalar counts.
+ * @param {string|null|undefined} employerId
+ */
+export function useEmployerTicketMetrics(employerId) {
+  return useQuery({
+    queryKey: ['ticketMetrics', 'employer', employerId],
+    queryFn: () => tickets.getEmployerTicketMetrics(employerId),
+    enabled: !!employerId,
     refetchInterval: POLL_METRICS,
   });
 }
@@ -213,6 +244,22 @@ export function useCreateTicket(subscriberId, routing) {
 }
 
 /**
+ * Open a new employer↔platform support ticket (Phase 7). Like useCreateTicket it
+ * is not optimistically patched — the service mints the tk-emp-<seq> id, so there
+ * is no stable id to splice into the inbox ahead of the response; the onSettled
+ * invalidation pulls the real ticket in. No routing arg: employer threads bypass
+ * resolveRouting (no servicing agent).
+ * @param {string} employerId
+ */
+export function useCreateEmployerTicket(employerId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload) => tickets.createEmployerTicket(employerId, payload),
+    onSettled: () => invalidateAllTickets(queryClient),
+  });
+}
+
+/**
  * Append a message to a thread. Optimistically pushes the message onto the
  * ['ticketThread', ticketId] cache (and bumps updatedAt + lastMessagePreview +
  * the recipient's unread counter, mirroring the service) so it appears instantly;
@@ -242,8 +289,14 @@ export function useSendMessage(ticketId) {
           },
         ];
         const unread = { ...old.unread };
+        // Mirror the service's appendMessage arithmetic so the optimistic patch
+        // matches the eventual truth. Employer's own messages bump no counter
+        // (no platform inbox); a SYSTEM reply on an employer thread → employer++.
         if (sender === SENDER_ROLE.SUBSCRIBER) unread.agent += 1;
         else if (sender === SENDER_ROLE.AGENT) unread.subscriber += 1;
+        else if (sender === SENDER_ROLE.SYSTEM && old.employerId) {
+          unread.employer = (unread.employer ?? 0) + 1;
+        }
         return {
           ...old,
           messages,
@@ -327,7 +380,8 @@ export function useReopenTicket(ticketId) {
 /**
  * Mark a thread read for one viewer — zero that viewer's unread counter.
  * Optimistically patches the cached thread so the badge clears immediately;
- * rolls back on error. The caller passes { viewer: 'subscriber' | 'agent' }.
+ * rolls back on error. The caller passes
+ * { viewer: 'subscriber' | 'agent' | 'employer' }.
  * @param {string} ticketId
  */
 export function useMarkTicketRead(ticketId) {
@@ -343,6 +397,7 @@ export function useMarkTicketRead(ticketId) {
         const unread = { ...old.unread };
         if (viewer === SENDER_ROLE.SUBSCRIBER) unread.subscriber = 0;
         else if (viewer === SENDER_ROLE.AGENT) unread.agent = 0;
+        else if (viewer === SENDER_ROLE.EMPLOYER) unread.employer = 0;
         return { ...old, unread };
       });
       return { previous };

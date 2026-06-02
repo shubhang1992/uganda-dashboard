@@ -149,9 +149,21 @@ function appendMessage(ticket, { sender, body, at }) {
   next.messages.push(message);
   next.updatedAt = at;
   next.lastMessagePreview = preview(body);
-  // System messages don't belong to either party's unread count.
+  // Each message bumps the OTHER party's unread counter; the sender's own stays
+  // put. For employer↔platform threads the "platform" side is the SYSTEM sender
+  // (the canned demo support reply), so a SYSTEM message on an employer thread
+  // bumps the employer's unread. A plain SYSTEM line on a subscriber↔agent
+  // thread (lifecycle markers like "reopened") still belongs to neither party.
   if (sender === SENDER_ROLE.SUBSCRIBER) next.unread.agent += 1;
   else if (sender === SENDER_ROLE.AGENT) next.unread.subscriber += 1;
+  else if (sender === SENDER_ROLE.EMPLOYER) {
+    // Employer raised/replied — the platform support side now owes a response.
+    // There is no separate platform inbox in the demo, so nothing on the
+    // ticket's own counters needs bumping (the employer's own counter is theirs).
+  } else if (sender === SENDER_ROLE.SYSTEM && next.employerId) {
+    // Canned platform-support reply on an employer thread → employer unread++.
+    next.unread.employer = (next.unread.employer ?? 0) + 1;
+  }
   return next;
 }
 
@@ -214,6 +226,19 @@ export async function listTicketsForDistributor(distributorId, { status, branchI
 }
 
 /**
+ * Employer support inbox (Phase 7) — employer↔platform tickets owned by one
+ * employer, newest-updated first. Scoped purely by the denormalized
+ * `employerId` (these threads have no agent/branch/subscriber), so this read is
+ * the mirror of `listTicketsForSubscriber` for the employer role.
+ * @param {string} employerId
+ * @param {{ status?: string }} [opts]
+ * @returns {Promise<object[]>} TicketSummary[]
+ */
+export async function listTicketsForEmployer(employerId, { status } = {}) {
+  return summaries((t) => t.employerId === employerId && matchesStatus(t, status));
+}
+
+/**
  * Full thread for one ticket, with messages[] oldest → newest. Returns a fresh
  * clone (never the stored reference) or null if the ticket doesn't exist.
  * @param {string} ticketId
@@ -233,17 +258,29 @@ function roundHours(value) {
   return Math.round(value * 10) / 10;
 }
 
-/** First agent reply timestamp in a thread, or null if the agent never replied. */
+/**
+ * First support-reply timestamp in a thread, or null if support never replied.
+ * The "support" side is the AGENT for subscriber↔agent threads and the SYSTEM
+ * sender (canned platform reply) for employer↔platform threads — keyed off the
+ * denormalized `employerId` so the existing roles' math is unchanged.
+ */
 function firstAgentMessageAt(ticket) {
-  const reply = ticket.messages.find((m) => m.sender === SENDER_ROLE.AGENT);
+  const replySender = ticket.employerId ? SENDER_ROLE.SYSTEM : SENDER_ROLE.AGENT;
+  const reply = ticket.messages.find((m) => m.sender === replySender);
   return reply ? reply.at : null;
 }
 
-/** True when the latest message in an OPEN thread is from the subscriber. */
+/**
+ * True when the latest message in an OPEN thread is from the requester (the
+ * subscriber for subscriber↔agent threads, the employer for employer↔platform
+ * threads) — i.e. the support side still owes a reply.
+ */
 function isUnanswered(ticket) {
   if (ticket.status !== TICKET_STATUS.OPEN) return false;
   const last = ticket.messages[ticket.messages.length - 1];
-  return !!last && last.sender === SENDER_ROLE.SUBSCRIBER;
+  if (!last) return false;
+  const requesterSender = ticket.employerId ? SENDER_ROLE.EMPLOYER : SENDER_ROLE.SUBSCRIBER;
+  return last.sender === requesterSender;
 }
 
 /**
@@ -338,6 +375,21 @@ export async function getDistributorTicketMetrics(distributorId, { branchId } = 
   return computeMetrics(tickets);
 }
 
+/**
+ * Employer support metrics (Phase 7) — folds one employer's employer↔platform
+ * tickets into the shared TicketMetrics shape (open/closed/unanswered counts +
+ * response/resolution averages). Reuses `computeMetrics`; the `byAgent`
+ * breakdown it returns is not meaningful for employer↔platform threads (they
+ * carry no agent) and is ignored by the employer UI, which reads only the
+ * scalar counts.
+ * @param {string} employerId
+ * @returns {Promise<object>} TicketMetrics
+ */
+export async function getEmployerTicketMetrics(employerId) {
+  const tickets = Array.from(store().values()).filter((t) => t.employerId === employerId);
+  return computeMetrics(tickets);
+}
+
 // ─── Mutations (every write returns a fresh cloned Ticket) ───────────────────
 
 let _createSeq = 0;
@@ -347,6 +399,21 @@ function nextTicketId() {
   do {
     _createSeq += 1;
     id = `tk-${String(seedTickets().length + _createSeq).padStart(3, '0')}`;
+  } while (store().has(id));
+  return id;
+}
+
+let _createEmployerSeq = 0;
+/**
+ * Mint a tk-emp-<n> id for a newly-raised employer ticket that won't collide
+ * with the seeded `tk-emp-NNN` ids already in the store. Kept distinct from the
+ * subscriber `tk-NNN` namespace AND from any `empe-NNN` employee id.
+ */
+function nextEmployerTicketId() {
+  let id;
+  do {
+    _createEmployerSeq += 1;
+    id = `tk-emp-${String(100 + _createEmployerSeq).padStart(3, '0')}`;
   } while (store().has(id));
   return id;
 }
@@ -409,6 +476,55 @@ export async function createTicket(subscriberId, { subject, category, priority, 
     closedBy: null,
     lastMessagePreview: preview(body),
     unread: { subscriber: 0, agent: 1 },
+    messages: [message],
+  };
+  store().set(id, ticket);
+  return cloneTicket(ticket);
+}
+
+/**
+ * Open a new employer↔platform support ticket (Phase 7). Standalone employees
+ * have no servicing agent, so this BYPASSES `resolveRouting` entirely:
+ * `subscriberId`/`agentId`/`branchId` are all null and the denormalized
+ * `employerId` carries the owner. The first message is the employer's body and
+ * the thread opens OPEN. Unlike the subscriber path there is no platform inbox
+ * counter to seed, so all three unread slots start at 0.
+ *
+ * @param {string} employerId
+ * @param {{ subject: string, category: string, priority: string, body: string }} payload
+ * @returns {Promise<object>} the newly created Ticket
+ * @throws if subject or body is empty/whitespace
+ */
+export async function createEmployerTicket(employerId, { subject, category, priority, body } = {}) {
+  if (isBlank(subject)) throw new Error('Ticket subject is required');
+  if (isBlank(body)) throw new Error('Ticket message is required');
+
+  const now = new Date().toISOString();
+  const id = nextEmployerTicketId();
+  const trimmedSubject = subject.trim();
+  const message = {
+    id: `msg-${id}-1`,
+    ticketId: id,
+    sender: SENDER_ROLE.EMPLOYER,
+    body,
+    at: now,
+  };
+  const ticket = {
+    id,
+    subscriberId: null,
+    agentId: null,
+    branchId: null,
+    employerId,
+    subject: trimmedSubject,
+    category,
+    status: TICKET_STATUS.OPEN,
+    priority,
+    createdAt: now,
+    updatedAt: now,
+    closedAt: null,
+    closedBy: null,
+    lastMessagePreview: preview(body),
+    unread: { subscriber: 0, agent: 0, employer: 0 },
     messages: [message],
   };
   store().set(id, ticket);
@@ -486,7 +602,7 @@ export async function reopenTicket(ticketId, { by } = {}) {
 /**
  * Mark a thread read for one viewer — zero that viewer's unread counter.
  * @param {string} ticketId
- * @param {{ viewer: 'subscriber'|'agent' }} payload
+ * @param {{ viewer: 'subscriber'|'agent'|'employer' }} payload
  * @returns {Promise<object|null>} the updated Ticket, or null if not found
  */
 export async function markRead(ticketId, { viewer } = {}) {
@@ -496,6 +612,7 @@ export async function markRead(ticketId, { viewer } = {}) {
   const next = cloneTicket(ticket);
   if (viewer === SENDER_ROLE.SUBSCRIBER) next.unread.subscriber = 0;
   else if (viewer === SENDER_ROLE.AGENT) next.unread.agent = 0;
+  else if (viewer === SENDER_ROLE.EMPLOYER) next.unread.employer = 0;
   store().set(ticketId, next);
   return cloneTicket(next);
 }

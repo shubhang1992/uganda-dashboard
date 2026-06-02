@@ -23,8 +23,14 @@ import { formatDate } from '../../utils/date';
  * helper (`variant: 'time'` → "14:32") so timestamp formatting stays in one
  * place; the bubble never does its own date math.
  *
+ * The sender vocabulary is open by design: any non-`system` sender (subscriber,
+ * agent, or — Phase 7 — `employer`) renders through the same mine/theirs branch,
+ * so the bubble stays role-agnostic. Only the `system` sender gets the centered
+ * lifecycle/support treatment. The caller (ThreadView) decides `mine`.
+ *
  * @param {Object} props
- * @param {'subscriber'|'agent'|'system'} props.sender — who wrote the message.
+ * @param {'subscriber'|'agent'|'employer'|'system'} props.sender — who wrote the
+ *   message.
  * @param {string} props.body — the message text.
  * @param {string} props.at — ISO timestamp; formatted to a clock time.
  * @param {boolean} [props.mine] — true aligns/styles the bubble as the viewer's
@@ -33,8 +39,9 @@ import { formatDate } from '../../utils/date';
 export default function MessageBubble({ sender, body, at, mine = false }) {
   const time = formatDate(at, { variant: 'time' });
 
-  // System lines are lifecycle markers, not conversation: centered, muted, no
-  // alignment to either party and `mine` is never consulted.
+  // System lines are lifecycle markers (or, on employer↔platform threads, the
+  // canned platform-support reply): centered, muted, no alignment to either
+  // party and `mine` is never consulted.
   if (sender === SENDER_ROLE.SYSTEM) {
     return (
       <div className={styles.systemRow}>

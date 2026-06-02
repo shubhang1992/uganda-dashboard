@@ -17,10 +17,13 @@ import {
   listTicketsForAgent,
   listTicketsForBranch,
   listTicketsForDistributor,
+  listTicketsForEmployer,
   getThread,
   getBranchTicketMetrics,
   getDistributorTicketMetrics,
+  getEmployerTicketMetrics,
   createTicket,
+  createEmployerTicket,
   sendMessage,
   closeTicket,
   reopenTicket,
@@ -38,6 +41,8 @@ const SUB = 's-0001';
 const AGENT = 'a-001';
 const BRANCH = 'b-bui-001';
 const DISTRIBUTOR = 'd-001';
+// The demo employer the Phase 7 employer↔platform threads are anchored to.
+const EMPLOYER = 'emp-001';
 
 const draft = (over = {}) => ({
   subject: 'Test issue',
@@ -257,5 +262,138 @@ describe('tickets service — oversight metrics', () => {
     const distM = await getDistributorTicketMetrics(DISTRIBUTOR);
     expect(distM.totalCount).toBeGreaterThanOrEqual(branchM.totalCount);
     expect(distM.openCount + distM.closedCount).toBe(distM.totalCount);
+  });
+});
+
+// ── Phase 7: employer↔platform support ──────────────────────────────────────
+describe('tickets service — employer↔platform (Phase 7)', () => {
+  const draftEmp = (over = {}) => ({
+    subject: 'Question about our contribution run',
+    category: TICKET_CATEGORY.CONTRIBUTIONS,
+    priority: TICKET_PRIORITY.NORMAL,
+    body: 'Could you help us reconcile this month’s run?',
+    ...over,
+  });
+
+  it('scopes listTicketsForEmployer to the employer; threads carry employerId and no agent/subscriber', async () => {
+    const list = await listTicketsForEmployer(EMPLOYER);
+    expect(list.length).toBeGreaterThan(0);
+    // Every ticket belongs to this employer …
+    expect(list.every((t) => t.employerId === EMPLOYER)).toBe(true);
+    // … and employer↔platform threads bypass the subscriber↔agent routing.
+    expect(list.every((t) => t.agentId == null && t.subscriberId == null && t.branchId == null)).toBe(true);
+    // Summaries strip messages[] and stay newest-updated first.
+    expect(list.every((t) => !('messages' in t))).toBe(true);
+    for (let i = 1; i < list.length; i += 1) {
+      expect(list[i - 1].updatedAt >= list[i].updatedAt).toBe(true);
+    }
+    // The unread counter set includes the employer slot.
+    expect(list.every((t) => 'employer' in t.unread)).toBe(true);
+  });
+
+  it('does NOT leak across scopes: employer threads are invisible to agent/branch/subscriber reads', async () => {
+    const empList = await listTicketsForEmployer(EMPLOYER);
+    const empIds = new Set(empList.map((t) => t.id));
+
+    const subList = await listTicketsForSubscriber(SUB);
+    const agentList = await listTicketsForAgent(AGENT);
+    const branchList = await listTicketsForBranch(BRANCH);
+    expect(subList.some((t) => empIds.has(t.id))).toBe(false);
+    expect(agentList.some((t) => empIds.has(t.id))).toBe(false);
+    expect(branchList.some((t) => empIds.has(t.id))).toBe(false);
+
+    // A different employer id sees none of emp-001's threads.
+    const other = await listTicketsForEmployer('emp-999-nonexistent');
+    expect(other).toHaveLength(0);
+  });
+
+  it('filters the employer inbox by status', async () => {
+    const open = await listTicketsForEmployer(EMPLOYER, { status: TICKET_STATUS.OPEN });
+    expect(open.every((t) => t.status === TICKET_STATUS.OPEN)).toBe(true);
+    const closed = await listTicketsForEmployer(EMPLOYER, { status: TICKET_STATUS.CLOSED });
+    expect(closed.every((t) => t.status === TICKET_STATUS.CLOSED)).toBe(true);
+  });
+
+  it('createEmployerTicket bypasses resolveRouting: employerId set, agent/branch/subscriber null, opens with the employer’s first message', async () => {
+    const t = await createEmployerTicket(EMPLOYER, draftEmp());
+    expect(t.id).toMatch(/^tk-emp-\d+$/);
+    // Never collides with an employee id (empe-NNN).
+    expect(t.id.startsWith('empe-')).toBe(false);
+    expect(t.employerId).toBe(EMPLOYER);
+    expect(t.agentId).toBeNull();
+    expect(t.branchId).toBeNull();
+    expect(t.subscriberId).toBeNull();
+    expect(t.status).toBe(TICKET_STATUS.OPEN);
+    expect(t.messages).toHaveLength(1);
+    expect(t.messages[0].sender).toBe(SENDER_ROLE.EMPLOYER);
+    expect(t.unread).toEqual({ subscriber: 0, agent: 0, employer: 0 });
+
+    // It surfaces in the employer inbox.
+    const list = await listTicketsForEmployer(EMPLOYER);
+    expect(list.some((x) => x.id === t.id)).toBe(true);
+  });
+
+  it('createEmployerTicket throws on a blank subject or body', async () => {
+    await expect(createEmployerTicket(EMPLOYER, draftEmp({ subject: '  ' }))).rejects.toThrow();
+    await expect(createEmployerTicket(EMPLOYER, draftEmp({ body: '   ' }))).rejects.toThrow();
+  });
+
+  it('create → employer reply → platform (system) reply moves the unread counters correctly', async () => {
+    const t = await createEmployerTicket(EMPLOYER, draftEmp());
+    expect(t.unread.employer).toBe(0);
+
+    // Employer follow-up bumps no counter (there is no platform inbox slot).
+    const afterEmp = await sendMessage(t.id, { sender: SENDER_ROLE.EMPLOYER, body: 'Adding one more detail.' });
+    expect(afterEmp.messages).toHaveLength(2);
+    expect(afterEmp.unread).toEqual({ subscriber: 0, agent: 0, employer: 0 });
+
+    // The canned platform-support reply (SYSTEM) bumps the employer's unread.
+    const afterSys = await sendMessage(t.id, { sender: SENDER_ROLE.SYSTEM, body: 'Thanks — looking into it now.' });
+    expect(afterSys.messages).toHaveLength(3);
+    expect(afterSys.unread.employer).toBe(1);
+    expect(afterSys.lastMessagePreview).toContain('looking into it');
+
+    // markRead({ viewer: 'employer' }) zeroes only the employer's counter.
+    const read = await markRead(t.id, { viewer: SENDER_ROLE.EMPLOYER });
+    expect(read.unread.employer).toBe(0);
+    expect(read.unread.subscriber).toBe(0);
+    expect(read.unread.agent).toBe(0);
+  });
+
+  it('getEmployerTicketMetrics folds only this employer’s threads and reconciles counts', async () => {
+    // Create one extra open thread so the fold has at least one open ticket.
+    await createEmployerTicket(EMPLOYER, draftEmp({ subject: 'Fresh open thread' }));
+
+    const m = await getEmployerTicketMetrics(EMPLOYER);
+    const list = await listTicketsForEmployer(EMPLOYER);
+    // The fold counts exactly the employer's tickets.
+    expect(m.totalCount).toBe(list.length);
+    expect(m.openCount + m.closedCount).toBe(m.totalCount);
+    expect(m.openCount).toBeGreaterThan(0);
+    // Unanswered is bounded by open and never negative.
+    expect(m.unansweredCount).toBeGreaterThanOrEqual(0);
+    expect(m.unansweredCount).toBeLessThanOrEqual(m.openCount);
+    expect(typeof m.avgFirstResponseHours).toBe('number');
+    expect(m.avgFirstResponseHours).toBeGreaterThanOrEqual(0);
+    expect(m.avgResolutionHours).toBeGreaterThanOrEqual(0);
+
+    // A foreign employer folds to an empty metric set.
+    const empty = await getEmployerTicketMetrics('emp-999-nonexistent');
+    expect(empty.totalCount).toBe(0);
+    expect(empty.openCount).toBe(0);
+    expect(empty.closedCount).toBe(0);
+  });
+
+  it('a freshly-raised employer ticket counts as unanswered until support (SYSTEM) replies', async () => {
+    const before = await getEmployerTicketMetrics(EMPLOYER);
+    const t = await createEmployerTicket(EMPLOYER, draftEmp({ subject: 'Awaiting first reply' }));
+    const afterCreate = await getEmployerTicketMetrics(EMPLOYER);
+    // The new open, employer-last thread lifts the unanswered count by one.
+    expect(afterCreate.unansweredCount).toBe(before.unansweredCount + 1);
+
+    await sendMessage(t.id, { sender: SENDER_ROLE.SYSTEM, body: 'We’re on it.' });
+    const afterReply = await getEmployerTicketMetrics(EMPLOYER);
+    // Once support replies it is no longer unanswered.
+    expect(afterReply.unansweredCount).toBe(before.unansweredCount);
   });
 });

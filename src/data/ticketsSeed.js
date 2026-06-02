@@ -32,6 +32,10 @@ export const TICKET_STATUS = Object.freeze({
 export const SENDER_ROLE = Object.freeze({
   SUBSCRIBER: 'subscriber',
   AGENT: 'agent',
+  // Employer↔platform support (Phase 7): the employer raises + replies; the
+  // "platform support" side speaks through SYSTEM messages (a canned demo
+  // reply). There is no separate "support" sender — SYSTEM doubles as it.
+  EMPLOYER: 'employer',
   SYSTEM: 'system',
 });
 
@@ -81,9 +85,12 @@ function preview(body) {
 // `unread.agent` >= 1 and `unread.subscriber` 0).
 let _seq = 0;
 function buildTicket({
-  subscriberId,
+  subscriberId = null,
   agentId,
   branchId,
+  // Denormalized employer owner for employer↔platform threads (Phase 7), the
+  // mirror of `branchId` for branch oversight. Null for subscriber↔agent seeds.
+  employerId = null,
   subject,
   category,
   status,
@@ -92,9 +99,13 @@ function buildTicket({
   unread,
   closedBy = null,
   closedDaysAgo = null,
+  // Id prefix — defaults to the historical `tk-` so subscriber↔agent seeds keep
+  // their `tk-NNN` ids unchanged. Employer threads pass `tk-emp-` so their ids
+  // (e.g. `tk-emp-001`) can never collide with an employee id (`empe-NNN`).
+  idPrefix = 'tk-',
 }) {
   _seq += 1;
-  const ticketId = `tk-${String(_seq).padStart(3, '0')}`;
+  const ticketId = `${idPrefix}${String(_seq).padStart(3, '0')}`;
 
   const builtMessages = messages.map((m, i) => ({
     id: `msg-${ticketId}-${i + 1}`,
@@ -119,6 +130,7 @@ function buildTicket({
     subscriberId,
     agentId,
     branchId, // denormalized for branch/distributor oversight without a join
+    employerId, // denormalized for employer↔platform scoping (Phase 7)
     subject,
     category,
     status,
@@ -128,7 +140,13 @@ function buildTicket({
     closedAt,
     closedBy: isClosed ? closedBy : null,
     lastMessagePreview: preview(last.body),
-    unread: { subscriber: unread.subscriber, agent: unread.agent },
+    // The `employer` slot rides alongside the existing two so every ticket has a
+    // full counter set; subscriber↔agent seeds leave it 0 (unread.employer ?? 0).
+    unread: {
+      subscriber: unread.subscriber,
+      agent: unread.agent,
+      employer: unread.employer ?? 0,
+    },
     messages: builtMessages,
   };
 }
@@ -524,6 +542,121 @@ export function seedTickets() {
       }),
     );
   });
+
+  // ── (C) Employer ⇄ platform support (Phase 7) ─────────────────────────────
+  // Standalone employees have no servicing agent, so these threads bypass the
+  // subscriber↔agent routing entirely: `subscriberId/agentId/branchId` are null
+  // and `employerId` carries the owner. The employer raises + replies; the
+  // "platform support" side answers as a SYSTEM message (the canned demo reply).
+  // Ids use the `tk-emp-` prefix (reset _seq so they read tk-emp-001..003) — they
+  // can never collide with an employee id (`empe-NNN`).
+  const EMPLOYER_ID = 'emp-001';
+  _seq = 0;
+
+  // (C.1) OPEN contributions thread — employer asked, support replied, employer
+  // followed up. The employer has support's latest reply un-seen.
+  tickets.push(
+    buildTicket({
+      employerId: EMPLOYER_ID,
+      agentId: null,
+      branchId: null,
+      subject: 'Why did this month’s contribution run total more than last month?',
+      category: TICKET_CATEGORY.CONTRIBUTIONS,
+      status: TICKET_STATUS.OPEN,
+      priority: TICKET_PRIORITY.NORMAL,
+      idPrefix: 'tk-emp-',
+      messages: [
+        {
+          sender: SENDER_ROLE.EMPLOYER,
+          body: 'Our May contribution run came out noticeably higher than April even though our headcount is the same. Could you help us understand the difference?',
+          daysAgo: 5,
+        },
+        {
+          sender: SENDER_ROLE.SYSTEM,
+          body: 'Thanks for reaching out. The increase reflects three staff who moved onto co-contribution this month, which adds the employee half on top of the employer share. We can send a per-employee breakdown if that would help.',
+          daysAgo: 4,
+          hours: 2,
+        },
+        {
+          sender: SENDER_ROLE.EMPLOYER,
+          body: 'That makes sense — yes please, a per-employee breakdown for the May run would be useful for our finance team.',
+          daysAgo: 3,
+        },
+      ],
+      // Employer's follow-up is awaiting support; the support reply above is
+      // already seen, so only the platform side is owed a response.
+      unread: { subscriber: 0, agent: 0, employer: 0 },
+    }),
+  );
+
+  // (C.2) OPEN, URGENT, unanswered billing thread — employer only, no reply yet.
+  // Drives the "unanswered" demo state and the employer's own unread is 0.
+  tickets.push(
+    buildTicket({
+      employerId: EMPLOYER_ID,
+      agentId: null,
+      branchId: null,
+      subject: 'Urgent: invoice for the April run hasn’t arrived',
+      category: TICKET_CATEGORY.ACCOUNT,
+      status: TICKET_STATUS.OPEN,
+      priority: TICKET_PRIORITY.URGENT,
+      idPrefix: 'tk-emp-',
+      messages: [
+        {
+          sender: SENDER_ROLE.EMPLOYER,
+          body: 'We still haven’t received the billing statement for the April contribution run and our payment deadline is this week. Can someone send it across urgently?',
+          daysAgo: 1,
+          hours: 4,
+        },
+      ],
+      unread: { subscriber: 0, agent: 0, employer: 0 },
+    }),
+  );
+
+  // (C.3) CLOSED enrolment thread — resolved and closed by the platform support
+  // side. Both sides caught up; the employer has one SYSTEM reply un-seen to
+  // demonstrate a closed thread can still carry an unread badge.
+  tickets.push(
+    buildTicket({
+      employerId: EMPLOYER_ID,
+      agentId: null,
+      branchId: null,
+      subject: 'How do we enrol a new batch of staff onto the scheme?',
+      category: TICKET_CATEGORY.OTHER,
+      status: TICKET_STATUS.CLOSED,
+      priority: TICKET_PRIORITY.NORMAL,
+      closedBy: SENDER_ROLE.SYSTEM,
+      closedDaysAgo: 8,
+      idPrefix: 'tk-emp-',
+      messages: [
+        {
+          sender: SENDER_ROLE.EMPLOYER,
+          body: 'We’re onboarding twelve new employees next month. What’s the process to add them to the pension scheme and set their contribution split?',
+          daysAgo: 12,
+        },
+        {
+          sender: SENDER_ROLE.SYSTEM,
+          body: 'Great to hear you’re growing. You’ll be able to add staff in bulk from the Employees section once batch onboarding goes live; in the meantime our team can pre-load the roster for you. Share the list and your default split and we’ll set it up.',
+          daysAgo: 11,
+          hours: 3,
+        },
+        {
+          sender: SENDER_ROLE.EMPLOYER,
+          body: 'Perfect — we’ll use our standard 10% / 5% split. Sending the list over now. Thank you.',
+          daysAgo: 9,
+        },
+        {
+          sender: SENDER_ROLE.SYSTEM,
+          body: 'Received and loaded — all twelve are on the roster at 10% / 5%. Closing this off, but reopen any time if you need changes.',
+          daysAgo: 8,
+          hours: 1,
+        },
+      ],
+      // One platform reply still flagged unseen for the employer, to light up a
+      // closed-thread unread badge in the demo.
+      unread: { subscriber: 0, agent: 0, employer: 1 },
+    }),
+  );
 
   // Inbox order: most recently updated first. Thread messages stay oldest →
   // newest as built above.

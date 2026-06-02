@@ -22,9 +22,13 @@ import styles from './ThreadView.module.css';
  *
  * "Mine" alignment is purely presentational: a message is right-aligned when
  * `message.sender === currentRole`, except SYSTEM lines which are always
- * rendered centred regardless of who is viewing. The oversight roles
- * ('branch' | 'distributor') never match a `SENDER_ROLE`, so every bubble sits
- * on the left for them — exactly the neutral observer framing we want.
+ * rendered centred regardless of who is viewing. This single equality covers
+ * every interactive role additively: subscriber, agent, and — Phase 7 —
+ * 'employer' (an employer viewing its own employer↔platform thread sees its
+ * `employer` messages on the right and the canned `system` support replies
+ * centred). The oversight roles ('branch' | 'distributor') never match a
+ * `SENDER_ROLE`, so every bubble sits on the left for them — exactly the
+ * neutral observer framing we want.
  *
  * The log auto-scrolls to the newest message on mount and whenever the message
  * count grows (e.g. a fresh reply lands). The jump is instant when the user
@@ -42,7 +46,7 @@ import styles from './ThreadView.module.css';
  * @param {Object} props.ticket — TicketSummary or full Ticket; reads
  *   `subject`, `status`, `priority`.
  * @param {Array}  [props.messages=[]] — Message[] oldest → newest.
- * @param {'subscriber'|'agent'|'branch'|'distributor'} props.currentRole —
+ * @param {'subscriber'|'agent'|'employer'|'branch'|'distributor'} props.currentRole —
  *   the viewer's role; a message is "mine" when `message.sender === currentRole`.
  * @param {string} [props.participantLabel] — header subline (e.g. the agent or
  *   subscriber name) identifying the other party in the thread.

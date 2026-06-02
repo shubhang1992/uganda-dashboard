@@ -1,0 +1,330 @@
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  EmployerTickets — employer↔platform support panel (width 560).               */
+/*  Three views (list / new / thread) inside the EmployerSlidePanel body.        */
+/*  Tokens only; no `transition: all`; focus rings via :focus-visible.           */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.viewPane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+/* The thread pane fills the body so ThreadView's composer pins to the bottom. */
+.threadWrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+/* ── List: summary + filters ────────────────────────────────────────────────── */
+.summaryRow {
+  display: flex;
+  gap: var(--space-5);
+  align-items: baseline;
+}
+
+.summaryItem {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--color-slate-light, var(--color-slate));
+}
+
+.summaryItem strong {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: var(--color-indigo);
+  margin-right: 0.25rem;
+}
+
+.statusGroup {
+  margin: 0;
+}
+
+.listPad {
+  padding-top: var(--space-2);
+}
+
+.stateWrap {
+  padding: var(--space-6) var(--space-2);
+}
+
+/* ── List rows ──────────────────────────────────────────────────────────────── */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* ── Header actions (New ticket / All tickets) ──────────────────────────────── */
+.newBtn,
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.newBtn {
+  border: none;
+  background: var(--color-indigo);
+  color: var(--color-white);
+}
+
+.newBtn:hover {
+  background: var(--color-indigo-deep);
+}
+
+.backBtn {
+  border: 1px solid var(--color-lavender);
+  background: var(--color-white);
+  color: var(--color-indigo);
+}
+
+.backBtn:hover {
+  border-color: var(--color-indigo);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
+}
+
+.newBtn:focus-visible,
+.backBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 30%, transparent);
+}
+
+/* ── New-ticket form ────────────────────────────────────────────────────────── */
+.formIntro {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-slate);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-indigo-deep);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-3);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  color: var(--color-slate);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.5;
+}
+
+.input:focus-visible,
+.textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-indigo);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 18%, transparent);
+}
+
+.input:disabled,
+.textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding-top: var(--space-1);
+}
+
+/* ── Shared buttons ─────────────────────────────────────────────────────────── */
+.primaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 var(--space-5);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.16s ease, opacity 0.16s ease;
+}
+
+.primaryBtn:hover {
+  background: var(--color-indigo-deep);
+}
+
+.primaryBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 30%, transparent);
+}
+
+.primaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ghostBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  color: var(--color-slate);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.ghostBtn:hover {
+  border-color: var(--color-indigo);
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
+}
+
+.ghostBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 30%, transparent);
+}
+
+.ghostBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Reply composer (pinned in the ThreadView footer) ───────────────────────── */
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.composerInput {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--space-3);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--color-slate);
+  resize: none;
+  max-height: 120px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.composerInput:focus-visible {
+  outline: none;
+  border-color: var(--color-indigo);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 18%, transparent);
+}
+
+.composerInput:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.composerSend {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  cursor: pointer;
+  transition: background-color 0.16s ease, opacity 0.16s ease;
+}
+
+.composerSend:hover:not(:disabled) {
+  background: var(--color-indigo-deep);
+}
+
+.composerSend:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 30%, transparent);
+}
+
+.composerSend:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.composerSpinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid color-mix(in srgb, var(--color-white) 45%, transparent);
+  border-top-color: var(--color-white);
+  border-radius: 50%;
+  animation: empTicketSpin 0.7s linear infinite;
+}
+
+@keyframes empTicketSpin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composerSpinner {
+    animation-duration: 1.4s;
+  }
+}
