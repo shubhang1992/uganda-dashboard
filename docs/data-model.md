@@ -223,6 +223,151 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 
 ---
 
+## Employer
+
+> A B2B account (migration `0034`). The Employer owns a **standalone** staff roster (`employees`) that sits **outside** the agent→subscriber hierarchy — employees are NOT subscribers, are not in `transactions`/`subscriber_balances`, and generate **no agent commissions**. Scoped by the `employerId` JWT claim.
+
+### Fields
+| Field | Type | Storage | Description |
+|-------|------|---------|-------------|
+| id | string | Stored | Format: `emp-{seq}`; today only `emp-001` |
+| name | string | Stored | Company name (`"Nile Breweries Demo Ltd"`) |
+| sector | string | Stored | Industry sector (e.g. `"Manufacturing"`) |
+| registrationNo | string | Stored | Company registration number |
+| contactName / contactPhone / contactEmail | string | Stored | Primary HR/admin contact |
+| district | string | Stored | Operating district |
+| payrollCadence | string | Stored | `"monthly"` \| `"weekly"` \| … |
+| defaultContributionConfig | object (JSONB) | Stored | The template a new run starts from. Shape `{ mode, employerPct, employeePct, employerAmount, employeeAmount }` — see [Contribution Config shape](#contribution-config-shape) |
+| createdAt / updatedAt | timestamptz | Stored | Row timestamps (`updated_at` maintained inline by the `0035` RPCs — no shared trigger) |
+
+### Relationships
+- Children: Employee (the staff roster), Contribution Run (the funding history)
+
+### Business Rules
+- **National singleton today.** The demo seeds exactly one employer (`emp-001`). Demo login phone `EMPLOYER_DEMO_PHONE` (`+256700000031`) resolves to it via `demo_personas`; any other phone on the `employer` role falls back to `emp-001`.
+- **RLS.** `employer_self_select USING (app_role='employer' AND id = auth.jwt() ->> 'employerId')`. Profile updates via `update_employer_profile` (own row only). See `BACKEND.md §8`/§10.1.
+
+---
+
+## Employee
+
+> The employer's standalone staff roster (`employees`, migration `0034`). **NOT a subscriber** — pension balances live on THIS row (not `subscriber_balances`), and the per-employee contribution ledger is `contribution_run_lines` (not `transactions`). There is intentionally no contribution trigger on this table; `submit_contribution_run` writes balances inline.
+
+### Fields
+| Field | Type | Storage | Description |
+|-------|------|---------|-------------|
+| id | string | Stored | Format: `empe-{seq}` (e.g. `empe-001`) |
+| employerId | string | Stored | FK → `employers(id) ON DELETE CASCADE` |
+| name / phone / email | string | Stored | Identity |
+| gender | string | Stored | `"male"` \| `"female"` \| `"other"` |
+| age | number | Stored | Age in years |
+| nin | string | Stored | National ID number |
+| jobTitle | string | Stored | Role/title |
+| salary | number | Stored | Monthly gross (UGX) — the basis for percentage-mode run math |
+| status | string | Stored | `"active"` \| `"suspended"`. Suspended employees are **skipped** by `submit_contribution_run` |
+| joinedDate | date | Stored | Date the employee joined |
+| contributionConfig | object (JSONB) | Stored | Per-employee funding mode. Shape `{ mode, employerPct, employeePct, employerAmount, employeeAmount }` — see below |
+| contributionSchedule | object (JSONB) | Stored | Retirement/emergency split `{ retirementPct, emergencyPct }` (r+e = 100; default 80/20). Mirrors `contribution_schedules` for subscribers |
+| retirementBalance | number | Stored | Pension (long-term) balance — bumped inline by each run |
+| emergencyBalance | number | Stored | Emergency (short-term) balance — bumped inline by each run |
+| netBalance | number | Stored | `retirementBalance + emergencyBalance` |
+| unitsHeld | number | Stored | `netBalance / 1000` (UGX 1,000/unit — same as the subscriber contribution trigger) |
+| totalContributions | number | Stored | Lifetime gross funded |
+| insuranceCover | number | Stored | Sum assured (UGX); `0` = no cover |
+| insurancePremiumMonthly | number | Stored | Monthly premium (UGX) |
+| insuranceStatus | string | Stored | `"active"` \| `"inactive"` (derives from cover via `update_employee_insurance`) |
+| insuranceRenewalDate | date \| null | Stored | Renewal date |
+| nominees | array (JSONB) | Stored | Beneficiaries |
+| createdAt / updatedAt | timestamptz | Stored | Row timestamps |
+
+### Relationships
+- Parent: Employer
+- Referenced by: Contribution Run Line (the per-employee ledger)
+
+### Enums
+- status: `active` | `suspended`
+- contributionConfig.mode: `co-contribution` | `employer-only`
+- insuranceStatus: `active` | `inactive`
+
+### Business Rules
+- **Employer-roster balance model.** Unlike subscribers, an employee's balances live on the `employees` row and are updated **inline** by `submit_contribution_run` (no trigger, no `subscriber_balances`, no `transactions` row). `net = retirement + emergency`, `units = net / 1000`.
+- **No commissions.** A run never creates a `commissions` row — employees are outside the agent hierarchy.
+- **RLS.** `employees_by_employer_select USING (app_role='employer' AND employer_id = auth.jwt() ->> 'employerId')`. Config + insurance edits go through `update_employee_contribution_config` / `update_employee_insurance` (ownership-checked).
+
+#### Contribution Config shape
+
+`contribution_config` (per-employee) and `default_contribution_config` (employer-level template) share one JSONB shape:
+
+```jsonc
+{
+  "mode": "co-contribution" | "employer-only",
+  "employerPct": 10,          // % of salary funded by the employer (percentage mode)
+  "employeePct": 5,           // % of salary funded by the employee (co-contribution only; 0 for employer-only)
+  "employerAmount": null,     // explicit fixed UGX — when set, WINS over the pct
+  "employeeAmount": null      // explicit fixed UGX (co-contribution only)
+}
+```
+
+Run math (re-derived server-side per run — client amounts are advisory):
+`employer_half = employerAmount ?? round(salary * employerPct / 100)`;
+`employee_half = mode==='co-contribution' ? (employeeAmount ?? round(salary * employeePct / 100)) : 0`;
+`gross = employer_half + employee_half`; split by `contributionSchedule` (`retirement = round(gross * retirementPct/100)`, `emergency = gross − retirement`).
+
+#### Contribution Schedule shape
+
+```jsonc
+{ "retirementPct": 80, "emergencyPct": 20 }   // r + e = 100; default 80/20
+```
+
+---
+
+## Contribution Run
+
+> One funding batch (`contribution_runs`, migration `0034`). Created by `submit_contribution_run` (or seeded as history). Nonce-idempotent via the RPC-internal `contribution_run_uploads` ledger.
+
+### Fields
+| Field | Type | Storage | Description |
+|-------|------|---------|-------------|
+| id | string | Stored | Format: `run-{seq}` / `run-{uuid}` |
+| employerId | string | Stored | FK → `employers(id) ON DELETE CASCADE` |
+| periodLabel | string | Stored | e.g. `"April 2026"`, `"Q2 2026"` |
+| status | string | Stored | `"draft"` \| `"completed"` (seeded + RPC runs are `completed`) |
+| employerTotal | number | Stored | Sum of all line `employerAmount`s |
+| employeeTotal | number | Stored | Sum of all line `employeeAmount`s |
+| grandTotal | number | Stored | `employerTotal + employeeTotal` |
+| runAt | timestamptz | Stored | When the run executed |
+| createdAt | timestamptz | Stored | Row timestamp |
+
+### Relationships
+- Parent: Employer
+- Children: Contribution Run Line (one per funded employee)
+
+### Enums
+- status: `draft` | `completed`
+
+---
+
+## Contribution Run Line
+
+> The per-employee line inside a run (`contribution_run_lines`, migration `0034`). **Doubles as the employee's contribution ledger** — employees are not in `transactions`. RLS-scoped via an EXISTS join to the parent run.
+
+### Fields
+| Field | Type | Storage | Description |
+|-------|------|---------|-------------|
+| id | string | Stored | Format: `crl-{…}` |
+| runId | string | Stored | FK → `contribution_runs(id) ON DELETE CASCADE` |
+| employeeId | string | Stored | FK → `employees(id) ON DELETE CASCADE` |
+| employerAmount | number | Stored | Employer half (UGX) |
+| employeeAmount | number | Stored | Employee half (UGX; `0` in employer-only mode) |
+| retirementAmount | number | Stored | Retirement split of the gross |
+| emergencyAmount | number | Stored | Emergency split (`gross − retirement`) |
+| method | string | Stored | `"Bank transfer"` \| `"MTN Mobile Money"` \| … |
+
+### Relationships
+- References: Contribution Run (runId), Employee (employeeId)
+
+---
+
 ## Commission
 
 ### Fields
@@ -358,6 +503,8 @@ In-app feed row (table `notifications`, migration `0031`). SELECT-only — agent
 | phone | string | Phone number used for login |
 | name | string | Display name (currently hardcoded "Demo User") |
 | branchId | string \| undefined | Only present for `branch` role. Set to specific branch ID on login |
+| agentId / distributorId / subscriberId | string \| undefined | Role-scoped entity ID, present for the matching role (from the JWT claim) |
+| employerId | string \| undefined | Only present for `employer` role. The `employerId` JWT claim; scopes the employer dashboard |
 
 ### Auth Flow
 1. User selects role, enters phone, receives OTP (any 6-digit code accepted in mock)
@@ -370,8 +517,8 @@ In-app feed row (table `notifications`, migration `0031`). SELECT-only — agent
 - role: `subscriber` | `employer` | `distributor` | `branch` | `agent` | `admin`
 
 ### Business Rules
-- Only `distributor` and `branch` roles currently have dashboard access (`hasDashboard()` check).
-- In production, the backend should return `branchId` (and other scoping IDs) as part of the JWT claims or user profile.
+- Five of six roles have dashboard access (`hasDashboard()` / `DASHBOARD_ROLES = ['distributor','branch','subscriber','agent','employer']`); only `admin` is deferred.
+- The backend returns the role-scoped ID (`branchId` / `agentId` / `distributorId` / `subscriberId` / `employerId`) as a JWT claim + in the auth response; the client no longer injects it.
 - UNCLEAR — confirm: Should a distributor admin be scoped to a specific distributor entity, or always see the full network?
 
 ---

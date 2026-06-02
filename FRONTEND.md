@@ -16,7 +16,7 @@ See `CLAUDE.md` for the slim entry index, `BACKEND.md` for SQL/RPC/RLS detail, a
 - [§6 — Contexts inventory](#6-contexts-inventory-8-in-srccontexts-1-in-srcsignup)
 - [§7 — Hooks inventory](#7-hooks-inventory-srchooks--9-files)
 - [§8 — Canonical optimistic-mutation pattern](#8-canonical-optimistic-mutation-pattern-useentity-template)
-- [§9 — Per-role dashboard variants](#9-per-role-dashboard-variants--4-built)
+- [§9 — Per-role dashboard variants](#9-per-role-dashboard-variants--5-built)
 - [§10 — Commission UI patterns](#10-commission-ui-patterns)
 - [§11 — Signup / KYC flow](#11-signup--kyc-flow)
 - [§12 — Modal & drawer primitives, accessibility](#12-modal--drawer-primitives-accessibility)
@@ -103,13 +103,16 @@ src/
   config/env.js                   API_BASE_URL, IS_DEV/PROD, public URLs
   constants/                      levels.js, savings.js, signup.js
   data/                           mockData (1060 lines), mockBranchDefs, mockGeo
+  data/                           …, employerSeed (employer demo seed)
   services/                       api, supabaseClient, auth, entities,
                                   commissions, notifications, subscriber, agent,
-                                  kyc, chat, search, contact, tickets + __tests__/
-  hooks/                          incl. useCommission, useNotifications,
-                                  useSubscriber, useAgent, useEntity, useTickets
+                                  employer, kyc, chat, search, contact, tickets
                                   + __tests__/
-  contexts/                       8 contexts; SignupContext lives in src/signup/
+  hooks/                          incl. useCommission, useNotifications,
+                                  useSubscriber, useAgent, useEntity, useTickets,
+                                  useEmployer + __tests__/
+  contexts/                       10 contexts (incl. EmployerScope/EmployerPanel);
+                                  SignupContext lives in src/signup/
   utils/                          finance, currency, date, dashboard, csv,
                                   csvDownload, phone, navigation, motion, xlsx,
                                   settlement, commissionMonths, memberId, policies
@@ -126,6 +129,8 @@ src/
   agent-dashboard/                AGENT (AgentDashboardShell, routed pages)
   subscriber-dashboard/           SUBSCRIBER (SubscriberDashboardShell,
                                   SubscriberPanelContext, routed pages)
+  employer-dashboard/             EMPLOYER (EmployerDashboardShell, hero +
+                                  panels, desktop-first mirroring branch)
   test/                           setup.js, supabaseMock.js, jwt-claim-contract.test.js
 ```
 
@@ -155,6 +160,7 @@ src/
 | `'branch'` | `src/branch-dashboard/BranchDashboardShell.jsx` |
 | `'agent'` | `src/agent-dashboard/AgentDashboardShell.jsx` |
 | `'subscriber'` | `src/subscriber-dashboard/SubscriberDashboardShell.jsx` |
+| `'employer'` | `src/employer-dashboard/EmployerDashboardShell.jsx` |
 
 Each shell is `React.lazy()`-imported in `App.jsx`, wrapped in `ErrorBoundary` + `Suspense` with a spinner fallback.
 
@@ -163,7 +169,7 @@ Each shell is `React.lazy()`-imported in `App.jsx`, wrapped in `ErrorBoundary` +
 > Top-level navigation uses `react-router-dom` (`useNavigate()`). Modal/panel UI state (slide-ins, drawers) is **state-based** in `DashboardPanelContext` and intentionally NOT routed.
 
 - **Subscriber + Agent** dashboards have routed sub-pages — every destination is a URL.
-- **Distributor + Branch** dashboards use panels — drill-down slide-ins are not URL destinations; URL state encodes only the drill level (`/dashboard/branches/:id` etc.) and the panel context holds open/closed booleans.
+- **Distributor + Branch + Employer** dashboards use panels — slide-ins are not URL destinations; the panel context holds open/closed booleans. (Distributor/Branch additionally encode the drill level in the URL, e.g. `/dashboard/branches/:id`; Employer has a single `/dashboard` view + slide-in panels via `EmployerPanelContext`, no drill URLs.)
 
 ### 2.1 Distributor routes (`src/dashboard/`)
 
@@ -233,7 +239,26 @@ Shell file: `src/agent-dashboard/AgentDashboardShell.jsx`. Sub-areas: `shell/` (
 
 Shell file: `src/subscriber-dashboard/SubscriberDashboardShell.jsx`. Sub-areas: `shell/` (SubscriberShell + SideNav + BottomTabBar + PageHeader + `navigation.js` (legacy local helper kept for module-internal use)), `home/` (HomePage + 6 widgets/), `pages/`, `reports/views/`. Wraps `SubscriberPanelProvider` (which composes the generic `DashboardPanelProvider` — see §6) + `DashboardNavProvider`.
 
-**Employer + Admin shells are deferred.** No routes, no shells, no RLS policies — see CLAUDE.md §1. Build order when resumed: **Employer first, then Admin** (central admin with global rights).
+### 2.5 Employer routes (`src/employer-dashboard/`)
+
+Single main view `EmployerOverview` (no drill-down) + state-based slide-in panels — desktop-first, mirroring the **Branch** admin shell rather than the mobile-first routed Subscriber/Agent pattern. There are **no employer sub-routes**: everything renders under `/dashboard`, and panel open/close is held in `EmployerPanelContext` (not the URL). Below 768px a hamburger header opens a left drawer (`EmployerSidebar mode="drawer"`, indigo-deep, overlay, Escape-to-close, body-scroll-lock, auto-closes on route change).
+
+Shell file: `src/employer-dashboard/EmployerDashboardShell.jsx`. Route guard: `role !== 'employer'` → `<Navigate to="/coming-soon" replace />`; reads `employerId = user?.employerId` with a `MissingEmployerIdScreen` fallback (mirrors `MissingBranchIdScreen`). Provider nest: `<EmployerDashboardProvider>` (composes `EmployerPanelProvider`) → `<EmployerScopeProvider employerId={employerId}>` → `<ShellInner/>`. Panels mount as **siblings of `<main>`** (not nested), each with `splitMode`.
+
+Sub-areas (under `src/employer-dashboard/`):
+
+| Dir | Contents |
+| --- | --- |
+| `EmployerDashboardShell.jsx` (+ `.module.css`) | Shell: CSS grid (`var(--sidebar-width) 1fr`), mobile header + drawer, route guard, provider nest |
+| `sidebar/EmployerSidebar.jsx` | Icon rail (indigo-deep, teal active indicator) + mobile drawer + bottom-tab. `NAV_ITEMS = [overview, employees, runs, insurance, reports, support]`; `BOTTOM_ITEMS = [settings, logout]`; `MOBILE_NAV = first 3`; an extra "Onboard staff" entry opens the deferred placeholder panel |
+| `overview/` | `EmployerHealthScore.jsx` (hero — see §9), `EmployerOverview.jsx` (hero + notifications + operations, carries the `PANEL_PADDING` split-reflow map), `EmployerOperations.jsx` |
+| `employees/` | `ViewEmployees.jsx` (roster), `EmployeeDetail.jsx` (detail + contribution-config + insurance editors), `OnboardStaffPanel.jsx` (deferred placeholder — Phase 9) |
+| `runs/` | `ContributionRuns.jsx` (history + run detail + new-run wizard) |
+| `insurance/` | `InsuranceBenefits.jsx` (company-wide oversight) |
+| `reports/` | `EmployerReports.jsx` (hub + 4 reports: `staff-roster`, `runs-summary`, `funding-breakdown`, `balance-growth`; CSV/print) |
+| `tickets/` | `EmployerTickets.jsx` (employer↔platform support, list + thread **with a composer** — unlike the view-only branch/distributor variants) |
+| `settings/` | `EmployerSettings.jsx` (profile + default contribution config + password) |
+| `panels/` | `EmployerSlidePanel.jsx` — the reusable panel chrome every module wraps (see §12); `StubPanel.jsx` |
 
 ---
 
@@ -302,7 +327,7 @@ Detection: react-router stores its own index on `window.history.state.idx`. Inde
 
 ---
 
-## 5. Services inventory (`src/services/` — 11 files)
+## 5. Services inventory (`src/services/` — 12 files)
 
 All public exports below. Every service file follows the `IS_SUPABASE_ENABLED ? supabase : mock` dual-branch pattern.
 
@@ -315,6 +340,7 @@ All public exports below. Every service file follows the `IS_SUPABASE_ENABLED ? 
 | `commissions.js` | Commission state machine (~30+ exports, 1490 lines) | See §5.5 below | `useCommission`-family hooks; CommissionPanel; Branch + Agent commission pages |
 | `subscriber.js` | Per-subscriber reads/writes + per-session mutation store | See §5.6 below | `useSubscriber`-family hooks; subscriber dashboard pages |
 | `agent.js` | Agent-scoped portfolio reads | `getAgentSubscriberList(agentId)` | `useAgentSubscribers` |
+| `employer.js` | Employer-scoped roster / runs / metrics + write RPCs | See §5.12 below | `useEmployer`-family hooks; employer dashboard |
 | `kyc.js` | Smile ID v2-shaped mock pipeline (8 stages) | `assessImageQuality`, `extractIdFields`, `verifyNira`, `sendOtp`, `verifyOtp`, `faceMatch`, `screenAml`, `referToAgent` | Signup steps + onboarding |
 | `chat.js` | Keyword-matched chat (mocked) | `getChatResponse(message)`, `getAgentReply(message, agent)`, `getSubscriberChatResponse(message)` | Distributor / Branch / Subscriber co-pilot widgets; Agent DM (HelpPage, AgentPage) |
 | `search.js` | `search_entities` PG RPC (pg_trgm fuzzy) | `searchEntities(query)` | `useSearch` |
@@ -479,9 +505,32 @@ export async function submitContactForm({ name, email, message }): Promise<{ sub
 
 POSTs to `/api/contact`. Returns `demo: false` on real persistence, `demo: true` under the rollback flag (or in dev when `/api/*` is unreachable). The frontend **validates** the response shape: a real-path (`demo: false`) response without a non-empty string `id` is treated as a backend contract violation and shows the `SUPPORT_EMAIL` fallback rather than claiming success (`pages/Contact.jsx:49-54`). Audit X13 (formerly open) is resolved.
 
+### 5.12 `employer.js` — employer roster / runs / metrics (dual-path)
+
+Mirrors `entities.js`: every function checks `IS_SUPABASE_ENABLED`. The Supabase branch reads via `supabase.from('employees' | 'employers' | 'contribution_runs' | 'contribution_run_lines').select(...)` (RLS auto-scopes by the JWT `employerId` claim — no manual filter needed beyond `.eq('employer_id', id)`) and writes via the four `0035` SECURITY DEFINER RPCs. The mock branch layers a per-session mutation store over the frozen `src/data/employerSeed.js` rows (1 employer / 16 employees / 3 historical runs) — the only service file that imports `employerSeed.js` (CLAUDE.md §4.1). Snake→camel mappers `mapEmployer` / `mapEmployee` / `mapRun` / `mapRunLine` mirror `entities.js`'s `mapBranch`; JSONB columns (`contribution_config`, `contribution_schedule`, `nominees`) are already camelCase inside and pass through (schedule frequencies run through `normalizeFrequency` per the hard rule).
+
+```js
+// Reads
+export async function getEmployer(id)                       // ['employer', id]
+export async function getEmployees(employerId)              // ['employees', employerId]
+export async function getEmployee(employeeId)               // ['employee', employeeId]
+export async function getContributionRuns(employerId)       // ['contributionRuns', employerId] — newest-first
+export async function getContributionRun(runId)             // ['contributionRun', runId] → { run, lines }
+export async function getEmployeeContributions(employeeId)  // ['employeeContributions', employeeId] — run-lines joined to run period/date
+export async function getEmployerMetrics()                  // RPC get_employer_metrics() — hero/overview aggregates
+// Writes (Supabase → 0035 RPCs; mock → session store)
+export async function submitContributionRun(employerId, { rows, periodLabel, method, nonce })  // RPC submit_contribution_run
+export async function updateEmployeeContributionConfig(employeeId, config)                     // RPC update_employee_contribution_config
+export async function updateEmployeeInsurance(employeeId, { cover, premium })                  // RPC update_employee_insurance
+export async function updateEmployerProfile(patch)                                             // RPC update_employer_profile
+export const _employerMockSources = { EMPLOYER, EMPLOYEES, CONTRIBUTION_RUNS, CONTRIBUTION_RUN_LINES }
+```
+
+**Contribution-run write path (deep dive).** `submitContributionRun` is **NON-optimistic** — a run touches many rows, so the server (RPC) is the truth. `rows` is `[{ employeeId }]`; any client-supplied amounts are advisory. The RPC re-derives every figure from `employees.salary` + `contribution_config` server-side (`employer_half = employerAmount ?? round(salary*employerPct/100)`; `employee_half = mode==='co-contribution' ? (employeeAmount ?? round(salary*employeePct/100)) : 0`), splits the gross by the employee's `contribution_schedule` (default 80/20), bumps the **`employees`** balance columns inline (`net_balance`/units @ UGX 1,000/unit), and is idempotent via `nonce`. The **mock branch re-implements the identical math** (`_mockSubmitContributionRun` borrows `subscriber.js`'s session balance-delta technique + a nonce→result map), skipping suspended / not-owned / not-found / zero-contribution employees. **NO commission side-effects** — the run never writes `transactions`, `subscriber_balances`, or `commissions` (employees are not subscribers); see `BACKEND.md §10`.
+
 ---
 
-## 6. Contexts inventory (8 in `src/contexts/`, 1 in `src/signup/`)
+## 6. Contexts inventory (10 in `src/contexts/`, 1 in `src/signup/`)
 
 | Context | Provider scope | What it holds | Read by |
 | --- | --- | --- | --- |
@@ -494,6 +543,8 @@ POSTs to `/api/contact`. Returns `demo: false` on real persistence, `demo: true`
 | `SubscriberPanelContext` (`src/subscriber-dashboard/`) | `SubscriberDashboardShell` only | Subscriber-only panel extension that **wraps** `DashboardPanelProvider`. Extension surface (`subscriberMenuOpen`, `viewSubscribersOpen`, plus future subscriber-only state) lives here; `useSubscriberPanel()` returns the merged `{ ...generic, ...subscriberExtension }` object. | Subscriber pages + home widgets |
 | `BranchScopeContext` | `BranchDashboardShell` only | `{ branchId }` for descendants — `value` is **memoized** (Phase 4A `e43de1f`) | ViewAgents, ViewReports, CommissionPanel when rendered inside Branch tree |
 | `AgentScopeContext` | `AgentDashboardShell` only | `{ agentId }` for descendants — `value` is **memoized** (Phase 4A `e43de1f`) | All agent pages + home widgets + CoPilot |
+| `EmployerScopeContext` | `EmployerDashboardShell` only | `{ employerId }` for descendants (verbatim clone of `BranchScopeContext`) — `value` **memoized** | All employer panels / report views / hero |
+| `EmployerPanelContext` | `EmployerDashboardShell` only | **Net-new** (the generic `DashboardPanelContext` is hardcoded to branch/agent keys + wired to drill-down refs, so it isn't reused). Per-panel booleans `employeesOpen` / `employeeDetailOpen` (+ `activeEmployeeId` + `openEmployeeDetail`) / `runsOpen` / `insuranceOpen` / `reportsOpen` / `supportOpen` / `settingsOpen` / `onboardOpen` + `closeAllPanels()`. `value` **memoized**. `EmployerDashboardProvider` wraps it (analogous to `DashboardProvider`) so the shell nests with one component | All employer modules + sidebar |
 | `SignupContext` (`src/signup/SignupContext.jsx`) | `SignupPage` only | `useReducer` + debounced localStorage persist (`uganda-pensions-signup`); File/Blob fields + raw `password` stripped on serialise. Single `patch(payload)` + `reset()`. Mints `onboardingSessionId` (crypto.randomUUID). See §11 for debounce + beforeunload-flush detail | All 11 signup steps + contribution sub-flow + agent OnboardKycFlow |
 
 **Cross-context handoff — `onPanelActionRef` pattern.** `DashboardNavProvider` exposes a ref; `DashboardPanelProvider` writes `{ setViewBranchesOpen, setViewAgentsOpen, setBranchMenuOpen, setAgentMenuOpen, setViewReportsOpen, … }` into it on mount. Map drill-down effects + overlay clicks invoke `onPanelActionRef.current?.setViewBranchesOpen(true)` so nav can drive panel state without a circular import or cyclic provider order.
@@ -526,7 +577,7 @@ The audit flagged four context providers as building a new `value` object every 
 
 ---
 
-## 7. Hooks inventory (`src/hooks/` — 9 files)
+## 7. Hooks inventory (`src/hooks/` — 10 files; the table below omits `useNotifications.js` + `useTickets.js`, documented in §5.5b / the tickets work)
 
 | Hook file | What it returns | Side-effects | Wraps |
 | --- | --- | --- | --- |
@@ -534,6 +585,7 @@ The audit flagged four context providers as building a new `value` object every 
 | `useCommission.js` | 30+ named exports (reads + 16 mutations) | Coarse `invalidateAll(queryClient)` after every mutation | `services/commissions.js` |
 | `useSubscriber.js` | 7 reads + 7 mutations | Mutations call `invalidateSubscriber()` (clears every `['subscriber*', ...]` key) | `services/subscriber.js` |
 | `useAgent.js` | `useAgentSubscribers(agentId)` + `useUpdateSubscriberSchedule(subscriberId, agentId)` | Invalidates `['agentSubscribers', agentId]` | `services/agent.js` + `services/subscriber.js` |
+| `useEmployer.js` | 7 reads (`useEmployer`, `useEmployees`, `useEmployee`, `useContributionRuns`, `useContributionRun`, `useEmployeeContributions`, `useEmployerMetrics`) + 4 mutations (`useUpdateEmployerProfile`, `useUpdateEmployeeContributionConfig`, `useUpdateEmployeeInsurance`, `useRunContribution`) + `invalidateAllEmployer(queryClient)` | Config/insurance/profile mutations optimistic (`onMutate`/`onError`/`onSettled`); `useRunContribution` is **NON-optimistic** (server re-derives) — `onSuccess` invalidates roster + employee + runs + metrics | `services/employer.js` |
 | `useIsMobile.js` | `boolean` | `useSyncExternalStore` over `matchMedia('(max-width: 768px)')` | — |
 | `useIsDesktop.js` | `boolean` | `useSyncExternalStore` over `matchMedia('(min-width: 1024px)')` — desktop sibling of `useIsMobile`; gates the agent desktop fork | — |
 | `useOutsideClick.js` | `void` (effect only) | `mousedown` + `Escape` listeners on `document` | — |
@@ -686,7 +738,7 @@ The test file at `src/hooks/__tests__/useEntity.test.js` exercises every step of
 
 ---
 
-## 9. Per-role dashboard variants — 4 built
+## 9. Per-role dashboard variants — 5 built
 
 ### 9.1 Distributor Admin — `src/dashboard/`
 
@@ -744,6 +796,24 @@ Agent-side disputes were **removed** in the 0029 commission simplification — t
 6 home widgets: `PulseCard`, `TopUpWidget`, `CoPilotWidget` (see §13), `PoliciesWidget` (insurance snapshot → `/dashboard/policies`), `ActivityWidget`, `IfYouNeedItWidget` (desktop only). Reports under `reports/views/`: `AllTransactions`, `ContributionsSummary`, `WithdrawalsHistory`, `InsuranceStatement`, `AnnualStatement`. `PoliciesPage` lists active/expired policies (derived — see §5.6) with a renew-by-payment sheet mirroring `SavePage`. All mutations are optimistic via the `_sessionMutations` log in `subscriber.js`.
 
 `/settings/notifications` and `/settings/security` are `StubPage` placeholders — see §16b.
+
+### 9.5 Employer — `src/employer-dashboard/`
+
+| Field | Value |
+| --- | --- |
+| Shell | `EmployerDashboardShell.jsx` (desktop-first, mirrors Branch admin) |
+| Entry guard | `role === 'employer'` else `Navigate to="/coming-soon"`; `MissingEmployerIdScreen` if `employerId` absent |
+| Scope context | `EmployerScopeProvider(employerId)` + `EmployerDashboardProvider` (composes `EmployerPanelProvider`) |
+| Sub-areas | `sidebar/`, `overview/`, `employees/`, `runs/`, `insurance/`, `reports/`, `tickets/`, `settings/`, `panels/` |
+| Navigation | Single main view (`EmployerOverview`); panels for everything else (no drill-down, no sub-routes) |
+
+Single main view `EmployerOverview` + state-based slide-in panels (`EmployerPanelContext`). The shell clones `BranchDashboardShell` (CSS grid, `MobileHeader` + `MobileDrawer` ≤768px with the same `EASE_OUT_EXPO` 320ms slide + body-scroll-lock + Escape + route-change auto-close). Panels mount as **siblings of `<main>`**, each `splitMode`, so the overview reflows beside an open panel (`PANEL_PADDING` map in `EmployerOverview`, same idiom as `BranchOverview`).
+
+**Hero — `EmployerHealthScore.jsx`** (the centerpiece, cloned from `BranchHealthScore.jsx`): the same indigo dome + ambient glow + `ScoreGauge`, but the gauge is driven by a **scheme-health / participation** composite (participation 50% / insured coverage 25% / …) rather than the branch retention/growth formula. Eyebrow "Company Overview", `<h1>` = company name, an "Employer" badge with green pulse dot, a `NotificationBell role="employer"`, clickable `metricCard`s (total staff balance / employees / this-period contributed) that open the matching panel, an alerts row, and a Copilot strip wired to the `chat.js` mock. Reads via the `useEmployer*` hooks.
+
+**Reusable panel chrome — `panels/EmployerSlidePanel.jsx`.** Every employer module (`ViewEmployees`, `ContributionRuns`, `InsuranceBenefits`, `EmployerReports`, `EmployerTickets`, `EmployerSettings`, `OnboardStaffPanel`) wraps this one component instead of the centered shared `Modal` — it follows the branch panel idiom: a right-docked panel sliding from `x:'100%'` with `EASE_OUT_EXPO`, a Framer backdrop **suppressed when `splitMode`** (so the shell docks + reflows main beside it), `data-split-mode` for the flat split chrome, Escape-to-close, a `--panel-width` CSS var kept in sync with `PANEL_PADDING`, and an `eyebrow`/`title`/`headerActions` header.
+
+Modules: **Overview** (hero + notifications + operations), **Employees** (`ViewEmployees` roster + `EmployeeDetail` with contribution-config + insurance editors), **Contribution Runs** (history + run detail + new-run wizard — the core write flow; server re-derives amounts, nonce-idempotent, **no commission side-effects** — see §5.12 + `BACKEND.md §10`), **Insurance/Benefits** (company-wide oversight), **Reports** (`EmployerReports` hub + 4 reports: staff-roster, runs-summary, funding-breakdown, balance-growth; CSV/print), **Support** (`EmployerTickets` — employer↔platform threads **with a composer**; the employer raises + replies, unlike the view-only branch/distributor variants), **Settings** (profile + default contribution config + password). **Onboard staff** (`OnboardStaffPanel`) is a deferred "coming soon" placeholder (Phase 9).
 
 ---
 

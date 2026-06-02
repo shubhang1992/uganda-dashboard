@@ -10,7 +10,7 @@
 | Role | Sign-In Category | Dashboard | Status |
 |------|-----------------|-----------|--------|
 | subscriber | Subscriber | SubscriberDashboardShell | **Built** |
-| employer | Employer | Coming Soon | **Planned** |
+| employer | Employer | EmployerDashboardShell | **Built** |
 | distributor | Distributor → Distributor Admin | DashboardShell | **Built** |
 | branch | Distributor → Branch Admin | BranchDashboardShell | **Built** |
 | agent | Distributor → Agent | AgentDashboardShell | **Built** |
@@ -187,37 +187,48 @@ All slide-in panels use `splitMode={true}`:
 
 ---
 
-## Role 4: Employer (`employer`) — PLANNED
+## Role 4: Employer (`employer`) — BUILT
 
-> Inferred from ForYou section and product context. Employers manage employee pension contributions.
+> A B2B account managing a **standalone** staff roster. Employees are a new `employees` table **outside** the agent→subscriber hierarchy — they are NOT `subscribers` and generate **NO agent commissions**. The employer funds staff pension via "contribution runs" (employer-only or employer+employee co-contribution per employee). Backend: migrations `0034` (schema + RLS) / `0035` (RPCs); scoped by the `employerId` JWT claim.
 
 ### Dashboard Access
-- **Has dashboard:** No (planned)
-- **Dashboard shell:** TBD
-- **Expected focus:** Employee management + bulk contribution uploads
+- **Has dashboard:** Yes
+- **Dashboard shell:** `EmployerDashboardShell` (desktop-first, mirrors the Branch admin shell — indigo hero + icon-rail sidebar + slide-in panels; NOT the mobile-first routed Subscriber/Agent pattern)
+- **Sidebar items:** Overview, Employees, Contribution Runs, Insurance, Reports, Support; footer Settings + Log out; plus an "Onboard staff" entry (deferred placeholder)
+- **Scope provider:** `EmployerScopeProvider` injects `employerId` (from `user.employerId`); `MissingEmployerIdScreen` if absent
 
-### Planned Pages/Views
-| View | Priority | Description |
-|------|----------|-------------|
-| Organization Overview | High | Total employees enrolled, contribution totals, active rate |
-| Employee List | High | Searchable, filterable list of enrolled employees |
-| Bulk Contribution Upload | High | CSV/Excel upload for monthly contributions |
-| Contribution History | Medium | Organization-level contribution trend |
-| Reports | Medium | Employee participation, contribution compliance |
-| Profile & Settings | Medium | Organization profile, admin accounts |
+### Pages/Views Accessible
+| View | Access | Notes |
+|------|--------|-------|
+| Overview | Full | `EmployerHealthScore` hero (scheme-health/participation gauge, KPIs, activity, alerts, copilot) + notifications + operations |
+| Employees (roster) | Scoped | Own staff only; search + status filter. Row → detail panel with balances, schedule, contribution history, insurance, nominees + a contribution-config editor + insurance editor |
+| Contribution Runs | Scoped | History list → run detail (per-employee employer/employee/total lines) + new-run wizard (select staff → period + method + live preview → confirm). **No commission side-effects.** |
+| Insurance / Benefits | Scoped | Company-wide oversight: covered count · total premium · per-employee cover/status; editing reuses the employee insurance editor |
+| Reports | Scoped | 4 reports — staff roster · contribution-runs summary · employer-vs-employee funding breakdown · staff balance growth (CSV/print) |
+| Support | Scoped | Employer↔platform tickets — the employer **raises and replies** (composer); per-employee↔agent threading deferred |
+| Settings | Full | Company profile + company-level default contribution config + password |
+| Onboard staff | Disabled | "Coming soon" placeholder (Phase 9) |
 
-### Planned Data Scope
-- **Visibility:** Own organization's employees (subscribers linked to this employer)
-- **No access to:** Other employers, agents, branches, or network data
+### Data Scope
+- **Visibility:** Own employer record + own staff roster + own contribution runs + own support tickets
+- **No access to:** Other employers' staff, subscribers, agents, branches, commissions, or network data
+- **Employer ID source:** `user.employerId` from the auth session (the `employerId` JWT claim); RLS auto-scopes every read
 
-### Planned Actions
+### Actions (CRUD)
 | Action | Permission | Scope |
 |--------|-----------|-------|
-| View employee list | Read | Own organization's employees |
-| Upload bulk contributions | Create | Own organization |
-| View contribution reports | Read | Own organization |
-| Add/remove employees | Create/Delete | Own organization |
-| Update organization profile | Update | Own organization |
+| View own roster + run history + metrics | Read | Own employer (`useEmployees` / `useContributionRuns` / `useEmployerMetrics`) |
+| Submit a contribution run | Create | Own active staff (`useRunContribution` → `submit_contribution_run`; server re-derives amounts, nonce-idempotent, balances on `employees`) |
+| Edit employee contribution config | Update | Own staff (`update_employee_contribution_config`) |
+| Edit employee insurance | Update | Own staff (`update_employee_insurance`) |
+| Update company profile + default config | Update | Own employer (`update_employer_profile`) |
+| Change own password | Update | Own user |
+| Raise / reply to support tickets | Create | Own employer↔platform threads |
+| Onboard staff | — | Deferred placeholder (Phase 9) |
+| View commissions | — | **None** — employees generate no commissions |
+
+### Scoping Implementation
+`EmployerScopeProvider` injects `employerId` into context; reads route through `useEmployer*` hooks → `src/services/employer.js`. Under Supabase, the 5 `0034` tables each carry one SELECT policy scoped by `auth.jwt() ->> 'employerId'` (run-lines via an EXISTS join to the parent run), so a read only ever returns the caller's own rows. **Writes go through the `0035` SECURITY DEFINER RPCs** (no client write policies), each re-checking ownership against the `employerId` claim. `submit_contribution_run` writes employer balances inline to `employees` and is forbidden from touching `transactions`/`subscriber_balances`/`commissions`. See `BACKEND.md §8`/§10.1 + `docs/data-model.md`.
 
 ---
 
@@ -312,7 +323,7 @@ The agent is now a pure observer of commissions. Lines auto-generate as `due` on
 | branch | Own branch + own agents + own subscribers (+ read-only of the singleton `distributors` row for attribution) | Own branch's commissions (read-only) | 8 reports, branch-scoped |
 | agent | Own record + own subscribers (+ read-only of the singleton `distributors` row) | Own commissions (read-only — Earned / Owed) | Client-side analytics over own portfolio |
 | subscriber | Own record only (+ read-only of the singleton `distributors` row) | None | 5 own-account reports (transactions, contributions, withdrawals, insurance, annual) |
-| employer (planned) | Own org's employees | None | Own org reports |
+| employer | Own employer + own standalone staff roster + own contribution runs (no access to subscribers/agents/branches) | None (employees generate no commissions) | 4 own-org reports (staff roster, runs summary, funding breakdown, balance growth) |
 | admin (planned) | All entities, all levels | All commissions | All reports, all scopes |
 
 ### Scoping Implementation
@@ -321,7 +332,7 @@ The agent is now a pure observer of commissions. Lines auto-generate as `due` on
 - **Branch:** `BranchScopeProvider` injects `branchId` into context. Report views check `useBranchScope()` and filter data accordingly. Commission endpoints receive `branchId` parameter.
 - **Agent:** `AgentScopeProvider` injects `agentId`. `useAgentSubscribers(agentId)` and commission hooks scope automatically. The auth `user.agentId` comes from the backend's `verifyOtp` response — the client no longer injects it.
 - **Subscriber:** `useCurrentSubscriber()` resolves from authenticated phone (server-side); subscriber is the implicit "self" in every endpoint under `/api/subscribers/me/*`.
-- **Employer (planned):** Should scope by `employerId` from auth session
+- **Employer:** `EmployerScopeProvider` injects `employerId` from the auth session (the `employerId` JWT claim). The 5 `0034` tables auto-scope every read via one SELECT policy keyed on `auth.jwt() ->> 'employerId'`; writes go through the `0035` RPCs, which re-check ownership.
 - **Admin (planned):** No scoping — full access like distributor but with additional admin capabilities
 
 ### Backend Enforcement

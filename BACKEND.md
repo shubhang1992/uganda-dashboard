@@ -39,6 +39,8 @@ Covers the Express + TypeScript routes under `api/**` (mounted by `server/index.
                   └─────────────────────────────────────────────────┘
 ```
 
+> The box reflects **live** state. The committed-but-not-yet-applied employer migrations (`0034`/`0035`) add 5 tables + 4 SELECT policies + 5 RPCs once applied (see §8/§10.1) — a gated cutover step.
+
 **RLS-first.** Every direct write from a normal authenticated client must pass an explicit policy or go through a `SECURITY DEFINER` RPC. Tables with no INSERT/UPDATE/DELETE policy reject all client writes by default; the service-role key (server-only) bypasses RLS for seeding + the JWT-mint path.
 
 ---
@@ -168,13 +170,13 @@ Auth-only helpers, owned by `verify-otp` / `verify-password` / `change-password`
 
 **`personas.ts` API:**
 
-- `ROLE_DEFAULTS: Record<JwtRole, string>` — the demo-stable fallback entity IDs (`subscriber → 's-0001'`, `agent → 'a-001'`, `branch → 'b-kam-015'`, `distributor → 'd-001'`). Mirrors the seed personas; sync is manual (audit D18).
+- `ROLE_DEFAULTS: Record<JwtRole, string>` — the demo-stable fallback entity IDs (`subscriber → 's-0001'`, `agent → 'a-001'`, `branch → 'b-kam-015'`, `distributor → 'd-001'`, `employer → 'emp-001'`). Mirrors the seed personas; sync is manual (audit D18).
 - `resolveSubscriber(supabaseAdmin, phone)` — newest-wins lookup on `subscribers (phone)`. Returns `null` when no match OR the lookup errored (the caller falls back to `ROLE_DEFAULTS.subscriber`). DB errors are logged with the `[auth/personas]` tag and treated as non-fatal at the helper layer; the route catches them via `DbError` for the upsert path only.
 - `resolveDemoPersona(supabaseAdmin, phone, role)` — `(phone, role)` lookup on `demo_personas`; always returns an identity (falls back to `ROLE_DEFAULTS[role]` when no row matches). Used for the 3 non-subscriber roles.
 
 **`claims.ts` API:**
 
-- `buildJwtClaims({ role, phone, entityId }) → JwtSignInput` — assembles `sub`, `role: 'authenticated'`, `app_role`, `phone`, and the role-scoped `subscriberId` / `agentId` / `branchId` / `distributorId` claim.
+- `buildJwtClaims({ role, phone, entityId }) → JwtSignInput` — assembles `sub`, `role: 'authenticated'`, `app_role`, `phone`, and the role-scoped `subscriberId` / `agentId` / `branchId` / `distributorId` / `employerId` claim (the `employer` branch emits `employerId`).
 - `buildAuthResponseUser({ role, phone, entityId, hasPassword, name? }) → AuthResponseUser` — assembles the `user` half of the response body.
 - `buildAuthResponseDto({ token, role, phone, entityId, hasPassword, name? }) → { token, user }` — convenience wrapper. Both `verify-otp` and `verify-password` call this exactly before `res.status(200).json(...)`, so the two routes mint byte-identical payloads.
 
@@ -191,11 +193,11 @@ Returns `${prefix}_${ts36}_${rand36}` (e.g. `smile_lwxa3y2k_4f9q2z`). Consumed b
 ### JWT claim shape (single source of truth)
 
 ```ts
-type JwtRole = 'subscriber' | 'agent' | 'branch' | 'distributor';
+type JwtRole = 'subscriber' | 'agent' | 'branch' | 'distributor' | 'employer';
 
 type JwtClaims = {
   iss: 'upensions';                    // hardcoded
-  sub: string;                         // entity ID (subscriber/agent/branch/distributor row id)
+  sub: string;                         // entity ID (subscriber/agent/branch/distributor/employer row id)
   role: 'authenticated';               // Postgres role for PostgREST SET ROLE — NEVER the app role
   app_role: JwtRole;                   // application role; RLS reads this
   phone: string;                       // canonical +256...
@@ -203,6 +205,7 @@ type JwtClaims = {
   agentId?: string;                    // when app_role === 'agent'
   branchId?: string;                   // when app_role === 'branch'
   distributorId?: string;              // when app_role === 'distributor'
+  employerId?: string;                 // when app_role === 'employer' (camelCase claim; RLS reads auth.jwt() ->> 'employerId')
   aud: 'authenticated';                // required by PostgREST RLS
   iat: number;
   exp: number;                         // iat + 24h (DEFAULT_EXPIRY_SECONDS)
@@ -236,11 +239,11 @@ type JwtClaims = {
 2. **User enters any 6-digit code** (demo OTP — see §15a).
 3. **`POST /api/auth/verify-otp`** — Validates `phone` + `otp` (`^\d{6}$`) + `role`; canonicalises phone; optionally validates a `password` shape if the caller is signing up with a fresh credential. Then:
     - If `role === 'subscriber'`, calls `resolveSubscriber` (newest-wins query on `subscribers (phone)` — see `api/auth/_lib/personas.ts`). If no match → falls back to `ROLE_DEFAULTS.subscriber = 's-0001'` (every demo login succeeds; CLAUDE.md §8).
-    - For other roles, calls `resolveDemoPersona`, which looks up `demo_personas` by `(phone, role)` and falls back to `ROLE_DEFAULTS[role]` (`agent → 'a-001'`, `branch → 'b-kam-015'`, `distributor → 'd-001'`).
+    - For other roles, calls `resolveDemoPersona`, which looks up `demo_personas` by `(phone, role)` and falls back to `ROLE_DEFAULTS[role]` (`agent → 'a-001'`, `branch → 'b-kam-015'`, `distributor → 'd-001'`, `employer → 'emp-001'`). The seed lands a `demo_personas` row for `EMPLOYER_DEMO_PHONE` (`+256700000031` → `emp-001`); any other phone on the `employer` role still succeeds via the `emp-001` fallback.
     - Hashes the supplied password (if any) **after** the role lookup so a malformed phone/role short-circuits before the ~80ms bcrypt cost.
     - Upserts `users(phone, role, last_login_at, password_hash?)` with deterministic PK `id = '<role>:<phone>'`, on-conflict target `(phone, role)`. A Supabase `error` on the upsert path is wrapped in a local `DbError` and surfaced as `500 { code: 'db_error', message: '<supabase code or msg>' }` (Phase 1F `dbe12e2`). PGRST116 ("no row") is treated as non-fatal — the upsert reports `hasPassword: Boolean(passwordHash)` and login still succeeds.
     - Builds the JWT claims via `buildJwtClaims` and the response body via `buildAuthResponseDto` (both from `api/auth/_lib/claims.ts`), signs the token with `signJwt`.
-4. **Response:** `{ token, user }` where `user = { role, phone, hasPassword, name?, subscriberId|agentId|branchId|distributorId }`. `AuthContext.login` writes the token to `localStorage.upensions_token` and the user payload to `localStorage.upensions_auth`.
+4. **Response:** `{ token, user }` where `user = { role, phone, hasPassword, name?, subscriberId|agentId|branchId|distributorId|employerId }`. `AuthContext.login` writes the token to `localStorage.upensions_token` and the user payload to `localStorage.upensions_auth`.
 
 ### Password path (`/api/auth/verify-password`)
 
@@ -377,6 +380,8 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 | `0031_notifications.sql` (+ `.down.sql`) | 280 | NEW `notifications` table (`recipient_role` ∈ `agent`/`branch`; SELECT-only RLS) + the `apply_settlement(p_rows jsonb)` and `mark_notifications_read(p_ids text[])` RPCs. |
 | `0032_fix_settlement_apply.sql` (+ `.down.sql`) | ~290 | **Settlement-apply correctness + idempotency.** `CREATE OR REPLACE`s `apply_settlement` as `(p_rows jsonb, p_nonce text)` — FIFO per-line allocation (BL-1/BL-2), whole-UGX `round()` (BL-8), formatted notification bodies (BL-18). Adds the `settlement_uploads` idempotency ledger (PK `nonce`, RPC-internal, RLS-forced, no grants) and `settlement_batches.client_nonce` (BL-13). Drops the 0031 single-arg `apply_settlement(jsonb)`. **NOT YET APPLIED TO LIVE** — gated cutover step. |
 | `0033_post_audit_hardening.sql` (+ `.down.sql`) | ~115 | **Post-audit DB hardening (pure DDL, no RPC change).** Adds `notifications.ref_id` FK → `settlement_batches(id) ON DELETE SET NULL` + a covering index (BL-15 — `ref_id` is provably only ever a batch id). Aligns the `settlement_batches` FK `ON DELETE` actions to the commissions convention: `agent_id` → `agents(id) ON DELETE CASCADE`, `branch_id` → `branches(id) ON DELETE SET NULL` (F-12). `ALTER TABLE distributors FORCE ROW LEVEL SECURITY` — the last RLS-enabled-but-not-FORCE'd table (BL-24). Fully guarded/idempotent. **NOT YET APPLIED TO LIVE** — gated cutover step; apply after 0032 + a verified backup. |
+| `0034_employer_schema_and_rls.sql` (+ `.down.sql`) | ~235 | **Employer schema + RLS (Phase 0).** 5 new tables — `employers`, `employees` (standalone roster, NOT subscribers; balances live here, not `subscriber_balances`), `contribution_runs`, `contribution_run_lines` (per-employee ledger; employees are NOT in `transactions`), `contribution_run_uploads` (idempotency ledger, parallel to `settlement_uploads`). TEXT PKs (`emp-001`, `empe-NNN`, `run-NNN`); ENABLE + FORCE RLS on all 5; indexes on `employees(employer_id)`, `contribution_runs(employer_id)`, `contribution_run_lines(run_id, employee_id)`. One SELECT policy per table scoped by the camelCase `employerId` claim (run_lines via an EXISTS join to the parent run); `contribution_run_uploads` has **no policy/grant** (RPC-internal). No client write policies — writes go through the 0035 RPCs. **NOT YET APPLIED TO LIVE** — gated cutover step. |
+| `0035_employer_rpcs.sql` (+ `.down.sql`) | ~520 | **Employer RPCs (Phase 0).** 5 SECURITY DEFINER functions, each gated on `app_role = 'employer'` + scoped to the `employerId` claim, `SET search_path = public, pg_temp`, house grant pattern (REVOKE PUBLIC / GRANT authenticated). `submit_contribution_run(p_rows, p_period_label, p_method, p_nonce)` — re-derives every amount server-side from `employees.salary` + `contribution_config`, splits gross by the employee's schedule, writes `contribution_run_lines` + bumps `employees` balances **inline** (UGX 1,000/unit), nonce-idempotent via `contribution_run_uploads`, skips suspended/not-owned/not-found/zero rows; **MUST NOT write `transactions`/`subscriber_balances`/`commissions`** (no commission code path is reachable). `update_employee_contribution_config`, `update_employee_insurance`, `update_employer_profile` (ownership-checked patches), `get_employer_metrics()` (STABLE — hero/overview aggregates). Structural template = `apply_settlement` (0032). **NOT YET APPLIED TO LIVE** — gated cutover step. |
 
 ### Supersession history: 0018 → 0019 (missing) → 0020
 
@@ -394,7 +399,7 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 
 ## §8. Schema overview
 
-**21 tables**, **4 ENUMs**, `pg_trgm` extension. All primary keys are `TEXT` for deterministic seed IDs (`a-001`, `b-kam-015`, `c-00001`, `d-001`, `s-XXXXXX`). Field-level definitions live in `docs/data-model.md` — only domain grouping + one-line purpose is captured here.
+**21 tables** in the core schema (+ **5 employer tables** added by `0034`, not yet applied to live), **4 ENUMs**, `pg_trgm` extension. All primary keys are `TEXT` for deterministic seed IDs (`a-001`, `b-kam-015`, `c-00001`, `d-001`, `s-XXXXXX`, `emp-001`, `empe-NNN`). Field-level definitions live in `docs/data-model.md` — only domain grouping + one-line purpose is captured here.
 
 ### Domain: Geo (2 tables)
 
@@ -439,9 +444,21 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 | Table | Purpose |
 |---|---|
 | `users` | Auth identities. `UNIQUE(phone, role)` lets one phone attach to multiple roles. `password_hash TEXT` (0026) nullable; NULL = OTP-only. |
-| `demo_personas` | `(phone, role) → entity_id` lookup for non-subscriber roles. 7 seeded rows: 3 agents, 2 branches, 2 distributors. |
+| `demo_personas` | `(phone, role) → entity_id` lookup for non-subscriber roles. 8 seeded rows: 3 agents, 2 branches, 2 distributors, 1 employer (`+256700000031` → `emp-001`). |
 | `agent_referrals` | KYC fallback referrals (from `/api/kyc/agent-referral`). |
 | `contact_submissions` | Landing-page contact form submissions (from `/api/contact`). |
+
+### Domain: Employer (5 tables, `0034` — not yet applied to live)
+
+The Employer is a B2B account with a **standalone** roster — `employees` are NOT `subscribers`, generate NO agent commissions, and their pension balances live on the `employees` row (not `subscriber_balances`). Funding happens via "contribution runs". All 5 tables are TEXT-PK, ENABLE + FORCE RLS, scoped by the `employerId` claim; writes go through the `0035` RPCs only.
+
+| Table | Purpose |
+|---|---|
+| `employers` | One row per B2B account (`emp-001`). `name`, `sector`, `registration_no`, `contact_*`, `district`, `payroll_cadence`, `default_contribution_config JSONB` (`{ mode, employerPct, employeePct, employerAmount, employeeAmount }` — the template a new run starts from). |
+| `employees` | Standalone staff roster (`empe-NNN`); FK → `employers(id) ON DELETE CASCADE`. Pension balances live HERE (`retirement_balance`/`emergency_balance`/`net_balance`/`units_held`/`total_contributions`) — bumped **inline** by `submit_contribution_run` (no trigger on this table). `contribution_config JSONB` (per-employee funding mode), `contribution_schedule JSONB` (`{ retirementPct, emergencyPct }`, default 80/20), insurance cols, `nominees JSONB`. `status ∈ active|suspended`. Index on `employer_id`. |
+| `contribution_runs` | One row per funding batch (`run-NNN`); FK → `employers(id)`. `period_label`, `status ∈ draft|completed`, `employer_total`/`employee_total`/`grand_total`, `run_at`. Index on `employer_id`. |
+| `contribution_run_lines` | Per-employee line inside a run; FK → `contribution_runs(id)` + `employees(id)`, both `ON DELETE CASCADE`. `employer_amount`/`employee_amount`/`retirement_amount`/`emergency_amount`/`method`. **Doubles as the per-employee contribution ledger** (employees are NOT in `transactions`). Indexes on `run_id`, `employee_id`. |
+| `contribution_run_uploads` | RPC-internal idempotency ledger (`nonce` PK, `result JSONB`) — parallel to `settlement_uploads`. No policy, no grant; only `submit_contribution_run` reads/writes it. |
 
 ### ENUMs
 
@@ -515,7 +532,21 @@ Columns the seed populates but no API code path updates (some are read-only metr
 | `agent_referrals` | — | — | — | R |
 | `contact_submissions` | — | — | — | R |
 
-Legend: R = SELECT, I = INSERT, U = UPDATE, D = DELETE. **Employer + admin roles have no policies** — no rows would satisfy any USING clause.
+Legend: R = SELECT, I = INSERT, U = UPDATE, D = DELETE. The grid covers the core 21 tables and the 4 network/subscriber/commission roles. The **employer** role has its own table family (below); the **admin** role still has no policies — no rows would satisfy any USING clause.
+
+### Employer RLS (5 tables, `0034` — not yet applied to live)
+
+The employer role doesn't appear in the grid above because it scopes a separate table family by the camelCase `employerId` claim (parallel to `branchId` / `distributorId`). **One SELECT policy per table, no client write policies** — every write goes through a `0035` SECURITY DEFINER RPC.
+
+| Table | employer (SELECT) |
+|---|---|
+| `employers` | `employer_self_select`: `app_role='employer' AND id = auth.jwt() ->> 'employerId'` |
+| `employees` | `employees_by_employer_select`: `app_role='employer' AND employer_id = auth.jwt() ->> 'employerId'` |
+| `contribution_runs` | `contribution_runs_by_employer_select`: `app_role='employer' AND employer_id = auth.jwt() ->> 'employerId'` |
+| `contribution_run_lines` | `contribution_run_lines_by_employer_select`: `app_role='employer'` AND `EXISTS (run with id = run_id AND employer_id = employerId)` (no `employer_id` column on lines — scoped via the parent run, mirroring `settlement_runs_select_agent`'s EXISTS join) |
+| `contribution_run_uploads` | **none** — RPC-internal idempotency ledger, no policy + no grant (mirrors `settlement_uploads`); reachable only inside `submit_contribution_run`. |
+
+All 5 tables are ENABLE + FORCE RLS; service-role (seed + `supabase-admin.ts`) bypasses RLS. The other roles (subscriber/agent/branch/distributor) have no policy on these tables, so no rows satisfy any USING clause.
 
 ### Notable policy details
 
@@ -529,7 +560,7 @@ Legend: R = SELECT, I = INSERT, U = UPDATE, D = DELETE. **Employer + admin roles
 
 ## §10. RPC inventory
 
-Post-`0029`/`0031`, the active set is **15 functions** (DEFINER + INVOKER), all with `SET search_path` pinned (audit D2) and all reading `auth.jwt() ->> 'app_role'` (never `'role'`) — zero `auth.uid()` usage. The `0029` simplification dropped the 14 commission state-machine + dispute RPCs, `get_run_branch_breakdown`, and the `commissions_before_update` trigger function; `0031` added two new write RPCs.
+Post-`0029`/`0031`, the active core set is **15 functions** (DEFINER + INVOKER), plus **5 employer RPCs** added by `0035` (not yet applied to live — see §10.1). All have `SET search_path` pinned (audit D2) and read `auth.jwt() ->> 'app_role'` (never `'role'`) — zero `auth.uid()` usage. The `0029` simplification dropped the 14 commission state-machine + dispute RPCs, `get_run_branch_breakdown`, and the `commissions_before_update` trigger function; `0031` added two new write RPCs.
 
 Breakdown:
 
@@ -542,6 +573,7 @@ Breakdown:
 - 2 atomic-write RPCs (0002) — `create_subscriber_from_signup`, `create_subscriber_from_agent_onboard`
 - 1 nominees upsert RPC (0024) — `upsert_nominees`
 - 2 settlement / notification write RPCs — `apply_settlement` (0031, re-emitted with FIFO + idempotency as `(p_rows, p_nonce)` in 0032), `mark_notifications_read` (0031)
+- **5 employer RPCs (0035)** — `submit_contribution_run`, `update_employee_contribution_config`, `update_employee_insurance`, `update_employer_profile`, `get_employer_metrics` (see §10.1)
 
 ### Read RPCs (6)
 
@@ -602,6 +634,18 @@ REVOKE EXECUTE ON FUNCTION public.upsert_nominees(TEXT, JSONB, JSONB) FROM anon;
 ```
 
 Every other RPC in the codebase precedes the `GRANT EXECUTE ... TO authenticated` with `REVOKE ALL ON FUNCTION ... FROM PUBLIC;` (defence-in-depth — `PUBLIC` includes any future role). `upsert_nominees` revokes only from `anon`. Benign at execution time (the function still gates on `app_role`), but inconsistent with the codebase convention.
+
+### §10.1 Employer RPCs (5, added in `0035` — not yet applied to live)
+
+All `LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp`, gated on `auth.jwt() ->> 'app_role' = 'employer'`, scoped to the caller's `auth.jwt() ->> 'employerId'`, with the house grant pattern (`REVOKE ALL … FROM PUBLIC; GRANT EXECUTE … TO authenticated`). Structural template = `apply_settlement` (0032). Called by `src/services/employer.js` via `supabase.rpc(...)` (the mock branch re-implements the same math offline).
+
+| RPC | Signature | What it does |
+|---|---|---|
+| `submit_contribution_run` | `(p_rows jsonb, p_period_label text, p_method text, p_nonce text) → jsonb` | The core write. `p_rows = [{ employeeId }]`; any client amounts are **advisory and ignored**. Nonce short-circuits against `contribution_run_uploads` (idempotent replay). For each row: locks the employee `FOR UPDATE`; verifies it belongs to the caller's employer (else skip `not_owned`); skips `not_found`/`suspended`/`zero_contribution`. **Re-derives amounts server-side** from `salary` + `contribution_config` (`employer_half = employerAmount ?? round(salary*employerPct/100)`; `employee_half = mode='co-contribution' ? (employeeAmount ?? round(salary*employeePct/100)) : 0`), splits the gross by the employee's `contribution_schedule` (default 80/20, `emergency = gross − retirement` to avoid penny drift), INSERTs the `contribution_run_lines` row, and bumps the `employees` balance columns **inline** (`net_balance`/`units_held` @ UGX 1,000/unit). After the loop INSERTs one `contribution_runs` header (only if ≥1 line) + writes the nonce ledger. Returns `{ runId, linesCreated, employerTotal, employeeTotal, grandTotal, skipped: [{ employeeId, reason }] }`. **⚠️ MUST NOT write `transactions`, `subscriber_balances`, or `commissions`** — employees aren't subscribers, so a `transactions` insert would FK-fail AND fire `trg_transactions_contribution` (which mutates `subscriber_balances` + creates an agent commission). No commission code path is reachable from this RPC; employer balances live on `employees` and are the RPC's own inline write (there is no employee trigger). |
+| `update_employee_contribution_config` | `(p_employee_id text, p_config jsonb) → jsonb` | Ownership-checked. Replaces `contribution_config`, returns the updated row as `to_jsonb`. |
+| `update_employee_insurance` | `(p_employee_id text, p_cover numeric, p_premium numeric) → jsonb` | Ownership-checked. Sets cover + monthly premium; `insurance_status` derives from cover (`>0 → active`). Returns the updated row. |
+| `update_employer_profile` | `(p_patch jsonb) → jsonb` | Patches the caller's own `employers` row (editable profile/config keys only — `id`/timestamps never patched). Returns the updated row. |
+| `get_employer_metrics` | `() → jsonb` (**STABLE**) | Hero/overview aggregates scoped to the caller's employer: `{ headcount, active, suspended, totalBalance, totalContributions, insuredCount, employerYtd, employeeYtd, modeSplit: { coContribution, employerOnly } }`. "YTD" = sum over `contribution_runs` in the current calendar year. Mirrors `get_entity_commission_summary`'s STABLE shape. |
 
 ---
 
@@ -687,9 +731,10 @@ Run via `npm run seed`. Materialises the full `src/data/mockData.js` hierarchy i
 - Runs `SET session_replication_role = 'replica'` at line 189 for the duration of the seed so the 30k seeded contribution transactions don't double-insert via `trg_transactions_contribution`. Restored to `'origin'` before `COMMIT` (and inside the `catch` for safety).
 - Bulk insert via `INSERT … FROM unnest($1::type[], $2::type[], …) ON CONFLICT (pk) DO UPDATE` — one round-trip per 2,000-row chunk. Idempotent on re-run.
 - **Phone dedup:** subscribers with duplicate phones get reassigned to a synthetic `+25671XXXXXXX` range so the partial unique index `subscribers(phone) WHERE NOT is_demo_signup` stays satisfied. Per-run state (a `Set`); if live subscribers exist when seed re-runs, dupes silently reassign to different `+25671XXXXXXX` numbers (audit D14).
-- `demo_personas` seeded with 7 rows: agents `a-001/a-042/a-118` at phones `+2567000000{1,2,3}`, branches `b-kam-015/b-mba-290` at `+2567000000{11,12}`, distributors `d-001/d-002` at `+2567000000{21,22}`.
+- `demo_personas` seeded with 8 rows: agents `a-001/a-042/a-118` at phones `+2567000000{1,2,3}`, branches `b-kam-015/b-mba-290` at `+2567000000{11,12}`, distributors `d-001/d-002` at `+2567000000{21,22}`, and the employer `emp-001` at `EMPLOYER_DEMO_PHONE` (`+256700000031`).
 - Both `distributors` rows (`d-001`, `d-002`) are inserted by the seed; the `0016` migration also seeds `d-001` on-conflict-do-nothing.
 - **Commissions are `due`/`paid` only** (post-0029 simplification — no `settlement_runs`); `paid` rows carry `paid_amount`. The seed also inserts a few `settlement_batches` rows + matching `commission_settled` notifications so the settlement history + notification bell have demo data.
+- **Employer seed (`0034` tables):** imports `src/data/employerSeed.js` (the single source of truth shared with the offline mock path) and inserts 1 `employers` row (`emp-001`, "Nile Breweries Demo Ltd"), 16 `employees` (mix of co-contribution / employer-only, 2 suspended, several insured), and 3 historical `contribution_runs` + their lines. Service-role bypasses the employer RLS so these direct inserts succeed despite FORCE. The seed `lineFor` math matches `submit_contribution_run` so the seeded ledger reconciles with the live RPC. Dates anchored to `MOCK_NOW`.
 
 **Approximate row volumes after seed:**
 
@@ -704,7 +749,11 @@ Run via `npm run seed`. Materialises the full `src/data/mockData.js` hierarchy i
 | settlement_batches | a few (0030) |
 | notifications | a few (0031, `commission_settled`) |
 | distributors | 2 |
-| demo_personas | 7 |
+| demo_personas | 8 |
+| employers | 1 (0034 — `emp-001`) |
+| employees | 16 (0034) |
+| contribution_runs | 3 (0034) |
+| contribution_run_lines | 3 runs × active employees (0034) |
 
 **`users` table is NOT populated by the seed** (audit D13). `password_hash` (added in 0026) and `last_login_at` are stamped only on live signups via `/api/auth/verify-otp`. Demo subscribers/agents/branches/distributors have no `users` row by default; the JWT-mint path upserts on first OTP verify.
 
@@ -774,7 +823,7 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 
 **Existing awareness items (already in CLAUDE.md §10b):**
 
-- Employer + admin roles unbuilt — no RLS policies, no dashboards, no shells.
+- Employer role is now **built** (`0034` schema + RLS, `0035` RPCs, desktop-first shell; demo persona `emp-001`). Both employer migrations are committed forward files **NOT yet applied to live** — gated cutover steps (apply after a verified backup, alongside the 0032/0033 stack). Only the **admin** role remains unbuilt (no RLS policies, no dashboard, no shell). Employee **onboarding** is the one deferred employer sub-feature (Phase 9 placeholder; a future `create_employee` RPC).
 - `agent_referrals` row PK `ar-<epoch>-<rand>` and public `UAG-XXXX` ticket ID (~1.7M space) — collision-tolerant but not cryptographic.
 - No retry / idempotency keys on `/api/contact` or `/api/kyc/agent-referral`. A resubmit creates a second row.
 
