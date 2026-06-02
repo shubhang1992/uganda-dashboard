@@ -1,11 +1,12 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
+import HomeDesktop from './HomeDesktop';
 import PulseCard from './widgets/PulseCard';
-import PortfolioCard from './widgets/PortfolioCard';
-import CommissionsSnapshotCard from './widgets/CommissionsSnapshotCard';
+import MonthlyDataCard from './widgets/MonthlyDataCard';
+import QuickActions from './widgets/QuickActions';
 import CoPilotWidget from './widgets/CoPilotWidget';
-import NotificationCenterCard from '../../components/notifications/NotificationCenterCard';
 import styles from './HomePage.module.css';
 
 const stagger = {
@@ -22,6 +23,9 @@ export default function HomePage() {
   const reduceMotion = useReducedMotion();
   const itemVariants = reduceMotion ? undefined : item;
 
+  const isDesktop = useIsDesktop();
+  if (isDesktop) return <HomeDesktop />;
+
   return (
     <motion.div
       className={styles.page}
@@ -32,14 +36,11 @@ export default function HomePage() {
       <motion.div variants={itemVariants} className={styles.slotPulse}>
         <PulseCard agentId={agentId} />
       </motion.div>
-      <motion.div variants={itemVariants} className={styles.slotPortfolio}>
-        <PortfolioCard agentId={agentId} />
+      <motion.div variants={itemVariants} className={styles.slotMonthly}>
+        <MonthlyDataCard agentId={agentId} />
       </motion.div>
-      <motion.div variants={itemVariants} className={styles.slotCommissions}>
-        <CommissionsSnapshotCard agentId={agentId} />
-      </motion.div>
-      <motion.div variants={itemVariants} className={styles.slotNotifications}>
-        <NotificationCenterCard role="agent" entityId={agentId} />
+      <motion.div variants={itemVariants} className={styles.slotActions}>
+        <QuickActions />
       </motion.div>
       <motion.div variants={itemVariants} className={styles.slotCopilot}>
         <CoPilotWidget agentId={agentId} />

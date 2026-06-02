@@ -1,0 +1,275 @@
+/* InboxDesktop — the ≥1024px agent "Inbox" tab-root.
+
+   Rendered only inside the useIsDesktop() fork, so it carries no mobile
+   fallback. Sits inside AgentDesktopShell's centred .page column (max-width
+   1280px, horizontal padding already applied by the shell), so this module
+   owns vertical rhythm + the split master/detail internals only.
+
+   The shipped mobile inbox (single-column list → full-screen thread) is left
+   byte-identical. This is a side-by-side master/detail: a left ticket-list
+   pane and a right thread pane visible together on a wide viewport. Brand
+   indigo only; red is reserved for errors. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-8) 0;
+  min-height: 100%;
+}
+
+/* ── Heading (plain h1 — tab-root, no back, no hero dome) ─────────────── */
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-indigo-soft);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+  margin: 0;
+}
+
+.subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
+}
+
+.subtitle strong {
+  color: var(--color-slate);
+  font-weight: 700;
+}
+
+.subtitle .awaiting {
+  color: var(--color-kyc-warning);
+}
+
+/* ── Split master/detail ─────────────────────────────────────────────────
+   Left list pane (fixed measure) + right thread pane (fills the rest). The
+   panes share a tall, viewport-anchored height so each scrolls internally
+   while the page itself stays put. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(340px, 400px) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: stretch;
+  /* Viewport height minus the top bar + the page's own top/bottom padding so
+     both panes resolve a definite height for their inner scroll areas. */
+  height: calc(100vh - 64px - var(--space-8) * 2 - 120px);
+  height: calc(100dvh - 64px - var(--space-8) * 2 - 120px);
+  min-height: 480px;
+}
+
+/* ── Left pane: list ──────────────────────────────────────────────────── */
+.listPane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+}
+
+/* Subscriber focus bar (?subscriberId=) ──────────────────── */
+.focusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-indigo) 8%, var(--color-white));
+  border: 1px solid var(--color-lavender);
+}
+
+.focusText {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focusText strong {
+  color: var(--color-indigo);
+  font-weight: 700;
+}
+
+.focusClear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-indigo);
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-full);
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.focusClear:hover {
+  background: var(--color-cloud);
+  border-color: var(--color-indigo-soft);
+}
+
+.focusClear:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 2px;
+}
+
+/* Toolbar (search + filter chips) ──────────────────── */
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.filters {
+  flex-wrap: wrap;
+}
+
+.filterCount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 0.6875rem;
+  color: inherit;
+  opacity: 0.7;
+}
+
+/* Scrollable list of rows ──────────────────── */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  /* Room for the row focus ring + a touch of breathing space at the edges. */
+  margin: 0 calc(var(--space-2) * -1);
+  padding: 2px var(--space-2);
+}
+
+/* A selected row gets a soft indigo wash + ring so the active thread reads
+   as the master selection in a side-by-side layout. The row itself is the
+   shared TicketListRow button; we wrap it so we never touch its markup. */
+.rowWrap {
+  border-radius: var(--radius-lg);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.rowWrap[data-selected='true'] {
+  background: color-mix(in srgb, var(--color-indigo) 7%, var(--color-white));
+  box-shadow: inset 0 0 0 1.5px var(--color-indigo-soft);
+}
+
+/* The subscriberId focus param highlights the matching row even before it is
+   selected, so the agent's eye lands on it immediately. */
+.rowWrap[data-focused='true'] {
+  box-shadow: inset 0 0 0 1.5px var(--color-indigo);
+}
+
+/* ── Right pane: thread ───────────────────────────────────────────────── */
+.threadPane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+/* The extracted ThreadPanel renders a .threadWrap (height-capped + width-capped
+   for the narrow mobile/centred reading measure). Inside this side-by-side pane
+   we want it to simply fill the pane, so we re-anchor its sizing to the pane and
+   drop the mobile viewport math + the 720px measure cap. The doubled parent
+   class (.threadPane.threadPane) raises specificity to 0-2-0 so this wins over
+   the single-class .threadWrap rules in InboxPage.module.css regardless of
+   stylesheet load order. */
+.threadPane.threadPane > * {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  max-width: none;
+  margin: 0;
+  width: 100%;
+}
+
+/* Placeholder shown when no thread is selected. */
+.placeholder {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-8);
+  text-align: center;
+}
+
+.placeholderIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-indigo) 8%, var(--color-white));
+  color: var(--color-indigo-soft);
+}
+
+.placeholderTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+  margin: 0;
+}
+
+.placeholderBody {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  max-width: 280px;
+  margin: 0;
+}
+
+/* State wrappers (skeleton / error / empty) keep the list pane from
+   collapsing and centre the empty/error cards. */
+.stateWrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}

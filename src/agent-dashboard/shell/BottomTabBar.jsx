@@ -6,38 +6,22 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentUnreadTicketCount } from '../../hooks/useTickets';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
+import {
+  homeIcon,
+  subscribersIcon,
+  analyticsIcon,
+  MOBILE_MORE_ITEMS as MORE_ITEMS,
+} from './agentNav';
 import styles from './BottomTabBar.module.css';
 
-const MORE_ITEMS = [
-  { to: '/dashboard/commissions', label: 'Commissions' },
-  { to: '/dashboard/inbox', label: 'Inbox' },
-  { to: '/dashboard/settings', label: 'Settings' },
-];
-
-const HomeIcon = (
-  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
-    <path d="M3 11l9-7 9 7v9a2 2 0 01-2 2h-4v-6h-6v6H5a2 2 0 01-2-2v-9z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
-  </svg>
-);
-
-const SubscribersIcon = (
-  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
-    <circle cx="9" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.75"/>
-    <path d="M3 19a6 6 0 0112 0" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-    <circle cx="17" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.75"/>
-    <path d="M16 14h1.5a4 4 0 014 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-  </svg>
-);
-
-const AnalyticsIcon = (
-  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
-    <path d="M4 19V5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-    <path d="M4 19h16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-    <rect x="7.5" y="11" width="3" height="6" rx="0.6" stroke="currentColor" strokeWidth="1.75"/>
-    <rect x="12.5" y="7" width="3" height="10" rx="0.6" stroke="currentColor" strokeWidth="1.75"/>
-    <rect x="17.5" y="13" width="3" height="4" rx="0.6" stroke="currentColor" strokeWidth="1.75"/>
-  </svg>
-);
+// Primary-tab icons come from the shared agentNav.js (same source the desktop
+// rail uses) at the mobile 22px size — byte-identical to the SVGs that shipped
+// here previously. The centre Onboard FAB glyph + the More glyph below stay
+// inline: they are bottom-bar-bespoke (the FAB is a plus-only icon, not the
+// rail's person+plus Onboard icon).
+const HomeIcon = homeIcon(22);
+const SubscribersIcon = subscribersIcon(22);
+const AnalyticsIcon = analyticsIcon(22);
 
 const MoreIcon = (
   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">

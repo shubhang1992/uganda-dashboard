@@ -1,0 +1,23 @@
+/* OnboardDesktop — desktop (>=1024px) chrome for the agent onboarding wizard.
+   Rendered only inside AgentDesktopShell (the fork in OnboardPage.jsx gates on
+   useIsDesktop, INSIDE the shared SignupProvider so the wizard's signup state is
+   identical across breakpoints). The wizard internals are the SAME extracted
+   OnboardFlow — its PageHeader still owns the single page <h1> ("Onboard a new
+   subscriber"). This module only owns the centred, width-capped column that
+   frames that identical wizard on a wide viewport.
+
+   The shell's .page column is wide (max 1280px, horizontal --space-8 padding); a
+   single-column step wizard should not stretch the full width, so we cap it to a
+   readable ~780px (within the 720-840px target band) and centre it. Indigo
+   (#292867) is inherited by the wizard's own primitives; red stays reserved for
+   errors. No media query is needed here — this module is only ever mounted on
+   desktop. */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: var(--space-8) 0 var(--space-10);
+}

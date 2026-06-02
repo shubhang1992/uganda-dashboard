@@ -3,15 +3,25 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers, useUpdateSubscriberSchedule } from '../../hooks/useAgent';
 import { useToast } from '../../contexts/ToastContext';
-import { useIsDesktop } from '../../hooks/useIsDesktop';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../../components/PageHeader';
 import ContributionSettingsForm from '../../components/contribution/ContributionSettingsForm';
 import SkeletonRow from '../../components/SkeletonRow';
-import SubscriberScheduleDesktop from './SubscriberScheduleDesktop';
-import styles from './SubscriberSchedulePage.module.css';
+import styles from './SubscriberScheduleDesktop.module.css';
 
-export default function SubscriberSchedulePage() {
+/**
+ * SubscriberScheduleDesktop — desktop (>=1024px) layout for the agent's
+ * subscriber contribution-schedule sub-page. Forked from SubscriberSchedulePage
+ * via the useIsDesktop() gate; the mobile page is never mounted at this width,
+ * so this component owns its own hooks (rules-of-hooks safe).
+ *
+ * It is a SUB-page (a routed detail destination), so it uses the default
+ * PageHeader variant (back chevron + h1). The body is a width-capped, centred
+ * wrapper around the SAME ContributionSettingsForm the mobile page renders, with
+ * the SAME useUpdateSubscriberSchedule(subscriberId, agentId) mutation and the
+ * SAME save / toast / back behaviour. React Query dedupes the shared data hooks.
+ */
+export default function SubscriberScheduleDesktop() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { agentId } = useAgentScope();
@@ -19,9 +29,6 @@ export default function SubscriberSchedulePage() {
   const updateSchedule = useUpdateSubscriberSchedule(id, agentId);
   const { addToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
-
-  const isDesktop = useIsDesktop();
-  if (isDesktop) return <SubscriberScheduleDesktop />;
 
   const subscriber = subscribers.find((s) => s.id === id);
   const existing = subscriber?.contributionSchedule;
@@ -51,16 +58,15 @@ export default function SubscriberSchedulePage() {
   }
 
   if (isLoading) {
-    // Skeleton instead of a bare "Loading…" header — the schedule form is
-    // multi-section and the form data lookup ultimately blocks render here,
-    // so showing the form's silhouette keeps the page feeling alive.
     return (
       <div className={styles.page}>
         <PageHeader
           title="Loading schedule…"
           fallback={`/dashboard/subscribers/${id}`}
         />
-        <SkeletonRow count={4} label="Loading subscriber schedule" />
+        <div className={styles.frame}>
+          <SkeletonRow count={4} label="Loading subscriber schedule" />
+        </div>
       </div>
     );
   }
@@ -69,7 +75,7 @@ export default function SubscriberSchedulePage() {
     return (
       <div className={styles.page}>
         <PageHeader title="Schedule" fallback={`/dashboard/subscribers/${id}`} />
-        <div style={{ padding: 'var(--space-4)' }}>
+        <div className={styles.frame}>
           <ErrorCard
             title="We couldn't load this subscriber"
             message={error}
@@ -98,7 +104,7 @@ export default function SubscriberSchedulePage() {
         subtitle={`for ${subscriber.name}`}
         fallback={`/dashboard/subscribers/${id}`}
       />
-      {subscriber && (
+      <div className={styles.frame}>
         <ContributionSettingsForm
           initial={existing}
           age={subscriber.age}
@@ -107,7 +113,7 @@ export default function SubscriberSchedulePage() {
           submitting={submitting}
           submitLabel={isNew ? 'Set up schedule' : undefined}
         />
-      )}
+      </div>
     </div>
   );
 }

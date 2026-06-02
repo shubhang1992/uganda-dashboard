@@ -1,18 +1,13 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
-import {
-  useAgentTickets,
-  useTicketThread,
-  useSendMessage,
-  useCloseTicket,
-  useReopenTicket,
-  useMarkTicketRead,
-} from '../../hooks/useTickets';
-import { SENDER_ROLE, TICKET_STATUS } from '../../data/ticketsSeed';
+import { useAgentTickets } from '../../hooks/useTickets';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
+import InboxDesktop from './InboxDesktop';
+import { TICKET_STATUS } from '../../data/ticketsSeed';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../../components/PageHeader';
 import { useAgentHeaderChrome } from '../shell/AgentHeaderChrome';
@@ -20,7 +15,7 @@ import { PillChip, PillChipGroup } from '../../components/PillChip';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
 import TicketListRow from '../../components/tickets/TicketListRow';
-import ThreadView from '../../components/tickets/ThreadView';
+import { ThreadPanel } from '../inbox/ThreadPanel';
 import styles from './InboxPage.module.css';
 
 const FILTERS = [
@@ -28,143 +23,6 @@ const FILTERS = [
   { id: 'open', label: 'Open', match: (t) => t.status === TICKET_STATUS.OPEN },
   { id: 'closed', label: 'Closed', match: (t) => t.status === TICKET_STATUS.CLOSED },
 ];
-
-const BODY_MAX = 1000;
-
-// ─── Agent reply composer ────────────────────────────────────────────────────
-// There is no Phase 0 composer primitive — each interactive role builds its own
-// small textarea + Send pair and hands it to ThreadView's footer. Send wires to
-// useSendMessage({ sender: 'agent', body }); a closed ticket disables the input
-// (the agent reopens first via the header action).
-function ReplyComposer({ ticketId, disabled }) {
-  const [body, setBody] = useState('');
-  const sendMessage = useSendMessage(ticketId);
-  const trimmed = body.trim();
-  const canSend = !disabled && !sendMessage.isPending && trimmed !== '';
-
-  // Clear the draft when switching threads so one ticket's reply never bleeds
-  // into another. Reset during render on the ticketId change (React's
-  // "you might not need an effect" pattern, as used in RaiseIssueSheet) rather
-  // than in an effect, which avoids the extra commit + a cascading-render lint.
-  const [lastTicketId, setLastTicketId] = useState(ticketId);
-  if (ticketId !== lastTicketId) {
-    setLastTicketId(ticketId);
-    setBody('');
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!canSend) return;
-    try {
-      await sendMessage.mutateAsync({ sender: SENDER_ROLE.AGENT, body: trimmed });
-      setBody('');
-    } catch {
-      // Optimistic update rolled back by the hook; keep the draft so the agent
-      // can retry without retyping.
-    }
-  }
-
-  return (
-    <form className={styles.composer} onSubmit={handleSubmit}>
-      <textarea
-        className={styles.composerInput}
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder={disabled ? 'Reopen this ticket to reply' : 'Type a reply to your subscriber…'}
-        rows={1}
-        maxLength={BODY_MAX}
-        disabled={disabled || sendMessage.isPending}
-        aria-label="Reply to subscriber"
-      />
-      <button type="submit" className={styles.composerSend} disabled={!canSend} aria-label="Send reply">
-        {sendMessage.isPending ? (
-          <span className={styles.composerSpinner} aria-hidden="true" />
-        ) : (
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
-            <path d="M4 12l15-7-5 15-3.5-5.5L4 12z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </button>
-    </form>
-  );
-}
-
-// ─── Header actions (Resolve / Close · Reopen) ───────────────────────────────
-function ThreadActions({ ticketId, status }) {
-  const closeTicket = useCloseTicket(ticketId);
-  const reopenTicket = useReopenTicket(ticketId);
-  const isOpen = status === TICKET_STATUS.OPEN;
-
-  if (isOpen) {
-    return (
-      <button
-        type="button"
-        className={styles.actionBtn}
-        onClick={() => closeTicket.mutate({ by: SENDER_ROLE.AGENT })}
-        disabled={closeTicket.isPending}
-      >
-        <svg aria-hidden="true" viewBox="0 0 12 12" width="11" height="11" fill="none">
-          <path d="M2.5 6.2l2.3 2.3L9.5 3.7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        Resolve
-      </button>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      className={`${styles.actionBtn} ${styles.actionBtnGhost}`}
-      onClick={() => reopenTicket.mutate({ by: SENDER_ROLE.AGENT })}
-      disabled={reopenTicket.isPending}
-    >
-      <svg aria-hidden="true" viewBox="0 0 12 12" width="11" height="11" fill="none">
-        <path d="M9.5 6a3.5 3.5 0 11-1-2.45M9.5 2v2H7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      Reopen
-    </button>
-  );
-}
-
-// ─── Selected-thread surface ─────────────────────────────────────────────────
-// Pulls the full thread, marks it read for the agent once on open, and renders
-// the shared ThreadView with an agent composer + Close/Reopen actions.
-function ThreadPanel({ ticketId, participantLabel, onBack }) {
-  const { data: ticket, isLoading, isError, error, refetch } = useTicketThread(ticketId);
-  const markRead = useMarkTicketRead(ticketId);
-
-  // Mark read exactly once per opened ticket. The mutation is idempotent (it
-  // zeroes the agent's unread counter), but we still guard so a poll-driven
-  // refetch doesn't re-fire it.
-  const markedRef = useRef(null);
-  useEffect(() => {
-    if (!ticket || markedRef.current === ticketId) return;
-    if ((ticket.unread?.agent ?? 0) > 0) {
-      markRead.mutate({ viewer: SENDER_ROLE.AGENT });
-    }
-    markedRef.current = ticketId;
-  }, [ticket, ticketId, markRead]);
-
-  const status = ticket?.status;
-  const isClosed = status === TICKET_STATUS.CLOSED;
-
-  return (
-    <div className={styles.threadWrap}>
-      <ThreadView
-        ticket={ticket}
-        messages={ticket?.messages ?? []}
-        currentRole="agent"
-        participantLabel={participantLabel}
-        onBack={onBack}
-        loading={isLoading && !ticket}
-        error={isError ? error : undefined}
-        onRetry={refetch}
-        headerActions={ticket ? <ThreadActions ticketId={ticketId} status={status} /> : null}
-        footer={ticket ? <ReplyComposer ticketId={ticketId} disabled={isClosed} /> : null}
-      />
-    </div>
-  );
-}
 
 export default function InboxPage() {
   const reducedMotion = useReducedMotion();
@@ -235,6 +93,9 @@ export default function InboxPage() {
     next.delete('subscriberId');
     setSearchParams(next, { replace: true });
   }
+
+  const isDesktop = useIsDesktop();
+  if (isDesktop) return <InboxDesktop />;
 
   // ── Thread mode ──
   if (selectedId) {

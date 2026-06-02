@@ -7,11 +7,8 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { useEntity } from '../../hooks/useEntity';
 import { useToast } from '../../contexts/ToastContext';
 import { getInitials } from '../../utils/dashboard';
-import PageHeader from '../../components/PageHeader';
-import { useAgentHeaderChrome } from '../shell/AgentHeaderChrome';
-import { useIsDesktop } from '../../hooks/useIsDesktop';
-import SettingsDesktop from './SettingsDesktop';
-import styles from './SettingsPage.module.css';
+import formStyles from './SettingsPage.module.css';
+import styles from './SettingsDesktop.module.css';
 
 function formatPhone(raw) {
   if (!raw) return '';
@@ -21,12 +18,26 @@ function formatPhone(raw) {
   return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
 }
 
-export default function SettingsPage() {
+/**
+ * SettingsDesktop — desktop (>=1024px) layout for the agent Settings page.
+ *
+ * Rendered in place of SettingsPage's mobile body when useIsDesktop() is true
+ * (the fork lives in SettingsPage.jsx). The mobile experience is untouched.
+ *
+ * TAB-ROOT desktop page: owns a PLAIN <h1> "Settings" (no back, no hero dome —
+ * the desktop top bar renders no <h1>). A static "Agent" role badge sits beside
+ * the title. Profile data is read via useEntity('agent', agentId) and saved
+ * through useAuth().updateUser — a SESSION-only merge (there is no
+ * useUpdateAgent mutation; agent profile persistence is session-only, matching
+ * the branch role). The Change/Set-password action opens the SHARED slide-in
+ * Settings.jsx via useDashboard().setSettingsOpen(true) — the desktop shell
+ * already mounts exactly one Settings inside the DashboardProvider.
+ */
+export default function SettingsDesktop() {
   const { user, updateUser } = useAuth();
   const { setSettingsOpen } = useDashboard();
   const { data: agent } = useEntity('agent', user?.agentId);
   const { addToast } = useToast();
-  const headerChrome = useAgentHeaderChrome();
   const hasPassword = user?.hasPassword === true;
 
   const [name, setName] = useState('');
@@ -34,9 +45,8 @@ export default function SettingsPage() {
   const [phone, setPhone] = useState('');
   const [errors, setErrors] = useState({});
 
-  // Hydrate form once the agents row arrives from the query — equivalent to
-  // useCurrentSubscriber's pattern on the subscriber dashboard. The cascading-
-  // renders lint rule is overzealous for this one-shot population case.
+  // Hydrate the form once the agents row arrives — mirrors SettingsPage. The
+  // cascading-renders lint rule is overzealous for this one-shot population.
   useEffect(() => {
     if (!agent) return;
     /* eslint-disable react-hooks/set-state-in-effect -- hydrate form from query result */
@@ -68,7 +78,8 @@ export default function SettingsPage() {
     try {
       if (hasProfileChanges) {
         // updateUser() is sync today but may become async with a real backend.
-        // Promise.resolve makes the try/catch correct in either case.
+        // Promise.resolve makes the try/catch correct in either case. Session
+        // merge only — there is no agent persistence mutation.
         await Promise.resolve(
           updateUser({ name: name.trim(), email: email.trim(), phone })
         );
@@ -83,50 +94,54 @@ export default function SettingsPage() {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
   }
 
-  const isDesktop = useIsDesktop();
-  if (isDesktop) return <SettingsDesktop />;
-
   return (
     <div className={styles.page}>
-      <PageHeader variant="hero" showBack={false} leadingSlot={headerChrome.leadingSlot} trailingSlot={headerChrome.trailingSlot} title="Settings" subtitle="Manage your profile and security" />
+      <header className={styles.head}>
+        <h1 className={styles.title}>Settings</h1>
+        <span className={styles.headBadge}>Agent</span>
+      </header>
 
       <form className={styles.form} onSubmit={handleSave} noValidate>
         <motion.div
-          className={styles.profileCard}
+          className={formStyles.profileCard}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
         >
-          <span className={styles.avatar} aria-hidden="true">
+          <span className={formStyles.avatar} aria-hidden="true">
             {getInitials(name || agent?.name || user?.name) || 'UP'}
           </span>
-          <div className={styles.profileInfo}>
-            <span className={styles.profileName}>{name || agent?.name || user?.name || 'Agent'}</span>
-            <span className={styles.profilePhone}>+256 {formatPhone(phone || agent?.phone || user?.phone)}</span>
-            <span className={styles.roleBadge}>Agent</span>
+          <div className={formStyles.profileInfo}>
+            <span className={formStyles.profileName}>{name || agent?.name || user?.name || 'Agent'}</span>
+            <span className={formStyles.profilePhone}>+256 {formatPhone(phone || agent?.phone || user?.phone)}</span>
+            {/* The static "Agent" role badge lives in the page header on desktop
+                (styles.headBadge). The profile card omits its own role badge so
+                there is exactly one exact-text "Agent" node on the page — the
+                Settings smoke test asserts getByText('Agent', { exact: true })
+                without .first(), so a second match would be a strict-mode fail. */}
           </div>
         </motion.div>
 
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Personal information</h2>
-          <label className={styles.field}>
-            <span className={styles.label}>Full name</span>
+        <section className={formStyles.section}>
+          <h2 className={formStyles.sectionTitle}>Personal information</h2>
+          <label className={formStyles.field}>
+            <span className={formStyles.label}>Full name</span>
             <input
               type="text"
-              className={styles.input}
+              className={formStyles.input}
               value={name}
               onChange={(e) => { setName(e.target.value); clearFieldError('name'); }}
               autoComplete="name"
               data-error={errors.name || undefined}
             />
-            {errors.name && <span className={styles.errorLine}>{errors.name}</span>}
+            {errors.name && <span className={formStyles.errorLine}>{errors.name}</span>}
           </label>
 
-          <label className={styles.field}>
-            <span className={styles.label}>Email <em>optional</em></span>
+          <label className={formStyles.field}>
+            <span className={formStyles.label}>Email <em>optional</em></span>
             <input
               type="email"
-              className={styles.input}
+              className={formStyles.input}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
@@ -134,13 +149,13 @@ export default function SettingsPage() {
             />
           </label>
 
-          <label className={styles.field}>
-            <span className={styles.label}>Phone</span>
-            <div className={styles.phoneField} data-error={errors.phone || undefined}>
-              <span className={styles.phonePrefix}>+256</span>
+          <label className={formStyles.field}>
+            <span className={formStyles.label}>Phone</span>
+            <div className={formStyles.phoneField} data-error={errors.phone || undefined}>
+              <span className={formStyles.phonePrefix}>+256</span>
               <input
                 type="tel"
-                className={styles.phoneInput}
+                className={formStyles.phoneInput}
                 value={formatPhone(phone)}
                 onChange={(e) => { setPhone(e.target.value.replace(/\D/g, '')); clearFieldError('phone'); }}
                 autoComplete="tel"
@@ -148,17 +163,17 @@ export default function SettingsPage() {
                 spellCheck={false}
               />
             </div>
-            {errors.phone && <span className={styles.errorLine}>{errors.phone}</span>}
+            {errors.phone && <span className={formStyles.errorLine}>{errors.phone}</span>}
           </label>
         </section>
 
-        <section className={styles.section} aria-labelledby="agent-password-heading">
-          <div className={styles.sectionHead}>
-            <h2 id="agent-password-heading" className={styles.sectionTitle}>
+        <section className={formStyles.section} aria-labelledby="agent-password-heading">
+          <div className={formStyles.sectionHead}>
+            <h2 id="agent-password-heading" className={formStyles.sectionTitle}>
               {hasPassword ? 'Change password' : 'Set password'}
             </h2>
           </div>
-          <p className={styles.comingSoonHelp}>
+          <p className={formStyles.comingSoonHelp}>
             {hasPassword
               ? 'Rotate your password from the slide-in panel.'
               : 'Add a password to your account so you can sign in without a one-time code.'}
@@ -166,17 +181,17 @@ export default function SettingsPage() {
 
           <button
             type="button"
-            className={styles.primaryBtn}
+            className={formStyles.primaryBtn}
             onClick={() => setSettingsOpen(true)}
           >
             {hasPassword ? 'Change password' : 'Set password'}
           </button>
         </section>
 
-        <footer className={styles.footer}>
+        <footer className={formStyles.footer}>
           <button
             type="submit"
-            className={styles.primaryBtn}
+            className={formStyles.primaryBtn}
             disabled={!isDirty}
           >
             Save profile

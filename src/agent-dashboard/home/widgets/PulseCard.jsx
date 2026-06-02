@@ -1,16 +1,15 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useReducedMotion } from 'framer-motion';
-import { monthlyEquivalent } from '../../../utils/finance';
-import { formatUGX, formatNumber } from '../../../utils/currency';
+import { formatNumber } from '../../../utils/currency';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useEntity } from '../../../hooks/useEntity';
 import { useAgentSubscribers } from '../../../hooks/useAgent';
-import { useAgentCommissionDetail } from '../../../hooks/useCommission';
 import { useCountUp } from '../../../hooks/useCountUp';
 import { useAgentUnreadTicketCount } from '../../../hooks/useTickets';
 import { useAgentHeaderChrome } from '../../shell/AgentHeaderChrome';
 import HeroCapsule from '../../../components/HeroCapsule';
+import { computeAgentHomeSummary } from '../agentHomeSummary';
 import styles from './PulseCard.module.css';
 
 function hourGreeting() {
@@ -28,11 +27,13 @@ function badgeText(count) {
 /**
  * PulseCard — the agent home dome. Wraps the shared HeroCapsule (same pattern
  * as the subscriber PulseCard) so the greeting renders as the page <h1>, with
- * MONTHLY CONTRIBUTION VOLUME as the headline metric and a stat row of
- * subscribers · active % · lifetime commissions.
+ * TOTAL (lifetime) CONTRIBUTIONS as the headline metric and a stat row of
+ * subscribers · active %. Monthly volume + commissions owed now live in the
+ * MonthlyDataCard directly below the dome.
  *
- * NOTE (E2E contract): the literal string "Monthly contribution volume" MUST
- * stay present and visible on Home — the smoke spec asserts getByText on it.
+ * NOTE (E2E contract): the literal string "Monthly contribution volume" used to
+ * live here; on mobile it now lives on MonthlyDataCard's stat label (and on the
+ * desktop KPI row). The smoke spec asserts getByText on it across both viewports.
  */
 export default function PulseCard({ agentId }) {
   const navigate = useNavigate();
@@ -40,7 +41,6 @@ export default function PulseCard({ agentId }) {
   const { user } = useAuth();
   const { data: agent } = useEntity('agent', agentId);
   const { data: subscribers = [] } = useAgentSubscribers(agentId);
-  const { data: commissionDetail } = useAgentCommissionDetail(agentId);
 
   // Unread support badge for the inbox action — shared hook dedupes into the
   // same ['tickets','agent',id,'all'] fetch/poll as the Inbox page + BottomTabBar.
@@ -56,31 +56,24 @@ export default function PulseCard({ agentId }) {
   const greeting = `Good ${hourGreeting()}, ${firstName}`;
 
   const summary = useMemo(() => {
-    let monthly = 0;
-    let active = 0;
-    for (const s of subscribers) {
-      monthly += monthlyEquivalent(s.contributionSchedule);
-      if (s.isActive) active += 1;
-    }
-    const total = subscribers.length;
-    const activePct = total > 0 ? Math.round((active / total) * 100) : 0;
-    return { monthly, active, total, activePct };
+    const { monthly, active, total, activePct } = computeAgentHomeSummary(subscribers, null);
+    // Lifetime/all-time contributions — the headline metric. Summed inline the
+    // same way PortfolioCard derives `portfolio.lifetime` (totalContributions per
+    // subscriber); computeAgentHomeSummary does not return this figure.
+    let lifetime = 0;
+    for (const s of subscribers) lifetime += s.totalContributions || 0;
+    return { monthly, active, total, activePct, lifetime };
   }, [subscribers]);
 
-  const commissionsTotal = useMemo(() => {
-    // Flat `due → paid` flow: lifetime commissions = the total paid figure the
-    // detail already sums (falls back to summing paid lines if absent).
-    if (commissionDetail?.totalPaid != null) return commissionDetail.totalPaid;
-    return (commissionDetail?.paidTransactions || []).reduce(
-      (sum, c) => sum + (c.amount || 0),
-      0,
-    );
-  }, [commissionDetail]);
-
   // useCountUp returns 0 when run is false (reduced-motion), so snap to the
-  // resolved monthly figure in that case instead of showing a stuck "0".
-  const counted = useCountUp(summary.monthly, 1100, !reduce);
-  const amountLabel = formatNumber(Math.round(reduce ? summary.monthly : counted));
+  // resolved lifetime figure in that case instead of showing a stuck "0".
+  const counted = useCountUp(summary.lifetime, 1100, !reduce);
+  // Mirror formatUGX/PortfolioCard: a non-positive lifetime (some demo books net
+  // negative) renders as '—' rather than a literal "0" or a negative number.
+  const hasLifetime = Number.isFinite(summary.lifetime) && summary.lifetime > 0;
+  const amountLabel = hasLifetime
+    ? formatNumber(Math.round(reduce ? summary.lifetime : counted))
+    : '—';
 
   const statRow = (
     <>
@@ -89,9 +82,6 @@ export default function PulseCard({ agentId }) {
       </span>
       <span>
         <strong>{summary.activePct}%</strong> active
-      </span>
-      <span>
-        <strong>{formatUGX(commissionsTotal)}</strong> commissions
       </span>
     </>
   );
@@ -115,8 +105,8 @@ export default function PulseCard({ agentId }) {
     <section className={styles.wrap} aria-label="Portfolio overview">
       <HeroCapsule
         title={greeting}
-        eyebrow="Monthly contribution volume"
-        prefix="UGX"
+        eyebrow="Total contributions"
+        prefix={hasLifetime ? 'UGX' : undefined}
         amount={amountLabel}
         statRow={statRow}
         leadingSlot={headerChrome.leadingSlot}

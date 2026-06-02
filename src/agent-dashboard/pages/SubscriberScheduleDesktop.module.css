@@ -1,0 +1,22 @@
+/* SubscriberScheduleDesktop — desktop (>=1024px) layout for the agent's
+   subscriber contribution-schedule sub-page. This module is only ever rendered
+   inside the useIsDesktop() fork, so it carries no mobile fallback. The body is
+   a single width-capped, centred column wrapping the shared
+   ContributionSettingsForm (which owns its own scroll body + sticky footer). */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding-bottom: var(--space-8);
+}
+
+/* Centred, width-capped frame around the form. The form already supplies its
+   own internal padding, scroll body, and sticky footer, so the frame only
+   constrains the measure and centres it within the wide desktop main column. */
+.frame {
+  width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}

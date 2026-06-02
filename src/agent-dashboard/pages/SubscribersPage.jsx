@@ -5,6 +5,8 @@ import { EASE_OUT_EXPO, formatUGX } from '../../utils/finance';
 import { getInitials } from '../../utils/dashboard';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
+import SubscribersDesktop from './SubscribersDesktop';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../../components/PageHeader';
 import { useAgentHeaderChrome } from '../shell/AgentHeaderChrome';
@@ -68,6 +70,9 @@ export default function SubscribersPage() {
       dormant: subscribers.length - active,
     };
   }, [subscribers]);
+
+  const isDesktop = useIsDesktop();
+  if (isDesktop) return <SubscribersDesktop />;
 
   const loading = isLoading && subscribers.length === 0;
   const activePct = counts.all ? Math.round((counts.active / counts.all) * 100) : 0;

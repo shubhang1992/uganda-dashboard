@@ -34,15 +34,16 @@
   .page > :global(*) > :global(*) {
     flex: 1 1 auto;
   }
-  /* Pulse dome, Notifications + Co-Pilot span full width; Portfolio +
-     Commissions pair up. */
+  /* All three mobile widgets span full width. NOTE: this ≥1024px block never
+     actually paints — HomePage returns <HomeDesktop/> at desktop widths — but
+     keep it coherent with the current mobile slot set. */
   .slotPulse,
-  .slotNotifications,
+  .slotMonthly,
+  .slotActions,
   .slotCopilot {
     grid-column: 1 / -1;
   }
 }
 
-/* Mobile + desktop stack order:
-   PulseCard → PortfolioCard → CommissionsSnapshotCard →
-   NotificationCenterCard → CoPilotWidget */
+/* Mobile stack order:
+   PulseCard → MonthlyDataCard → QuickActions → CoPilotWidget */

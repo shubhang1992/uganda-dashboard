@@ -1,0 +1,29 @@
+.shell {
+  /* Local sidebar width token. Deliberately NOT var(--sidebar-width): that
+     global token is 64px for the Branch ICON rail and would under-size this
+     240px labelled agent sidebar. */
+  --agent-desktop-sidebar: 240px;
+
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: var(--agent-desktop-sidebar) 1fr;
+  background: var(--color-cloud);
+  overflow: hidden;
+}
+
+.viewport {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  padding-bottom: var(--space-8);
+}
+
+.page {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--space-8);
+}

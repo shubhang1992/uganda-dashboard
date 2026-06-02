@@ -14,7 +14,7 @@ See `CLAUDE.md` for the slim entry index, `BACKEND.md` for SQL/RPC/RLS detail, a
 - [§4 — Three-layer data access + hook → service boundary](#4-three-layer-data-access--hook--service-boundary)
 - [§5 — Services inventory](#5-services-inventory-srcservices--11-files)
 - [§6 — Contexts inventory](#6-contexts-inventory-8-in-srccontexts-1-in-srcsignup)
-- [§7 — Hooks inventory](#7-hooks-inventory-srchooks--8-files)
+- [§7 — Hooks inventory](#7-hooks-inventory-srchooks--9-files)
 - [§8 — Canonical optimistic-mutation pattern](#8-canonical-optimistic-mutation-pattern-useentity-template)
 - [§9 — Per-role dashboard variants](#9-per-role-dashboard-variants--4-built)
 - [§10 — Commission UI patterns](#10-commission-ui-patterns)
@@ -526,7 +526,7 @@ The audit flagged four context providers as building a new `value` object every 
 
 ---
 
-## 7. Hooks inventory (`src/hooks/` — 8 files)
+## 7. Hooks inventory (`src/hooks/` — 9 files)
 
 | Hook file | What it returns | Side-effects | Wraps |
 | --- | --- | --- | --- |
@@ -535,6 +535,7 @@ The audit flagged four context providers as building a new `value` object every 
 | `useSubscriber.js` | 7 reads + 7 mutations | Mutations call `invalidateSubscriber()` (clears every `['subscriber*', ...]` key) | `services/subscriber.js` |
 | `useAgent.js` | `useAgentSubscribers(agentId)` + `useUpdateSubscriberSchedule(subscriberId, agentId)` | Invalidates `['agentSubscribers', agentId]` | `services/agent.js` + `services/subscriber.js` |
 | `useIsMobile.js` | `boolean` | `useSyncExternalStore` over `matchMedia('(max-width: 768px)')` | — |
+| `useIsDesktop.js` | `boolean` | `useSyncExternalStore` over `matchMedia('(min-width: 1024px)')` — desktop sibling of `useIsMobile`; gates the agent desktop fork | — |
 | `useOutsideClick.js` | `void` (effect only) | `mousedown` + `Escape` listeners on `document` | — |
 | `useCountUp.js` | `number` (animated target) | `requestAnimationFrame` ease-out-expo curve. Returns 0 when `run` is false (reduced motion) | — |
 | `useDebouncedValue.js` | `T` (delayed) | Centralised debounce; `delayMs` defaults to 300; non-finite / negative coerced to 0 | — |
@@ -613,6 +614,14 @@ export function useIsMobile(): boolean
 ```
 
 `useSyncExternalStore` over `matchMedia('(max-width: 768px)')`. Subscribes on mount; no polling.
+
+### 7.5a `useIsDesktop.js`
+
+```js
+export function useIsDesktop(): boolean
+```
+
+`useSyncExternalStore` over `matchMedia('(min-width: 1024px)')` — the desktop sibling of `useIsMobile`. The 1024px threshold matches the `SideNav` / `BottomTabBar` CSS chrome toggles, so the JS fork and the CSS chrome flip at the same pixel (769–1023px keeps today's mobile behaviour). Drives the agent dashboard's desktop fork: `AgentShell` and every agent `*Page.jsx` call it after their hooks and `return <XDesktop/>` at ≥1024px (the mobile tree is byte-identical below 1024px). Client-only SPA, so the synchronous first paint has no SSR/flash concern.
 
 ### 7.6 `useOutsideClick.js`
 
@@ -712,12 +721,15 @@ Single main view `BranchOverview` (no drill-down). Side panels reuse Distributor
 | Shell | `AgentDashboardShell.jsx` (routed pages, mobile-first) |
 | Entry guard | `role === 'agent'` else `Navigate to="/coming-soon"`; `MissingAgentIdScreen` if `agentId` absent |
 | Scope context | `AgentScopeProvider(agentId)` + `DashboardProvider` (just for the shared `Settings` panel) |
-| Sub-areas | `shell/` (SideNav + BottomTabBar + PageHeader + AgentShell), `home/` (HomePage + widgets/), `onboarding/`, `pages/` |
+| Sub-areas | `shell/` (SideNav + BottomTabBar + PageHeader + AgentShell + **AgentDesktopShell + AgentSideNavDesktop + AgentTopBar + agentNav.jsx**), `home/` (HomePage + **HomeDesktop** + widgets/ + **agentHomeSummary.js**), `onboarding/` (+ **OnboardFlow**), `pages/` (mobile pages + **`*Desktop.jsx` variants** + extracted `analytics/`, `commissions/`, `subscriber/`), **`inbox/`** (extracted thread bits) |
 | Navigation | **All routed** — no Distributor-style drill panels |
+| Responsive | Mobile-first below 1024px; **dedicated desktop tree at ≥1024px** via `useIsDesktop()` (§7.5a) — see the desktop-layout note below |
 
 Home: 2 widgets — `PortfolioPulseCard` (dark indigo hero, count-up) + `CoPilotWidget` (see §13). The `SideNav` mounts the `NotificationBell` (agent-scoped) so settlement notifications surface in-app. KYC rule: every subscriber is KYC-verified by definition (no reminders, no filters).
 
 Agent-side disputes were **removed** in the 0029 commission simplification — the agent no longer files disputes or confirms receipt; commissions simply read as Earned (`paid`) or Owed (`due`). The distributor settles them via the upload flow (BACKEND.md §11) and the agent is notified.
+
+**Desktop layout (≥1024px).** A dedicated desktop tree, gated by `useIsDesktop()` (§7.5a), sits beside the shipped mobile-first one. `AgentShell` and every agent `*Page.jsx` fork *after* their hooks (`if (isDesktop) return <XDesktop/>`), so the mobile tree stays byte-identical below 1024px and no data layer changes (the `*Desktop` variants call the same hooks; React Query dedupes). Desktop chrome: `AgentDesktopShell` (fixed `sidebar | content` grid, `id="main"` scroll area, one shared `Settings` panel) + `AgentSideNavDesktop` (240px labelled indigo rail; icons/metadata shared with `BottomTabBar` via `shell/agentNav.jsx`; surfaces Home/Subscribers/Onboard/Analytics/Commissions + Settings + Inbox-with-unread-badge; one `NotificationBell`) + `AgentTopBar` (context eyebrow, **no `<h1>`** — each page body owns the single heading). Route variants — `HomeDesktop`, `SubscribersDesktop` (sortable `ReportTable`), `SubscriberDetailDesktop`, `SubscriberScheduleDesktop`, `AnalyticsDesktop`, `CommissionsDesktop`, `SettingsDesktop`, `InboxDesktop` (list↔thread split), `OnboardDesktop` — reuse `dashboard/shared/KpiCard` + `components/reports/ReportTable` and shared modules extracted from the mobile pages (`home/agentHomeSummary.js`, `pages/analytics/{deriveAnalytics,chartConfig}`, `pages/commissions/`, `pages/subscriber/SubscriberBadges`, `inbox/ThreadPanel` et al., `onboarding/OnboardFlow`). The old `shell/SideNav.jsx` is superseded by `AgentSideNavDesktop` (left mounted but never shown).
 
 ### 9.4 Subscriber — `src/subscriber-dashboard/`
 

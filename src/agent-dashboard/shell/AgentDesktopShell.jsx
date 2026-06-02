@@ -2,14 +2,12 @@ import { useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/finance';
-import { useIsDesktop } from '../../hooks/useIsDesktop';
 import Settings from '../../dashboard/settings/Settings';
-import BottomTabBar from './BottomTabBar';
-import SideNav from './SideNav';
-import AgentDesktopShell from './AgentDesktopShell';
-import styles from './AgentShell.module.css';
+import AgentSideNavDesktop from './AgentSideNavDesktop';
+import AgentTopBar from './AgentTopBar';
+import styles from './AgentDesktopShell.module.css';
 
-export default function AgentShell() {
+export default function AgentDesktopShell() {
   const location = useLocation();
   const viewportRef = useRef(null);
 
@@ -19,13 +17,11 @@ export default function AgentShell() {
     viewportRef.current?.scrollTo(0, 0);
   }, [location.pathname]);
 
-  const isDesktop = useIsDesktop();
-  if (isDesktop) return <AgentDesktopShell />;
-
   return (
     <div className={styles.shell}>
-      <SideNav />
+      <AgentSideNavDesktop />
       <main ref={viewportRef} className={styles.viewport} id="main">
+        <AgentTopBar />
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={location.pathname}
@@ -39,11 +35,9 @@ export default function AgentShell() {
           </motion.div>
         </AnimatePresence>
       </main>
-      <BottomTabBar />
-      {/* Shared slide-in Settings panel — same component as the distributor &
-          branch shells. Opens whenever settingsOpen flips true in
-          DashboardPanelContext (e.g. from the password card trigger in the
-          agent's SettingsPage). */}
+      {/* Shared slide-in Settings panel — same component as the mobile agent
+          shell. Opens whenever settingsOpen flips true in
+          DashboardPanelContext. Mounted exactly once at the shell root. */}
       <Settings />
     </div>
   );

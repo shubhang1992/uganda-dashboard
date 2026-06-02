@@ -1,0 +1,390 @@
+/* AnalyticsDesktop — ≥1024px agent "Analytics" tab-root.
+   Sits inside AgentDesktopShell's centred .page column (max-width 1280px,
+   horizontal padding already applied by the shell), so this module owns only
+   vertical rhythm + the KPI strip and the chart grid internals.
+
+   G12 — Recharts ResponsiveContainer collapses to 0 (tripping the error
+   boundary) when its parent has no definite size. Every .chartWrap below lives
+   in a grid track that resolves to a definite pixel width AND carries a fixed
+   pixel height, so the container always has real dimensions to measure. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8) 0;
+}
+
+/* ── Heading (plain h1 — tab-root, no back, no hero dome) ─────────────── */
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-indigo-soft);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+  margin: 0;
+}
+
+.subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── KPI strip ───────────────────────────────────────────────────────── */
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.kpiCard {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.kpiLabel {
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+}
+
+.kpiValue {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiHint {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Section ─────────────────────────────────────────────────────────── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sectionHead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sectionEyebrow {
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-xl);
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+  margin: 0;
+}
+
+/* ── Chart grid ──────────────────────────────────────────────────────────
+   Fixed fractional tracks give every chart cell a DEFINITE resolved width on
+   the wide desktop column — the precondition for ResponsiveContainer (G12). */
+.gridTwo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.card {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.cardTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-base);
+  color: var(--color-indigo);
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+/* G12: definite width (track resolves to pixels) + fixed height. Recharts
+   measures a real box and never collapses to 0. */
+.chartWrap {
+  width: 100%;
+  min-width: 0;
+  height: 260px;
+}
+
+.chartWrapTall {
+  width: 100%;
+  min-width: 0;
+  height: 300px;
+}
+
+.cardFoot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-lavender);
+  flex-wrap: wrap;
+}
+
+.cardFootLabel {
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+  font-weight: 700;
+}
+
+.cardFootValue {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Engagement (active vs dormant) ──────────────────────────────────── */
+.activeStats {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.activeStat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.activeDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  align-self: center;
+  flex: 0 0 auto;
+}
+
+.activeDot[data-tone='positive'] {
+  background: var(--color-positive);
+}
+
+.activeDot[data-tone='muted'] {
+  background: var(--color-amber);
+}
+
+.activeLabel {
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+  font-weight: 700;
+}
+
+.activeValue {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.activePct {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
+}
+
+.activeBar {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 16px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
+}
+
+.activeBarFill {
+  display: block;
+  height: 100%;
+}
+
+.activeBarFill[data-tone='positive'] {
+  background: var(--color-positive);
+}
+
+.activeBarFill[data-tone='muted'] {
+  background: var(--color-amber);
+}
+
+/* The chart tooltip is rendered by the shared chartConfig.chartTooltip, which
+   imports AnalyticsPage.module.css — so its .tooltip* classes live there, not
+   here. No tooltip styles are duplicated in this module. */
+
+/* ── Loading skeleton ────────────────────────────────────────────────── */
+.skeletonStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.skeletonCard {
+  height: 96px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(90deg, var(--color-cloud) 0%, var(--color-lavender) 50%, var(--color-cloud) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border: 1px solid var(--color-lavender);
+}
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.skeletonChart {
+  height: 320px;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(90deg, var(--color-cloud) 0%, var(--color-lavender) 50%, var(--color-cloud) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border: 1px solid var(--color-lavender);
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Empty / error states ────────────────────────────────────────────── */
+.empty {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-xl);
+  padding: var(--space-12) var(--space-8);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.emptyIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
+  color: var(--color-indigo-soft);
+  margin-bottom: var(--space-2);
+}
+
+.emptyTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-xl);
+  color: var(--color-indigo);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.emptySub {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  max-width: 380px;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.emptyCta {
+  margin-top: var(--space-3);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 12px 24px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.18s ease;
+  min-height: 44px;
+}
+
+.emptyCta:hover,
+.emptyCta:focus-visible {
+  background: var(--color-indigo-deep);
+}
+
+.emptyCta:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonCard,
+  .skeletonChart {
+    animation: none;
+    background: var(--color-cloud);
+  }
+  .emptyCta {
+    transition: none;
+  }
+}

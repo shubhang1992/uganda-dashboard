@@ -1,0 +1,121 @@
+/* HomeDesktop — ≥1024px agent Home tab-root.
+   Renders inside AgentDesktopShell's centred .page column (max-width 1280px,
+   horizontal padding already applied by the shell), so this module only owns
+   vertical rhythm, the KPI tile row, and the reused-widget grid. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-8) 0;
+}
+
+/* ── Heading (plain h1 — tab-root, no back, no hero dome) ─────────────── */
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-indigo-soft);
+  margin: 0;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+  margin: 0;
+}
+
+.subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  margin: 0;
+}
+
+/* ── KPI tile row (4 across on desktop) ──────────────────────────────────
+   Auto-fit keeps the row honest if the column narrows: tiles wrap to 2-up
+   rather than crushing. minmax floor sized so 4 fit comfortably at >=1024px. */
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 1200px) {
+  .kpiRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Each tile stretches to fill its cell so the row aligns to one bottom edge. */
+.kpiTile {
+  height: 100%;
+}
+
+/* Link wrapper around the Earned + Owed tiles. The KpiCard inside carries the
+   visible surface; the link is a transparent, full-bleed hit target. Enumerated
+   transitions only (no transition:all). Global :focus-visible in index.css gives
+   a visible ring; we add a matching radius + a lift cue so it reads as tappable. */
+.kpiLink {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.2s ease;
+}
+
+.kpiLink:hover {
+  transform: translateY(-2px);
+}
+
+.kpiLink:focus-visible {
+  border-radius: var(--radius-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kpiLink {
+    transition: none;
+  }
+  .kpiLink:hover {
+    transform: none;
+  }
+}
+
+/* ── Widget grid (reuses the shipped Home widgets) ───────────────────────
+   2-up on wide viewports: Portfolio + Commissions pair on the first row,
+   Notifications + Co-Pilot on the second. Each cell is a flex column so the
+   reused card grows to align paired bottoms. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+@media (max-width: 1200px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.grid > * {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.grid > * > * {
+  flex: 1 1 auto;
+}
