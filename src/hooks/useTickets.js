@@ -244,6 +244,23 @@ export function useCreateTicket(subscriberId, routing) {
 }
 
 /**
+ * Agent "nudge" — open a new agent→subscriber reminder thread (see
+ * tickets.createAgentMessage). Not optimistically patched: the service mints the
+ * id + resolves routing, so the onSettled invalidation pulls the thread into the
+ * agent inbox. Pass the nudging agent's id so the thread is scoped to them.
+ * Mutate with `{ subscriberId, body, subject?, category? }`.
+ * @param {string} agentId
+ */
+export function useSendAgentNudge(agentId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ subscriberId, body, subject, category }) =>
+      tickets.createAgentMessage(subscriberId, { body, subject, category }, { agentId }),
+    onSettled: () => invalidateAllTickets(queryClient),
+  });
+}
+
+/**
  * Open a new employer↔platform support ticket (Phase 7). Like useCreateTicket it
  * is not optimistically patched — the service mints the tk-emp-<seq> id, so there
  * is no stable id to splice into the inbox ahead of the response; the onSettled

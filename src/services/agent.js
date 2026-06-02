@@ -115,3 +115,58 @@ export async function getAgentSubscriberList(agentId) {
   if (error) throw error;
   return (data ?? []).map(mapAgentSubscriberRow);
 }
+
+/**
+ * Individual contribution transactions across the agent's whole book within a
+ * date window. Powers the "Contributions this month" Home drill-down. Mirrors
+ * subscriber.js `getSubscriberTransactions` but scoped by `agent_id` + the
+ * `contribution` type, and joins the subscriber name for display.
+ *
+ * @param {string} agentId
+ * @param {{ from?: string, to?: string }} [range] - ISO date bounds; `to` is
+ *   EXCLUSIVE (pass the first day of next month so timestamps on the last day
+ *   of the window aren't dropped).
+ * @returns {Promise<Array<{id, subscriberId, subscriberName, amount, date, method}>>}
+ */
+export async function getAgentContributions(agentId, { from, to } = {}) {
+  if (!IS_SUPABASE_ENABLED) {
+    const out = [];
+    for (const s of Object.values(SUBSCRIBERS)) {
+      if (s.parentId !== agentId) continue;
+      for (const t of s.transactions || []) {
+        if (t.type !== 'contribution') continue;
+        if (from && t.date < from) continue;
+        if (to && t.date >= to) continue;
+        out.push({
+          id: t.id,
+          subscriberId: s.id,
+          subscriberName: s.name,
+          amount: Number(t.amount) || 0,
+          date: t.date,
+          method: t.method || null,
+        });
+      }
+    }
+    return out.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }
+
+  if (!agentId) return [];
+  let q = supabase
+    .from('transactions')
+    .select('id, amount, date, method, subscriber_id, subscribers(name)')
+    .eq('agent_id', agentId)
+    .eq('type', 'contribution')
+    .order('date', { ascending: false });
+  if (from) q = q.gte('date', from);
+  if (to) q = q.lt('date', to);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    subscriberId: row.subscriber_id,
+    subscriberName: row.subscribers?.name ?? '—',
+    amount: Number(row.amount) || 0,
+    date: row.date,
+    method: row.method ?? null,
+  }));
+}

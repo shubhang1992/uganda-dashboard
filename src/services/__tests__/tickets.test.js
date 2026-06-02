@@ -23,6 +23,7 @@ import {
   getDistributorTicketMetrics,
   getEmployerTicketMetrics,
   createTicket,
+  createAgentMessage,
   createEmployerTicket,
   sendMessage,
   closeTicket,
@@ -124,6 +125,32 @@ describe('tickets service — mutations', () => {
   it('createTicket throws on a blank subject or body', async () => {
     await expect(createTicket(SUB, draft({ subject: '   ' }))).rejects.toThrow();
     await expect(createTicket(SUB, draft({ body: '  ' }))).rejects.toThrow();
+  });
+
+  it('createAgentMessage opens an agent→subscriber thread (agent sender, subscriber unread)', async () => {
+    const t = await createAgentMessage(
+      SUB,
+      { body: 'Friendly reminder to contribute this month.' },
+      { agentId: AGENT },
+    );
+    expect(t.id).toMatch(/^tk-\d+$/);
+    expect(t.status).toBe(TICKET_STATUS.OPEN);
+    expect(t.agentId).toBe(AGENT);
+    expect(t.messages).toHaveLength(1);
+    expect(t.messages[0].sender).toBe(SENDER_ROLE.AGENT);
+    expect(t.messages[0].body).toBe('Friendly reminder to contribute this month.');
+    // The subscriber has it unseen (inverse of a subscriber-initiated ticket).
+    expect(t.unread).toEqual({ subscriber: 1, agent: 0 });
+    expect(t.subject).toBe('Contribution reminder');
+    expect(t.category).toBe('contributions');
+
+    // It reaches the subscriber's inbox.
+    const subList = await listTicketsForSubscriber(SUB);
+    expect(subList.some((x) => x.id === t.id)).toBe(true);
+  });
+
+  it('createAgentMessage throws on a blank body', async () => {
+    await expect(createAgentMessage(SUB, { body: '   ' }, { agentId: AGENT })).rejects.toThrow();
   });
 
   it('createTicket routes by the caller-supplied LIVE routing when the subscriber has no prior thread (BL-4)', async () => {

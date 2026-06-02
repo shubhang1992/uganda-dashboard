@@ -1,36 +1,14 @@
-/* Card shell + interaction states + chevron mirror CommissionsSnapshotCard so
-   the tappable card reads identically to the one it replaces on mobile. */
+/* Card shell — a plain section now; each tile inside is its own drill-down
+   button (interaction states live on .stat, not the card). */
 .card {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   width: 100%;
-  text-align: left;
   background: var(--color-white);
   border: 1px solid var(--color-lavender);
   border-radius: var(--radius-xl);
   padding: var(--space-5);
-  cursor: pointer;
-  touch-action: manipulation;
-  transition:
-    border-color 0.18s ease,
-    transform 0.18s ease,
-    box-shadow 0.18s ease;
-}
-
-.card:hover {
-  border-color: var(--color-indigo-soft);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--color-indigo) 8%, transparent);
-}
-
-.card:active {
-  transform: scale(0.99);
-}
-
-.card:focus-visible {
-  outline: 2px solid var(--color-indigo-soft);
-  outline-offset: 2px;
 }
 
 .head {
@@ -49,27 +27,9 @@
   color: var(--color-indigo-soft);
 }
 
-.chevron {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
-  color: var(--color-indigo);
-  flex: 0 0 auto;
-  transition: background 0.18s ease, transform 0.18s ease, color 0.18s ease;
-}
-
-.card:hover .chevron {
-  background: var(--color-indigo);
-  color: var(--color-white);
-  transform: translateX(2px);
-}
-
-/* ── Monthly + commissions tiles ─────────────────────── */
-/* Tile visual idiom copied from PortfolioCard's .statGrid/.stat. */
+/* ── Drill-down tiles ─────────────────────────────────── */
+/* Tile visual idiom from PortfolioCard's .statGrid/.stat; each tile is a
+   <button> that navigates to its own drill-down view. */
 .statGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -77,14 +37,38 @@
 }
 
 .stat {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  width: 100%;
+  text-align: left;
   padding: var(--space-3) var(--space-4);
   background: var(--color-cloud);
   border: 1px solid var(--color-lavender);
   border-radius: var(--radius-lg);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    border-color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.stat:hover {
+  border-color: var(--color-indigo-soft);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--color-indigo) 8%, transparent);
+}
+
+.stat:active {
+  transform: scale(0.99);
+}
+
+.stat:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
 }
 
 .statLabel {
@@ -96,8 +80,10 @@
   color: var(--color-gray);
   /* Labels here are longer than PortfolioCard's ("Monthly contribution
      volume"), so allow wrapping instead of truncating — keeps them readable in
-     a 2-column grid at the iPhone SE 375px width. */
+     a 2-column grid at the iPhone SE 375px width. Right padding clears the
+     drill-down chevron. */
   white-space: normal;
+  padding-right: 16px;
 }
 
 .statValue {
@@ -112,15 +98,30 @@
   text-overflow: ellipsis;
 }
 
+.statChevron {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  color: var(--color-indigo-soft);
+  opacity: 0.65;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.stat:hover .statChevron {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .card,
-  .chevron {
+  .stat,
+  .statChevron {
     transition: none;
   }
-  .card:hover {
+  .stat:hover {
     transform: none;
   }
-  .card:hover .chevron {
+  .stat:hover .statChevron {
     transform: none;
   }
 }

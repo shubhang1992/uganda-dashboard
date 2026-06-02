@@ -1,0 +1,130 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+}
+
+.textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 110px;
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-lavender);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-slate);
+  background: var(--color-white);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.textarea:focus {
+  border-color: var(--color-indigo);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
+  outline: none;
+}
+
+.channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.channel {
+  flex: 1 1 auto;
+  min-width: 120px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  text-decoration: none;
+  touch-action: manipulation;
+  border: 1.5px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.channel:active {
+  transform: scale(0.98);
+}
+
+.channel:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.channel:disabled,
+.channel[aria-disabled='true'] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.whatsapp {
+  background: #25D366;
+  color: #06351b;
+}
+
+.sms {
+  background: var(--color-cloud);
+  color: var(--color-indigo);
+  border-color: var(--color-lavender);
+}
+
+.platform {
+  background: var(--color-indigo);
+  color: var(--color-white);
+}
+
+.note {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-gray);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.error {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-alert);
+  margin: 0;
+}
+
+.sent {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  color: var(--color-positive);
+  margin: 0;
+}
+
+.done {
+  align-self: flex-start;
+  height: 44px;
+  padding: 0 var(--space-5);
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+}

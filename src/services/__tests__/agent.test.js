@@ -276,3 +276,111 @@ describe('agent service — real/mock branch parity (X11)', () => {
     }
   });
 });
+
+describe('agent service — getAgentContributions (real Supabase branch)', () => {
+  let getAgentContributions;
+  beforeEach(async () => {
+    const mod = await import('../agent');
+    getAgentContributions = mod.getAgentContributions;
+  });
+
+  it('returns [] when no agentId is given (no query)', async () => {
+    expect(await getAgentContributions(null, { from: '2026-05-01' })).toEqual([]);
+    expect(supabaseMock.__getFromCalls('transactions')).toHaveLength(0);
+  });
+
+  it('queries transactions scoped by agent_id + contribution type + [from, to) window', async () => {
+    supabaseMock.__queueFrom('transactions', { data: [], error: null });
+    await getAgentContributions('a-001', { from: '2026-05-01', to: '2026-06-01' });
+    const call = supabaseMock.__getFromCalls('transactions').at(-1);
+    expect(call.chain.select).toHaveBeenCalledWith(
+      'id, amount, date, method, subscriber_id, subscribers(name)',
+    );
+    expect(call.chain.eq).toHaveBeenCalledWith('agent_id', 'a-001');
+    expect(call.chain.eq).toHaveBeenCalledWith('type', 'contribution');
+    expect(call.chain.gte).toHaveBeenCalledWith('date', '2026-05-01');
+    expect(call.chain.lt).toHaveBeenCalledWith('date', '2026-06-01');
+  });
+
+  it('maps rows and lifts the joined subscriber name', async () => {
+    supabaseMock.__queueFrom('transactions', {
+      data: [
+        {
+          id: 'tx-1',
+          amount: 30000,
+          date: '2026-05-12',
+          method: 'MTN Mobile Money',
+          subscriber_id: 's-1',
+          subscribers: { name: 'Brian Okello' },
+        },
+      ],
+      error: null,
+    });
+    const list = await getAgentContributions('a-001', { from: '2026-05-01', to: '2026-06-01' });
+    expect(list).toEqual([
+      {
+        id: 'tx-1',
+        subscriberId: 's-1',
+        subscriberName: 'Brian Okello',
+        amount: 30000,
+        date: '2026-05-12',
+        method: 'MTN Mobile Money',
+      },
+    ]);
+  });
+
+  it('throws when supabase returns an error', async () => {
+    supabaseMock.__queueFrom('transactions', {
+      data: null,
+      error: { message: 'JWT expired', code: 'PGRST301' },
+    });
+    await expect(
+      getAgentContributions('a-001', { from: '2026-05-01', to: '2026-06-01' }),
+    ).rejects.toMatchObject({ message: 'JWT expired' });
+  });
+});
+
+describe('agent service — getAgentContributions (mock-fallback branch)', () => {
+  let getAgentContributions;
+  beforeEach(async () => {
+    vi.stubEnv('VITE_USE_SUPABASE', 'false');
+    vi.resetModules();
+    vi.doMock('../supabaseClient', () => ({
+      supabase: supabaseMock,
+      default: supabaseMock,
+      getToken: vi.fn(),
+      setToken: vi.fn(),
+      clearToken: vi.fn(),
+    }));
+    const mod = await import('../agent');
+    getAgentContributions = mod.getAgentContributions;
+  });
+
+  it('does NOT call supabase and returns contribution rows newest-first', async () => {
+    supabaseMock.__reset();
+    const rows = await getAgentContributions('a-001', { from: '2000-01-01', to: '2100-01-01' });
+    expect(supabaseMock.__getFromCalls('transactions')).toHaveLength(0);
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThan(0); // a-001 is always seeded with subscribers + contributions
+    for (const c of rows) {
+      expect(c).toHaveProperty('subscriberId');
+      expect(c).toHaveProperty('subscriberName');
+      expect(typeof c.amount).toBe('number');
+      expect(c).toHaveProperty('date');
+    }
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i - 1].date >= rows[i].date).toBe(true);
+    }
+  });
+
+  it('filters out contributions outside the [from, to) window', async () => {
+    const none = await getAgentContributions('a-001', { from: '1990-01-01', to: '1990-02-01' });
+    expect(none).toEqual([]);
+  });
+
+  it('returns [] for an agent with no subscribers in the seed', async () => {
+    expect(
+      await getAgentContributions('a-does-not-exist', { from: '2000-01-01', to: '2100-01-01' }),
+    ).toEqual([]);
+  });
+});

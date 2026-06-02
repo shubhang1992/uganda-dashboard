@@ -17,6 +17,9 @@ const InboxPage = lazy(() => import('./pages/InboxPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const CommissionsPage = lazy(() => import('./pages/CommissionsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const ContributionsThisMonthPage = lazy(() => import('./pages/ContributionsThisMonthPage'));
+const OnboardedThisMonthPage = lazy(() => import('./pages/OnboardedThisMonthPage'));
+const YetToContributePage = lazy(() => import('./pages/YetToContributePage'));
 
 function PageFallback() {
   return (
@@ -82,6 +85,9 @@ export default function AgentDashboardShell() {
             <Route path="analytics" element={<Suspense fallback={<PageFallback />}><AnalyticsPage /></Suspense>} />
             <Route path="commissions" element={<Suspense fallback={<PageFallback />}><CommissionsPage /></Suspense>} />
             <Route path="commissions/:view" element={<Suspense fallback={<PageFallback />}><CommissionsPage /></Suspense>} />
+            <Route path="contributions" element={<Suspense fallback={<PageFallback />}><ContributionsThisMonthPage /></Suspense>} />
+            <Route path="onboarded-this-month" element={<Suspense fallback={<PageFallback />}><OnboardedThisMonthPage /></Suspense>} />
+            <Route path="yet-to-contribute" element={<Suspense fallback={<PageFallback />}><YetToContributePage /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<PageFallback />}><SettingsPage /></Suspense>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>

@@ -483,6 +483,58 @@ export async function createTicket(subscriberId, { subject, category, priority, 
 }
 
 /**
+ * Open a new ticket as the AGENT messaging a subscriber — the inverse of
+ * createTicket (which models a subscriber-initiated thread). Powers the "nudge"
+ * feature: the first message is from the agent, so the SUBSCRIBER has it unseen
+ * (`unread.subscriber = 1`). Routing is resolved the same way (existing thread →
+ * caller routing → mock org chain); pass `routing={ agentId }` (the nudging
+ * agent) so the thread also lands in that agent's inbox.
+ *
+ * @param {string} subscriberId
+ * @param {{ body: string, subject?: string, category?: string }} payload
+ * @param {{ agentId?: string|null, branchId?: string|null }} [routing]
+ * @returns {Promise<object>} the newly created Ticket
+ * @throws if body is empty/whitespace
+ */
+export async function createAgentMessage(subscriberId, { body, subject, category } = {}, routing) {
+  if (isBlank(body)) throw new Error('Message is required');
+
+  const existing = Array.from(store().values())
+    .filter((t) => t.subscriberId === subscriberId)
+    .sort(byUpdatedDesc)[0];
+  const { agentId, branchId } = resolveRouting(subscriberId, existing, routing);
+
+  const now = new Date().toISOString();
+  const id = nextTicketId();
+  const message = {
+    id: `msg-${id}-1`,
+    ticketId: id,
+    sender: SENDER_ROLE.AGENT,
+    body,
+    at: now,
+  };
+  const ticket = {
+    id,
+    subscriberId,
+    agentId,
+    branchId,
+    subject: (subject && subject.trim()) || 'Contribution reminder',
+    category: category || 'contributions',
+    status: TICKET_STATUS.OPEN,
+    priority: 'normal',
+    createdAt: now,
+    updatedAt: now,
+    closedAt: null,
+    closedBy: null,
+    lastMessagePreview: preview(body),
+    unread: { subscriber: 1, agent: 0 },
+    messages: [message],
+  };
+  store().set(id, ticket);
+  return cloneTicket(ticket);
+}
+
+/**
  * Open a new employer↔platform support ticket (Phase 7). Standalone employees
  * have no servicing agent, so this BYPASSES `resolveRouting` entirely:
  * `subscriberId`/`agentId`/`branchId` are all null and the denormalized

@@ -23,6 +23,20 @@ export function useAgentSubscribers(agentId) {
 }
 
 /**
+ * Contributions logged across the agent's book within [from, to) — powers the
+ * "Contributions this month" drill-down. `to` is exclusive.
+ * @param {string|null|undefined} agentId
+ * @param {{ from?: string, to?: string }} [range]
+ */
+export function useAgentContributions(agentId, { from, to } = {}) {
+  return useQuery({
+    queryKey: ['agentContributions', agentId, from, to],
+    queryFn: () => agent.getAgentContributions(agentId, { from, to }),
+    enabled: !!agentId && !!from,
+  });
+}
+
+/**
  * Mutation: agent updates a subscriber's contribution schedule.
  * Wraps the same service mutation as `useUpdateSchedule` (subscriber-side) but
  * optimistically patches the agent's portfolio query (an array) so the detail
