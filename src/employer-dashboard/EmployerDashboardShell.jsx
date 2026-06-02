@@ -1,72 +1,189 @@
-// Employer dashboard shell — PHASE 0 PLACEHOLDER.
+// Employer dashboard shell — Phase 1. Cloned from BranchDashboardShell
+// (branch → employer): same CSS grid + mobile hamburger/drawer, the same route
+// guard, an employerId read with a missing-id fallback, and the provider nest
+//   <EmployerDashboardProvider> → <EmployerScopeProvider> → <ShellInner/>.
 //
-// Phase 0 (this commit) builds only the backend + login wiring for the
-// employer role: an employer OTP/password login now mints a real signed JWT
-// with an `employerId` claim, `hasDashboard('employer')` is true, and
-// App.jsx's ProtectedDashboard dispatches to THIS component so the build
-// stays green and an authenticated employer lands on /dashboard (not
-// /coming-soon).
-//
-// Phase 1 REPLACES this file with the real desktop shell cloned from
-// `branch-dashboard/BranchDashboardShell.jsx` (indigo hero banner, icon-rail
-// sidebar, slide-in panels, EmployerScope/EmployerPanel providers). Until
-// then this renders a minimal branded "coming soon" card and keeps the same
-// role guard the real shell will use.
+// Panels mount as SIBLINGS of <main> (not nested), each with `splitMode`, so a
+// later phase can reflow main content beside an open panel. Every panel is a
+// Phase-1 STUB (a titled Modal placeholder); their real content lands in
+// Phases 3-8.
 
-import { Navigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { EASE_OUT_EXPO } from '../utils/motion';
+import { EmployerDashboardProvider } from '../contexts/EmployerPanelContext';
+import { EmployerScopeProvider } from '../contexts/EmployerScopeContext';
 import { useAuth } from '../contexts/AuthContext';
+import logo from '../assets/logo.png';
+import EmployerSidebar from './sidebar/EmployerSidebar';
+import EmployerOverview from './overview/EmployerOverview';
+import ViewEmployees from './employees/ViewEmployees';
+import EmployeeDetail from './employees/EmployeeDetail';
+import OnboardStaffPanel from './employees/OnboardStaffPanel';
+import ContributionRuns from './runs/ContributionRuns';
+import InsuranceBenefits from './insurance/InsuranceBenefits';
+import EmployerReports from './reports/EmployerReports';
+import EmployerTickets from './tickets/EmployerTickets';
+import EmployerSettings from './settings/EmployerSettings';
+import styles from './EmployerDashboardShell.module.css';
 
-export default function EmployerDashboardShell() {
-  const { user, role } = useAuth();
+function MobileHeader({ onMenuToggle, menuOpen }) {
+  return (
+    <div className={styles.mobileHeader}>
+      <img
+        src={logo}
+        alt="Universal Pensions"
+        className={styles.mobileHeaderLogo}
+        width={120}
+        height={36}
+      />
+      <button
+        type="button"
+        className={styles.hamburger}
+        onClick={onMenuToggle}
+        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={menuOpen}
+        aria-controls="employer-mobile-drawer"
+      >
+        <span className={styles.hamburgerLine} data-open={menuOpen || undefined} />
+        <span className={styles.hamburgerLine} data-open={menuOpen || undefined} />
+        <span className={styles.hamburgerLine} data-open={menuOpen || undefined} />
+      </button>
+    </div>
+  );
+}
 
-  // Same guard the Phase 1 shell will use: non-employers bounce to the
-  // coming-soon page rather than rendering an employer surface.
-  if (role !== 'employer') return <Navigate to="/coming-soon" replace />;
+function MobileDrawer({ open, onClose }) {
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    function handleKey(e) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKey);
+
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open, onClose]);
 
   return (
-    <main
-      id="main"
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        padding: '2rem',
-        background: 'var(--color-indigo-deep, #1B1A4A)',
-        color: '#fff',
-        fontFamily: 'var(--font-body, Inter, system-ui, sans-serif)',
-        textAlign: 'center',
-      }}
-    >
-      <div style={{ maxWidth: '32rem' }}>
-        <p
-          style={{
-            textTransform: 'uppercase',
-            letterSpacing: '0.12em',
-            fontSize: '0.75rem',
-            opacity: 0.7,
-            margin: 0,
-          }}
-        >
-          Universal Pensions · Employer
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            className={styles.drawerOverlay}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            onClick={onClose}
+            aria-hidden="true"
+          />
+          <motion.aside
+            id="employer-mobile-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Employer dashboard menu"
+            className={styles.drawer}
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
+          >
+            <EmployerSidebar mode="drawer" onNavigate={onClose} />
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function DashboardContent({ menuOpen, onMenuToggle, onMenuClose }) {
+  return (
+    <>
+      <MobileHeader onMenuToggle={onMenuToggle} menuOpen={menuOpen} />
+      <MobileDrawer open={menuOpen} onClose={onMenuClose} />
+      <main className={styles.main} id="main">
+        <EmployerOverview />
+      </main>
+      <ViewEmployees splitMode />
+      <EmployeeDetail splitMode />
+      <ContributionRuns splitMode />
+      <InsuranceBenefits splitMode />
+      <EmployerReports splitMode />
+      <EmployerSettings splitMode />
+      <EmployerTickets splitMode />
+      <OnboardStaffPanel splitMode />
+    </>
+  );
+}
+
+/* Close the drawer automatically on route change (safety net — the sidebar
+   already calls `onNavigate` on every leaf click, but a real URL navigation
+   should also collapse the drawer). Mirrors BranchDashboardShell. */
+function useAutoCloseOnRouteChange(open, onClose) {
+  const location = useLocation();
+  useEffect(() => {
+    if (open) onClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+}
+
+function ShellInner() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const toggleMenu = useCallback(() => setMenuOpen((prev) => !prev), []);
+
+  useAutoCloseOnRouteChange(menuOpen, closeMenu);
+
+  return (
+    <div className={styles.shell}>
+      <EmployerSidebar />
+      <DashboardContent
+        menuOpen={menuOpen}
+        onMenuToggle={toggleMenu}
+        onMenuClose={closeMenu}
+      />
+    </div>
+  );
+}
+
+function MissingEmployerIdScreen({ onLogout }) {
+  return (
+    <div className={styles.missingEmployer}>
+      <div className={styles.missingEmployerInner}>
+        <h1 className={styles.missingEmployerTitle}>Employer not assigned</h1>
+        <p className={styles.missingEmployerText}>
+          Your account doesn&apos;t have an employer on file. Please contact an
+          administrator to link your account to an employer before signing in again.
         </p>
-        <h1
-          style={{
-            fontFamily: 'var(--font-display, "Plus Jakarta Sans", sans-serif)',
-            fontWeight: 800,
-            letterSpacing: '-0.03em',
-            fontSize: '1.875rem',
-            margin: '0.75rem 0 0.5rem',
-          }}
-        >
-          Employer dashboard — coming in Phase 1
-        </h1>
-        <p style={{ opacity: 0.75, lineHeight: 1.6, margin: 0 }}>
-          You are signed in as an employer
-          {user?.employerId ? ` (${user.employerId})` : ''}. The full dashboard
-          (overview, employees, contribution runs, insurance, reports, support)
-          ships next.
-        </p>
+        <button type="button" className={styles.missingEmployerBtn} onClick={onLogout}>
+          Sign out
+        </button>
       </div>
-    </main>
+    </div>
+  );
+}
+
+export default function EmployerDashboardShell() {
+  const { user, role, logout } = useAuth();
+  const navigate = useNavigate();
+  if (role !== 'employer') return <Navigate to="/coming-soon" replace />;
+  const employerId = user?.employerId;
+  if (!employerId) {
+    return <MissingEmployerIdScreen onLogout={() => { logout(); navigate('/'); }} />;
+  }
+  return (
+    <EmployerDashboardProvider>
+      <EmployerScopeProvider employerId={employerId}>
+        <ShellInner />
+      </EmployerScopeProvider>
+    </EmployerDashboardProvider>
   );
 }

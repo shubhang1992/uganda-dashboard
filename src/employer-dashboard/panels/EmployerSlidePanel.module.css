@@ -1,0 +1,137 @@
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  EmployerSlidePanel — reusable right-docked slide-in panel chrome.           */
+/*  Cloned from the branch ViewTickets/ViewAgents idiom: glass panel + a        */
+/*  data-split-mode reflow (docked, no backdrop, white card) + mobile full-     */
+/*  screen. Width is driven by the --panel-width custom property.               */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Backdrop (non-split only) ─────────────────────────────────────────────── */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(27, 26, 74, 0.35);
+  z-index: 200;
+}
+
+/* ── Panel ─────────────────────────────────────────────────────────────────── */
+.panel {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  width: var(--panel-width, 560px);
+  max-width: calc(100vw - 32px);
+  background: linear-gradient(180deg, #f8f9fc 0%, #f0f1f8 100%);
+  z-index: 210;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-lavender);
+  box-shadow:
+    0 24px 80px color-mix(in srgb, var(--color-indigo) 18%, transparent),
+    0 8px 24px color-mix(in srgb, var(--color-indigo) 8%, transparent);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+/* Split-view: docked alongside the overview, flat white card, no backdrop. */
+.panel[data-split-mode='true'] {
+  top: 24px;
+  right: 24px;
+  bottom: 24px;
+  max-width: calc(100vw - 48px);
+  border: none;
+  background: var(--color-white);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--color-indigo) 4%, transparent),
+    0 12px 32px color-mix(in srgb, var(--color-indigo) 8%, transparent),
+    0 32px 64px color-mix(in srgb, var(--color-indigo) 6%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--color-indigo) 4%, transparent);
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6) var(--space-4);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 6%, transparent);
+  flex-shrink: 0;
+}
+
+.headerText {
+  flex: 1;
+  min-width: 0;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.eyebrow {
+  margin: 0 0 2px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-indigo);
+  opacity: 0.6;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
+  color: var(--color-indigo);
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.closeBtn:hover {
+  background: color-mix(in srgb, var(--color-indigo) 10%, transparent);
+}
+
+.closeBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 30%, transparent);
+}
+
+/* ── Body (scroll region) ──────────────────────────────────────────────────── */
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-6);
+}
+
+/* ── Mobile: full-screen sheet ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .panel,
+  .panel[data-split-mode='true'] {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0;
+  }
+}

@@ -33,6 +33,8 @@ export default defineConfig([
           'useDashboard',
           'useDashboardNav',
           'useDashboardPanel',
+          'useEmployerScope',
+          'useEmployerPanel',
           'useSignIn',
           'useSignup',
           'useSubscriberPanel',
