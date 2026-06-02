@@ -17,6 +17,7 @@ import {
   useEmployees,
   useContributionRuns,
 } from '../../hooks/useEmployer';
+import ErrorCard from '../../components/feedback/ErrorCard';
 import EmployerHealthScore from './EmployerHealthScore';
 import EmployerOperations from './EmployerOperations';
 import styles from './EmployerOverview.module.css';
@@ -49,10 +50,28 @@ export default function EmployerOverview() {
     settingsOpen,
     onboardOpen,
   } = useEmployerPanel();
-  const { data: employer } = useEmployer(employerId);
-  const { data: metrics } = useEmployerMetrics(employerId);
-  const { data: employees = [] } = useEmployees(employerId);
-  const { data: runs = [] } = useContributionRuns(employerId);
+  const {
+    data: employer,
+    isLoading: employerLoading,
+    isError: employerError,
+    error: employerErr,
+    refetch: refetchEmployer,
+  } = useEmployer(employerId);
+  const {
+    data: metrics,
+    isError: metricsError,
+    refetch: refetchMetrics,
+  } = useEmployerMetrics(employerId);
+  const {
+    data: employees = [],
+    isError: employeesError,
+    refetch: refetchEmployees,
+  } = useEmployees(employerId);
+  const {
+    data: runs = [],
+    isError: runsError,
+    refetch: refetchRuns,
+  } = useContributionRuns(employerId);
   const isMobile = useIsMobile();
 
   // Which panel (if any) is currently driving split view.
@@ -78,7 +97,38 @@ export default function EmployerOverview() {
   // On mobile, panels go full-screen — no need to squish the overview.
   const targetPaddingRight = splitState && !isMobile ? PANEL_PADDING[activePanel] : 24;
 
-  if (!employer) {
+  // Cold-load guard — spinner only on a genuine first fetch.
+  const isCold = employerLoading && !employer;
+  // Any errored query (or an employer query that settled with no data and is no
+  // longer loading) means we can't render a trustworthy dashboard. The metrics
+  // drive the entire hero and the roster/runs feed participation + the activity
+  // feed, so surface ONE actionable ErrorCard with a combined retry rather than
+  // an infinite spinner or a silently-zeroed "healthy" dashboard.
+  const hasError =
+    employerError ||
+    metricsError ||
+    employeesError ||
+    runsError ||
+    (!employer && !employerLoading);
+
+  function retryAll() {
+    refetchEmployer();
+    refetchMetrics();
+    refetchEmployees();
+    refetchRuns();
+  }
+
+  if (hasError) {
+    return (
+      <ErrorCard
+        title="We couldn't load your dashboard"
+        message={employerErr}
+        onRetry={retryAll}
+      />
+    );
+  }
+
+  if (isCold) {
     return (
       <div className={styles.loading}>
         <div className={styles.spinner} />
