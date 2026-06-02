@@ -89,7 +89,19 @@ app.set('trust proxy', 1);
 // Must remain I/O-free so a misconfigured Supabase deploy still surfaces as
 // `service up, env wrong` rather than a network outage (G16). Stays BEFORE
 // any route mounts so a future catch-all can't shadow it (G70).
-app.get('/healthz', (_req, res) => {
+//
+// `cors(corsOptions)` is applied at the ROUTE level here, NOT inherited from
+// the global `app.use(cors(...))` in block 6 — that one is registered later,
+// so a `GET /healthz` would otherwise respond before reaching it and carry no
+// `Access-Control-Allow-Origin` header. The browser-side warmup ping
+// (`src/components/WarmupBanner.jsx`) is a cross-origin simple GET; without
+// this header it fails CORS and logs a console error on every page load.
+// Route-level cors keeps helmet off the response (preserving the ~1 KB budget)
+// while adding only the ~80-byte allow-origin/Vary pair for browser callers.
+// No-Origin pings (curl, Render's pinger, the GHA cron) get no extra header at
+// all — the `cors` package omits it when the request has no Origin — so the
+// uptime-monitor response stays as tiny as before.
+app.get('/healthz', cors(corsOptions), (_req, res) => {
   res.status(200).json({ ok: true });
 });
 
