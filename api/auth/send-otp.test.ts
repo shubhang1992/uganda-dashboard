@@ -85,7 +85,7 @@ describe('POST /api/auth/send-otp', () => {
     }
   });
 
-  it.each(['subscriber', 'agent', 'branch', 'distributor'])(
+  it.each(['subscriber', 'agent', 'branch', 'distributor', 'employer'])(
     'accepts role=%s',
     async (role) => {
       await call(

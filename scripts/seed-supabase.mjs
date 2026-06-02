@@ -44,6 +44,17 @@ const {
   DISTRICTS,
 } = mockData;
 
+// Employer-role demo seed (Phase 0). Same module the offline mock path uses,
+// so the Supabase rows and the VITE_USE_SUPABASE=false rows are identical.
+const employerSeed = await import('../src/data/employerSeed.js');
+const {
+  EMPLOYER,
+  EMPLOYEES,
+  CONTRIBUTION_RUNS,
+  CONTRIBUTION_RUN_LINES,
+  EMPLOYER_DEMO_PHONE,
+} = employerSeed;
+
 const { Client } = pg;
 
 // ─── Connection ─────────────────────────────────────────────────────────────
@@ -957,10 +968,161 @@ async function main() {
       'id'
     );
 
+    // ── employers ──────────────────────────────────────────────────────────
+    // One B2B account (emp-001). Tables landed by migration 0034; RPCs by 0035.
+    // Service-role bypasses the employer RLS so these direct inserts succeed.
+    console.log('• employers…');
+    await client.query(
+      `INSERT INTO employers (
+         id, name, sector, registration_no, contact_name, contact_phone,
+         contact_email, district, payroll_cadence, default_contribution_config
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         sector = EXCLUDED.sector,
+         registration_no = EXCLUDED.registration_no,
+         contact_name = EXCLUDED.contact_name,
+         contact_phone = EXCLUDED.contact_phone,
+         contact_email = EXCLUDED.contact_email,
+         district = EXCLUDED.district,
+         payroll_cadence = EXCLUDED.payroll_cadence,
+         default_contribution_config = EXCLUDED.default_contribution_config,
+         updated_at = now()`,
+      [
+        EMPLOYER.id,
+        EMPLOYER.name,
+        EMPLOYER.sector,
+        EMPLOYER.registrationNo,
+        EMPLOYER.contactName,
+        EMPLOYER.contactPhone,
+        EMPLOYER.contactEmail,
+        EMPLOYER.district,
+        EMPLOYER.payrollCadence,
+        JSON.stringify(EMPLOYER.defaultContributionConfig ?? {}),
+      ]
+    );
+
+    // ── employees (standalone roster) ────────────────────────────────────────
+    console.log('• employees…');
+    await bulkInsert(
+      client,
+      'employees',
+      [
+        { name: 'id', type: 'text' },
+        { name: 'employer_id', type: 'text' },
+        { name: 'name', type: 'text' },
+        { name: 'phone', type: 'text' },
+        { name: 'email', type: 'text' },
+        { name: 'gender', type: 'text' },
+        { name: 'age', type: 'int' },
+        { name: 'nin', type: 'text' },
+        { name: 'job_title', type: 'text' },
+        { name: 'salary', type: 'numeric' },
+        { name: 'status', type: 'text' },
+        { name: 'joined_date', type: 'date' },
+        { name: 'contribution_config', type: 'jsonb' },
+        { name: 'retirement_balance', type: 'numeric' },
+        { name: 'emergency_balance', type: 'numeric' },
+        { name: 'net_balance', type: 'numeric' },
+        { name: 'units_held', type: 'numeric' },
+        { name: 'total_contributions', type: 'numeric' },
+        { name: 'contribution_schedule', type: 'jsonb' },
+        { name: 'insurance_cover', type: 'numeric' },
+        { name: 'insurance_premium_monthly', type: 'numeric' },
+        { name: 'insurance_status', type: 'text' },
+        { name: 'insurance_renewal_date', type: 'date' },
+        { name: 'nominees', type: 'jsonb' },
+      ],
+      [
+        EMPLOYEES.map((e) => e.id),
+        EMPLOYEES.map((e) => e.employerId),
+        EMPLOYEES.map((e) => e.name),
+        EMPLOYEES.map((e) => e.phone ?? null),
+        EMPLOYEES.map((e) => e.email ?? null),
+        EMPLOYEES.map((e) => e.gender ?? null),
+        EMPLOYEES.map((e) => e.age ?? null),
+        EMPLOYEES.map((e) => e.nin ?? null),
+        EMPLOYEES.map((e) => e.jobTitle ?? null),
+        EMPLOYEES.map((e) => e.salary ?? 0),
+        EMPLOYEES.map((e) => e.status ?? 'active'),
+        EMPLOYEES.map((e) => toDateStr(e.joinedDate)),
+        EMPLOYEES.map((e) => JSON.stringify(e.contributionConfig ?? {})),
+        EMPLOYEES.map((e) => e.retirementBalance ?? 0),
+        EMPLOYEES.map((e) => e.emergencyBalance ?? 0),
+        EMPLOYEES.map((e) => e.netBalance ?? 0),
+        EMPLOYEES.map((e) => e.unitsHeld ?? 0),
+        EMPLOYEES.map((e) => e.totalContributions ?? 0),
+        EMPLOYEES.map((e) => JSON.stringify(e.contributionSchedule ?? {})),
+        EMPLOYEES.map((e) => e.insuranceCover ?? 0),
+        EMPLOYEES.map((e) => e.insurancePremiumMonthly ?? 0),
+        EMPLOYEES.map((e) => e.insuranceStatus ?? 'inactive'),
+        EMPLOYEES.map((e) => toDateStr(e.insuranceRenewalDate)),
+        EMPLOYEES.map((e) => JSON.stringify(e.nominees ?? [])),
+      ],
+      'id'
+    );
+
+    // ── contribution_runs ────────────────────────────────────────────────────
+    console.log('• contribution_runs…');
+    await bulkInsert(
+      client,
+      'contribution_runs',
+      [
+        { name: 'id', type: 'text' },
+        { name: 'employer_id', type: 'text' },
+        { name: 'period_label', type: 'text' },
+        { name: 'status', type: 'text' },
+        { name: 'employer_total', type: 'numeric' },
+        { name: 'employee_total', type: 'numeric' },
+        { name: 'grand_total', type: 'numeric' },
+        { name: 'run_at', type: 'timestamptz' },
+      ],
+      [
+        CONTRIBUTION_RUNS.map((r) => r.id),
+        CONTRIBUTION_RUNS.map((r) => r.employerId),
+        CONTRIBUTION_RUNS.map((r) => r.periodLabel ?? null),
+        CONTRIBUTION_RUNS.map((r) => r.status ?? 'completed'),
+        CONTRIBUTION_RUNS.map((r) => r.employerTotal ?? 0),
+        CONTRIBUTION_RUNS.map((r) => r.employeeTotal ?? 0),
+        CONTRIBUTION_RUNS.map((r) => r.grandTotal ?? 0),
+        CONTRIBUTION_RUNS.map((r) => toTimestamptz(r.runAt)),
+      ],
+      'id'
+    );
+
+    // ── contribution_run_lines ───────────────────────────────────────────────
+    console.log('• contribution_run_lines…');
+    await bulkInsert(
+      client,
+      'contribution_run_lines',
+      [
+        { name: 'id', type: 'text' },
+        { name: 'run_id', type: 'text' },
+        { name: 'employee_id', type: 'text' },
+        { name: 'employer_amount', type: 'numeric' },
+        { name: 'employee_amount', type: 'numeric' },
+        { name: 'retirement_amount', type: 'numeric' },
+        { name: 'emergency_amount', type: 'numeric' },
+        { name: 'method', type: 'text' },
+      ],
+      [
+        CONTRIBUTION_RUN_LINES.map((l) => l.id),
+        CONTRIBUTION_RUN_LINES.map((l) => l.runId),
+        CONTRIBUTION_RUN_LINES.map((l) => l.employeeId),
+        CONTRIBUTION_RUN_LINES.map((l) => l.employerAmount ?? 0),
+        CONTRIBUTION_RUN_LINES.map((l) => l.employeeAmount ?? 0),
+        CONTRIBUTION_RUN_LINES.map((l) => l.retirementAmount ?? 0),
+        CONTRIBUTION_RUN_LINES.map((l) => l.emergencyAmount ?? 0),
+        CONTRIBUTION_RUN_LINES.map((l) => l.method ?? null),
+      ],
+      'id'
+    );
+
     // ── demo_personas ──────────────────────────────────────────────────────
-    // 3 agents, 2 branches, 2 distributors. Distributor entity IDs (d-001,
-    // d-002) now have a backing row in `distributors` (seeded just above,
-    // landed by migration 0016). demo_personas keeps doing JWT-mint lookups.
+    // 3 agents, 2 branches, 2 distributors, 1 employer. Distributor entity IDs
+    // (d-001, d-002) now have a backing row in `distributors` (seeded just
+    // above, landed by migration 0016). demo_personas keeps doing JWT-mint
+    // lookups; the employer row resolves EMPLOYER_DEMO_PHONE → emp-001.
     console.log('• demo_personas…');
     const personas = [
       { id: 'dp-a-001', phone: '+256700000001', role: 'agent', entity_id: 'a-001', label: 'Default agent (Kampala)' },
@@ -970,6 +1132,7 @@ async function main() {
       { id: 'dp-b-002', phone: '+256700000012', role: 'branch', entity_id: 'b-mba-290', label: 'Mbarara branch' },
       { id: 'dp-d-001', phone: '+256700000021', role: 'distributor', entity_id: 'd-001', label: 'Default distributor' },
       { id: 'dp-d-002', phone: '+256700000022', role: 'distributor', entity_id: 'd-002', label: 'Secondary distributor' },
+      { id: 'dp-e-001', phone: EMPLOYER_DEMO_PHONE, role: 'employer', entity_id: EMPLOYER.id, label: 'Default employer (Nile Breweries Demo)' },
     ];
     await bulkInsert(
       client,

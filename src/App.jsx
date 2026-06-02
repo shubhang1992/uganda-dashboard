@@ -23,6 +23,8 @@ const DashboardShell = lazy(() => import('./dashboard/DashboardShell'));
 const BranchDashboardShell = lazy(() => import('./branch-dashboard/BranchDashboardShell'));
 const SubscriberDashboardShell = lazy(() => import('./subscriber-dashboard/SubscriberDashboardShell'));
 const AgentDashboardShell = lazy(() => import('./agent-dashboard/AgentDashboardShell'));
+// Phase 0 placeholder; Phase 1 replaces it with the real cloned-from-branch shell.
+const EmployerDashboardShell = lazy(() => import('./employer-dashboard/EmployerDashboardShell'));
 const SignupPage = lazy(() => import('./signup/SignupPage'));
 
 function DashboardFallback() {
@@ -154,6 +156,7 @@ function ProtectedDashboard() {
   if (role === 'branch') Shell = BranchDashboardShell;
   else if (role === 'subscriber') Shell = SubscriberDashboardShell;
   else if (role === 'agent') Shell = AgentDashboardShell;
+  else if (role === 'employer') Shell = EmployerDashboardShell;
   return (
     <ErrorBoundary>
       <Suspense fallback={<DashboardFallback />}>

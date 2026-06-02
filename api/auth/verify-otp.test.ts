@@ -191,7 +191,8 @@ describe('POST /api/auth/verify-otp', () => {
   });
 
   it('returns 400 invalid_otp when role is missing or out-of-allow-list', async () => {
-    for (const role of [undefined, 'admin', 'employer', 42]) {
+    // 'employer' is now a valid role (Phase 0) — only 'admin' stays deferred.
+    for (const role of [undefined, 'admin', 42]) {
       const r = makeRes();
       await call(
         makeReq({
@@ -371,6 +372,9 @@ describe('POST /api/auth/verify-otp', () => {
     ['agent', 'a-001', 'agentId'],
     ['branch', 'b-kam-015', 'branchId'],
     ['distributor', 'd-001', 'distributorId'],
+    // Employer falls back to emp-001 (Phase 0) just like the other
+    // non-subscriber roles when demo_personas misses.
+    ['employer', 'emp-001', 'employerId'],
   ] as const)(
     'returns the role-scoped %s claim with fallback id %s when demo_personas misses',
     async (role, fallbackId, claimKey) => {

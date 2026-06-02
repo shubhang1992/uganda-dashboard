@@ -418,6 +418,8 @@ describe('POST /api/auth/verify-password', () => {
     ['agent', 'a-001', 'agentId'],
     ['branch', 'b-kam-015', 'branchId'],
     ['distributor', 'd-001', 'distributorId'],
+    // Employer falls back to emp-001 (Phase 0) like the other roles.
+    ['employer', 'emp-001', 'employerId'],
   ] as const)(
     'returns the %s-scoped claim with fallback id %s when demo_personas misses',
     async (role, fallbackId, claimKey) => {

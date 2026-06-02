@@ -8,7 +8,7 @@
 import { api } from './api';
 import { IS_DEV } from '../config/env';
 
-const DASHBOARD_ROLES = ['distributor', 'branch', 'subscriber', 'agent'];
+const DASHBOARD_ROLES = ['distributor', 'branch', 'subscriber', 'agent', 'employer'];
 
 /**
  * Standardised auth-error shape. Components catch these and render

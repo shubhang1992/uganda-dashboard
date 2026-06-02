@@ -41,6 +41,7 @@ const VALID_ROLES = new Set<JwtRole>([
   'agent',
   'branch',
   'distributor',
+  'employer',
 ]);
 
 // Sentinel thrown by `upsertUser` when the upsert query itself fails (as

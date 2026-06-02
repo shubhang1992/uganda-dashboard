@@ -42,6 +42,7 @@ function mapAgentSubscriberRow(s) {
     kycStatus: s.kyc_status,
     isActive: !!s.is_active,
     registeredDate: s.registered_date,
+    lastContributionDate: s.last_contribution_date ?? null,
     productsHeld: s.products_held ?? [],
     contributionHistory: history,
     lastContribution: history.length > 0 ? Number(history[history.length - 1] ?? 0) : 0,
@@ -92,6 +93,10 @@ export async function getAgentSubscriberList(agentId) {
           kycStatus: s.kycStatus,
           isActive: s.isActive,
           registeredDate: s.registeredDate,
+          // Mock has no scalar last-contribution date — derive it from the most
+          // recent settled contribution txn (transactions are sorted newest-first).
+          lastContributionDate:
+            s.transactions?.find((t) => t.type === 'contribution')?.date ?? null,
           totalContributions: s.totalContributions,
           totalWithdrawals: s.totalWithdrawals,
           lastContribution: last,

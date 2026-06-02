@@ -31,6 +31,7 @@ export type AuthResponseUser = {
   agentId?: string;
   branchId?: string;
   distributorId?: string;
+  employerId?: string;
 };
 
 /**
@@ -62,6 +63,7 @@ export function buildJwtClaims(args: {
     ...(role === 'agent' ? { agentId: entityId } : {}),
     ...(role === 'branch' ? { branchId: entityId } : {}),
     ...(role === 'distributor' ? { distributorId: entityId } : {}),
+    ...(role === 'employer' ? { employerId: entityId } : {}),
   };
 }
 
@@ -88,6 +90,7 @@ export function buildAuthResponseUser(args: {
     ...(role === 'agent' ? { agentId: entityId } : {}),
     ...(role === 'branch' ? { branchId: entityId } : {}),
     ...(role === 'distributor' ? { distributorId: entityId } : {}),
+    ...(role === 'employer' ? { employerId: entityId } : {}),
   };
   return user;
 }

@@ -677,10 +677,11 @@ describe('hasDashboard(role)', () => {
     expect(hasDashboard('branch')).toBe(true);
     expect(hasDashboard('subscriber')).toBe(true);
     expect(hasDashboard('agent')).toBe(true);
+    // Employer gained a dashboard in the Employer-role Phase 0 (login wiring).
+    expect(hasDashboard('employer')).toBe(true);
   });
 
   it('returns false for deferred roles', () => {
-    expect(hasDashboard('employer')).toBe(false);
     expect(hasDashboard('admin')).toBe(false);
   });
 
@@ -696,13 +697,19 @@ describe('hasDashboard(role)', () => {
 // ─── DASHBOARD_ROLES ────────────────────────────────────────────────────────
 
 describe('DASHBOARD_ROLES', () => {
-  it('is an array with the four built roles', () => {
+  it('is an array with the five built roles', () => {
     expect(Array.isArray(DASHBOARD_ROLES)).toBe(true);
-    expect(DASHBOARD_ROLES).toEqual(['distributor', 'branch', 'subscriber', 'agent']);
+    expect(DASHBOARD_ROLES).toEqual([
+      'distributor',
+      'branch',
+      'subscriber',
+      'agent',
+      'employer',
+    ]);
   });
 
-  it('does NOT include the deferred employer/admin roles', () => {
-    expect(DASHBOARD_ROLES).not.toContain('employer');
+  it('includes employer (Phase 0) but NOT the still-deferred admin role', () => {
+    expect(DASHBOARD_ROLES).toContain('employer');
     expect(DASHBOARD_ROLES).not.toContain('admin');
   });
 
