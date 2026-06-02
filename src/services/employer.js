@@ -482,6 +482,50 @@ export async function getContributionRun(runId) {
 }
 
 /**
+ * @endpoint SELECT contribution_run_lines for ONE employee, joined to the run
+ *   header for the period label + run date (RLS auto-scopes via the run join —
+ *   a line is only visible if its run belongs to the caller's employer).
+ *   Newest run first. Mock filters `CONTRIBUTION_RUN_LINES` (+ session lines)
+ *   by employeeId and joins to the run period/date the same way.
+ * @param {string} employeeId
+ * @returns {Promise<Array<{ id, runId, employeeId, employerAmount,
+ *   employeeAmount, retirementAmount, emergencyAmount, method, periodLabel,
+ *   runAt }>>} newest-first.
+ * @cache ['employeeContributions', employeeId]
+ */
+export async function getEmployeeContributions(employeeId) {
+  if (!IS_SUPABASE_ENABLED) {
+    if (!employeeId) return [];
+    const runById = Object.fromEntries(mockRuns().map((r) => [r.id, r]));
+    const seedLines = CONTRIBUTION_RUN_LINES.filter((l) => l.employeeId === employeeId);
+    const sessionLines = _mockRunLines.filter((l) => l.employeeId === employeeId);
+    return [...sessionLines, ...seedLines]
+      .map((l) => {
+        const run = runById[l.runId] ?? null;
+        return {
+          ...mapRunLine(l),
+          periodLabel: run?.periodLabel ?? null,
+          runAt: run?.runAt ?? null,
+        };
+      })
+      .sort((a, b) => String(b.runAt ?? '').localeCompare(String(a.runAt ?? '')));
+  }
+  if (!employeeId) return [];
+  const { data, error } = await supabase
+    .from('contribution_run_lines')
+    .select('*, contribution_runs(period_label, run_at)')
+    .eq('employee_id', employeeId);
+  if (error) throw error;
+  return (data ?? [])
+    .map((row) => ({
+      ...mapRunLine(row),
+      periodLabel: row.contribution_runs?.period_label ?? null,
+      runAt: row.contribution_runs?.run_at ?? null,
+    }))
+    .sort((a, b) => String(b.runAt ?? '').localeCompare(String(a.runAt ?? '')));
+}
+
+/**
  * @endpoint RPC get_employer_metrics() (Supabase) — aggregates for the
  *   hero/overview. Mock computes the identical shape from the seed.
  * @returns {Promise<{

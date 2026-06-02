@@ -84,6 +84,22 @@ export function useContributionRun(runId) {
 }
 
 /**
+ * Fetch one employee's contribution history — their run-lines joined to the run
+ * period/date, newest-first. Drives the transactions section of the employee
+ * detail panel.
+ * @param {string} employeeId
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object[]>}
+ */
+export function useEmployeeContributions(employeeId) {
+  return useQuery({
+    queryKey: ['employeeContributions', employeeId],
+    queryFn: () => employer.getEmployeeContributions(employeeId),
+    enabled: !!employeeId,
+    staleTime: READ_STALE_TIME,
+  });
+}
+
+/**
  * Aggregated metrics for the hero / overview (headcount, balances, YTD, mode
  * split). Threads `employerId` through the queryKey so it invalidates with the
  * roster even though the RPC reads scope from the JWT.
@@ -217,6 +233,7 @@ export function useRunContribution(employerId) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees', employerId] });
       queryClient.invalidateQueries({ queryKey: ['employee'] });
+      queryClient.invalidateQueries({ queryKey: ['employeeContributions'] });
       queryClient.invalidateQueries({ queryKey: ['contributionRuns', employerId] });
       queryClient.invalidateQueries({ queryKey: ['employerMetrics', employerId] });
     },
@@ -229,6 +246,6 @@ export function useRunContribution(employerId) {
  * @param {import('@tanstack/react-query').QueryClient} queryClient
  */
 export function invalidateAllEmployer(queryClient) {
-  ['employer', 'employees', 'employee', 'contributionRuns', 'contributionRun', 'employerMetrics']
+  ['employer', 'employees', 'employee', 'employeeContributions', 'contributionRuns', 'contributionRun', 'employerMetrics']
     .forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
 }
