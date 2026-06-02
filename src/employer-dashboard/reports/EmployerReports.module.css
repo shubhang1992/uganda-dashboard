@@ -1,0 +1,424 @@
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  EmployerReports — hub of four reports inside the EmployerSlidePanel (680).    */
+/*  Hub = report cards; each report = heading + (chart) + semantic table.         */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Header actions (Export CSV + Print + Back), in the panel header ─────────── */
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-full);
+  background: var(--color-white);
+  color: var(--color-indigo-soft);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.actionBtn:hover:not(:disabled) {
+  color: var(--color-indigo);
+  border-color: color-mix(in srgb, var(--color-indigo) 30%, transparent);
+  box-shadow: var(--shadow-sm);
+}
+
+.actionBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+}
+
+.actionBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  background: transparent;
+  color: var(--color-indigo);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.16s ease;
+}
+
+.backBtn:hover {
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
+}
+
+.backBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-indigo) 30%, transparent);
+}
+
+/* ── Hub ─────────────────────────────────────────────────────────────────────── */
+.hub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.hubIntro {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-gray);
+}
+
+.hubGrid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+}
+
+.hubCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  height: 100%;
+  padding: var(--space-4);
+  text-align: left;
+  border: 1px solid color-mix(in srgb, var(--color-indigo) 9%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.hubCard:hover {
+  border-color: color-mix(in srgb, var(--color-indigo) 30%, transparent);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.hubCard:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-indigo) 35%, transparent);
+}
+
+.hubCardIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
+  color: var(--color-indigo);
+}
+
+.hubCardText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hubCardTitle {
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+}
+
+.hubCardDesc {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color-gray);
+}
+
+.hubCardChevron {
+  flex: 0 0 auto;
+  color: var(--color-indigo-soft);
+}
+
+/* ── Report frame ──────────────────────────────────────────────────────────── */
+.report {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.reportHead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 8%, transparent);
+}
+
+.reportTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--color-indigo);
+}
+
+.reportSummary {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-gray);
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────────── */
+.tableScroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  padding: var(--space-2);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+  background: var(--color-white);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 12%, transparent);
+  white-space: nowrap;
+}
+
+.table tbody td,
+.table tbody th {
+  padding: var(--space-3) var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 5%, transparent);
+  color: var(--color-slate);
+  vertical-align: middle;
+}
+
+.rowHead {
+  text-align: left;
+  font-weight: 700;
+  color: var(--color-indigo);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.strong {
+  font-weight: 700;
+  color: var(--color-indigo);
+}
+
+.table tfoot th,
+.table tfoot td {
+  padding: var(--space-3) var(--space-2);
+  border-top: 2px solid color-mix(in srgb, var(--color-indigo) 14%, transparent);
+  font-weight: 700;
+  color: var(--color-indigo);
+}
+
+.table tfoot th {
+  text-align: left;
+}
+
+/* Status tag (roster). */
+.statusTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
+  color: var(--color-indigo-soft);
+}
+
+.statusTag[data-status='active'] {
+  background: color-mix(in srgb, var(--color-status-good) 16%, transparent);
+  color: #166534;
+}
+
+.statusTag[data-status='suspended'] {
+  background: color-mix(in srgb, var(--color-amber) 22%, transparent);
+  color: #92400e;
+}
+
+/* ── Funding breakdown — donut + legend ─────────────────────────────────────── */
+.fundingTop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-2) 0;
+}
+
+.donut {
+  flex: 0 0 auto;
+}
+
+.donutValue {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  fill: var(--color-indigo);
+}
+
+.donutCaption {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  fill: var(--color-gray);
+}
+
+.fundingLegend {
+  margin: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.legendItem {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-2);
+}
+
+.legendSwatch {
+  grid-row: span 2;
+  align-self: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.legendSwatch[data-swatch='employer'] {
+  background: var(--color-indigo);
+}
+
+.legendSwatch[data-swatch='employee'] {
+  background: var(--color-lavender);
+}
+
+.legendLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-gray);
+}
+
+.legendValue {
+  grid-column: 2;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+.legendPct {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-gray);
+}
+
+.fundingYtd {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: var(--space-2);
+  border-top: 1px solid color-mix(in srgb, var(--color-indigo) 8%, transparent);
+}
+
+.fundingYtdLabel {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+}
+
+.fundingYtdValue {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-slate);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Balance growth — SVG line/area chart ───────────────────────────────────── */
+.growthChart {
+  width: 100%;
+  height: 180px;
+  display: block;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .hubGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fundingTop {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-4);
+  }
+
+  .donut {
+    align-self: center;
+  }
+}
+
+/* ── Print — hide everything except the open report panel body ──────────────── */
+@media print {
+  .headerActions,
+  .hubCardChevron {
+    display: none !important;
+  }
+
+  .tableScroll {
+    overflow: visible;
+  }
+
+  .table thead th {
+    position: static;
+  }
+}
