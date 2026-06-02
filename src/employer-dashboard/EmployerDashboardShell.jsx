@@ -4,9 +4,11 @@
 //   <EmployerDashboardProvider> → <EmployerScopeProvider> → <ShellInner/>.
 //
 // Panels mount as SIBLINGS of <main> (not nested), each with `splitMode`, so a
-// later phase can reflow main content beside an open panel. Every panel is a
-// Phase-1 STUB (a titled Modal placeholder); their real content lands in
-// Phases 3-8.
+// panel can reflow main content beside an open panel. The panels are built out
+// (Phases 3-8): ViewEmployees, EmployeeDetail, ContributionRuns,
+// InsuranceBenefits, EmployerReports, EmployerSettings, EmployerTickets. Only
+// employee onboarding remains deferred — OnboardStaffPanel is still a Phase-9
+// stub (renders StubPanel, a titled "coming soon" placeholder).
 
 import { useState, useEffect, useCallback } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
