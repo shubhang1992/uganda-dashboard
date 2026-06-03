@@ -155,6 +155,29 @@ describe('employer service — real (Supabase) branch', () => {
     });
   });
 
+  describe('applyGroupInsurance', () => {
+    it('calls apply_group_insurance with p_cover and returns the summary', async () => {
+      supabaseMock.__queueRpc('apply_group_insurance', {
+        data: { updated: 16, cover: 5000000 },
+        error: null,
+      });
+      const summary = await svc.applyGroupInsurance('emp-001', { cover: 5000000 });
+      expect(summary).toEqual({ updated: 16, cover: 5000000 });
+      const call = supabaseMock.__getRpcCalls('apply_group_insurance').at(-1);
+      expect(call.args.p_cover).toBe(5000000);
+    });
+
+    it('throws on RPC error', async () => {
+      supabaseMock.__queueRpc('apply_group_insurance', {
+        data: null,
+        error: { message: 'permission denied', code: 'PGRST301' },
+      });
+      await expect(
+        svc.applyGroupInsurance('emp-001', { cover: 1000 }),
+      ).rejects.toMatchObject({ message: 'permission denied' });
+    });
+  });
+
   describe('getContributionRuns', () => {
     it('selects from contribution_runs filtered by employer_id, newest-first', async () => {
       supabaseMock.__queueFrom('contribution_runs', { data: [], error: null });
@@ -509,6 +532,40 @@ describe('employer service — mock-fallback branch (IS_SUPABASE_ENABLED=false)'
     await expect(
       svc.submitContributionRun('emp-001', { rows: null, nonce: 'n-bad-1' }),
     ).rejects.toThrow(/array/i);
+  });
+
+  // ── group insurance: flat cover applied to the WHOLE roster ────────────────
+  it('applyGroupInsurance(mock) activates a flat cover on every owned employee', async () => {
+    const COVER = 5000000;
+    const summary = await svc.applyGroupInsurance(EMPLOYER.id, { cover: COVER });
+
+    const roster = await svc.getEmployees(EMPLOYER.id);
+    expect(summary.updated).toBe(roster.length);
+    expect(summary.cover).toBe(COVER);
+
+    // EVERY employee now carries the flat cover, an active status, and a zeroed
+    // premium (group cover is employer-included) — including the suspended one.
+    for (const emp of roster) {
+      expect(emp.insuranceCover).toBe(COVER);
+      expect(emp.insuranceStatus).toBe('active');
+      expect(emp.insurancePremiumMonthly).toBe(0);
+    }
+
+    // The hero "insured" metric reflects it: all staff counted as insured.
+    const metrics = await svc.getEmployerMetrics();
+    expect(metrics.insuredCount).toBe(roster.length);
+  });
+
+  it('applyGroupInsurance(mock) with cover 0 switches every employee to inactive', async () => {
+    const summary = await svc.applyGroupInsurance(EMPLOYER.id, { cover: 0 });
+    const roster = await svc.getEmployees(EMPLOYER.id);
+    expect(summary.updated).toBe(roster.length);
+    for (const emp of roster) {
+      expect(emp.insuranceCover).toBe(0);
+      expect(emp.insuranceStatus).toBe('inactive');
+    }
+    const metrics = await svc.getEmployerMetrics();
+    expect(metrics.insuredCount).toBe(0);
   });
 
   it('getContributionRuns(mock) returns the seed runs newest-first for the employer', async () => {

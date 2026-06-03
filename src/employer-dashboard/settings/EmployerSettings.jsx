@@ -23,7 +23,11 @@ import { useEmployerPanel } from '../../contexts/EmployerPanelContext';
 import { useEmployerScope } from '../../contexts/EmployerScopeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
-import { useEmployer, useUpdateEmployerProfile } from '../../hooks/useEmployer';
+import {
+  useEmployer,
+  useUpdateEmployerProfile,
+  useApplyGroupInsurance,
+} from '../../hooks/useEmployer';
 import { changePassword, AuthError } from '../../services/auth';
 import { formatUGX } from '../../utils/currency';
 import SkeletonRow from '../../components/SkeletonRow';
@@ -397,6 +401,7 @@ function ProfileTab({ employer, employerId, addToast }) {
 
 function DefaultConfigTab({ employer, employerId, addToast }) {
   const updateProfile = useUpdateEmployerProfile(employerId);
+  const applyGroupInsurance = useApplyGroupInsurance(employerId);
 
   // Dual-read seed: prefer the NEW keys (matchPct / maxContribution /
   // groupCoverAmount) and fall back to the legacy %-pair so an un-migrated
@@ -499,13 +504,29 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
       employerPct,
       groupCoverAmount,
     };
-    // NOTE (Phase 7): the `applyGroupInsurance` mutation will slot in here,
-    // alongside this `updateProfile.mutate`, reusing the `groupCoverAmount`
-    // number/null computed above.
+    // Phase 7: employer-only funding bundles group life cover. Save the profile
+    // first; only if it succeeds AND a positive group cover was entered do we
+    // activate the flat group cover across the whole roster (a null/blank/0
+    // cover leaves per-employee insurance untouched). The roster mutation is
+    // chained inside onSuccess so insurance is never applied against an
+    // un-saved config.
+    const hasGroupCover = groupCoverAmount != null && groupCoverAmount > 0;
     updateProfile.mutate(
       { defaultContributionConfig },
       {
-        onSuccess: () => addToast('success', 'Default contribution config updated.'),
+        onSuccess: () => {
+          addToast('success', 'Default contribution config updated.');
+          if (hasGroupCover) {
+            applyGroupInsurance.mutate(
+              { cover: groupCoverAmount },
+              {
+                onSuccess: () => addToast('success', 'Group cover applied to all staff.'),
+                onError: (e3) =>
+                  addToast('error', e3?.message || 'Could not apply group cover to staff.'),
+              },
+            );
+          }
+        },
         onError: (e2) => addToast('error', e2?.message || 'Could not update default config.'),
       },
     );

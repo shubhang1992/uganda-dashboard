@@ -742,6 +742,46 @@ export async function updateEmployeeInsurance(employeeId, { cover, premium } = {
 }
 
 /**
+ * Activates a FLAT group life cover across the caller's ENTIRE roster — the
+ * roster-wide analogue of `updateEmployeeInsurance`. Every employee gets
+ * `insuranceCover = cover`, status derived from the cover (>0 → 'active'), and
+ * a zeroed premium (group cover is employer-included). Used when an employer
+ * saves an employer-only default config with a group cover (Phase 7). The
+ * RPC self-scopes to the caller's employer via the `employerId` JWT claim, so
+ * `employerId` is only consulted by the mock path's ownership filter.
+ * @param {string} employerId - caller's employer (mock-path scope; Supabase
+ *   reads it from the JWT claim).
+ * @param {{ cover:number }} payload
+ * @returns {Promise<{ updated:number, cover:number }>} the run summary.
+ */
+export async function applyGroupInsurance(employerId, { cover } = {}) {
+  const coverNum = Number(cover ?? 0);
+  if (!IS_SUPABASE_ENABLED) {
+    const active = coverNum > 0;
+    // Mirror updateEmployeeInsurance's mock write for EVERY owned employee so
+    // getEmployees / getEmployerMetrics reflect the group cover on next read.
+    const owned = mockEmployees().filter(
+      (e) => !employerId || e.employerId === employerId,
+    );
+    for (const emp of owned) {
+      readEmployeeSession(emp.id).insuranceOverride = {
+        cover: coverNum,
+        premium: 0,
+        status: active ? 'active' : 'inactive',
+        // Keep the seed renewal date if present (same as the per-employee path).
+        renewalDate: emp.insuranceRenewalDate,
+      };
+    }
+    return { updated: owned.length, cover: coverNum };
+  }
+  const { data, error } = await supabase.rpc('apply_group_insurance', {
+    p_cover: coverNum,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
  * Patches the caller's own employer profile row. Only editable
  * profile/config keys are honoured server-side.
  * @param {Object} patch - { name?, sector?, registrationNo?, contactName?,

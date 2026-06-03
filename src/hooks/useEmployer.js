@@ -235,6 +235,28 @@ export function useUpdateEmployeeInsurance() {
 }
 
 /**
+ * Mutation: activate a FLAT group life cover across the entire roster. Roster-
+ * wide, so it's a plain invalidate-on-success (no optimistic patch — a single
+ * employee key can't represent the whole roster). On success it invalidates the
+ * roster (`['employees', employerId]` — the InsuranceBenefits page), the hero
+ * "insured" figure (`['employerMetrics', employerId]`), and every cached single
+ * employee (`['employee']` — so any open employee detail refreshes too).
+ * @param {string} employerId
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useApplyGroupInsurance(employerId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ cover }) => employer.applyGroupInsurance(employerId, { cover }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees', employerId] });
+      queryClient.invalidateQueries({ queryKey: ['employerMetrics', employerId] });
+      queryClient.invalidateQueries({ queryKey: ['employee'] });
+    },
+  });
+}
+
+/**
  * Mutation: submit a contribution run. NON-optimistic — the server re-derives
  * every figure and is the source of truth. On success, invalidates every read
  * the run could have moved: the roster, the drilled-in employee, the run
