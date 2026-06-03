@@ -576,4 +576,36 @@ describe('employer service — mock-fallback branch (IS_SUPABASE_ENABLED=false)'
     }
     expect(runs.every((r) => r.employerId === EMPLOYER.id)).toBe(true);
   });
+
+  // ── monthly-contributions leaderboard (Overview hero chip) ─────────────────
+  it('getEmployerLeaderboard(mock) ranks "you" #3 among the seeded peers, best-first', async () => {
+    const board = await svc.getEmployerLeaderboard(EMPLOYER.id);
+
+    // Ranked array of the documented shape.
+    expect(Array.isArray(board)).toBe(true);
+    for (const row of board) {
+      expect(row).toMatchObject({
+        rank: expect.any(Number),
+        name: expect.any(String),
+        monthlyTotal: expect.any(Number),
+        isYou: expect.any(Boolean),
+        deltaRanks: expect.any(Number),
+      });
+    }
+
+    // Sorted best-first (descending by monthlyTotal).
+    for (let i = 1; i < board.length; i += 1) {
+      expect(board[i - 1].monthlyTotal).toBeGreaterThanOrEqual(board[i].monthlyTotal);
+    }
+
+    // Ranks are contiguous 1..N.
+    expect(board.map((r) => r.rank)).toEqual(
+      Array.from({ length: board.length }, (_, i) => i + 1),
+    );
+
+    // Exactly one "you" row, and the demo employer (emp-001) lands at rank 3.
+    const mine = board.filter((r) => r.isYou);
+    expect(mine).toHaveLength(1);
+    expect(mine[0].rank).toBe(3);
+  });
 });

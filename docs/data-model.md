@@ -237,7 +237,7 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 | contactName / contactPhone / contactEmail | string | Stored | Primary HR/admin contact |
 | district | string | Stored | Operating district |
 | payrollCadence | string | Stored | `"monthly"` \| `"weekly"` \| … |
-| defaultContributionConfig | object (JSONB) | Stored | The template a new run starts from. Shape `{ mode, employerPct, employeePct, employerAmount, employeeAmount }` — see [Contribution Config shape](#contribution-config-shape) |
+| defaultContributionConfig | object (JSONB) | Stored | The template a new run starts from. Shape `{ mode, matchPct, maxContribution }` (co-contribution) or `{ mode, employerPct, groupCoverAmount }` (employer-only) — see [Contribution Config shape](#contribution-config-shape) |
 | createdAt / updatedAt | timestamptz | Stored | Row timestamps (`updated_at` maintained inline by the `0035` RPCs — no shared trigger) |
 
 ### Relationships
@@ -245,6 +245,8 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 
 ### Business Rules
 - **National singleton today.** The demo seeds exactly one employer (`emp-001`). Demo login phone `EMPLOYER_DEMO_PHONE` (`+256700000031`) resolves to it via `demo_personas`; any other phone on the `employer` role falls back to `emp-001`.
+- **No employer health score.** Unlike a Branch, the Employer has **no derived health/scheme-health score**. The funder-redesign removed the scheme-health gauge / participation composite from the Overview hero (an employer is a funder, not a sales line); there is no `score` field and no formula. The hero now leads with total contributions + funder tiles + a monthly-contributions leaderboard — see `FRONTEND.md §9.5`.
+- **Group life insurance.** Selecting the `employer-only` default config with a `groupCoverAmount` activates **flat group life cover for the whole roster** via the `apply_group_insurance` RPC (`0039`): every owned employee's `insuranceCover` is set to the flat amount, `insuranceStatus` derives from it (`>0 → active`, `0 → inactive` — a `0` cover switches group cover off), and `insurancePremiumMonthly` is zeroed (employer-included). The per-employee insurance editor still applies individual overrides afterwards. `0039` is **authored but NOT yet applied to live**.
 - **RLS.** `employer_self_select USING (app_role='employer' AND id = auth.jwt() ->> 'employerId')`. Profile updates via `update_employer_profile` (own row only). See `BACKEND.md §8`/§10.1.
 
 ---
@@ -263,10 +265,11 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 | age | number | Stored | Age in years |
 | nin | string | Stored | National ID number |
 | jobTitle | string | Stored | Role/title |
-| salary | number | Stored | Monthly gross (UGX) — the basis for percentage-mode run math |
+| salary | number | Stored | Monthly gross (UGX) — the basis for legacy/employer-only percentage run math |
+| monthlyContribution | number | Stored | The employee's OWN monthly saving (UGX) — the base the **co-contribution employer match** is computed against. Added by migration `0037` (snake_case `monthly_contribution`; **authored, NOT yet applied to live**) |
 | status | string | Stored | `"active"` \| `"suspended"`. Suspended employees are **skipped** by `submit_contribution_run` |
 | joinedDate | date | Stored | Date the employee joined |
-| contributionConfig | object (JSONB) | Stored | Per-employee funding mode. Shape `{ mode, employerPct, employeePct, employerAmount, employeeAmount }` — see below |
+| contributionConfig | object (JSONB) | Stored | Per-employee funding mode. Shape `{ mode, matchPct, maxContribution }` (co-contribution) or `{ mode, employerPct, groupCoverAmount }` (employer-only) — see below |
 | contributionSchedule | object (JSONB) | Stored | Retirement/emergency split `{ retirementPct, emergencyPct }` (r+e = 100; default 80/20). Mirrors `contribution_schedules` for subscribers |
 | retirementBalance | number | Stored | Pension (long-term) balance — bumped inline by each run |
 | emergencyBalance | number | Stored | Emergency (short-term) balance — bumped inline by each run |
@@ -296,22 +299,33 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 
 #### Contribution Config shape
 
-`contribution_config` (per-employee) and `default_contribution_config` (employer-level template) share one JSONB shape:
+`contribution_config` (per-employee) and `default_contribution_config` (employer-level template) share one JSONB shape, with two `mode` variants (funder-redesign — `0038`):
 
 ```jsonc
+// co-contribution: the employer MATCHES a % of the employee's own monthly saving
 {
-  "mode": "co-contribution" | "employer-only",
-  "employerPct": 10,          // % of salary funded by the employer (percentage mode)
-  "employeePct": 5,           // % of salary funded by the employee (co-contribution only; 0 for employer-only)
-  "employerAmount": null,     // explicit fixed UGX — when set, WINS over the pct
-  "employeeAmount": null      // explicit fixed UGX (co-contribution only)
+  "mode": "co-contribution",
+  "matchPct": 50,             // employer matches this % of the employee's monthlyContribution
+  "maxContribution": 80000    // optional UGX cap on the employer top-up; null/'' = uncapped
+}
+
+// employer-only: employer funds a % of salary; selecting this mode also activates
+// flat group life insurance for all staff (see Business Rules)
+{
+  "mode": "employer-only",
+  "employerPct": 8,           // % of salary funded by the employer
+  "groupCoverAmount": 5000000 // flat group life cover (UGX) applied roster-wide via apply_group_insurance
 }
 ```
 
-Run math (re-derived server-side per run — client amounts are advisory):
-`employer_half = employerAmount ?? round(salary * employerPct / 100)`;
-`employee_half = mode==='co-contribution' ? (employeeAmount ?? round(salary * employeePct / 100)) : 0`;
+**Match formula (co-contribution, `0038`)** — re-derived server-side per run (client amounts are advisory):
+`employee_half = round(monthlyContribution)` (the employee's own saving);
+`employer_half = round(employee_half * matchPct / 100)`, then `min(employer_half, round(maxContribution))` when the cap is set;
 `gross = employer_half + employee_half`; split by `contributionSchedule` (`retirement = round(gross * retirementPct/100)`, `emergency = gross − retirement`).
+
+**Employer-only** is unchanged: `employer_half = employerAmount ?? round(salary * employerPct / 100)`, `employee_half = 0`.
+
+**Dual-read legacy fallback.** A `co-contribution` row carrying the OLD keys (`employerPct`/`employeePct`, no `matchPct`) falls back to the pre-redesign salary-based math (`employer_half = employerAmount ?? round(salary*employerPct/100)`, `employee_half = employeeAmount ?? round(salary*employeePct/100)`) so an un-migrated live row never zeroes out during cutover. Both `0037` (`monthlyContribution` column) and `0038` (the match-model RPC body) are **authored but NOT yet applied to live**.
 
 #### Contribution Schedule shape
 
