@@ -16,6 +16,7 @@ import {
   useEmployerMetrics,
   useEmployees,
   useContributionRuns,
+  useEmployerLeaderboard,
 } from '../../hooks/useEmployer';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import EmployerHealthScore from './EmployerHealthScore';
@@ -72,6 +73,10 @@ export default function EmployerOverview() {
     isError: runsError,
     refetch: refetchRuns,
   } = useContributionRuns(employerId);
+  // Leaderboard is a non-blocking nicety — it degrades to `[]` while loading or
+  // on error (the hero renders nothing in its slot) rather than gating the whole
+  // dashboard on it, so it's deliberately NOT folded into `hasError`/`retryAll`.
+  const { data: leaderboard = [] } = useEmployerLeaderboard(employerId);
   const isMobile = useIsMobile();
 
   // Which panel (if any) is currently driving split view.
@@ -146,6 +151,7 @@ export default function EmployerOverview() {
         metrics={metrics ?? {}}
         employees={employees}
         runs={runs}
+        leaderboard={leaderboard}
         employer={employer}
         user={user}
         split={splitState}

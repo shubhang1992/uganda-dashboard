@@ -291,6 +291,33 @@ const RUN_DEFS = [
 export const CONTRIBUTION_RUNS = Object.freeze(RUN_DEFS.map((r) => r.run));
 export const CONTRIBUTION_RUN_LINES = Object.freeze(RUN_DEFS.flatMap((r) => r.lines));
 
+// ─── Leaderboard competitors (demo-only) ─────────────────────────────────────
+// Anonymous-but-plausible Ugandan employers for the Overview monthly-contribution
+// leaderboard. These are INVENTED demo figures — NOT real financial data for
+// any named company. Consumed only by `getEmployerLeaderboard` in
+// `src/services/employer.js`, which merges in emp-001's own "this month" total
+// (the newest run's grandTotal = UGX 4,074,000) and ranks the combined list.
+//
+// Calibrated so emp-001 lands at ~#3: EXACTLY two competitors sit above
+// 4,074,000 (MTN Uganda 6.82M, Centenary Bank 5.31M) and the remaining nine sit
+// below it, so once "you" is spliced in the ranks read
+//   #1 MTN · #2 Centenary · #3 YOU · #4 Roofings · …
+// `monthlyTotal` is UGX/month. Kept as a frozen array (mockData.js convention).
+export const LEADERBOARD_COMPETITORS = Object.freeze([
+  Object.freeze({ name: 'MTN Uganda', monthlyTotal: 6820000 }),
+  Object.freeze({ name: 'Centenary Bank', monthlyTotal: 5310000 }),
+  // — emp-001 ("you", 4,074,000) ranks here, between Centenary and Roofings —
+  Object.freeze({ name: 'Roofings Group', monthlyTotal: 3760000 }),
+  Object.freeze({ name: 'Quality Chemicals', monthlyTotal: 3415000 }),
+  Object.freeze({ name: 'Café Javas', monthlyTotal: 2980000 }),
+  Object.freeze({ name: 'Movit Products', monthlyTotal: 2540000 }),
+  Object.freeze({ name: 'Mukwano Industries', monthlyTotal: 2185000 }),
+  Object.freeze({ name: 'Pearl Dairy Farms', monthlyTotal: 1870000 }),
+  Object.freeze({ name: 'Vision Group', monthlyTotal: 1540000 }),
+  Object.freeze({ name: 'Bidco Uganda', monthlyTotal: 1295000 }),
+  Object.freeze({ name: 'Tian Tang Group', monthlyTotal: 980000 }),
+]);
+
 // Re-export the by-id index + unit price for the Phase 1 service.
 export const EMPLOYEES_BY_ID = EMP_BY_ID;
 export { UNIT_PRICE as EMPLOYER_UNIT_PRICE };

@@ -116,6 +116,23 @@ export function useEmployerMetrics(employerId) {
 }
 
 /**
+ * Monthly-contributions leaderboard for the Overview hero — the employer's own
+ * "this month" total ranked against a field of seeded peers (newest run's
+ * grandTotal vs `LEADERBOARD_COMPETITORS`). Returns `[{ rank, name,
+ * monthlyTotal, isYou, deltaRanks }]`, best-first.
+ * @param {string} employerId
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object[]>}
+ */
+export function useEmployerLeaderboard(employerId) {
+  return useQuery({
+    queryKey: ['employerLeaderboard', employerId],
+    queryFn: () => employer.getEmployerLeaderboard(employerId),
+    enabled: !!employerId,
+    staleTime: READ_STALE_TIME,
+  });
+}
+
+/**
  * Mutation: patch the employer profile. Optimistically patches the cached
  * employer so settings/header chips reflect the change immediately; rolls back
  * on error.

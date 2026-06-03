@@ -37,6 +37,7 @@ import {
   CONTRIBUTION_RUNS,
   CONTRIBUTION_RUN_LINES,
   EMPLOYER_UNIT_PRICE,
+  LEADERBOARD_COMPETITORS,
 } from '../data/employerSeed';
 
 const round = (n) => Math.round(n);
@@ -570,6 +571,61 @@ export async function getEmployerMetrics() {
   const { data, error } = await supabase.rpc('get_employer_metrics');
   if (error) throw error;
   return data ?? {};
+}
+
+/**
+ * Monthly-contributions leaderboard for the Overview hero — the caller's own
+ * "this month" total ranked against a field of peer employers.
+ *
+ * Dual-path by construction: the employer's OWN figure is the NEWEST
+ * contribution run's `grandTotal`, read through `getContributionRuns` so the
+ * number is byte-identical on the Supabase and mock branches (runs exist on
+ * both). That "you" entry is merged with the seeded `LEADERBOARD_COMPETITORS`
+ * (invented demo peers — see employerSeed.js), sorted by `monthlyTotal`
+ * descending, and assigned a 1-based `rank`.
+ *
+ * `deltaRanks` is a static seeded "↑2" on the employer's own row — an honest
+ * mock: there is no historical-rank store to diff against, so we don't fabricate
+ * a per-competitor movement (competitors report 0).
+ *
+ * @future A `get_employer_leaderboard()` RPC would replace the seeded peers by
+ *   aggregating `SUM(contribution_runs.grand_total)` per employer for the
+ *   current calendar month across ALL employers, tagging `isYou` from the
+ *   `employerId` JWT claim (and could derive a real `deltaRanks` from a
+ *   prior-month snapshot). No SQL is needed now — the demo runs entirely off the
+ *   seed + the caller's own runs.
+ *
+ * @param {string} employerId
+ * @returns {Promise<Array<{ rank:number, name:string, monthlyTotal:number,
+ *   isYou:boolean, deltaRanks:number }>>} ranked best-first.
+ * @cache ['employerLeaderboard', employerId]
+ */
+export async function getEmployerLeaderboard(employerId) {
+  if (!employerId) return [];
+
+  // OWN "this month" = newest run's grandTotal. Reuse getContributionRuns so the
+  // figure is identical on both paths (it already RLS/ownership-scopes the runs).
+  const runs = await getContributionRuns(employerId);
+  const myMonthly = runs[0]?.grandTotal ?? 0;
+
+  // The employer's display name (best-effort; falls back to a neutral label so
+  // the chip never renders an empty company name).
+  const me = await getEmployer(employerId);
+  const myName = me?.name || 'Your company';
+
+  const entries = [
+    { name: myName, monthlyTotal: myMonthly, isYou: true, deltaRanks: 2 },
+    ...LEADERBOARD_COMPETITORS.map((c) => ({
+      name: c.name,
+      monthlyTotal: c.monthlyTotal,
+      isYou: false,
+      deltaRanks: 0,
+    })),
+  ];
+
+  return entries
+    .sort((a, b) => b.monthlyTotal - a.monthlyTotal)
+    .map((e, i) => ({ ...e, rank: i + 1 }));
 }
 
 // =============================================================================

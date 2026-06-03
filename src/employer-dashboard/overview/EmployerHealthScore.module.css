@@ -239,15 +239,151 @@
 
 /* ── Leaderboard slot (col 1) ──────────────────────────────────────────────
    The participation gauge was removed (an employer is a funder, not a saver).
-   This column is held empty so the three-column rhythm survives; a later phase
-   slots a leaderboard chip in here. Sized to roughly the old gauge width so the
-   centrepiece keeps its place without the layout collapsing. */
+   This 160px column now hosts the monthly-contributions leaderboard chip. Sized
+   to roughly the old gauge width so the centrepiece keeps its place without the
+   layout collapsing. */
 .leaderSlot {
   width: 160px;
   align-self: stretch;
+  display: flex;
   border-radius: var(--radius-lg);
   position: relative;
   z-index: 1;
+}
+
+/* ── Monthly leaderboard chip ──────────────────────────────────────────────
+   A compact rank chip (own rank + ▲delta) over a nearby-ranks strip, tuned for
+   the narrow column. Glass card on the dark indigo hero, mirroring metricCard. */
+.leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-md);
+}
+
+.leaderHead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.leaderEyebrow {
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  color: rgba(217,220,242,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.leaderRankRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.leaderRank {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--color-white);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* "▲2" — ranking up is positive: green glyph on an indigo-tinted pill. */
+.leaderDelta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1875rem;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--color-positive);
+  background: rgba(94,99,168,0.22);
+  padding: 0.0625rem 0.375rem;
+  border-radius: var(--radius-full);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.leaderSub {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: rgba(217,220,242,0.45);
+}
+
+/* Nearby-ranks strip — a tight column of rows around "you" (+ #1). */
+.leaderStrip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.leaderRow {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr auto;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3125rem 0.4375rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.02);
+}
+
+/* The employer's own row — anchored in brand indigo so it reads at a glance. */
+.leaderRow[data-you='true'] {
+  background: var(--color-indigo);
+  box-shadow: 0 0 0 1px rgba(148,155,220,0.45) inset;
+}
+
+.leaderRowRank {
+  font-family: var(--font-body);
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: rgba(217,220,242,0.5);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderRow[data-you='true'] .leaderRowRank {
+  color: rgba(255,255,255,0.85);
+}
+
+.leaderRowName {
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: rgba(217,220,242,0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaderRow[data-you='true'] .leaderRowName {
+  color: var(--color-white);
+  font-weight: 700;
+}
+
+.leaderRowTotal {
+  font-family: var(--font-body);
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: rgba(217,220,242,0.55);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderRow[data-you='true'] .leaderRowTotal {
+  color: rgba(255,255,255,0.92);
 }
 
 /* ── Metrics section (col 2) ── */

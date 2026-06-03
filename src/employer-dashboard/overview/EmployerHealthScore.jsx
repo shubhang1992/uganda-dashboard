@@ -136,6 +136,80 @@ function MiniBarTrend({ runs }) {
   );
 }
 
+/* ── Leaderboard chip (col 1) ────────────────────────────────────────────────
+   Fills the slot the participation gauge vacated. A funder cares where their
+   monthly contribution ranks against peers, so the column leads with the
+   employer's own rank ("You're #3 of 12 this month") + a compact strip of the
+   ranks immediately around them (and #1, for context). Fed by
+   `getEmployerLeaderboard` — already sorted best-first with 1-based ranks; this
+   component is pure presentation. Empty leaderboard → renders nothing so the
+   slot stays clean. */
+function LeaderboardChip({ leaderboard }) {
+  // The employer's own row anchors everything (rank chip + which strip rows to
+  // show). Bail out cleanly if the data isn't ready or "you" is missing.
+  const you = useMemo(() => leaderboard.find((e) => e.isYou), [leaderboard]);
+
+  // The few rows worth showing in the ~160px column: #1 (the leader, for
+  // aspiration) plus the immediate neighbours around "you" (above / you / below).
+  // De-duped + re-sorted by rank so #1 never doubles up when you're near the top.
+  const strip = useMemo(() => {
+    if (!you) return [];
+    const byRank = new Map(leaderboard.map((e) => [e.rank, e]));
+    const wanted = new Set([1, you.rank - 1, you.rank, you.rank + 1]);
+    return [...wanted]
+      .map((r) => byRank.get(r))
+      .filter(Boolean)
+      .sort((a, b) => a.rank - b.rank);
+  }, [leaderboard, you]);
+
+  if (!you) return null;
+
+  const total = leaderboard.length;
+  const delta = you.deltaRanks || 0;
+
+  return (
+    <motion.div
+      className={styles.leaderboard}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: 0.2, ease: EASE_OUT_EXPO }}
+      aria-label={`You're ranked number ${you.rank} of ${total} by this month's contribution`}
+    >
+      <div className={styles.leaderHead}>
+        <span className={styles.leaderEyebrow}>Monthly leaderboard</span>
+        <div className={styles.leaderRankRow}>
+          <span className={styles.leaderRank}>#{you.rank}</span>
+          {delta > 0 && (
+            <span className={styles.leaderDelta} aria-label={`Up ${delta} ${delta === 1 ? 'place' : 'places'}`}>
+              <span aria-hidden="true">▲</span>{delta}
+            </span>
+          )}
+        </div>
+        <span className={styles.leaderSub}>of {formatNumber(total)} this month</span>
+      </div>
+
+      <ul className={styles.leaderStrip} aria-label="Nearby ranks">
+        {strip.map((row, i) => (
+          <motion.li
+            key={row.rank}
+            className={styles.leaderRow}
+            data-you={row.isYou || undefined}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.4, delay: 0.35 + i * 0.06, ease: EASE_OUT_EXPO }}
+          >
+            <span className={styles.leaderRowRank}>{row.rank}</span>
+            <span className={styles.leaderRowName}>
+              {row.isYou ? 'You' : row.name}
+            </span>
+            <span className={styles.leaderRowTotal}>{formatUGX(row.monthlyTotal, { compact: true })}</span>
+          </motion.li>
+        ))}
+      </ul>
+    </motion.div>
+  );
+}
+
 /* ── Activity feed ───────────────────────────────────────────────────────────
    Built from the run history (newest-first) + the most recently-enrolled staff.
    Seeded data is MOCK_NOW-anchored, so older items collapse to a short date via
@@ -212,7 +286,7 @@ function computeAlerts(metrics, runs) {
   ];
 }
 
-export default function EmployerHealthScore({ metrics = {}, employees = [], runs = [], employer, user, split = false }) {
+export default function EmployerHealthScore({ metrics = {}, employees = [], runs = [], leaderboard = [], employer, user, split = false }) {
   const { employerId } = useEmployerScope();
   const {
     setEmployeesOpen,
@@ -341,11 +415,13 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
 
       {/* ── Top section: Leaderboard slot + Funding centrepiece + Activity ── */}
       <div className={styles.topGrid}>
-        {/* Col 1: reserved slot. The participation gauge that lived here was
-            removed (an employer is a funder, not a saver). A later phase slots a
-            leaderboard chip in — until then this region stays intentionally
-            empty so the grid keeps its three-column rhythm. */}
-        <div className={styles.leaderSlot} aria-hidden="true" />
+        {/* Col 1: the monthly-contributions leaderboard chip. Replaces the
+            participation gauge removed earlier (an employer is a funder, not a
+            saver). Renders nothing when the leaderboard hasn't loaded, keeping
+            the slot clean while preserving the three-column rhythm. */}
+        <div className={styles.leaderSlot}>
+          {leaderboard.length > 0 && <LeaderboardChip leaderboard={leaderboard} />}
+        </div>
 
         {/* Col 2: Funding centrepiece + funder tiles (cards open the matching panel) */}
         <div className={styles.metricsSection}>
