@@ -1,12 +1,16 @@
-// Employer hero banner — the Overview centerpiece. Cloned from
-// `branch-dashboard/overview/BranchHealthScore.jsx` (same indigo dome, gauge,
-// 3-column topGrid, alerts row + Copilot strip + split-mode reflow), recoloured
-// and relabelled for the employer role.
+// Employer hero banner — the Overview centerpiece. Originally cloned from
+// `branch-dashboard/overview/BranchHealthScore.jsx` (indigo dome, alerts row +
+// Copilot strip + split-mode reflow), then reframed for the employer role.
 //
-// What changed vs the branch hero:
-//   * Gauge is driven by a PARTICIPATION score (active staff actively
-//     contributing vs headcount) instead of the branch composite.
-//   * Metric cards / alerts open the employer slide-in panels (employees /
+// An employer is a FUNDER, not a saver, so the hero leads with money put in +
+// people covered rather than a subscriber-style health gauge:
+//   * Centrepiece — total contributions to date + a mini bar-trend of recent
+//     runs' grand totals (replaces the old participation gauge). The column
+//     where the gauge sat is now an empty slot reserved for a later
+//     leaderboard chip (a separate phase owns that).
+//   * Funder tiles — this month's contribution (newest run + delta vs prior),
+//     staff funded, avg contribution / employee, and run cadence.
+//   * Metric tiles / alerts open the employer slide-in panels (employees /
 //     runs / insurance) via `useEmployerPanel`, not the branch report hub.
 //   * Activity feed is built from the contribution-run history + most-recent
 //     enrolments (the employer has no agent leaderboard).
@@ -27,41 +31,32 @@ import NotificationBell from '../../components/notifications/NotificationBell';
 import styles from './EmployerHealthScore.module.css';
 
 /* ── Derived metrics ─────────────────────────────────────────────────────────
-   Everything the hero needs that isn't already in `metrics`: participation,
-   averages, the employer-share split and a contributing-staff count. */
+   The funder hero leads with money + people, so the only derivations it needs
+   are the staff-funded counts and the average contribution per head. The one
+   subscriber-style figure still computed here is `participationRate`, used
+   solely by the Copilot strip's insight (a deliberate carry-over — the strip is
+   kept verbatim); none of the hero tiles surface it any longer. */
 function deriveMetrics(metrics, employees) {
   const headcount = metrics.headcount || employees.length || 0;
   const active = metrics.active || 0;
+  const totalContributions = metrics.totalContributions || 0;
+  // Average contribution per head across the whole roster (funder lens), guarded
+  // against a divide-by-zero on an empty company.
+  const avgContribution = headcount > 0 ? totalContributions / headcount : 0;
+
   // "Participating" = active staff whose contribution config funds a non-zero
   // amount (an active employer-only or co-contribution member). Suspended staff
-  // and zero-config rows don't count toward participation.
+  // and zero-config rows don't count. Consumed only by the Copilot strip.
   const contributing = employees.filter(
     (e) => e.status === 'active' && contributesSomething(e),
   ).length;
   const participationRate = headcount > 0 ? (contributing / headcount) * 100 : 0;
-  const activeRate = headcount > 0 ? (active / headcount) * 100 : 0;
-
-  const totalBalance = metrics.totalBalance || 0;
-  const avgBalance = headcount > 0 ? totalBalance / headcount : 0;
-
-  const employerYtd = metrics.employerYtd || 0;
-  const employeeYtd = metrics.employeeYtd || 0;
-  const ytdTotal = employerYtd + employeeYtd;
-  const employerShare = ytdTotal > 0 ? (employerYtd / ytdTotal) * 100 : 0;
-
-  const insuredCount = metrics.insuredCount || 0;
-  const insuredRate = headcount > 0 ? (insuredCount / headcount) * 100 : 0;
 
   return {
     headcount,
     active,
-    contributing,
+    avgContribution,
     participationRate,
-    activeRate,
-    avgBalance,
-    employerShare,
-    insuredRate,
-    ytdTotal,
   };
 }
 
@@ -79,26 +74,6 @@ function contributesSomething(emp) {
         : (emp.salary ?? 0) * Number(cfg.employeePct ?? 0) / 100
       : 0;
   return employerHalf + employeeHalf > 0;
-}
-
-/* ── Score ───────────────────────────────────────────────────────────────────
-   A scheme-health score weighted toward participation — the single number the
-   gauge shows. Composite: participation (50%), insured coverage (25%),
-   active-staff rate (25%). Bounded 0-100. */
-function calcScore(derived) {
-  const total = Math.round(
-    derived.participationRate * 0.5 +
-      derived.insuredRate * 0.25 +
-      derived.activeRate * 0.25,
-  );
-  return Math.min(100, Math.max(0, total));
-}
-
-function scoreLabel(s) {
-  if (s >= 85) return 'Excellent';
-  if (s >= 70) return 'Healthy';
-  if (s >= 50) return 'Fair';
-  return 'Needs Attention';
 }
 
 /* ── Insights (Copilot strip) ───────────────────────────────────────────────── */
@@ -121,38 +96,43 @@ function generateInsights(metrics, derived, runs) {
   return insights.slice(0, 4);
 }
 
-/* ── Gauge (cloned verbatim from BranchHealthScore) ─────────────────────────── */
-function ScoreGauge({ score }) {
-  const size = 160, cx = 80, cy = 80, r = 62, strokeW = 13;
-  const startAngle = 135, sweepAngle = 270;
-  const p2c = (a) => { const rad = (a * Math.PI) / 180; return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }; };
-  const s = p2c(startAngle), e = p2c(startAngle + sweepAngle);
-  const arcPath = `M ${s.x} ${s.y} A ${r} ${r} 0 1 1 ${e.x} ${e.y}`;
-  const totalArc = 2 * Math.PI * r * (sweepAngle / 360);
-  const gap = totalArc - (score / 100) * totalArc;
-  const ticks = [0, 25, 50, 75, 100].map((pct) => {
-    const angle = startAngle + (pct / 100) * sweepAngle;
-    const inner = p2c(angle);
-    const outerR = r + strokeW / 2 + 4;
-    const rad = (angle * Math.PI) / 180;
-    return { inner, outer: { x: cx + outerR * Math.cos(rad), y: cy + outerR * Math.sin(rad) }, pct };
-  });
+/* ── Mini bar-trend (centrepiece) ────────────────────────────────────────────
+   A compact column chart of the most recent runs' grand totals, oldest → newest
+   so the eye reads left-to-right toward the latest run. Mirrors the
+   EmployerOperations bar idiom (track + indigo→teal gradient fill, Framer
+   animate-in) but as vertical columns sized for the dark indigo hero. Each
+   column's height is proportional to its grandTotal vs the window max. */
+function MiniBarTrend({ runs }) {
+  // Last 6 runs, flipped to chronological order (runs arrive newest-first).
+  const series = useMemo(() => runs.slice(0, 6).reverse(), [runs]);
+  const max = useMemo(
+    () => series.reduce((m, r) => Math.max(m, r.grandTotal || 0), 0) || 1,
+    [series],
+  );
+
+  if (series.length === 0) return null;
+
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={styles.gauge}>
-      <defs>
-        <linearGradient id="empScoreGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="var(--color-alert)" /><stop offset="35%" stopColor="var(--color-amber)" />
-          <stop offset="65%" stopColor="var(--color-accent-mint)" /><stop offset="100%" stopColor="var(--color-positive)" />
-        </linearGradient>
-        <filter id="empGlow"><feGaussianBlur stdDeviation="6" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-      </defs>
-      <path d={arcPath} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={strokeW + 6} strokeLinecap="round" />
-      <path d={arcPath} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={strokeW} strokeLinecap="round" />
-      {ticks.map((t) => <line key={t.pct} x1={t.inner.x} y1={t.inner.y} x2={t.outer.x} y2={t.outer.y} stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" strokeLinecap="round" />)}
-      <motion.path d={arcPath} fill="none" stroke="url(#empScoreGrad)" strokeWidth={strokeW} strokeLinecap="round" filter="url(#empGlow)"
-        strokeDasharray={totalArc} initial={{ strokeDashoffset: totalArc }} animate={{ strokeDashoffset: gap }}
-        transition={{ duration: 1.4, delay: 0.3, ease: EASE_OUT_EXPO }} />
-    </svg>
+    <div className={styles.trend} role="img" aria-label={`Recent contribution runs — ${series.length} runs`}>
+      {series.map((run, i) => {
+        const pct = Math.max(((run.grandTotal || 0) / max) * 100, 4);
+        const isLatest = i === series.length - 1;
+        return (
+          <div key={run.id} className={styles.trendCol}>
+            <div className={styles.trendTrack}>
+              <motion.div
+                className={styles.trendFill}
+                data-latest={isLatest || undefined}
+                initial={{ height: 0 }}
+                animate={{ height: `${pct}%` }}
+                transition={{ duration: 0.7, delay: 0.3 + i * 0.06, ease: EASE_OUT_EXPO }}
+              />
+            </div>
+            <span className={styles.trendLabel}>{run.periodLabel}</span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -250,20 +230,41 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
   }
 
   const derived = useMemo(() => deriveMetrics(metrics, employees), [metrics, employees]);
-  const score = useMemo(() => calcScore(derived), [derived]);
   const events = useMemo(() => generateActivity(runs, employees), [runs, employees]);
   const insights = useMemo(() => generateInsights(metrics, derived, runs), [metrics, derived, runs]);
   const alerts = useMemo(() => computeAlerts(metrics, runs), [metrics, runs]);
 
-  // "This period contributed" — the latest run's grand total + its split.
+  // ── Centrepiece: total contributions to date + the run window it spans ──
+  const totalContributions = metrics.totalContributions || 0;
+  // Oldest run = last element (runs arrive newest-first); its month anchors the
+  // "since …" sublabel. Guarded against empty runs.
+  const oldestRun = runs.length ? runs[runs.length - 1] : null;
+  const sinceLabel = oldestRun
+    ? formatDate(oldestRun.runAt, { variant: 'short-month-year' })
+    : null;
+
+  // ── This month's contribution ──
+  // Key off the NEWEST run, not a calendar-month lookup: the seed runs predate
+  // the real clock, so a literal "is this run in the current month?" check would
+  // read zero. The latest run IS "this month's" contribution for the demo.
   const latest = runs[0];
-  const thisPeriod = latest?.grandTotal ?? derived.ytdTotal;
-  // Change vs the previous run (so the badge reflects period-over-period).
   const prevRun = runs[1];
-  const periodChange =
+  const thisMonth = latest?.grandTotal ?? 0;
+  // Signed delta vs the prior run (period-over-period); omitted when no prior.
+  const monthDelta =
     latest && prevRun && prevRun.grandTotal
       ? Math.round(((latest.grandTotal - prevRun.grandTotal) / prevRun.grandTotal) * 100)
-      : 0;
+      : null;
+
+  // ── Run cadence ── employer.payrollCadence is 'monthly', so the next run is
+  // one month after the last. Guarded for an employer with no runs yet.
+  const lastRunAt = latest?.runAt ?? null;
+  const nextRunLabel = lastRunAt
+    ? formatDate(
+        new Date(new Date(lastRunAt).getFullYear(), new Date(lastRunAt).getMonth() + 1, 1),
+        { variant: 'short-month-year' },
+      )
+    : null;
 
   /* ── Copilot strip (wired to the chat mock, like the branch hero) ── */
   const [copilotOpen, setCopilotOpen] = useState(false);
@@ -338,73 +339,71 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
         </div>
       </div>
 
-      {/* ── Top section: Score + Metrics + Activity ── */}
+      {/* ── Top section: Leaderboard slot + Funding centrepiece + Activity ── */}
       <div className={styles.topGrid}>
-        {/* Col 1: Participation score */}
-        <div className={styles.scoreSection}>
-          <div className={styles.gaugeWrap}>
-            <ScoreGauge score={score} />
-            <div className={styles.scoreCenter}>
-              <motion.span className={styles.scoreNumber}
-                initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 0.8, ease: EASE_OUT_EXPO }}>
-                {score}
-              </motion.span>
-              <span className={styles.scoreQuality}>{scoreLabel(score)}</span>
-            </div>
-          </div>
-          <span className={styles.scoreLabel}>Scheme Health</span>
-          <div className={styles.rankBadge}>
-            <span className={styles.rankNumber}>{Math.round(derived.participationRate)}%</span>
-            <span className={styles.rankOf}>staff enrolled</span>
-          </div>
-        </div>
+        {/* Col 1: reserved slot. The participation gauge that lived here was
+            removed (an employer is a funder, not a saver). A later phase slots a
+            leaderboard chip in — until then this region stays intentionally
+            empty so the grid keeps its three-column rhythm. */}
+        <div className={styles.leaderSlot} aria-hidden="true" />
 
-        {/* Col 2: Metrics (clickable cards open the matching panel) */}
+        {/* Col 2: Funding centrepiece + funder tiles (cards open the matching panel) */}
         <div className={styles.metricsSection}>
-          <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
-            <span className={styles.metricLabel}>Total Staff Balance</span>
-            <span className={styles.metricValue}>{formatUGX(metrics.totalBalance || 0)}</span>
+          {/* Centrepiece — total contributions to date + mini bar-trend */}
+          <button type="button" className={`${styles.centrepiece} ${styles.metricCard}`} onClick={() => openPanel('runs')}>
+            <span className={styles.metricLabel}>Total contributions to date</span>
+            <motion.span className={styles.centreValue}
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3, ease: EASE_OUT_EXPO }}>
+              {formatUGX(totalContributions)}
+            </motion.span>
+            <span className={styles.centreSub}>
+              {runs.length > 0
+                ? `across ${formatNumber(runs.length)} run${runs.length === 1 ? '' : 's'}${sinceLabel ? ` since ${sinceLabel}` : ''}`
+                : 'No contribution runs yet'}
+            </span>
+            <MiniBarTrend runs={runs} />
           </button>
-          <div className={styles.metricPair}>
-            <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
-              <span className={styles.metricLabel}>Employees</span>
-              <div className={styles.metricRow}>
-                <span className={styles.metricValueMd}>{formatNumber(metrics.headcount || 0)}</span>
-                <span className={styles.metricSub}>{metrics.active || 0} active</span>
-              </div>
-            </button>
+
+          {/* Funder tiles */}
+          <div className={styles.tileGrid}>
             <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('runs')}>
-              <span className={styles.metricLabel}>This Period</span>
+              <span className={styles.metricLabel}>This month&apos;s contribution</span>
               <div className={styles.metricRow}>
-                <span className={styles.metricValueMd}>{formatUGX(thisPeriod)}</span>
-                {prevRun && (
-                  <span className={styles.changeBadge} data-positive={periodChange >= 0}>
-                    <svg aria-hidden="true" viewBox="0 0 10 10" width="8" height="8"><path d={periodChange >= 0 ? 'M5 2l3.5 5H1.5z' : 'M5 8L1.5 3h7z'} fill="currentColor" /></svg>
-                    {Math.abs(periodChange)}%
+                <span className={styles.metricValueMd}>{formatUGX(thisMonth)}</span>
+                {monthDelta != null && (
+                  <span className={styles.changeBadge} data-positive={monthDelta >= 0}>
+                    <svg aria-hidden="true" viewBox="0 0 10 10" width="8" height="8"><path d={monthDelta >= 0 ? 'M5 2l3.5 5H1.5z' : 'M5 8L1.5 3h7z'} fill="currentColor" /></svg>
+                    {Math.abs(monthDelta)}%
                   </span>
                 )}
               </div>
             </button>
-          </div>
-          <div className={styles.kpiGrid}>
-            <button type="button" className={`${styles.kpiItem} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
-              <span className={styles.kpiLabel}>Participation</span>
-              <div className={styles.kpiRow}>
-                <span className={styles.kpiValue}>{Math.round(derived.participationRate)}%</span>
-                <div className={styles.kpiBar}><motion.div className={styles.kpiFill} data-variant="teal" initial={{ width: 0 }} animate={{ width: `${derived.participationRate}%` }} transition={{ duration: 0.8, delay: 0.4, ease: EASE_OUT_EXPO }} /></div>
+            <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
+              <span className={styles.metricLabel}>Staff</span>
+              <div className={styles.metricRow}>
+                <span className={styles.metricValueMd}>{formatNumber(derived.active)}</span>
+                <span className={styles.metricSub}>of {formatNumber(derived.headcount)}</span>
               </div>
             </button>
-            <button type="button" className={`${styles.kpiItem} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
-              <span className={styles.kpiLabel}>Avg / Employee</span>
-              <span className={styles.kpiValue}>{formatUGX(derived.avgBalance)}</span>
+            <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
+              <span className={styles.metricLabel}>Avg / Employee</span>
+              <span className={styles.metricValueMd}>{formatUGX(derived.avgContribution)}</span>
             </button>
-            <button type="button" className={`${styles.kpiItem} ${styles.metricCard}`} onClick={() => openPanel('runs')}>
-              <span className={styles.kpiLabel}>Employer Share</span>
-              <div className={styles.kpiRow}>
-                <span className={styles.kpiValue}>{Math.round(derived.employerShare)}%</span>
-                <div className={styles.kpiBar}><motion.div className={styles.kpiFill} data-variant="indigo" initial={{ width: 0 }} animate={{ width: `${derived.employerShare}%` }} transition={{ duration: 0.8, delay: 0.5, ease: EASE_OUT_EXPO }} /></div>
-              </div>
+            <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('runs')}>
+              <span className={styles.metricLabel}>Run cadence</span>
+              {latest ? (
+                <>
+                  <span className={styles.metricValueSm}>
+                    Last run {formatDate(latest.runAt)}
+                    <span className={styles.metricInlineDot} aria-hidden="true">·</span>
+                    {formatRelativeTime(latest.runAt)}
+                  </span>
+                  {nextRunLabel && <span className={styles.metricSub}>Next ~{nextRunLabel}</span>}
+                </>
+              ) : (
+                <span className={styles.metricValueSm}>No runs yet</span>
+              )}
             </button>
           </div>
         </div>

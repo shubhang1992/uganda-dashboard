@@ -1,10 +1,11 @@
 /* ============================================================================
    EMPLOYER HEALTH SCORE — hero banner
-   Cloned from branch-dashboard/overview/BranchHealthScore.module.css.
-   Same indigo dome + ambient glows + 3-column topGrid + alerts row + Copilot
-   strip + split-mode reflow. The only additions vs the branch sheet are the
-   `kpiFill[data-variant='indigo']` accent (employer-share KPI) and the
-   employer-relabelled comments.
+   Originally cloned from branch-dashboard/overview/BranchHealthScore.module.css
+   (indigo dome + ambient glows + 3-column topGrid + alerts row + Copilot strip
+   + split-mode reflow), then reframed for the funder lens: the participation
+   gauge column became an empty `leaderSlot` (a later phase slots a leaderboard
+   chip there), and col 2 leads with the funding `centrepiece` (total
+   contributions + a mini bar-`trend`) above the funder `tileGrid`.
    ============================================================================ */
 
 .hero {
@@ -30,12 +31,18 @@
 
 /* ── Split-view: docked left while a panel is open ── */
 .hero[data-split='true'] .topGrid {
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 1fr;
   gap: var(--space-5);
   padding: var(--space-3) var(--space-6) var(--space-4);
 }
 
 .hero[data-split='true'] .activitySection {
+  display: none;
+}
+
+/* The empty leaderboard slot is hidden in the narrow docked hero so the
+   centrepiece takes the full width. */
+.hero[data-split='true'] .leaderSlot {
   display: none;
 }
 
@@ -47,15 +54,15 @@
   font-size: 1.625rem;
 }
 
-.hero[data-split='true'] .metricValue {
-  font-size: 1.5rem;
+.hero[data-split='true'] .centreValue {
+  font-size: 2rem;
 }
 
 .hero[data-split='true'] .metricsSection {
   gap: 0.625rem;
 }
 
-.hero[data-split='true'] .metricPair {
+.hero[data-split='true'] .tileGrid {
   gap: var(--space-3);
 }
 
@@ -230,94 +237,17 @@
   pointer-events: none;
 }
 
-/* ── Score section (col 1) ── */
-.scoreSection {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
+/* ── Leaderboard slot (col 1) ──────────────────────────────────────────────
+   The participation gauge was removed (an employer is a funder, not a saver).
+   This column is held empty so the three-column rhythm survives; a later phase
+   slots a leaderboard chip in here. Sized to roughly the old gauge width so the
+   centrepiece keeps its place without the layout collapsing. */
+.leaderSlot {
+  width: 160px;
+  align-self: stretch;
+  border-radius: var(--radius-lg);
   position: relative;
   z-index: 1;
-}
-
-.gaugeWrap {
-  position: relative;
-  width: 160px;
-  height: 160px;
-}
-
-.gauge {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.scoreCenter {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  padding-bottom: 10px;
-}
-
-.scoreNumber {
-  font-family: var(--font-display);
-  font-size: 2.875rem;
-  font-weight: 800;
-  color: var(--color-white);
-  letter-spacing: -0.04em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.scoreQuality {
-  font-family: var(--font-body);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: rgba(74,222,128,0.8);
-  margin-top: 0.25rem;
-  letter-spacing: 0.02em;
-}
-
-.scoreLabel {
-  font-family: var(--font-body);
-  font-size: 0.5625rem;
-  font-weight: 600;
-  color: rgba(217,220,242,0.4);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  margin-top: -0.25rem;
-}
-
-/* ── Enrolment badge (peer-rank slot) ── */
-.rankBadge {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.75rem;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: var(--radius-full);
-  margin-top: var(--space-1);
-}
-
-.rankNumber {
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  font-weight: 800;
-  color: var(--color-accent-mint);
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.rankOf {
-  font-family: var(--font-body);
-  font-size: 0.5625rem;
-  font-weight: 500;
-  color: rgba(217,220,242,0.4);
 }
 
 /* ── Metrics section (col 2) ── */
@@ -337,7 +267,7 @@
   gap: 0.1875rem;
 }
 
-/* Clickable metric card overlay — composable with metricBlock / kpiItem */
+/* Clickable metric card overlay — composable with metricBlock / centrepiece */
 .metricCard {
   width: 100%;
   padding: 0.625rem 0.75rem;
@@ -377,16 +307,6 @@
   flex-wrap: wrap;
 }
 
-.metricValue {
-  font-family: var(--font-display);
-  font-size: 1.625rem;
-  font-weight: 800;
-  color: var(--color-white);
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-
 .metricValueMd {
   font-family: var(--font-display);
   font-size: var(--text-lg);
@@ -396,6 +316,22 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Smaller metric value for copy-heavy tiles (e.g. run cadence). */
+.metricValueSm {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: rgba(255,255,255,0.92);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.metricInlineDot {
+  color: rgba(217,220,242,0.35);
+  margin: 0 0.375rem;
+}
+
 .metricSub {
   font-family: var(--font-body);
   font-size: var(--text-xs);
@@ -403,10 +339,90 @@
   color: rgba(217,220,242,0.4);
 }
 
-.metricPair {
+/* ── Funding centrepiece ──────────────────────────────────────────────────────
+   The hero's dominant figure: total contributions to date, with the run window
+   sublabel and a mini bar-trend of recent runs underneath. */
+.centrepiece {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+}
+
+.centreValue {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--color-white);
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  margin: 0.0625rem 0 0.125rem;
+}
+
+.centreSub {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: rgba(217,220,242,0.55);
+}
+
+/* Mini bar-trend — vertical columns, oldest → newest. Mirrors the
+   EmployerOperations bar idiom (indigo→teal gradient fill) but as columns. */
+.trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.375rem;
+  height: 48px;
+  margin-top: 0.5rem;
+}
+
+.trendCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.trendTrack {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.trendFill {
+  width: 100%;
+  max-width: 22px;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, var(--color-indigo-soft), rgba(94,99,168,0.45));
+}
+
+/* The newest run reads as the live one — brighter teal-tipped fill. */
+.trendFill[data-latest='true'] {
+  background: linear-gradient(180deg, var(--color-teal), var(--color-positive-soft));
+}
+
+.trendLabel {
+  font-family: var(--font-body);
+  font-size: 0.5rem;
+  font-weight: 500;
+  color: rgba(217,220,242,0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ── Funder tiles ── */
+.tileGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .changeBadge {
@@ -429,67 +445,6 @@
 .changeBadge[data-positive='false'] {
   color: #FB7185;
   background: rgba(251,113,133,0.12);
-}
-
-/* ── KPI grid ── */
-.kpiGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: var(--space-3);
-}
-
-.kpiItem {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.kpiLabel {
-  font-family: var(--font-body);
-  font-size: 0.5625rem;
-  font-weight: 500;
-  color: rgba(217,220,242,0.4);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.kpiRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.kpiValue {
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  font-weight: 800;
-  color: rgba(217,220,242,0.85);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-}
-
-.kpiBar {
-  flex: 1;
-  height: 4px;
-  background: rgba(255,255,255,0.05);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.kpiFill {
-  height: 100%;
-  border-radius: 2px;
-}
-
-.kpiFill[data-variant='teal'] {
-  background: linear-gradient(90deg, var(--color-teal), var(--color-positive));
-}
-
-/* Employer-share KPI — indigo accent distinguishes it from the teal
-   participation bar. */
-.kpiFill[data-variant='indigo'] {
-  background: linear-gradient(90deg, var(--color-indigo-soft), var(--color-positive-soft));
 }
 
 /* ── Activity section (col 3) ── */
@@ -1073,9 +1028,13 @@
 
 @media (max-width: 1024px) {
   .topGrid {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 1fr;
     grid-template-rows: auto auto;
   }
+
+  /* The empty leaderboard slot reserves no space until tablet+ — drop it so the
+     centrepiece spans the full width. */
+  .leaderSlot { display: none; }
 
   .activitySection {
     grid-column: 1 / -1;
@@ -1096,7 +1055,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-   768px — keep 2-col gauge+metrics layout, tighten padding
+   768px — single-column centrepiece + tiles, tighten padding
    ══════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
   .hero { border-radius: var(--radius-lg); }
@@ -1119,19 +1078,13 @@
     padding: var(--space-2) var(--space-4) var(--space-3);
   }
 
-  .gaugeWrap { width: 130px; height: 130px; }
-  .scoreNumber { font-size: 2rem; }
+  .centreValue { font-size: 2rem; }
 
-  .metricValue { font-size: var(--text-xl); }
   .metricValueMd { font-size: var(--text-sm); }
+  .metricValueSm { font-size: var(--text-xs); }
   .metricSub { font-size: 0.625rem; }
-  .metricPair { gap: var(--space-2); }
+  .tileGrid { gap: var(--space-2); }
   .metricsSection { gap: var(--space-2); }
-
-  .kpiGrid {
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-2);
-  }
 
   .activitySection { max-height: 100px; padding-top: var(--space-2); }
 
@@ -1178,15 +1131,10 @@
     gap: var(--space-3);
   }
 
-  .scoreSection { align-items: center; }
-  .gaugeWrap { width: 120px; height: 120px; }
-  .scoreNumber { font-size: 1.875rem; }
+  .centreValue { font-size: 1.875rem; }
 
-  .metricValue { font-size: var(--text-lg); }
   .metricValueMd { font-size: var(--text-base); }
-  .metricPair { gap: var(--space-2); }
-
-  .kpiGrid { grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+  .tileGrid { grid-template-columns: 1fr; gap: var(--space-2); }
 
   .activitySection {
     grid-column: 1;
