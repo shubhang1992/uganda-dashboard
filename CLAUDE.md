@@ -1,6 +1,6 @@
 # CLAUDE.md — Universal Pensions Uganda
 
-Slim entry index for this repo. Two deep specialist docs sit alongside this file: **`FRONTEND.md`** (React/Vite/CSS Modules) and **`BACKEND.md`** (Express on Render + Supabase + RLS). Detail lives in those two files and in `docs/*`; this file is for orientation only.
+Slim entry index for this repo. Two deep specialist docs live under `docs/`: **`docs/FRONTEND.md`** (React/Vite/CSS Modules) and **`docs/BACKEND.md`** (Express on Render + Supabase + RLS). Detail lives in those two files and the rest of `docs/`; this file (at the repo root) is for orientation only.
 
 ---
 
@@ -10,7 +10,7 @@ Slim entry index for this repo. Two deep specialist docs sit alongside this file
 
 - **Live URL:** `uganda-dashboard.vercel.app` (auto-deploy on push to `main` — do not push without explicit approval). **Applies to both:** Vercel (frontend, automatic via the GitHub App integration) and Render (backend at `uganda-dashboard-api.onrender.com`, **manual** deploys only — `autoDeployTrigger: off` in `render.yaml`).
 - **Stack:** React 19 · Vite 6 · CSS Modules (no Tailwind) · Framer Motion 12 · React Router 7 · TanStack Query 5 / Virtual 3 · Leaflet 1.9 · Recharts 3 · Express 5 on Render (Node 22, Singapore region) · Supabase Postgres · custom HS256 JWT via `jose`.
-- **Role build status (5 of 6 built):** subscriber, agent, branch, distributor, and employer are live. Admin is deferred (no shell, no RLS policies yet — see `BACKEND.md §8`). Employer shipped on `feat/employer-dashboard` (migrations `0034`/`0035`, desktop-first shell mirroring branch admin — see `FRONTEND.md` + `BACKEND.md §8`). Next when resumed: **Admin** (central admin with global rights).
+- **Role build status (5 of 6 built):** subscriber, agent, branch, distributor, and employer are live. Admin is deferred (no shell, no RLS policies yet — see `docs/BACKEND.md §8`). Employer **shipped to production 2026-06-03** (merged to `main` via PR #8; Vercel frontend + Render backend deployed; desktop-first shell mirroring branch admin — see `docs/FRONTEND.md` + `docs/BACKEND.md §8`); its DB stack (migrations `0032`–`0036`) is applied to live and recorded in the ledger. Next when resumed: **Admin** (central admin with global rights).
 
 ---
 
@@ -18,14 +18,14 @@ Slim entry index for this repo. Two deep specialist docs sit alongside this file
 
 If you're working on… | Open this
 --- | ---
-A React component, hook, service, dashboard variant, signup step, commission UI, design token, accessibility rule | `FRONTEND.md`
-An API route, SQL schema, RLS policy, RPC, migration, trigger, seed script, JWT/auth flow, commission settlement flow | `BACKEND.md`
-System architecture, layered patterns, role boundaries, auth model, write/realtime patterns | `ARCHITECTURE.md`
+A React component, hook, service, dashboard variant, signup step, commission UI, design token, accessibility rule | `docs/FRONTEND.md`
+An API route, SQL schema, RLS policy, RPC, migration, trigger, seed script, JWT/auth flow, commission settlement flow | `docs/BACKEND.md`
+System architecture, layered patterns, role boundaries, auth model, write/realtime patterns | `docs/ARCHITECTURE.md`
 Role × capability matrix (who can see/do what) | `docs/role-permissions.md`
 Field-level entity model / aggregation rules / health-score formula | `docs/data-model.md`
 HTTP request/response shapes + cache keys / invalidation table | `docs/api-contracts.md`
 Product spec, personas, workflows, business rules | `docs/SPEC.md`
-QA audit findings & fix log | `docs/DASHBOARD_AUDIT.md`, `docs/DASHBOARD_AUDIT_FIXES.md`
+QA audit findings & fix log; prior full audits | `docs/audits/` (e.g. `dashboard/DASHBOARD_AUDIT.md` + `…_FIXES.md`, `2026-05-31/`, `2026-04-distributor/`)
 Browser-level E2E suite (`/qa`) + Playwright config | `.claude/skills/qa.md`
 Design artifacts (Figma exports etc.) | `docs/design/`
 
@@ -53,7 +53,8 @@ Script | Purpose
 `npm test` | Vitest one-shot
 `npm run test:watch` | Vitest watch
 `npm run test:e2e` | Playwright E2E suite (full). Subcommands: `:smoke`, `:flows`, `:headed`, `:ui`. See `.claude/skills/qa.md`.
-`npm run seed` | Seed Supabase via `scripts/seed-supabase.mjs` (see `BACKEND.md §12`)
+`npm run seed` | Seed Supabase via `scripts/seed-supabase.mjs` (see `docs/BACKEND.md §12`)
+`npm run deploy:api` | Trigger a manual Render backend deploy via the deploy hook (`scripts/render-deploy.mjs`; POSTs `RENDER_DEPLOY_HOOK` from `.env.local`). Render is `autoDeployTrigger: off` — see `docs/render-operational.md`
 
 **Env vars** (full table in `BACKEND.md §2`; template in `.env.local.example`):
 
@@ -190,7 +191,7 @@ See `FRONTEND.md §16a` and `BACKEND.md §14a` for the role-specific demo-scope 
 - **`MOCK_NOW = new Date(2026, 4, 26)`** (2026-05-26) in `src/data/mockData.js` anchors "due in N days" demos. Slide it forward (or flip to `new Date()`) when the demo's relative dates start looking stale.
 - **README.md is stale** — currently 87 lines, only documents the landing page, claims "Vite 8" (actually Vite 6.3), no mention of dashboards or backend. Flagged here; a ~30-min refresh is a separate follow-up.
 - **NPM deps inventory (verified 2026-05-22 in audit Phase 6):** every direct dep in `package.json` is actually used. `dotenv` is used by `e2e/fixtures/db.ts:13` + `playwright.config.ts:16` (NOT unused). `react-is` is required transitively by `recharts` (build fails without it). `jose` is used in `api/_lib/jwt.ts`; `pg` is used in `scripts/seed-supabase.mjs`. None should be removed.
-- **Real bugs in the demo experience** (not demo-scope) are catalogued in `FRONTEND.md §16b` (subscriber Settings/notifications + Settings/security are `StubPage` placeholders) and `BACKEND.md §14b` (nominee shares can sum >100%, admin role unbuilt). The employer role is now built (migrations `0034`/`0035`); only employee **onboarding** remains a deferred placeholder (Phase 9). The commission dispute/maker-checker flow was removed in the 0029–0031 simplification, so the old `agent_dispute_line` / `disputeCommission` items no longer apply.
+- **Real bugs in the demo experience** (not demo-scope) are catalogued in `docs/FRONTEND.md §16b` (subscriber Settings/notifications + Settings/security are `StubPage` placeholders) and `docs/BACKEND.md §14b` (nominee shares can sum >100%, admin role unbuilt). The employer role is **shipped to production** (migrations `0032`–`0036` applied to live); only employee **onboarding** remains a deferred placeholder (Phase 9). The commission dispute/maker-checker flow was removed in the 0029–0031 simplification, so the old `agent_dispute_line` / `disputeCommission` items no longer apply.
 
 ---
 
@@ -202,9 +203,9 @@ See `FRONTEND.md §16a` and `BACKEND.md §14a` for the role-specific demo-scope 
 
 ## See also
 
-- [`FRONTEND.md`](./FRONTEND.md) — services, hooks, contexts, dashboard variants, signup flow, design tokens, accessibility, frontend findings
-- [`BACKEND.md`](./BACKEND.md) — env vars, API routes, `_lib/` helpers, auth flow, schema, migrations, RLS, RPCs, commission settlement flow, triggers, seeding, runbook
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system architecture: layered patterns, role boundaries, auth model, write/realtime patterns
+- [`FRONTEND.md`](./docs/FRONTEND.md) — services, hooks, contexts, dashboard variants, signup flow, design tokens, accessibility, frontend findings
+- [`BACKEND.md`](./docs/BACKEND.md) — env vars, API routes, `_lib/` helpers, auth flow, schema, migrations, RLS, RPCs, commission settlement flow, triggers, seeding, runbook
+- [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — system architecture: layered patterns, role boundaries, auth model, write/realtime patterns
 - [`docs/role-permissions.md`](./docs/role-permissions.md) — role × capability matrix
 - [`docs/data-model.md`](./docs/data-model.md) — field-level entity model + aggregation rules
 - [`docs/api-contracts.md`](./docs/api-contracts.md) — HTTP shapes + cache keys + invalidation

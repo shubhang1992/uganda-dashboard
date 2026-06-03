@@ -1398,12 +1398,12 @@ export const MAX_ROWS
 
 ## See also
 
-- [`CLAUDE.md`](./CLAUDE.md) — slim entry index, hard rules, demo personas, glossary
+- [`CLAUDE.md`](../CLAUDE.md) — slim entry index, hard rules, demo personas, glossary
 - [`BACKEND.md`](./BACKEND.md) — API routes, RLS, RPCs, migrations, commission state machine
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system architecture: layered patterns, role boundaries, auth model, write/realtime patterns
-- [`docs/role-permissions.md`](./docs/role-permissions.md) — role × capability matrix
-- [`docs/data-model.md`](./docs/data-model.md) — full entity hierarchy with field definitions
-- [`docs/api-contracts.md`](./docs/api-contracts.md) — HTTP shapes + cache keys + invalidation
+- [`docs/role-permissions.md`](./role-permissions.md) — role × capability matrix
+- [`docs/data-model.md`](./data-model.md) — full entity hierarchy with field definitions
+- [`docs/api-contracts.md`](./api-contracts.md) — HTTP shapes + cache keys + invalidation
 
 ---
 

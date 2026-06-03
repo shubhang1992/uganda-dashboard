@@ -1,8 +1,8 @@
 # ARCHITECTURE.md — Universal Pensions Uganda
 
-System architecture for the Uganda Pensions demo platform: the patterns and boundaries that hold across the React app, the Vercel serverless API, and the Supabase database. This doc is **about how the pieces fit together** — not file-level detail. For file-level inventories, see [`FRONTEND.md`](./FRONTEND.md) and [`BACKEND.md`](./BACKEND.md); for the slim orientation index, see [`CLAUDE.md`](./CLAUDE.md).
+System architecture for the Uganda Pensions demo platform: the patterns and boundaries that hold across the React app, the Vercel serverless API, and the Supabase database. This doc is **about how the pieces fit together** — not file-level detail. For file-level inventories, see [`FRONTEND.md`](./FRONTEND.md) and [`BACKEND.md`](./BACKEND.md); for the slim orientation index, see [`CLAUDE.md`](../CLAUDE.md).
 
-> **Scope note.** Uganda Pensions is a **sales-rep demo**, not a production fintech. Many decisions captured below (custom HS256 JWT with no refresh, demo-persona fallback IDs, hardcoded UGX 1,000 unit price, mocked KYC/SMS/chat, per-session mutation stores) are intentional demo affordances. The demo silences and fallbacks called out in §4 are explicitly **by design** — proposing real SMS/payment/KYC/audit/compliance integrations is out of scope per [`CLAUDE.md §10a`](./CLAUDE.md).
+> **Scope note.** Uganda Pensions is a **sales-rep demo**, not a production fintech. Many decisions captured below (custom HS256 JWT with no refresh, demo-persona fallback IDs, hardcoded UGX 1,000 unit price, mocked KYC/SMS/chat, per-session mutation stores) are intentional demo affordances. The demo silences and fallbacks called out in §4 are explicitly **by design** — proposing real SMS/payment/KYC/audit/compliance integrations is out of scope per [`CLAUDE.md §10a`](../CLAUDE.md).
 
 > **Post-cleanup state.** This document reflects the platform as of branch `cleanup/post-audit-2026-05-26` (May 2026). The cleanup sprint closed F1, F22, D10, D11 alongside Phases 1, 2, 4, and 7 structural changes — captured throughout below as inline references to the commit SHAs that landed each change.
 
@@ -284,7 +284,7 @@ Three demo-mode silences remain **on purpose**. Each is an intentional feature o
 | **`demo_personas` fallback rows.** Unknown phones for agent/branch/distributor resolve to `a-001` / `b-kam-015` / `d-001`. | Every demo login succeeds even if the persona seed drifted (`CLAUDE.md §8`). | `resolveDemoPersona` returns `ROLE_DEFAULTS[role]` when no row matches. |
 | **`_sessionMutations` + `_entityOverrides` in-memory tables.** `src/services/subscriber.js` (`_sessionMutations`) and `src/services/entities.js` (`_entityOverrides`) layer demo writes over frozen `mockData.js`, reset on browser refresh. | Drives "what-if" demos: a sales rep flips a status, sees the dashboard reflect it, then refreshes to reset. | Only used in the `VITE_USE_SUPABASE=false` mock branch. Real branch hits Supabase and persists. |
 
-**These are not future cleanup items.** They are demo affordances — proposing real SMS/rate-limit/persona-required/persistence integrations is out of scope per [`CLAUDE.md §10a`](./CLAUDE.md).
+**These are not future cleanup items.** They are demo affordances — proposing real SMS/rate-limit/persona-required/persistence integrations is out of scope per [`CLAUDE.md §10a`](../CLAUDE.md).
 
 See also: [`BACKEND.md §14a`](./BACKEND.md) (demo-scope inventory).
 
@@ -457,7 +457,7 @@ The architecture rule for an opaque test suite: **no `test.fail()` count > 0** (
 
 The single FEATURE-GATED skip is documented in-line; an unconditional skip on a real bug should be either a `test.fail` or removed once the bug is fixed. See `e2e/specs/regression/modal-escape.spec.ts:75-88` for the rationale comment.
 
-See also: [`.claude/skills/qa.md`](./.claude/skills/qa.md) for the full E2E playbook.
+See also: [`.claude/skills/qa.md`](../.claude/skills/qa.md) for the full E2E playbook.
 
 ---
 
@@ -720,7 +720,7 @@ See also: [`BACKEND.md §7`](./BACKEND.md) (migration history).
   - E2E gated on lint + unit + tsc success: smoke + flows on chromium + mobile-chromium for PRs; full matrix on push to `main`. `--workers=1` because the suite shares one Supabase project. Playwright spins up Vite (`:5173`) + Express (`:3001`) locally via `webServer.command = 'npm run dev:all'`.
   - Concurrency block cancels in-flight runs on the same ref.
 
-See also: [`BACKEND.md §16`](./BACKEND.md) (operational runbook) and [`docs/render-operational.md`](./docs/render-operational.md) (Render-specific runbook: manual deploys, log retention, deploy outage window, silent-failure recovery).
+See also: [`BACKEND.md §16`](./BACKEND.md) (operational runbook) and [`docs/render-operational.md`](./render-operational.md) (Render-specific runbook: manual deploys, log retention, deploy outage window, silent-failure recovery).
 
 ---
 
@@ -758,10 +758,10 @@ The discipline (per `CLAUDE.md §11`): when you add a service, hook, table, RPC,
 
 ## See also
 
-- [`CLAUDE.md`](./CLAUDE.md) — slim orientation index, hard rules, anti-patterns, glossary, demo credentials, awareness items
+- [`CLAUDE.md`](../CLAUDE.md) — slim orientation index, hard rules, anti-patterns, glossary, demo credentials, awareness items
 - [`FRONTEND.md`](./FRONTEND.md) — services, hooks, contexts, dashboard variants, signup flow, design tokens, accessibility
 - [`BACKEND.md`](./BACKEND.md) — env vars, API routes, `_lib/` helpers, auth flow, schema, migrations, RLS, RPCs, commission state machine, triggers, seeding, runbook
-- [`docs/role-permissions.md`](./docs/role-permissions.md) — role × capability matrix
-- [`docs/data-model.md`](./docs/data-model.md) — field-level entity model + aggregation rules
-- [`docs/api-contracts.md`](./docs/api-contracts.md) — HTTP shapes + cache keys
-- [`docs/SPEC.md`](./docs/SPEC.md) — product spec, personas, workflows
+- [`docs/role-permissions.md`](./role-permissions.md) — role × capability matrix
+- [`docs/data-model.md`](./data-model.md) — field-level entity model + aggregation rules
+- [`docs/api-contracts.md`](./api-contracts.md) — HTTP shapes + cache keys
+- [`docs/SPEC.md`](./SPEC.md) — product spec, personas, workflows
