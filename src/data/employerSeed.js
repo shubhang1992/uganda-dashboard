@@ -83,6 +83,10 @@ function makeEmployee(partial) {
     gender: 'male',
     status: 'active',
     contributionSchedule: DEFAULT_SCHEDULE,
+    // The employee's OWN monthly saving (UGX) — the base the co-contribution
+    // employer match is computed against (funder-redesign, migration 0037).
+    // Defaults to 0; set per-row below. Does NOT drive run-line derivation.
+    monthlyContribution: 0,
     insuranceCover: 0,
     insurancePremiumMonthly: 0,
     insuranceStatus: 'inactive',
@@ -117,6 +121,7 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-001', name: 'Brian Okello', phone: '+256700100001', email: 'brian.okello@nilebreweries.demo',
     gender: 'male', age: 38, nin: 'CM38010012345A', jobTitle: 'Plant Manager', salary: 4200000,
+    monthlyContribution: 210000, // co(10,5): 4,200,000 × 5%
     joinedDate: dateDaysAgo(900), contributionConfig: co(10, 5),
     retirementBalance: 7200000, emergencyBalance: 1800000,
     insuranceCover: 25000000, insurancePremiumMonthly: 42000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-210),
@@ -124,6 +129,7 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-002', name: 'Grace Nakato', phone: '+256700100002', email: 'grace.nakato@nilebreweries.demo',
     gender: 'female', age: 31, nin: 'CF31050067890B', jobTitle: 'Accountant', salary: 2800000,
+    monthlyContribution: 140000, // co(10,5): 2,800,000 × 5%
     joinedDate: dateDaysAgo(640), contributionConfig: co(10, 5),
     retirementBalance: 3360000, emergencyBalance: 840000,
     insuranceCover: 15000000, insurancePremiumMonthly: 28000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-150),
@@ -131,18 +137,21 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-003', name: 'Samuel Otim', phone: '+256700100003', email: 'samuel.otim@nilebreweries.demo',
     gender: 'male', age: 45, nin: 'CM45030011223C', jobTitle: 'Logistics Lead', salary: 3100000,
+    monthlyContribution: 100000, // employer-only: modest personal saving (no match base)
     joinedDate: dateDaysAgo(1100), contributionConfig: employerOnly(8),
     retirementBalance: 4960000, emergencyBalance: 1240000,
   }),
   makeEmployee({
     id: 'empe-004', name: 'Esther Aciro', phone: '+256700100004', email: 'esther.aciro@nilebreweries.demo',
     gender: 'female', age: 27, nin: 'CF27110033445D', jobTitle: 'QA Technician', salary: 1600000,
+    monthlyContribution: 80000, // co(10,5): 1,600,000 × 5%
     joinedDate: dateDaysAgo(420), contributionConfig: co(10, 5),
     retirementBalance: 1280000, emergencyBalance: 320000,
   }),
   makeEmployee({
     id: 'empe-005', name: 'Joseph Mukasa', phone: '+256700100005', email: 'joseph.mukasa@nilebreweries.demo',
     gender: 'male', age: 52, nin: 'CM52070055667E', jobTitle: 'Maintenance Supervisor', salary: 2400000,
+    monthlyContribution: 75000, // employer-only: modest personal saving (no match base)
     joinedDate: dateDaysAgo(1500), contributionConfig: employerOnly(8),
     retirementBalance: 5760000, emergencyBalance: 1440000,
     insuranceCover: 20000000, insurancePremiumMonthly: 36000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-90),
@@ -150,18 +159,21 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-006', name: 'Florence Atim', phone: '+256700100006', email: 'florence.atim@nilebreweries.demo',
     gender: 'female', age: 34, nin: 'CF34020077889F', jobTitle: 'HR Officer', salary: 2200000,
+    monthlyContribution: 132000, // co(12,6): 2,200,000 × 6%
     joinedDate: dateDaysAgo(720), contributionConfig: co(12, 6),
     retirementBalance: 3168000, emergencyBalance: 792000,
   }),
   makeEmployee({
     id: 'empe-007', name: 'David Wanyama', phone: '+256700100007', email: 'david.wanyama@nilebreweries.demo',
     gender: 'male', age: 29, nin: 'CM29090099001G', jobTitle: 'Sales Rep', salary: 1900000,
+    monthlyContribution: 95000, // co(10,5): 1,900,000 × 5%
     joinedDate: dateDaysAgo(360), contributionConfig: co(10, 5),
     retirementBalance: 1140000, emergencyBalance: 285000,
   }),
   makeEmployee({
     id: 'empe-008', name: 'Rebecca Namusoke', phone: '+256700100008', email: 'rebecca.namusoke@nilebreweries.demo',
     gender: 'female', age: 41, nin: 'CF41040022334H', jobTitle: 'Procurement Officer', salary: 2600000,
+    monthlyContribution: 80000, // employer-only: modest personal saving (no match base)
     joinedDate: dateDaysAgo(980), contributionConfig: employerOnly(8),
     retirementBalance: 4992000, emergencyBalance: 1248000,
     insuranceCover: 18000000, insurancePremiumMonthly: 32000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-30),
@@ -169,24 +181,28 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-009', name: 'Isaac Tumusiime', phone: '+256700100009', email: 'isaac.tumusiime@nilebreweries.demo',
     gender: 'male', age: 36, nin: 'CM36060044556I', jobTitle: 'IT Support', salary: 2100000,
+    monthlyContribution: 105000, // co(10,5): 2,100,000 × 5%
     joinedDate: dateDaysAgo(560), contributionConfig: co(10, 5),
     retirementBalance: 2016000, emergencyBalance: 504000,
   }),
   makeEmployee({
     id: 'empe-010', name: 'Mary Auma', phone: '+256700100010', email: 'mary.auma@nilebreweries.demo',
     gender: 'female', age: 24, nin: 'CF24120066778J', jobTitle: 'Admin Assistant', salary: 1300000,
+    monthlyContribution: 65000, // co(10,5): 1,300,000 × 5%
     joinedDate: dateDaysAgo(180), contributionConfig: co(10, 5),
     retirementBalance: 520000, emergencyBalance: 130000,
   }),
   makeEmployee({
     id: 'empe-011', name: 'Peter Sserwadda', phone: '+256700100011', email: 'peter.sserwadda@nilebreweries.demo',
     gender: 'male', age: 48, nin: 'CM48080088990K', jobTitle: 'Security Lead', salary: 1500000,
+    monthlyContribution: 50000, // employer-only: modest personal saving (no match base)
     joinedDate: dateDaysAgo(1320), contributionConfig: employerOnly(8),
     retirementBalance: 3600000, emergencyBalance: 900000,
   }),
   makeEmployee({
     id: 'empe-012', name: 'Sarah Kobusingye', phone: '+256700100012', email: 'sarah.kobusingye@nilebreweries.demo',
     gender: 'female', age: 33, nin: 'CF33100011002L', jobTitle: 'Marketing Coordinator', salary: 2300000,
+    monthlyContribution: 115000, // co(10,5): 2,300,000 × 5%
     joinedDate: dateDaysAgo(660), contributionConfig: co(10, 5),
     retirementBalance: 2760000, emergencyBalance: 690000,
     insuranceCover: 15000000, insurancePremiumMonthly: 28000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-120),
@@ -195,12 +211,14 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-013', name: 'Henry Kato', phone: '+256700100013', email: 'henry.kato@nilebreweries.demo',
     gender: 'male', age: 39, nin: 'CM39050033445M', jobTitle: 'Driver', salary: 1100000,
+    monthlyContribution: 55000, // co(10,5): 1,100,000 × 5% (suspended — skipped by runs)
     status: 'suspended', joinedDate: dateDaysAgo(840), contributionConfig: co(10, 5),
     retirementBalance: 1584000, emergencyBalance: 396000,
   }),
   makeEmployee({
     id: 'empe-014', name: 'Diana Nabirye', phone: '+256700100014', email: 'diana.nabirye@nilebreweries.demo',
     gender: 'female', age: 28, nin: 'CF28030055667N', jobTitle: 'Lab Analyst', salary: 1800000,
+    monthlyContribution: 90000, // co(10,5): 1,800,000 × 5%
     joinedDate: dateDaysAgo(300), contributionConfig: co(10, 5),
     retirementBalance: 1080000, emergencyBalance: 270000,
   }),
@@ -208,12 +226,14 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-015', name: 'Robert Ssempala', phone: '+256700100015', email: 'robert.ssempala@nilebreweries.demo',
     gender: 'male', age: 55, nin: 'CM55020077889O', jobTitle: 'Warehouse Hand', salary: 950000,
+    monthlyContribution: 0, // employer-only + suspended: no personal saving
     status: 'suspended', joinedDate: dateDaysAgo(1700), contributionConfig: employerOnly(8),
     retirementBalance: 2280000, emergencyBalance: 570000,
   }),
   makeEmployee({
     id: 'empe-016', name: 'Juliet Akello', phone: '+256700100016', email: 'juliet.akello@nilebreweries.demo',
     gender: 'female', age: 30, nin: 'CF30070099001P', jobTitle: 'Customer Service', salary: 1400000,
+    monthlyContribution: 70000, // co(10,5): 1,400,000 × 5%
     joinedDate: dateDaysAgo(240), contributionConfig: co(10, 5),
     retirementBalance: 672000, emergencyBalance: 168000,
     insuranceCover: 12000000, insurancePremiumMonthly: 22000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-60),
@@ -221,9 +241,12 @@ export const EMPLOYEES = Object.freeze([
 ]);
 
 // ─── Historical contribution runs + lines ────────────────────────────────────
-// 3 completed runs (Feb, Mar, Apr 2026). Each line's amounts re-derive the
+// 4 completed runs (Feb, Mar, Apr, May 2026). Each line's amounts re-derive the
 // employer/employee halves from the snapshot salary + config exactly the way
 // submit_contribution_run does, so the seeded ledger matches the live RPC math.
+// The May run is the CURRENT demo month (MOCK_NOW = 2026-05-26), so the
+// Overview "this month" tile, bar-trend, and leaderboard read off a fresh
+// month. Same active roster + config as April → identical grandTotal (expected).
 
 const EMP_BY_ID = Object.fromEntries(EMPLOYEES.map((e) => [e.id, e]));
 
@@ -286,6 +309,8 @@ const RUN_DEFS = [
   buildRun('run-001', 'February 2026', 105, 'Bank transfer'),
   buildRun('run-002', 'March 2026', 75, 'Bank transfer'),
   buildRun('run-003', 'April 2026', 35, 'MTN Mobile Money'),
+  // Current demo month (MOCK_NOW = 2026-05-26): newest run, 2026-05-21 run_at.
+  buildRun('run-004', 'May 2026', 5, 'Bank transfer'),
 ];
 
 export const CONTRIBUTION_RUNS = Object.freeze(RUN_DEFS.map((r) => r.run));

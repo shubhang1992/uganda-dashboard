@@ -90,6 +90,7 @@ export function mapEmployee(row) {
     salary: Number(row.salary ?? 0),
     status: row.status,
     joinedDate: row.joined_date,
+    monthlyContribution: Number(row.monthly_contribution ?? 0),
     contributionConfig: row.contribution_config ?? null,
     contributionSchedule: schedule
       ? {
