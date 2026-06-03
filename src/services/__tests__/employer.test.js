@@ -50,19 +50,42 @@ beforeEach(() => {
 const round = (n) => Math.round(n);
 const empById = (id) => EMPLOYEES.find((e) => e.id === id);
 
-/** Re-derive one active employee's expected line the same way the RPC does. */
+/**
+ * Re-derive one active employee's expected line the same way the RPC does.
+ * NEW co-contribution model: the employer MATCHES `matchPct` of the employee's
+ * own monthly saving (monthlyContribution), capped by an optional fixed UGX
+ * maximum on the employer top-up. Dual-read: a legacy co row (employeePct, no
+ * matchPct) falls back to the OLD salary-based math. employer-only unchanged.
+ */
 function expectedLine(emp) {
   const cfg = emp.contributionConfig ?? {};
-  const employerHalf =
-    cfg.employerAmount != null
-      ? round(cfg.employerAmount)
-      : round((emp.salary ?? 0) * (cfg.employerPct ?? 0) / 100);
-  const employeeHalf =
-    cfg.mode === 'co-contribution'
-      ? cfg.employeeAmount != null
-        ? round(cfg.employeeAmount)
-        : round((emp.salary ?? 0) * (cfg.employeePct ?? 0) / 100)
-      : 0;
+  const mode = cfg.mode ?? 'employer-only';
+  let employerHalf;
+  let employeeHalf;
+  if (mode === 'co-contribution') {
+    if (cfg.matchPct != null) {
+      employeeHalf = round(emp.monthlyContribution ?? 0);
+      employerHalf = round(employeeHalf * (cfg.matchPct ?? 0) / 100);
+      if (cfg.maxContribution != null && cfg.maxContribution !== '') {
+        employerHalf = Math.min(employerHalf, round(cfg.maxContribution));
+      }
+    } else {
+      employerHalf =
+        cfg.employerAmount != null
+          ? round(cfg.employerAmount)
+          : round((emp.salary ?? 0) * (cfg.employerPct ?? 0) / 100);
+      employeeHalf =
+        cfg.employeeAmount != null
+          ? round(cfg.employeeAmount)
+          : round((emp.salary ?? 0) * (cfg.employeePct ?? 0) / 100);
+    }
+  } else {
+    employerHalf =
+      cfg.employerAmount != null
+        ? round(cfg.employerAmount)
+        : round((emp.salary ?? 0) * (cfg.employerPct ?? 0) / 100);
+    employeeHalf = 0;
+  }
   const gross = employerHalf + employeeHalf;
   const retPct = emp.contributionSchedule?.retirementPct ?? 80;
   const retirement = round(gross * retPct / 100);
@@ -193,41 +216,97 @@ describe('employer service — mock-fallback branch (IS_SUPABASE_ENABLED=false)'
     vi.resetModules();
   });
 
-  // ── pct-based co-contribution + 80/20 split ────────────────────────────────
-  it('co-contribution (pct): employer/employee halves + 80/20 retirement split', async () => {
-    // empe-001: salary 4,200,000, co(10,5) → employer 420k, employee 210k, gross 630k.
-    const emp = empById('empe-001');
+  // ── co-contribution match (uncapped) + 80/20 split ─────────────────────────
+  it('co-contribution (match, uncapped): employer matches matchPct of own saving', async () => {
+    // empe-002: monthlyContribution 140,000, co(50) → employee 140k, employer
+    // 50% × 140k = 70k (no cap), gross 210k.
+    const emp = empById('empe-002');
     const e = expectedLine(emp);
-    expect(e.employerHalf).toBe(420000);
-    expect(e.employeeHalf).toBe(210000);
-    expect(e.gross).toBe(630000);
-    expect(e.retirement).toBe(504000); // 80% of 630k
-    expect(e.emergency).toBe(126000); // gross - retirement
+    expect(e.employeeHalf).toBe(140000); // the employee's own saving
+    expect(e.employerHalf).toBe(70000); // 50% match, uncapped
+    expect(e.gross).toBe(210000);
+    expect(e.retirement).toBe(168000); // 80% of 210k
+    expect(e.emergency).toBe(42000); // gross - retirement
     expect(e.retirement + e.emergency).toBe(e.gross);
 
     const result = await svc.submitContributionRun('emp-001', {
-      rows: [{ employeeId: 'empe-001' }],
+      rows: [{ employeeId: 'empe-002' }],
       periodLabel: 'May 2026',
       method: 'Bank transfer',
       nonce: 'n-co-1',
     });
     expect(result.linesCreated).toBe(1);
-    expect(result.employerTotal).toBe(420000);
-    expect(result.employeeTotal).toBe(210000);
-    expect(result.grandTotal).toBe(630000);
+    expect(result.employerTotal).toBe(70000);
+    expect(result.employeeTotal).toBe(140000);
+    expect(result.grandTotal).toBe(210000);
     expect(result.skipped).toEqual([]);
 
     // The run is now readable from history with matching per-line amounts.
     const detail = await svc.getContributionRun(result.runId);
     expect(detail.lines).toHaveLength(1);
     expect(detail.lines[0]).toMatchObject({
-      employeeId: 'empe-001',
-      employerAmount: 420000,
-      employeeAmount: 210000,
-      retirementAmount: 504000,
-      emergencyAmount: 126000,
+      employeeId: 'empe-002',
+      employerAmount: 70000,
+      employeeAmount: 140000,
+      retirementAmount: 168000,
+      emergencyAmount: 42000,
       method: 'Bank transfer',
     });
+  });
+
+  // ── co-contribution match where the maxContribution cap BINDS ──────────────
+  it('co-contribution (match, capped): employer top-up is clamped to maxContribution', async () => {
+    // empe-001: monthlyContribution 210,000, co(50, 80000) → uncapped match
+    // would be 50% × 210k = 105k, but the 80k cap binds → employer pays 80k.
+    const emp = empById('empe-001');
+    const e = expectedLine(emp);
+    expect(e.employeeHalf).toBe(210000); // the employee's own saving
+    expect(e.employerHalf).toBe(80000); // 105k match clamped to the 80k cap
+    expect(e.gross).toBe(290000);
+    expect(e.retirement).toBe(232000); // 80% of 290k
+    expect(e.emergency).toBe(58000); // gross - retirement
+
+    const result = await svc.submitContributionRun('emp-001', {
+      rows: [{ employeeId: 'empe-001' }],
+      nonce: 'n-cap-1',
+    });
+    expect(result.employerTotal).toBe(80000);
+    expect(result.employeeTotal).toBe(210000);
+    expect(result.grandTotal).toBe(290000);
+    const detail = await svc.getContributionRun(result.runId);
+    expect(detail.lines[0]).toMatchObject({
+      employeeId: 'empe-001',
+      employerAmount: 80000,
+      employeeAmount: 210000,
+      retirementAmount: 232000,
+      emergencyAmount: 58000,
+    });
+  });
+
+  // ── legacy co-contribution shape (employeePct, no matchPct) → OLD math ──────
+  it('co-contribution (legacy shape): falls back to the old salary-based math', async () => {
+    // Patch empe-014 to a LEGACY co config (employerPct/employeePct, NO
+    // matchPct) — the dual-read must keep it on the OLD salary-based math so an
+    // un-migrated live row never zeroes out during cutover. empe-014 salary
+    // 1,800,000 → employer 10% = 180k, employee 5% = 90k, gross 270k.
+    await svc.updateEmployeeContributionConfig('empe-014', {
+      mode: 'co-contribution',
+      employerPct: 10,
+      employeePct: 5,
+      employerAmount: null,
+      employeeAmount: null,
+    });
+    const result = await svc.submitContributionRun('emp-001', {
+      rows: [{ employeeId: 'empe-014' }],
+      nonce: 'n-legacy-1',
+    });
+    expect(result.employerTotal).toBe(180000); // 10% of salary (legacy)
+    expect(result.employeeTotal).toBe(90000); // 5% of salary (legacy)
+    expect(result.grandTotal).toBe(270000);
+    const detail = await svc.getContributionRun(result.runId);
+    // 80/20 split of the 270k gross.
+    expect(detail.lines[0].retirementAmount).toBe(216000);
+    expect(detail.lines[0].emergencyAmount).toBe(54000);
   });
 
   // ── employer-only mode → employee half is 0 ────────────────────────────────
@@ -249,10 +328,11 @@ describe('employer service — mock-fallback branch (IS_SUPABASE_ENABLED=false)'
     expect(result.linesCreated).toBe(1);
   });
 
-  // ── fixed-amount config overrides pct ──────────────────────────────────────
-  it('fixed-amount config: employerAmount/employeeAmount override the pct math', async () => {
-    // Patch empe-002 to a fixed-amount co-contribution config via the session
-    // override, then run — the run must use the fixed amounts, not the pct.
+  // ── legacy fixed-amount co config overrides pct (dual-read) ─────────────────
+  it('legacy fixed-amount config: employerAmount/employeeAmount override the pct math', async () => {
+    // Patch empe-002 to a LEGACY fixed-amount co-contribution config (no
+    // matchPct) via the session override — the dual-read keeps it on the OLD
+    // math and the run must use the fixed amounts, not the pct.
     await svc.updateEmployeeContributionConfig('empe-002', {
       mode: 'co-contribution',
       employerPct: 10,

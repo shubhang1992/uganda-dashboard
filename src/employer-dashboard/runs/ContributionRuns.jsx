@@ -50,23 +50,45 @@ const WIZARD_STEPS = [
 
 /**
  * Client mirror of the server's per-employee math — DISPLAY ONLY. The RPC /
- * mock service re-derives the authoritative figures from salary + config;
- * we never send these amounts as authoritative. Mirrors `mockLineFor` in
- * `services/employer.js` / `lineFor` in `employerSeed.js`.
+ * mock service re-derives the authoritative figures; we never send these
+ * amounts as authoritative. Mirrors `mockLineFor` in `services/employer.js` /
+ * `lineFor` in `employerSeed.js`.
+ *
+ * NEW co-contribution model: the employer MATCHES `matchPct` of the employee's
+ * own monthly saving (monthlyContribution), capped by an optional fixed UGX
+ * maximum on the employer top-up. Dual-read: a legacy co row (employeePct, no
+ * matchPct) falls back to the OLD salary-based math. employer-only unchanged.
  */
 function previewLineFor(emp) {
   const cfg = emp?.contributionConfig ?? {};
   const mode = cfg.mode ?? 'employer-only';
-  const employerHalf =
-    cfg.employerAmount != null
-      ? round(Number(cfg.employerAmount))
-      : round((emp?.salary ?? 0) * Number(cfg.employerPct ?? 0) / 100);
-  let employeeHalf = 0;
+  let employerHalf;
+  let employeeHalf;
   if (mode === 'co-contribution') {
-    employeeHalf =
-      cfg.employeeAmount != null
-        ? round(Number(cfg.employeeAmount))
-        : round((emp?.salary ?? 0) * Number(cfg.employeePct ?? 0) / 100);
+    if (cfg.matchPct != null) {
+      // NEW: employee funds their own saving; employer matches a % of it.
+      employeeHalf = round(Number(emp?.monthlyContribution ?? 0));
+      employerHalf = round(employeeHalf * Number(cfg.matchPct ?? 0) / 100);
+      if (cfg.maxContribution != null && cfg.maxContribution !== '') {
+        employerHalf = Math.min(employerHalf, round(Number(cfg.maxContribution)));
+      }
+    } else {
+      // LEGACY fallback: two independent % of salary (pre-redesign rows).
+      employerHalf =
+        cfg.employerAmount != null
+          ? round(Number(cfg.employerAmount))
+          : round((emp?.salary ?? 0) * Number(cfg.employerPct ?? 0) / 100);
+      employeeHalf =
+        cfg.employeeAmount != null
+          ? round(Number(cfg.employeeAmount))
+          : round((emp?.salary ?? 0) * Number(cfg.employeePct ?? 0) / 100);
+    }
+  } else {
+    employerHalf =
+      cfg.employerAmount != null
+        ? round(Number(cfg.employerAmount))
+        : round((emp?.salary ?? 0) * Number(cfg.employerPct ?? 0) / 100);
+    employeeHalf = 0;
   }
   const gross = employerHalf + employeeHalf;
   let retPct = Number(emp?.contributionSchedule?.retirementPct ?? 80);

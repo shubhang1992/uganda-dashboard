@@ -16,16 +16,23 @@
 // (CLAUDE.md §4.1).
 //
 // ⚠️ The mock `submitContributionRun` re-derives every amount with the SAME
-// math as the `submit_contribution_run` RPC (0035) / the `lineFor` helper in
-// employerSeed.js: employer_half = employerAmount ?? round(salary*employerPct
-// /100); employee_half = mode==='co-contribution' ? (employeeAmount ?? round(
-// salary*employeePct/100)) : 0; retirement = round(gross*retPct/100);
-// emergency = gross - retirement; units = gross / 1000. It skips suspended /
-// not-owned / not-found / zero-contribution employees, mutates session
-// balance-deltas, appends to an in-memory `_mockRuns`, and is idempotent via a
-// nonce→result map. It creates NO commission side-effects (no `transactions`,
-// `subscriber_balances`, or `commissions` writes) — matching the RPC's hard
-// constraint.
+// math as the `submit_contribution_run` RPC (0038) / the `lineFor` helper in
+// employerSeed.js. NEW co-contribution model: the employer MATCHES a % of the
+// employee's own monthly saving, capped by an optional fixed UGX maximum:
+//   co (matchPct present): employee_half = round(monthlyContribution);
+//     employer_half = round(employee_half*matchPct/100), then
+//     min(employer_half, round(maxContribution)) when maxContribution is set.
+//   co (legacy, employeePct, no matchPct): employer_half = employerAmount ??
+//     round(salary*employerPct/100); employee_half = employeeAmount ??
+//     round(salary*employeePct/100)  (dual-read back-compat).
+//   employer-only: employer_half = employerAmount ?? round(salary*employerPct
+//     /100); employee_half = 0.
+// Then retirement = round(gross*retPct/100); emergency = gross - retirement;
+// units = gross / 1000. It skips suspended / not-owned / not-found /
+// zero-contribution employees, mutates session balance-deltas, appends to an
+// in-memory `_mockRuns`, and is idempotent via a nonce→result map. It creates
+// NO commission side-effects (no `transactions`, `subscriber_balances`, or
+// `commissions` writes) — matching the RPC's hard constraint.
 
 import { supabase } from './supabaseClient';
 import { IS_SUPABASE_ENABLED } from './api';
@@ -229,23 +236,45 @@ function mockRunLines(runId) {
 
 /**
  * Re-derive one employee's line amounts the SAME way the RPC does. Mirrors
- * `lineFor` in employerSeed.js + the SQL in 0035. Returns null + a reason when
- * the employee should be skipped (suspended / zero contribution).
+ * `lineFor` in employerSeed.js + the SQL in 0038. NEW co-contribution model:
+ * the employer MATCHES `matchPct` of the employee's own monthly saving
+ * (monthlyContribution), capped by an optional fixed UGX maximum on the
+ * employer top-up. Dual-read: a legacy co row (employeePct, no matchPct) falls
+ * back to the OLD salary-based math so an un-migrated row never zeroes out.
+ * employer-only is unchanged. Returns { skip } + a reason when the employee
+ * should be skipped (suspended / zero contribution).
  */
 function mockLineFor(emp) {
   if (emp.status !== 'active') return { skip: 'suspended' };
   const cfg = emp.contributionConfig ?? {};
   const mode = cfg.mode ?? 'employer-only';
-  const employerHalf =
-    cfg.employerAmount != null
-      ? round(Number(cfg.employerAmount))
-      : round((emp.salary ?? 0) * (Number(cfg.employerPct ?? 0)) / 100);
-  let employeeHalf = 0;
+  let employerHalf;
+  let employeeHalf;
   if (mode === 'co-contribution') {
-    employeeHalf =
-      cfg.employeeAmount != null
-        ? round(Number(cfg.employeeAmount))
-        : round((emp.salary ?? 0) * (Number(cfg.employeePct ?? 0)) / 100);
+    if (cfg.matchPct != null) {
+      // NEW: employee funds their own saving; employer matches a % of it.
+      employeeHalf = round(Number(emp.monthlyContribution ?? 0));
+      employerHalf = round(employeeHalf * Number(cfg.matchPct ?? 0) / 100);
+      if (cfg.maxContribution != null && cfg.maxContribution !== '') {
+        employerHalf = Math.min(employerHalf, round(Number(cfg.maxContribution)));
+      }
+    } else {
+      // LEGACY fallback: two independent % of salary (pre-redesign rows).
+      employerHalf =
+        cfg.employerAmount != null
+          ? round(Number(cfg.employerAmount))
+          : round((emp.salary ?? 0) * Number(cfg.employerPct ?? 0) / 100);
+      employeeHalf =
+        cfg.employeeAmount != null
+          ? round(Number(cfg.employeeAmount))
+          : round((emp.salary ?? 0) * Number(cfg.employeePct ?? 0) / 100);
+    }
+  } else {
+    employerHalf =
+      cfg.employerAmount != null
+        ? round(Number(cfg.employerAmount))
+        : round((emp.salary ?? 0) * Number(cfg.employerPct ?? 0) / 100);
+    employeeHalf = 0;
   }
   const gross = employerHalf + employeeHalf;
   if (gross <= 0) return { skip: 'zero_contribution' };

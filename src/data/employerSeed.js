@@ -38,7 +38,9 @@ const round = (n) => Math.round(n);
 
 // ─── Employer (B2B account) ──────────────────────────────────────────────────
 // One demo employer. Default contribution config = the template a new run
-// starts from (employer 10% / employee 5% co-contribution).
+// starts from. NEW co-contribution model (funder-redesign): the employer
+// MATCHES a % of each employee's own monthly saving, capped by an optional
+// fixed UGX maximum (employer matches 50%, capped at UGX 200,000).
 export const EMPLOYER = Object.freeze({
   id: 'emp-001',
   name: 'Nile Breweries Demo Ltd',
@@ -51,10 +53,8 @@ export const EMPLOYER = Object.freeze({
   payrollCadence: 'monthly',
   defaultContributionConfig: {
     mode: 'co-contribution',
-    employerPct: 10,
-    employeePct: 5,
-    employerAmount: null,
-    employeeAmount: null,
+    matchPct: 50,
+    maxContribution: 200000,
   },
 });
 
@@ -102,12 +102,14 @@ function makeEmployee(partial) {
   };
 }
 
-const co = (employerPct, employeePct) => ({
+// NEW co-contribution shape (funder-redesign): employer MATCHES `matchPct` of
+// the employee's OWN monthly saving (employees.monthlyContribution), optionally
+// capped at a fixed UGX maximum on the employer top-up (`maxContribution`,
+// null = uncapped). The legacy employerPct/employeePct/…Amount keys are gone.
+const co = (matchPct, maxContribution = null) => ({
   mode: 'co-contribution',
-  employerPct,
-  employeePct,
-  employerAmount: null,
-  employeeAmount: null,
+  matchPct,
+  maxContribution,
 });
 const employerOnly = (employerPct) => ({
   mode: 'employer-only',
@@ -121,16 +123,16 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-001', name: 'Brian Okello', phone: '+256700100001', email: 'brian.okello@nilebreweries.demo',
     gender: 'male', age: 38, nin: 'CM38010012345A', jobTitle: 'Plant Manager', salary: 4200000,
-    monthlyContribution: 210000, // co(10,5): 4,200,000 × 5%
-    joinedDate: dateDaysAgo(900), contributionConfig: co(10, 5),
+    monthlyContribution: 210000, // own saving; match 50% = 105k but capped at 80k → employer pays 80k
+    joinedDate: dateDaysAgo(900), contributionConfig: co(50, 80000),
     retirementBalance: 7200000, emergencyBalance: 1800000,
     insuranceCover: 25000000, insurancePremiumMonthly: 42000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-210),
   }),
   makeEmployee({
     id: 'empe-002', name: 'Grace Nakato', phone: '+256700100002', email: 'grace.nakato@nilebreweries.demo',
     gender: 'female', age: 31, nin: 'CF31050067890B', jobTitle: 'Accountant', salary: 2800000,
-    monthlyContribution: 140000, // co(10,5): 2,800,000 × 5%
-    joinedDate: dateDaysAgo(640), contributionConfig: co(10, 5),
+    monthlyContribution: 140000, // own saving; match 50% = 70k (uncapped)
+    joinedDate: dateDaysAgo(640), contributionConfig: co(50),
     retirementBalance: 3360000, emergencyBalance: 840000,
     insuranceCover: 15000000, insurancePremiumMonthly: 28000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-150),
   }),
@@ -144,8 +146,8 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-004', name: 'Esther Aciro', phone: '+256700100004', email: 'esther.aciro@nilebreweries.demo',
     gender: 'female', age: 27, nin: 'CF27110033445D', jobTitle: 'QA Technician', salary: 1600000,
-    monthlyContribution: 80000, // co(10,5): 1,600,000 × 5%
-    joinedDate: dateDaysAgo(420), contributionConfig: co(10, 5),
+    monthlyContribution: 80000, // own saving; match 100% = 80k (uncapped)
+    joinedDate: dateDaysAgo(420), contributionConfig: co(100),
     retirementBalance: 1280000, emergencyBalance: 320000,
   }),
   makeEmployee({
@@ -159,15 +161,15 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-006', name: 'Florence Atim', phone: '+256700100006', email: 'florence.atim@nilebreweries.demo',
     gender: 'female', age: 34, nin: 'CF34020077889F', jobTitle: 'HR Officer', salary: 2200000,
-    monthlyContribution: 132000, // co(12,6): 2,200,000 × 6%
-    joinedDate: dateDaysAgo(720), contributionConfig: co(12, 6),
+    monthlyContribution: 132000, // own saving; match 50% = 66k (uncapped)
+    joinedDate: dateDaysAgo(720), contributionConfig: co(50),
     retirementBalance: 3168000, emergencyBalance: 792000,
   }),
   makeEmployee({
     id: 'empe-007', name: 'David Wanyama', phone: '+256700100007', email: 'david.wanyama@nilebreweries.demo',
     gender: 'male', age: 29, nin: 'CM29090099001G', jobTitle: 'Sales Rep', salary: 1900000,
-    monthlyContribution: 95000, // co(10,5): 1,900,000 × 5%
-    joinedDate: dateDaysAgo(360), contributionConfig: co(10, 5),
+    monthlyContribution: 95000, // own saving; match 50% = 47,500 (uncapped)
+    joinedDate: dateDaysAgo(360), contributionConfig: co(50),
     retirementBalance: 1140000, emergencyBalance: 285000,
   }),
   makeEmployee({
@@ -181,15 +183,15 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-009', name: 'Isaac Tumusiime', phone: '+256700100009', email: 'isaac.tumusiime@nilebreweries.demo',
     gender: 'male', age: 36, nin: 'CM36060044556I', jobTitle: 'IT Support', salary: 2100000,
-    monthlyContribution: 105000, // co(10,5): 2,100,000 × 5%
-    joinedDate: dateDaysAgo(560), contributionConfig: co(10, 5),
+    monthlyContribution: 105000, // own saving; match 50% = 52,500 (uncapped)
+    joinedDate: dateDaysAgo(560), contributionConfig: co(50),
     retirementBalance: 2016000, emergencyBalance: 504000,
   }),
   makeEmployee({
     id: 'empe-010', name: 'Mary Auma', phone: '+256700100010', email: 'mary.auma@nilebreweries.demo',
     gender: 'female', age: 24, nin: 'CF24120066778J', jobTitle: 'Admin Assistant', salary: 1300000,
-    monthlyContribution: 65000, // co(10,5): 1,300,000 × 5%
-    joinedDate: dateDaysAgo(180), contributionConfig: co(10, 5),
+    monthlyContribution: 65000, // own saving; match 50% = 32,500 (uncapped)
+    joinedDate: dateDaysAgo(180), contributionConfig: co(50),
     retirementBalance: 520000, emergencyBalance: 130000,
   }),
   makeEmployee({
@@ -202,8 +204,8 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-012', name: 'Sarah Kobusingye', phone: '+256700100012', email: 'sarah.kobusingye@nilebreweries.demo',
     gender: 'female', age: 33, nin: 'CF33100011002L', jobTitle: 'Marketing Coordinator', salary: 2300000,
-    monthlyContribution: 115000, // co(10,5): 2,300,000 × 5%
-    joinedDate: dateDaysAgo(660), contributionConfig: co(10, 5),
+    monthlyContribution: 115000, // own saving; match 100% = 115k, cap 200k does not bind
+    joinedDate: dateDaysAgo(660), contributionConfig: co(100, 200000),
     retirementBalance: 2760000, emergencyBalance: 690000,
     insuranceCover: 15000000, insurancePremiumMonthly: 28000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-120),
   }),
@@ -211,15 +213,15 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-013', name: 'Henry Kato', phone: '+256700100013', email: 'henry.kato@nilebreweries.demo',
     gender: 'male', age: 39, nin: 'CM39050033445M', jobTitle: 'Driver', salary: 1100000,
-    monthlyContribution: 55000, // co(10,5): 1,100,000 × 5% (suspended — skipped by runs)
-    status: 'suspended', joinedDate: dateDaysAgo(840), contributionConfig: co(10, 5),
+    monthlyContribution: 55000, // own saving; match 50% = 27.5k → 28k (suspended — skipped by runs)
+    status: 'suspended', joinedDate: dateDaysAgo(840), contributionConfig: co(50),
     retirementBalance: 1584000, emergencyBalance: 396000,
   }),
   makeEmployee({
     id: 'empe-014', name: 'Diana Nabirye', phone: '+256700100014', email: 'diana.nabirye@nilebreweries.demo',
     gender: 'female', age: 28, nin: 'CF28030055667N', jobTitle: 'Lab Analyst', salary: 1800000,
-    monthlyContribution: 90000, // co(10,5): 1,800,000 × 5%
-    joinedDate: dateDaysAgo(300), contributionConfig: co(10, 5),
+    monthlyContribution: 90000, // own saving; match 50% = 45k (uncapped)
+    joinedDate: dateDaysAgo(300), contributionConfig: co(50),
     retirementBalance: 1080000, emergencyBalance: 270000,
   }),
   // Suspended employer-only.
@@ -233,8 +235,8 @@ export const EMPLOYEES = Object.freeze([
   makeEmployee({
     id: 'empe-016', name: 'Juliet Akello', phone: '+256700100016', email: 'juliet.akello@nilebreweries.demo',
     gender: 'female', age: 30, nin: 'CF30070099001P', jobTitle: 'Customer Service', salary: 1400000,
-    monthlyContribution: 70000, // co(10,5): 1,400,000 × 5%
-    joinedDate: dateDaysAgo(240), contributionConfig: co(10, 5),
+    monthlyContribution: 70000, // own saving; match 50% = 35k (uncapped)
+    joinedDate: dateDaysAgo(240), contributionConfig: co(50),
     retirementBalance: 672000, emergencyBalance: 168000,
     insuranceCover: 12000000, insurancePremiumMonthly: 22000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-60),
   }),
@@ -250,19 +252,45 @@ export const EMPLOYEES = Object.freeze([
 
 const EMP_BY_ID = Object.fromEntries(EMPLOYEES.map((e) => [e.id, e]));
 
-/** Compute one line's amounts the same way the RPC does (active employees). */
+/**
+ * Compute one line's amounts the same way the RPC does (active employees).
+ * NEW co-contribution model: the employer MATCHES `matchPct` of the employee's
+ * own monthly saving (monthlyContribution), capped by an optional fixed UGX
+ * maximum on the employer top-up. Dual-read: a legacy co row (employeePct, no
+ * matchPct) falls back to the OLD salary-based math so an un-migrated row never
+ * zeroes out during cutover. employer-only is unchanged.
+ */
 function lineFor(emp, method) {
   const cfg = emp.contributionConfig ?? {};
-  const employerHalf =
-    cfg.employerAmount != null
-      ? round(cfg.employerAmount)
-      : round((emp.salary ?? 0) * (cfg.employerPct ?? 0) / 100);
-  const employeeHalf =
-    cfg.mode === 'co-contribution'
-      ? cfg.employeeAmount != null
-        ? round(cfg.employeeAmount)
-        : round((emp.salary ?? 0) * (cfg.employeePct ?? 0) / 100)
-      : 0;
+  const mode = cfg.mode ?? 'employer-only';
+  let employerHalf;
+  let employeeHalf;
+  if (mode === 'co-contribution') {
+    if (cfg.matchPct != null) {
+      // NEW: employee funds their own saving; employer matches a % of it.
+      employeeHalf = round(emp.monthlyContribution ?? 0);
+      employerHalf = round(employeeHalf * (cfg.matchPct ?? 0) / 100);
+      if (cfg.maxContribution != null && cfg.maxContribution !== '') {
+        employerHalf = Math.min(employerHalf, round(cfg.maxContribution));
+      }
+    } else {
+      // LEGACY fallback: two independent % of salary (pre-redesign rows).
+      employerHalf =
+        cfg.employerAmount != null
+          ? round(cfg.employerAmount)
+          : round((emp.salary ?? 0) * (cfg.employerPct ?? 0) / 100);
+      employeeHalf =
+        cfg.employeeAmount != null
+          ? round(cfg.employeeAmount)
+          : round((emp.salary ?? 0) * (cfg.employeePct ?? 0) / 100);
+    }
+  } else {
+    employerHalf =
+      cfg.employerAmount != null
+        ? round(cfg.employerAmount)
+        : round((emp.salary ?? 0) * (cfg.employerPct ?? 0) / 100);
+    employeeHalf = 0;
+  }
   const gross = employerHalf + employeeHalf;
   const retPct = emp.contributionSchedule?.retirementPct ?? 80;
   const retirement = round(gross * retPct / 100);
@@ -321,26 +349,27 @@ export const CONTRIBUTION_RUN_LINES = Object.freeze(RUN_DEFS.flatMap((r) => r.li
 // leaderboard. These are INVENTED demo figures — NOT real financial data for
 // any named company. Consumed only by `getEmployerLeaderboard` in
 // `src/services/employer.js`, which merges in emp-001's own "this month" total
-// (the newest run's grandTotal = UGX 4,074,000) and ranks the combined list.
+// (the newest run's grandTotal = UGX 2,493,500 under the NEW match model) and
+// ranks the combined list.
 //
-// Calibrated so emp-001 lands at ~#3: EXACTLY two competitors sit above
-// 4,074,000 (MTN Uganda 6.82M, Centenary Bank 5.31M) and the remaining nine sit
+// Calibrated so emp-001 lands at #3: EXACTLY two competitors sit above
+// 2,493,500 (MTN Uganda 4.18M, Centenary Bank 3.24M) and the remaining nine sit
 // below it, so once "you" is spliced in the ranks read
 //   #1 MTN · #2 Centenary · #3 YOU · #4 Roofings · …
 // `monthlyTotal` is UGX/month. Kept as a frozen array (mockData.js convention).
 export const LEADERBOARD_COMPETITORS = Object.freeze([
-  Object.freeze({ name: 'MTN Uganda', monthlyTotal: 6820000 }),
-  Object.freeze({ name: 'Centenary Bank', monthlyTotal: 5310000 }),
-  // — emp-001 ("you", 4,074,000) ranks here, between Centenary and Roofings —
-  Object.freeze({ name: 'Roofings Group', monthlyTotal: 3760000 }),
-  Object.freeze({ name: 'Quality Chemicals', monthlyTotal: 3415000 }),
-  Object.freeze({ name: 'Café Javas', monthlyTotal: 2980000 }),
-  Object.freeze({ name: 'Movit Products', monthlyTotal: 2540000 }),
-  Object.freeze({ name: 'Mukwano Industries', monthlyTotal: 2185000 }),
-  Object.freeze({ name: 'Pearl Dairy Farms', monthlyTotal: 1870000 }),
-  Object.freeze({ name: 'Vision Group', monthlyTotal: 1540000 }),
-  Object.freeze({ name: 'Bidco Uganda', monthlyTotal: 1295000 }),
-  Object.freeze({ name: 'Tian Tang Group', monthlyTotal: 980000 }),
+  Object.freeze({ name: 'MTN Uganda', monthlyTotal: 4180000 }),
+  Object.freeze({ name: 'Centenary Bank', monthlyTotal: 3240000 }),
+  // — emp-001 ("you", 2,493,500) ranks here, between Centenary and Roofings —
+  Object.freeze({ name: 'Roofings Group', monthlyTotal: 2310000 }),
+  Object.freeze({ name: 'Quality Chemicals', monthlyTotal: 2090000 }),
+  Object.freeze({ name: 'Café Javas', monthlyTotal: 1825000 }),
+  Object.freeze({ name: 'Movit Products', monthlyTotal: 1560000 }),
+  Object.freeze({ name: 'Mukwano Industries', monthlyTotal: 1340000 }),
+  Object.freeze({ name: 'Pearl Dairy Farms', monthlyTotal: 1145000 }),
+  Object.freeze({ name: 'Vision Group', monthlyTotal: 945000 }),
+  Object.freeze({ name: 'Bidco Uganda', monthlyTotal: 795000 }),
+  Object.freeze({ name: 'Tian Tang Group', monthlyTotal: 610000 }),
 ]);
 
 // Re-export the by-id index + unit price for the Phase 1 service.
