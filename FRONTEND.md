@@ -102,7 +102,7 @@ src/
   assets/                         Logo PNGs (transparent)
   config/env.js                   API_BASE_URL, IS_DEV/PROD, public URLs
   constants/                      levels.js, savings.js, signup.js
-  data/                           mockData (1060 lines), mockBranchDefs, mockGeo
+  data/                           mockData (1034 lines), mockBranchDefs, mockGeo
   data/                           …, employerSeed (employer demo seed)
   services/                       api, supabaseClient, auth, entities,
                                   commissions, notifications, subscriber, agent,
@@ -337,7 +337,7 @@ All public exports below. Every service file follows the `IS_SUPABASE_ENABLED ? 
 | `supabaseClient.js` | supabase-js singleton + token helpers | `supabase` (createClient), `getToken()`, `setToken(token)`, `clearToken()` (default export = `supabase`) | All Supabase-backed services |
 | `auth.js` | Sign-in flow + AuthError + role gate | `AuthError`, `DASHBOARD_ROLES`, `sendOtp(phone, role)`, `verifyOtp(phone, otp, role, password?)`, `signInWithPassword(phone, password, role)`, `changePassword(currentPassword, newPassword)`, `hasDashboard(role)` | `SignInModal`, `AuthContext`, `App.ProtectedDashboard` |
 | `entities.js` | Country/Region/District/Branch/Agent + Distributor CRUD | `getCountry`, `getEntity`, `getChildren`, `getAllAtLevel`, `getEntityPage`, `getAllAtLevelMap`, `getParent`, `getTopPerformingBranch`, `getBreadcrumb`, `getEntitySync`, `getEntityMetricsRollup`, `createBranch`, `createAgent`, `updateBranch`, `setBranchStatus`, `updateDistributor`, `_mockSources` | Distributor + Branch dashboards via `useEntity`-family hooks |
-| `commissions.js` | Commission state machine (~30+ exports, 1490 lines) | See §5.5 below | `useCommission`-family hooks; CommissionPanel; Branch + Agent commission pages |
+| `commissions.js` | Commission state machine (~30+ exports, 828 lines) | See §5.5 below | `useCommission`-family hooks; CommissionPanel; Branch + Agent commission pages |
 | `subscriber.js` | Per-subscriber reads/writes + per-session mutation store | See §5.6 below | `useSubscriber`-family hooks; subscriber dashboard pages |
 | `agent.js` | Agent-scoped portfolio reads | `getAgentSubscriberList(agentId)` | `useAgentSubscribers` |
 | `employer.js` | Employer-scoped roster / runs / metrics + write RPCs | See §5.12 below | `useEmployer`-family hooks; employer dashboard |
@@ -750,7 +750,7 @@ The test file at `src/hooks/__tests__/useEntity.test.js` exercises every step of
 | Sub-areas | `sidebar/`, `map/`, `overlay/`, `cards/`, `branch/`, `agent/`, `subscriber/`, `commissions/`, `reports/` (+ `views/`), `settings/`, `shared/` |
 | Navigation | **Routes** drive drill level; **panels** drive overlays |
 
-Routes are URL-driven drill levels (`/dashboard/regions/:id`, `/dashboard/districts/:id`, `/dashboard/branches/:id`, `/dashboard/agents/:id`, `/dashboard/subscribers/:id`, `/dashboard/reports[/:reportId]`) parsed by `DashboardNavContext.parsePath`. Slide-in panels (`ViewBranches`, `ViewAgents`, `ViewSubscribers`, `CommissionPanel`, `ViewReports`, `Settings`, `CreateBranch`, `CreateAgent`) are state-based via `DashboardPanelContext`. Map → panel handoff via `onPanelActionRef`. `CommissionPanel.jsx` (1682 lines) uses **replace-model** navigation — single panel swaps content with breadcrumb trail.
+Routes are URL-driven drill levels (`/dashboard/regions/:id`, `/dashboard/districts/:id`, `/dashboard/branches/:id`, `/dashboard/agents/:id`, `/dashboard/subscribers/:id`, `/dashboard/reports[/:reportId]`) parsed by `DashboardNavContext.parsePath`. Slide-in panels (`ViewBranches`, `ViewAgents`, `ViewSubscribers`, `CommissionPanel`, `ViewReports`, `Settings`, `CreateBranch`, `CreateAgent`) are state-based via `DashboardPanelContext`. Map → panel handoff via `onPanelActionRef`. `CommissionPanel.jsx` (1097 lines) uses **replace-model** navigation — single panel swaps content with breadcrumb trail.
 
 ### 9.2 Branch Admin — `src/branch-dashboard/`
 
@@ -762,7 +762,7 @@ Routes are URL-driven drill levels (`/dashboard/regions/:id`, `/dashboard/distri
 | Sub-areas | `sidebar/`, `overview/`, `agent/` |
 | Navigation | Single main view; panels for everything else |
 
-Single main view `BranchOverview` (no drill-down). Side panels reuse Distributor `ViewAgents`, `CommissionPanel`, `ViewReports`, `Settings` plus local `CreateAgent`, rendered with `splitMode` (backdrop suppressed; main reflows). `BranchHealthScore.jsx` (533 lines) — score gauge 0–100 from weighted formula (retention 30%, avg/subscriber 25%, agent activity 25%, growth 20%) + insights + contribution chart + embedded AI chat; its header now mounts the `NotificationBell` (branch-scoped). The old `BranchSettlementBanner` was deleted in the 0029 commission simplification (no more settlement runs).
+Single main view `BranchOverview` (no drill-down). Side panels reuse Distributor `ViewAgents`, `CommissionPanel`, `ViewReports`, `Settings` plus local `CreateAgent`, rendered with `splitMode` (backdrop suppressed; main reflows). `BranchHealthScore.jsx` (579 lines) — score gauge 0–100 from weighted formula (retention 30%, avg/subscriber 25%, agent activity 25%, growth 20%) + insights + contribution chart + embedded AI chat; its header now mounts the `NotificationBell` (branch-scoped). The old `BranchSettlementBanner` was deleted in the 0029 commission simplification (no more settlement runs).
 
 **Mobile drawer (`BranchDashboardShell` + `BranchSidebar`).** On viewports ≤768px the sidebar is hidden and a `MobileHeader` + Framer slide-in `MobileDrawer` take over. The drawer slides in `x: '-100%' → 0` with `EASE_OUT_EXPO` over 320ms, locks body scroll, closes on Escape, and auto-closes on route change (a `useEffect` watching `location.pathname`). `BranchSidebar` accepts `mode='desktop'|'drawer'` + `onNavigate` — drawer mode renders a full-width vertical menu and invokes `onNavigate` after each item click so the drawer dismisses itself.
 
@@ -821,7 +821,7 @@ Modules: **Overview** (hero + notifications + operations), **Employees** (`ViewE
 
 | Surface | File | Pattern |
 | --- | --- | --- |
-| Distributor `CommissionPanel` | `src/dashboard/commissions/CommissionPanel.jsx` (rewritten, ~930 lines) | Slide-in. Distributor home = rate card + summary (Total / Settled / Outstanding — no Disputed) + pending dues (Branch⇄Agent toggle) + Download template + Upload settlement (with confirm modal) + settlement history. Keeps the agents → agent-detail → subscribers drill-downs. The disputed / dispute-detail / run-detail / run-branch-detail / branch-review / runs-history views were deleted. Accepts `splitMode` prop |
+| Distributor `CommissionPanel` | `src/dashboard/commissions/CommissionPanel.jsx` (rewritten, 1097 lines) | Slide-in. Distributor home = rate card + summary (Total / Settled / Outstanding — no Disputed) + pending dues (Branch⇄Agent toggle) + Download template + Upload settlement (with confirm modal) + settlement history. Keeps the agents → agent-detail → subscribers drill-downs. The disputed / dispute-detail / run-detail / run-branch-detail / branch-review / runs-history views were deleted. Accepts `splitMode` prop |
 | Branch reuse | imported into `BranchDashboardShell` with `splitMode` | Read-only: own branch's dues + settlement history. Backdrop suppressed; reflows main beside |
 | Agent `CommissionsPage` | `src/agent-dashboard/pages/CommissionsPage.jsx` | Routed page. Trimmed to Earned / Owed (Confirm + Disputes removed, dispute modal gone). Earned is grouped by paid month. |
 
@@ -873,7 +873,7 @@ Modules: **Overview** (hero + notifications + operations), **Employees** (`ViewE
 ### 11.2 Contribution sub-flow (`/signup/contribution`)
 
 - `ContributionRoute.jsx` — route entry. Renders inside `SignupFlow` when the pathname ends with `/contribution` so step-state is preserved.
-- `ContributionSettings.jsx` (552 lines) — frequency (weekly/monthly/quarterly/half-yearly/annually via `FREQUENCY` constants), amount, retirement/emergency split.
+- `ContributionSettings.jsx` (569 lines) — frequency (weekly/monthly/quarterly/half-yearly/annually via `FREQUENCY` constants), amount, retirement/emergency split.
 - `PaymentStep.jsx` — initial funding step.
 - On confirm: patches `contributionSchedule` into `SignupContext` → calls `createFromSignup(payload)` (RPC `create_subscriber_from_signup`, see BACKEND.md §10) which mints the real subscriber row + JWT → `auth.login({ token, user })` → `navigate('/dashboard')`.
 
@@ -1277,14 +1277,14 @@ These are residual issues that survived the Phase 4–5 cleanup. Listed so anyon
 
 | File | Lines |
 | --- | --- |
-| `src/data/mockData.js` | 1060 |
-| `src/dashboard/commissions/CommissionPanel.jsx` | ~930 (rewritten in the 0029 simplification, down from 1682) |
-| `src/dashboard/branch/ViewBranches.jsx` | 979 |
-| `src/dashboard/sidebar/Sidebar.jsx` | 618 |
-| `src/dashboard/overlay/OverlayPanel.jsx` | 569 |
-| `src/signup/contribution/ContributionSettings.jsx` | 552 |
-| `src/branch-dashboard/overview/BranchHealthScore.jsx` | 533 |
-| `src/dashboard/settings/Settings.jsx` | 521 |
+| `src/dashboard/commissions/CommissionPanel.jsx` | 1097 (rewritten in the 0029 simplification, down from 1682) |
+| `src/dashboard/branch/ViewBranches.jsx` | 1041 |
+| `src/data/mockData.js` | 1034 |
+| `src/dashboard/sidebar/Sidebar.jsx` | 650 |
+| `src/dashboard/overlay/OverlayPanel.jsx` | 647 |
+| `src/dashboard/settings/Settings.jsx` | 644 |
+| `src/branch-dashboard/overview/BranchHealthScore.jsx` | 579 |
+| `src/signup/contribution/ContributionSettings.jsx` | 569 |
 
 ---
 
@@ -1324,7 +1324,7 @@ These are residual issues that survived the Phase 4–5 cleanup. Listed so anyon
 | `src/components/Modal.test.jsx` | Portal, focus trap, Escape, backdrop dismiss, scroll lock |
 | `src/test/jwt-claim-contract.test.js` | JWT claim shape contract |
 
-**46 test files, 766 passing tests at last sync** (`npm test`). The earlier T2 / T5 / T6 gaps are closed at the unit layer. The E2E suite (Playwright) still owns happy-path regression coverage; see `.claude/skills/qa.md`.
+**48 test files, 871 passing tests at last sync** (`npm test`). The earlier T2 / T5 / T6 gaps are closed at the unit layer. The E2E suite (Playwright) still owns happy-path regression coverage; see `.claude/skills/qa.md`.
 
 **Coverage script.** `npm run test:coverage` is wired in `package.json` (Phase 2G `3002c14`) and reads the coverage config from the embedded Vitest block in `vite.config.js`. **`@vitest/coverage-v8` is currently NOT installed** — run `npm i -D @vitest/coverage-v8` to enable coverage reports. The script will fail with a clear "missing dependency" message until then.
 
