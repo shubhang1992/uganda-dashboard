@@ -398,12 +398,18 @@ function ProfileTab({ employer, employerId, addToast }) {
 function DefaultConfigTab({ employer, employerId, addToast }) {
   const updateProfile = useUpdateEmployerProfile(employerId);
 
+  // Dual-read seed: prefer the NEW keys (matchPct / maxContribution /
+  // groupCoverAmount) and fall back to the legacy %-pair so an un-migrated
+  // config still populates sensibly. Blank UGX fields stay '' (= no cap / no
+  // cover) so the inputs render empty rather than "0".
   const initial = useMemo(() => {
     const cfg = employer?.defaultContributionConfig ?? {};
     return {
       mode: cfg.mode ?? 'employer-only',
-      employerPct: cfg.employerPct ?? 0,
-      employeePct: cfg.employeePct ?? 0,
+      matchPct: cfg.matchPct ?? 50,
+      maxContribution: cfg.maxContribution ?? '',
+      employerPct: cfg.employerPct ?? 8,
+      groupCoverAmount: cfg.groupCoverAmount ?? '',
     };
   }, [employer]);
 
@@ -421,41 +427,81 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
 
   const isCo = draft.mode === 'co-contribution';
 
-  // Illustrative preview against a sample monthly salary so the percentages
-  // read as concrete shillings. Display-only — runs re-derive per employee.
+  // Illustrative previews — display-only; runs re-derive per employee.
+  //  • Co mode reads off an EXAMPLE employee monthly saving (the match base),
+  //    NOT salary, so the "match of contribution" model reads concretely.
+  //  • Employer-only stays salary-based since the % applies to salary.
+  const EXAMPLE_MONTHLY = 100000;
   const SAMPLE_SALARY = 1000000;
-  const preview = useMemo(() => {
-    const employerHalf = round(SAMPLE_SALARY * (Number(draft.employerPct) || 0) / 100);
-    const employeeHalf = isCo ? round(SAMPLE_SALARY * (Number(draft.employeePct) || 0) / 100) : 0;
-    return { employerHalf, employeeHalf, gross: employerHalf + employeeHalf };
-  }, [draft.employerPct, draft.employeePct, isCo]);
+  const coPreview = useMemo(() => {
+    const capSet = draft.maxContribution !== '' && draft.maxContribution != null;
+    const uncapped = round(EXAMPLE_MONTHLY * (Number(draft.matchPct) || 0) / 100);
+    const match = capSet ? Math.min(uncapped, round(Number(draft.maxContribution))) : uncapped;
+    return { match, capped: capSet && uncapped > match };
+  }, [draft.matchPct, draft.maxContribution]);
+  const erPreview = useMemo(
+    () => round(SAMPLE_SALARY * (Number(draft.employerPct) || 0) / 100),
+    [draft.employerPct],
+  );
 
   function handleSave(e) {
     e.preventDefault();
     if (updateProfile.isPending) return;
 
+    // Compute the optional UGX fields as number|null up front so the Phase 7
+    // group-insurance activation can drop straight into this handler.
+    const groupCoverAmount =
+      draft.groupCoverAmount === '' ? null : Number(draft.groupCoverAmount);
+
+    if (isCo) {
+      const matchPct = Number(draft.matchPct);
+      const maxContribution =
+        draft.maxContribution === '' ? null : Number(draft.maxContribution);
+      if (!(matchPct >= 0 && matchPct <= 100)) {
+        setErr('Match % must be between 0 and 100.');
+        return;
+      }
+      if (maxContribution != null && !(maxContribution >= 0)) {
+        setErr('Maximum contribution must be 0 or more (or blank for no cap).');
+        return;
+      }
+      setErr('');
+
+      const defaultContributionConfig = {
+        mode: 'co-contribution',
+        matchPct,
+        maxContribution,
+      };
+      updateProfile.mutate(
+        { defaultContributionConfig },
+        {
+          onSuccess: () => addToast('success', 'Default contribution config updated.'),
+          onError: (e2) => addToast('error', e2?.message || 'Could not update default config.'),
+        },
+      );
+      return;
+    }
+
+    // Employer-only.
     const employerPct = Number(draft.employerPct);
-    const employeePct = Number(draft.employeePct);
     if (!(employerPct >= 0 && employerPct <= 100)) {
       setErr('Employer % must be between 0 and 100.');
       return;
     }
-    if (isCo && !(employeePct >= 0 && employeePct <= 100)) {
-      setErr('Employee % must be between 0 and 100.');
+    if (groupCoverAmount != null && !(groupCoverAmount >= 0)) {
+      setErr('Group insurance cover must be 0 or more (or blank for none).');
       return;
     }
     setErr('');
 
-    // Full config object with the exact keys the RPC reads under
-    // `defaultContributionConfig`. Amounts stay null — the default is %-based.
     const defaultContributionConfig = {
-      mode: draft.mode,
+      mode: 'employer-only',
       employerPct,
-      employeePct: isCo ? employeePct : 0,
-      employerAmount: null,
-      employeeAmount: null,
+      groupCoverAmount,
     };
-
+    // NOTE (Phase 7): the `applyGroupInsurance` mutation will slot in here,
+    // alongside this `updateProfile.mutate`, reusing the `groupCoverAmount`
+    // number/null computed above.
     updateProfile.mutate(
       { defaultContributionConfig },
       {
@@ -480,7 +526,7 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
               type="radio"
               name="emp-default-mode"
               checked={draft.mode === 'employer-only'}
-              onChange={() => setDraft((d) => ({ ...d, mode: 'employer-only' }))}
+              onChange={() => { setDraft((d) => ({ ...d, mode: 'employer-only' })); if (err) setErr(''); }}
             />
             Employer-only
           </label>
@@ -489,59 +535,116 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
               type="radio"
               name="emp-default-mode"
               checked={draft.mode === 'co-contribution'}
-              onChange={() => setDraft((d) => ({ ...d, mode: 'co-contribution' }))}
+              onChange={() => { setDraft((d) => ({ ...d, mode: 'co-contribution' })); if (err) setErr(''); }}
             />
             Co-contribution
           </label>
         </div>
       </fieldset>
 
-      <div className={styles.fieldRow}>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="emp-default-er">Employer %</label>
-          <input
-            id="emp-default-er"
-            className={styles.input}
-            type="number"
-            min="0"
-            max="100"
-            step="0.5"
-            value={draft.employerPct}
-            onChange={(e) => {
-              setDraft((d) => ({ ...d, employerPct: e.target.value }));
-              if (err) setErr('');
-            }}
-          />
+      {isCo ? (
+        <div className={styles.fieldRow}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="emp-default-match">Match %</label>
+            <input
+              id="emp-default-match"
+              className={styles.input}
+              type="number"
+              min="0"
+              max="100"
+              step="0.5"
+              value={draft.matchPct}
+              onChange={(e) => {
+                setDraft((d) => ({ ...d, matchPct: e.target.value }));
+                if (err) setErr('');
+              }}
+            />
+            <span className={styles.hint}>
+              You match this % of each employee&apos;s own monthly contribution.
+            </span>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="emp-default-max">Maximum contribution (UGX)</label>
+            <input
+              id="emp-default-max"
+              className={styles.input}
+              type="number"
+              min="0"
+              step="1000"
+              value={draft.maxContribution}
+              placeholder="No cap"
+              onChange={(e) => {
+                setDraft((d) => ({ ...d, maxContribution: e.target.value }));
+                if (err) setErr('');
+              }}
+            />
+            <span className={styles.hint}>Optional — caps the employer top-up per employee.</span>
+          </div>
         </div>
-        <div className={styles.field} data-disabled={!isCo || undefined}>
-          <label className={styles.label} htmlFor="emp-default-ee">Employee %</label>
-          <input
-            id="emp-default-ee"
-            className={styles.input}
-            type="number"
-            min="0"
-            max="100"
-            step="0.5"
-            value={draft.employeePct}
-            disabled={!isCo}
-            onChange={(e) => {
-              setDraft((d) => ({ ...d, employeePct: e.target.value }));
-              if (err) setErr('');
-            }}
-          />
+      ) : (
+        <div className={styles.fieldRow}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="emp-default-er">Employer %</label>
+            <input
+              id="emp-default-er"
+              className={styles.input}
+              type="number"
+              min="0"
+              max="100"
+              step="0.5"
+              value={draft.employerPct}
+              onChange={(e) => {
+                setDraft((d) => ({ ...d, employerPct: e.target.value }));
+                if (err) setErr('');
+              }}
+            />
+            <span className={styles.hint}>Employer pays this % of each employee&apos;s salary.</span>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="emp-default-cover">Group insurance cover (UGX)</label>
+            <input
+              id="emp-default-cover"
+              className={styles.input}
+              type="number"
+              min="0"
+              step="1000"
+              value={draft.groupCoverAmount}
+              placeholder="No cover"
+              onChange={(e) => {
+                setDraft((d) => ({ ...d, groupCoverAmount: e.target.value }));
+                if (err) setErr('');
+              }}
+            />
+            <span className={styles.coverNote}>
+              Employer-only includes group life cover for all staff.
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className={styles.preview} aria-live="polite">
-        <span className={styles.previewLabel}>
-          Per-run preview (from {formatUGX(SAMPLE_SALARY, { compact: false })} salary)
-        </span>
-        <div className={styles.previewRow}>
-          <span>Employer: <strong>{formatUGX(preview.employerHalf, { compact: false })}</strong></span>
-          <span>Employee: <strong>{preview.employeeHalf > 0 ? formatUGX(preview.employeeHalf, { compact: false }) : '—'}</strong></span>
-          <span>Total: <strong>{formatUGX(preview.gross, { compact: false })}</strong></span>
+      {isCo ? (
+        <div className={styles.preview} aria-live="polite">
+          <span className={styles.previewLabel}>
+            If an employee saves {formatUGX(EXAMPLE_MONTHLY, { compact: false })}/mo
+          </span>
+          <div className={styles.previewRow}>
+            <span>You add: <strong>{formatUGX(coPreview.match, { compact: false })}</strong>{coPreview.capped ? ' (capped)' : ''}</span>
+            <span>Total: <strong>{formatUGX(EXAMPLE_MONTHLY + coPreview.match, { compact: false })}</strong></span>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className={styles.preview} aria-live="polite">
+          <span className={styles.previewLabel}>
+            From a {formatUGX(SAMPLE_SALARY, { compact: false })} salary
+          </span>
+          <div className={styles.previewRow}>
+            <span>You contribute {Number(draft.employerPct) || 0}%: <strong>{formatUGX(erPreview, { compact: false })}</strong></span>
+            <span>
+              Group cover: <strong>{draft.groupCoverAmount === '' ? '—' : formatUGX(Number(draft.groupCoverAmount), { compact: false })}</strong> per employee
+            </span>
+          </div>
+        </div>
+      )}
 
       {err && <p className={styles.error} role="alert">{err}</p>}
 

@@ -26,20 +26,51 @@ import styles from './EmployeeDetail.module.css';
 
 const round = (n) => Math.round(n);
 
-/** Derive the employer/employee halves from salary + config (display preview). */
-function deriveHalves(salary, config) {
-  const cfg = config ?? {};
+/**
+ * Derive the employer/employee halves for a per-employee preview. This is the
+ * 5th client mirror of the canonical run formula — it MUST stay byte-identical
+ * to `previewLineFor` in `runs/ContributionRuns.jsx` (and `mockLineFor` in
+ * services/employer.js) so a per-employee preview matches what the run computes.
+ *
+ * NEW co-contribution model: the employer MATCHES `matchPct` of the employee's
+ * OWN monthly saving (`monthlyContribution`), capped by an optional fixed UGX
+ * maximum on the employer top-up. Dual-read: a legacy co row (employeePct, no
+ * matchPct) falls back to the OLD salary-based math. employer-only unchanged.
+ *
+ * Takes the whole `emp` (not just salary) so it can read `monthlyContribution`,
+ * the match base. Pass a draft config via the optional `configOverride` so the
+ * live editor preview reflects the unsaved draft.
+ */
+function deriveHalves(emp, configOverride) {
+  const cfg = configOverride ?? emp?.contributionConfig ?? {};
   const mode = cfg.mode ?? 'employer-only';
-  const employerHalf =
-    cfg.employerAmount != null && cfg.employerAmount !== ''
-      ? round(Number(cfg.employerAmount))
-      : round((Number(salary) || 0) * (Number(cfg.employerPct) || 0) / 100);
-  let employeeHalf = 0;
+  let employerHalf;
+  let employeeHalf;
   if (mode === 'co-contribution') {
-    employeeHalf =
-      cfg.employeeAmount != null && cfg.employeeAmount !== ''
-        ? round(Number(cfg.employeeAmount))
-        : round((Number(salary) || 0) * (Number(cfg.employeePct) || 0) / 100);
+    if (cfg.matchPct != null) {
+      // NEW: employee funds their own saving; employer matches a % of it.
+      employeeHalf = round(Number(emp?.monthlyContribution ?? 0));
+      employerHalf = round(employeeHalf * Number(cfg.matchPct ?? 0) / 100);
+      if (cfg.maxContribution != null && cfg.maxContribution !== '') {
+        employerHalf = Math.min(employerHalf, round(Number(cfg.maxContribution)));
+      }
+    } else {
+      // LEGACY fallback: two independent % of salary (pre-redesign rows).
+      employerHalf =
+        cfg.employerAmount != null
+          ? round(Number(cfg.employerAmount))
+          : round((emp?.salary ?? 0) * Number(cfg.employerPct ?? 0) / 100);
+      employeeHalf =
+        cfg.employeeAmount != null
+          ? round(Number(cfg.employeeAmount))
+          : round((emp?.salary ?? 0) * Number(cfg.employeePct ?? 0) / 100);
+    }
+  } else {
+    employerHalf =
+      cfg.employerAmount != null
+        ? round(Number(cfg.employerAmount))
+        : round((emp?.salary ?? 0) * Number(cfg.employerPct ?? 0) / 100);
+    employeeHalf = 0;
   }
   return { employerHalf, employeeHalf, gross: employerHalf + employeeHalf };
 }
@@ -92,10 +123,13 @@ export default function EmployeeDetail({ splitMode = false }) {
 
   function openConfigEditor() {
     const cfg = employee?.contributionConfig ?? {};
+    // Dual-read seed: prefer the NEW co keys (matchPct / maxContribution) and
+    // fall back to the legacy employer-% pair. Blank UGX max stays '' (no cap).
     setConfigDraft({
       mode: cfg.mode ?? 'employer-only',
+      matchPct: cfg.matchPct ?? 50,
+      maxContribution: cfg.maxContribution ?? '',
       employerPct: cfg.employerPct ?? 0,
-      employeePct: cfg.employeePct ?? 0,
     });
     setConfigErr('');
     setConfigOpen(true);
@@ -110,34 +144,41 @@ export default function EmployeeDetail({ splitMode = false }) {
     setInsuranceOpen(true);
   }
 
-  // Live preview of the config editor draft against the employee's salary.
+  // Live preview of the config editor draft. Co mode reads the employee's own
+  // monthlyContribution as the match base; employer-only reads salary.
   const configPreview = useMemo(() => {
     if (!employee || !configDraft) return null;
-    return deriveHalves(employee.salary, configDraft);
+    return deriveHalves(employee, configDraft);
   }, [employee, configDraft]);
 
   function handleSaveConfig() {
     if (!employee || !configDraft) return;
-    const employerPct = Number(configDraft.employerPct);
-    const employeePct = Number(configDraft.employeePct);
     const isCo = configDraft.mode === 'co-contribution';
-    // Validate percentages (0–100).
-    if (!(employerPct >= 0 && employerPct <= 100)) {
-      setConfigErr('Employer % must be between 0 and 100.');
-      return;
-    }
-    if (isCo && !(employeePct >= 0 && employeePct <= 100)) {
-      setConfigErr('Employee % must be between 0 and 100.');
-      return;
+
+    let config;
+    if (isCo) {
+      const matchPct = Number(configDraft.matchPct);
+      const maxContribution =
+        configDraft.maxContribution === '' ? null : Number(configDraft.maxContribution);
+      if (!(matchPct >= 0 && matchPct <= 100)) {
+        setConfigErr('Match % must be between 0 and 100.');
+        return;
+      }
+      if (maxContribution != null && !(maxContribution >= 0)) {
+        setConfigErr('Maximum contribution must be 0 or more (or blank for no cap).');
+        return;
+      }
+      config = { mode: 'co-contribution', matchPct, maxContribution };
+    } else {
+      const employerPct = Number(configDraft.employerPct);
+      if (!(employerPct >= 0 && employerPct <= 100)) {
+        setConfigErr('Employer % must be between 0 and 100.');
+        return;
+      }
+      config = { mode: 'employer-only', employerPct };
     }
     setConfigErr('');
-    const config = {
-      mode: configDraft.mode,
-      employerPct,
-      employeePct: isCo ? employeePct : 0,
-      employerAmount: null,
-      employeeAmount: null,
-    };
+
     updateConfig.mutate(
       { employeeId: employee.id, config },
       {
@@ -246,9 +287,22 @@ export default function EmployeeDetail({ splitMode = false }) {
                   label="Funding mode"
                   value={employee.contributionConfig?.mode === 'co-contribution' ? 'Co-contribution' : 'Employer-only'}
                 />
-                <Def label="Employer share" value={`${Number(employee.contributionConfig?.employerPct ?? 0)}%`} />
-                {employee.contributionConfig?.mode === 'co-contribution' && (
-                  <Def label="Employee share" value={`${Number(employee.contributionConfig?.employeePct ?? 0)}%`} />
+                {employee.contributionConfig?.mode === 'co-contribution' ? (
+                  <>
+                    <Def label="Own monthly saving" value={formatUGX(employee.monthlyContribution, { compact: false })} />
+                    <Def label="Match" value={`${Number(employee.contributionConfig?.matchPct ?? 0)}%`} />
+                    <Def
+                      label="Max top-up"
+                      value={
+                        employee.contributionConfig?.maxContribution != null
+                        && employee.contributionConfig?.maxContribution !== ''
+                          ? formatUGX(Number(employee.contributionConfig.maxContribution), { compact: false })
+                          : '—'
+                      }
+                    />
+                  </>
+                ) : (
+                  <Def label="Employer share" value={`${Number(employee.contributionConfig?.employerPct ?? 0)}%`} />
                 )}
                 <Def label="Retirement / Emergency" value={`${Number(employee.contributionSchedule?.retirementPct ?? 80)}% / ${Number(employee.contributionSchedule?.emergencyPct ?? 20)}%`} />
               </dl>
@@ -278,43 +332,79 @@ export default function EmployeeDetail({ splitMode = false }) {
                   </div>
                 </fieldset>
 
-                <div className={styles.fieldRow}>
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>Employer %</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.5"
-                      className={styles.input}
-                      value={configDraft?.employerPct ?? 0}
-                      onChange={(e) => setConfigDraft((d) => ({ ...d, employerPct: e.target.value }))}
-                    />
-                  </label>
-                  <label className={styles.field} data-disabled={configDraft?.mode !== 'co-contribution' || undefined}>
-                    <span className={styles.fieldLabel}>Employee %</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.5"
-                      className={styles.input}
-                      value={configDraft?.employeePct ?? 0}
-                      disabled={configDraft?.mode !== 'co-contribution'}
-                      onChange={(e) => setConfigDraft((d) => ({ ...d, employeePct: e.target.value }))}
-                    />
-                  </label>
-                </div>
+                {configDraft?.mode === 'co-contribution' ? (
+                  <>
+                    {/* The employee's own saving is the match base — seeded, not
+                        employer-set, so it's shown read-only for context. */}
+                    <p className={styles.matchBaseNote}>
+                      This employee saves{' '}
+                      <strong>{formatUGX(employee.monthlyContribution, { compact: false })}</strong>/mo of their own.
+                    </p>
+                    <div className={styles.fieldRow}>
+                      <label className={styles.field}>
+                        <span className={styles.fieldLabel}>Match %</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          className={styles.input}
+                          value={configDraft?.matchPct ?? 0}
+                          onChange={(e) => setConfigDraft((d) => ({ ...d, matchPct: e.target.value }))}
+                        />
+                      </label>
+                      <label className={styles.field}>
+                        <span className={styles.fieldLabel}>Maximum contribution (UGX)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          className={styles.input}
+                          value={configDraft?.maxContribution ?? ''}
+                          placeholder="No cap"
+                          onChange={(e) => setConfigDraft((d) => ({ ...d, maxContribution: e.target.value }))}
+                        />
+                      </label>
+                    </div>
+                  </>
+                ) : (
+                  <div className={styles.fieldRow}>
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>Employer %</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        className={styles.input}
+                        value={configDraft?.employerPct ?? 0}
+                        onChange={(e) => setConfigDraft((d) => ({ ...d, employerPct: e.target.value }))}
+                      />
+                    </label>
+                  </div>
+                )}
 
                 {/* Live preview */}
                 {configPreview && (
                   <div className={styles.preview} aria-live="polite">
-                    <span className={styles.previewLabel}>Per-run preview (from {formatUGX(employee.salary, { compact: false })})</span>
-                    <div className={styles.previewRow}>
-                      <span>Employer: <strong>{formatUGX(configPreview.employerHalf, { compact: false })}</strong></span>
-                      <span>Employee: <strong>{formatUGX(configPreview.employeeHalf, { compact: false })}</strong></span>
-                      <span>Total: <strong>{formatUGX(configPreview.gross, { compact: false })}</strong></span>
-                    </div>
+                    {configDraft?.mode === 'co-contribution' ? (
+                      <>
+                        <span className={styles.previewLabel}>Per-run preview</span>
+                        <div className={styles.previewRow}>
+                          <span>Saves: <strong>{formatUGX(configPreview.employeeHalf, { compact: false })}</strong></span>
+                          <span>You match: <strong>{formatUGX(configPreview.employerHalf, { compact: false })}</strong></span>
+                          <span>Total: <strong>{formatUGX(configPreview.gross, { compact: false })}</strong></span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <span className={styles.previewLabel}>Per-run preview (from {formatUGX(employee.salary, { compact: false })})</span>
+                        <div className={styles.previewRow}>
+                          <span>Employer: <strong>{formatUGX(configPreview.employerHalf, { compact: false })}</strong></span>
+                          <span>Total: <strong>{formatUGX(configPreview.gross, { compact: false })}</strong></span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 

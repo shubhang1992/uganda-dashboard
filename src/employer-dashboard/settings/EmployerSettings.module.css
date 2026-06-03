@@ -137,6 +137,14 @@
   color: var(--color-gray);
 }
 
+/* Group-cover selling point — brand indigo + slightly heavier than .hint so it
+   reads as a benefit, not a quiet caption. */
+.coverNote {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-indigo);
+}
+
 .error {
   margin: 0;
   font-size: 0.75rem;

@@ -304,6 +304,19 @@
   color: var(--color-gray);
 }
 
+/* Read-only context line above the co-contribution match inputs — the
+   employee's own monthly saving is the match base, not an employer control. */
+.matchBaseNote {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-slate);
+}
+
+.matchBaseNote strong {
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
 .editorErr {
   margin: 0;
   font-size: 0.8125rem;
