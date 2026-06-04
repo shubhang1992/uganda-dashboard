@@ -48,6 +48,12 @@ describe('SignupContext — signupNonce', () => {
     expect(result.current.signupNonce).not.toBe(before);
     expect(result.current.signupNonce.length).toBeGreaterThan(0);
     expect(result.current.fullName).toBe('Asha'); // other state untouched
+
+    // Durable IMMEDIATELY (no debounce wait): a fast unmount (e.g. Close right
+    // after a successful create) must not drop the rotation, so localStorage
+    // reflects the fresh nonce synchronously.
+    expect(JSON.parse(localStorage.getItem(SIGNUP_STORAGE_KEY)).signupNonce)
+      .toBe(result.current.signupNonce);
   });
 
   it('persists the nonce so a reload reuses the SAME key (dedup survives refresh)', async () => {

@@ -260,10 +260,27 @@ export function SignupProvider({ children }) {
   // nonce and the next create would idempotently return the PRIOR subscriber's
   // id without inserting anything). Must NOT be called on failure — a retry of
   // the same attempt relies on the nonce staying stable.
-  const rotateSignupNonce = useCallback(
-    () => dispatch({ type: 'patch', payload: { signupNonce: createOnboardingSessionId() } }),
-    [],
-  );
+  const rotateSignupNonce = useCallback(() => {
+    const fresh = createOnboardingSessionId();
+    dispatch({ type: 'patch', payload: { signupNonce: fresh } });
+    // Persist the rotation SYNCHRONOUSLY. The 300ms debounce below won't flush if
+    // the provider unmounts first — e.g. the agent clicks Close (React-Router
+    // nav, not a tab close, so `beforeunload` doesn't fire either) right after a
+    // successful create. That would leave the OLD, spent nonce in localStorage
+    // and let a later signup replay it (returning the prior subscriber's id).
+    // Merge the fresh nonce into the stored blob now so durability of the spent-
+    // nonce rotation never depends on the debounce.
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = window.localStorage.getItem(SIGNUP_STORAGE_KEY);
+        const stored = raw ? JSON.parse(raw) : {};
+        window.localStorage.setItem(
+          SIGNUP_STORAGE_KEY,
+          JSON.stringify({ ...stored, signupNonce: fresh }),
+        );
+      } catch { /* quota / private-browsing — the debounce remains as fallback */ }
+    }
+  }, []);
 
   const reset = useCallback(() => {
     if (typeof window !== 'undefined') {
