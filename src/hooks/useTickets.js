@@ -17,9 +17,14 @@
 // each mutation invalidates the three shared key prefixes via invalidateAllTickets.
 //
 // ── Polling ──
-// Lists/threads poll on an interval so the demo feels live within a session;
-// refetchOnWindowFocus is left default-on. The agent list key is kept stable so
-// the inbox screen and the nav unread badge share one cache entry (they dedupe).
+// Lists/threads poll on an interval so the demo feels live within a session.
+// Every polled read sets refetchIntervalInBackground:false, so a backgrounded
+// tab (document.visibilityState === 'hidden') stops polling entirely and resumes
+// when it returns to the foreground — refetchOnWindowFocus (default-on) pulls the
+// latest state on return, so a hidden tab no longer hammers the store while away.
+// Behavior is identical when the tab is visible. The agent list key is kept
+// stable so the inbox screen and the nav unread badge share one cache entry
+// (they dedupe).
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SENDER_ROLE, TICKET_STATUS } from '../data/ticketsSeed.js';
@@ -55,6 +60,7 @@ export function useSubscriberTickets(subscriberId, { status } = {}) {
     queryFn: () => tickets.listTicketsForSubscriber(subscriberId, { status }),
     enabled: !!subscriberId,
     refetchInterval: POLL_INBOX,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -72,6 +78,7 @@ export function useAgentTickets(agentId, { status } = {}) {
     queryFn: () => tickets.listTicketsForAgent(agentId, { status }),
     enabled: !!agentId,
     refetchInterval: POLL_INBOX,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -105,6 +112,7 @@ export function useBranchTickets(branchId, filters = {}) {
     queryFn: () => tickets.listTicketsForBranch(branchId, filters),
     enabled: !!branchId,
     refetchInterval: POLL_OVERSIGHT,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -120,6 +128,7 @@ export function useDistributorTickets(distributorId, filters = {}) {
     queryFn: () => tickets.listTicketsForDistributor(distributorId, filters),
     enabled: !!distributorId,
     refetchInterval: POLL_OVERSIGHT,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -136,6 +145,7 @@ export function useEmployerTickets(employerId, { status } = {}) {
     queryFn: () => tickets.listTicketsForEmployer(employerId, { status }),
     enabled: !!employerId,
     refetchInterval: POLL_INBOX,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -150,6 +160,7 @@ export function useTicketThread(ticketId) {
     queryFn: () => tickets.getThread(ticketId),
     enabled: !!ticketId,
     refetchInterval: POLL_THREAD,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -165,6 +176,7 @@ export function useBranchTicketMetrics(branchId) {
     queryFn: () => tickets.getBranchTicketMetrics(branchId),
     enabled: !!branchId,
     refetchInterval: POLL_METRICS,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -180,6 +192,7 @@ export function useDistributorTicketMetrics(distributorId, filters = {}) {
     queryFn: () => tickets.getDistributorTicketMetrics(distributorId, filters),
     enabled: !!distributorId,
     refetchInterval: POLL_METRICS,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -195,6 +208,7 @@ export function useEmployerTicketMetrics(employerId) {
     queryFn: () => tickets.getEmployerTicketMetrics(employerId),
     enabled: !!employerId,
     refetchInterval: POLL_METRICS,
+    refetchIntervalInBackground: false,
   });
 }
 

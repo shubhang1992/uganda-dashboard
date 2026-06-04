@@ -9,6 +9,7 @@
 // invalidate on success.
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEmployerScope } from '../contexts/EmployerScopeContext';
 import * as employer from '../services/employer';
 
 const READ_STALE_TIME = 5 * 60 * 1000;
@@ -171,6 +172,14 @@ export function useUpdateEmployerProfile(employerId) {
  */
 export function useUpdateEmployeeContributionConfig() {
   const queryClient = useQueryClient();
+  // Scope the roster/metrics invalidations to the active employer (these reads
+  // are keyed ['employees', employerId] / ['employerMetrics', employerId]) so a
+  // single employee's edit doesn't refetch every employer's cache. The detail
+  // panel always renders inside EmployerScopeProvider; if scope is somehow
+  // absent we fall back to the broad prefix so invalidation never silently fails.
+  const { employerId } = useEmployerScope();
+  const employeesKey = employerId ? ['employees', employerId] : ['employees'];
+  const metricsKey = employerId ? ['employerMetrics', employerId] : ['employerMetrics'];
   return useMutation({
     mutationFn: ({ employeeId, config }) =>
       employer.updateEmployeeContributionConfig(employeeId, config),
@@ -189,8 +198,8 @@ export function useUpdateEmployeeContributionConfig() {
     },
     onSettled: (_data, _err, { employeeId }) => {
       queryClient.invalidateQueries({ queryKey: ['employee', employeeId] });
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      queryClient.invalidateQueries({ queryKey: ['employerMetrics'] });
+      queryClient.invalidateQueries({ queryKey: employeesKey });
+      queryClient.invalidateQueries({ queryKey: metricsKey });
     },
   });
 }
@@ -202,6 +211,12 @@ export function useUpdateEmployeeContributionConfig() {
  */
 export function useUpdateEmployeeInsurance() {
   const queryClient = useQueryClient();
+  // Scope roster/metrics invalidations to the active employer — see the note in
+  // useUpdateEmployeeContributionConfig. Falls back to the broad prefix if scope
+  // is unexpectedly absent so invalidation never silently fails.
+  const { employerId } = useEmployerScope();
+  const employeesKey = employerId ? ['employees', employerId] : ['employees'];
+  const metricsKey = employerId ? ['employerMetrics', employerId] : ['employerMetrics'];
   return useMutation({
     mutationFn: ({ employeeId, cover, premium }) =>
       employer.updateEmployeeInsurance(employeeId, { cover, premium }),
@@ -228,8 +243,8 @@ export function useUpdateEmployeeInsurance() {
     },
     onSettled: (_data, _err, { employeeId }) => {
       queryClient.invalidateQueries({ queryKey: ['employee', employeeId] });
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      queryClient.invalidateQueries({ queryKey: ['employerMetrics'] });
+      queryClient.invalidateQueries({ queryKey: employeesKey });
+      queryClient.invalidateQueries({ queryKey: metricsKey });
     },
   });
 }
