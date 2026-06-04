@@ -217,7 +217,7 @@ function generateSubscribers() {
   if (_subscribersCache) return _subscribersCache;
   const subs = {};
   const agentIds = Object.keys(AGENTS);
-  const TARGET_SUBS = 30000;
+  const TARGET_SUBS = 5000;
   const subsPerAgent = Math.ceil(TARGET_SUBS / agentIds.length);
   let subCounter = 0;
 
@@ -381,7 +381,7 @@ function generateSubscribers() {
       // keeps every relative date in the demo internally consistent.
       const refMs = MOCK_NOW.getTime();
       // Contributions — last 12 months if active
-      const contribMonths = isActive ? 12 : randInt(3, 8);
+      const contribMonths = isActive ? 3 : randInt(1, 3);
       for (let mIdx = contribMonths - 1; mIdx >= 0; mIdx--) {
         const contribDate = new Date(refMs - mIdx * 30 * 86400000 - randInt(0, 5) * 86400000);
         const monthAmount = contribHistory[11 - Math.min(mIdx, 11)] || monthlyAmt;
