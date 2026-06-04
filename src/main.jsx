@@ -44,6 +44,10 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       retry: 1,
     },
+    // Mutations (writes) must never auto-replay — a retried POST/PUT/DELETE can
+    // double-apply a server-side write. Errors surface to the caller instead.
+    // Pairs with the idempotent-only retry gate in services/api.js.
+    mutations: { retry: 0 },
   },
 });
 
