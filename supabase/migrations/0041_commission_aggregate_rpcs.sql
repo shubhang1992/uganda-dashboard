@@ -31,7 +31,18 @@
 --     RLS-scoped SELECT would return — see the SCOPE caveat in risksOrFollowups
 --     of the handoff. For the demo (distributor is the sole consumer of the list
 --     + pending-dues feeds) this matches the JS, which also returned the full
---     RLS-scoped set. P4 must confirm no narrower role calls these.
+--     RLS-scoped set.
+--     SCOPE CAVEAT — RESOLVED IN P4: the branch role ALSO calls these (CommissionPanel
+--     is mounted in BranchDashboardShell, not only the distributor shell). Because
+--     these are SECURITY DEFINER they return the FULL network rowset to a branch
+--     caller, where the OLD per-role-RLS SELECT returned only the caller's branch.
+--     The branch view re-scopes the result CLIENT-SIDE (CommissionPanel filters by
+--     branchId), so there is no VISIBLE leak — but isolation moved from RLS-enforced
+--     to client-side, consistent with the sibling 0029 read RPCs. ACCEPTABLE FOR THE
+--     DEMO. Before real multi-tenant data, add an in-RPC scope gate branching on
+--     auth.jwt()->>'app_role' (distributor: all; branch: WHERE c.branch_id =
+--     ->>'branchId'; agent: WHERE c.agent_id = ->>'agentId') to restore
+--     RLS-equivalent visibility. Deferred (pre-real-user hardening, plan §16).
 --   * REVOKE ALL FROM PUBLIC; GRANT EXECUTE TO authenticated.
 --   * Forward-only; reversible via 0041_commission_aggregate_rpcs.down.sql.
 --   * Migrations 0001-0039 SQL bodies are FROZEN — this is append-only work.

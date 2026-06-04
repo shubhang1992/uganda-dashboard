@@ -212,10 +212,16 @@ export async function getEntityCommissionSummary(level, entityId) {
  *   0041_commission_aggregate_rpcs.sql); `filteredAmount`/`filteredCount`
  *   honour `p_status_focus` ('paid'→paid rows, 'due'→due rows, else all rows).
  * @param {('paid'|'due'|null)} statusFocus
- * @scope RLS: distributor sees everyone; branch sees own branch; agent sees own.
- *   The RPC is SECURITY DEFINER but folds only the RLS-scoped row set (it does
- *   not branch on app_role), matching the old SELECT's visibility.
- * @cache ['agentCommissionList', statusFocus]
+ * @scope SECURITY DEFINER → the RPC BYPASSES RLS and folds the FULL network
+ *   rowset for every caller (it does not branch on app_role), like the sibling
+ *   0029 read RPCs. The distributor (the intended consumer) wants this; the
+ *   branch view (CommissionPanel mounted in BranchDashboardShell) re-scopes the
+ *   result CLIENT-SIDE by branchId. So branch/agent isolation moved from
+ *   RLS-enforced (the old per-role SELECT) to client-side filtering — acceptable
+ *   for the demo, but before real multi-tenant data an in-RPC app_role/branchId
+ *   scope gate should be added (mirror commissions_select_branch; see the SCOPE
+ *   caveat in 0041_commission_aggregate_rpcs.sql).
+ * @cache ['agentCommissions', statusFocus || 'all']
  */
 export async function getAgentCommissionList(statusFocus) {
   if (!IS_SUPABASE_ENABLED) return _legacy_mock_getAgentCommissionList(statusFocus);
