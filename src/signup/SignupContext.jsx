@@ -252,6 +252,19 @@ export function SignupProvider({ children }) {
   }, [state]);
 
   const patch = useCallback((payload) => dispatch({ type: 'patch', payload }), []);
+
+  // Rotate the idempotency nonce to a fresh value. Call AFTER a subscriber is
+  // successfully created so the spent nonce can never be replayed for a
+  // DIFFERENT subscriber (e.g. agent clicks Close — which does NOT reset — then
+  // re-enters onboarding: loadPersisted would otherwise rehydrate the spent
+  // nonce and the next create would idempotently return the PRIOR subscriber's
+  // id without inserting anything). Must NOT be called on failure — a retry of
+  // the same attempt relies on the nonce staying stable.
+  const rotateSignupNonce = useCallback(
+    () => dispatch({ type: 'patch', payload: { signupNonce: createOnboardingSessionId() } }),
+    [],
+  );
+
   const reset = useCallback(() => {
     if (typeof window !== 'undefined') {
       try { window.localStorage.removeItem(SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
@@ -260,7 +273,10 @@ export function SignupProvider({ children }) {
     dispatch({ type: 'reset' });
   }, []);
 
-  const value = useMemo(() => ({ ...state, patch, reset }), [state, patch, reset]);
+  const value = useMemo(
+    () => ({ ...state, patch, reset, rotateSignupNonce }),
+    [state, patch, reset, rotateSignupNonce],
+  );
   return <SignupContext value={value}>{children}</SignupContext>;
 }
 

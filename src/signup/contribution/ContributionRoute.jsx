@@ -139,6 +139,13 @@ export default function ContributionRoute() {
         signup.password,
       );
       await login({ token, user });
+      // Create + verify both succeeded → the nonce is spent. Rotate it now (not
+      // only on the Finish→reset path) so that if the user closes the tab before
+      // clicking Continue, a later signup on the same browser can't replay this
+      // nonce and idempotently return THIS subscriber's id. Safe here because no
+      // further createFromSignup runs in this flow; a verify-only retry never
+      // reaches this line.
+      signup.rotateSignupNonce();
     } catch (err) {
       console.error('[signup] verifyOtp / login failed', err);
       addToast(

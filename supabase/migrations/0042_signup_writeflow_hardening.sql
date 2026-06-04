@@ -353,7 +353,12 @@ BEGIN
     v_amount,
     v_retirement_pct,
     v_emergency_pct,
-    COALESCE((p_payload ->> 'includeInsurance')::boolean, FALSE),
+    -- includeInsurance is nested in the `contributionSchedule` sub-object by the
+    -- client (ContributionRoute/OnboardingComplete buildPayload), so read it from
+    -- v_schedule, NOT the payload root (root would always be NULL → FALSE, leaving
+    -- include_insurance false even for opted-in subscribers). insuranceChoiceMade
+    -- IS emitted at the payload root, so it correctly reads p_payload.
+    COALESCE((v_schedule ->> 'includeInsurance')::boolean, FALSE),
     COALESCE((p_payload ->> 'insuranceChoiceMade')::boolean, TRUE),
     v_next_due
   );

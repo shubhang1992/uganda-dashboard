@@ -37,6 +37,19 @@ describe('SignupContext — signupNonce', () => {
     expect(result.current.signupNonce.length).toBeGreaterThan(0);
   });
 
+  it('rotateSignupNonce() mints a fresh nonce but PRESERVES other state (post-success spend)', () => {
+    // Called after a successful create so the spent nonce can never be replayed
+    // for a different subscriber (e.g. Close-without-reset → re-enter). Unlike
+    // reset(), it must keep the rest of the signup state intact.
+    const { result } = renderHook(() => useSignup(), { wrapper });
+    act(() => result.current.patch({ fullName: 'Asha' }));
+    const before = result.current.signupNonce;
+    act(() => result.current.rotateSignupNonce());
+    expect(result.current.signupNonce).not.toBe(before);
+    expect(result.current.signupNonce.length).toBeGreaterThan(0);
+    expect(result.current.fullName).toBe('Asha'); // other state untouched
+  });
+
   it('persists the nonce so a reload reuses the SAME key (dedup survives refresh)', async () => {
     const first = renderHook(() => useSignup(), { wrapper });
     const nonce = first.result.current.signupNonce;
