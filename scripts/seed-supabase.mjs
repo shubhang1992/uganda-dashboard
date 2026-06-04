@@ -248,6 +248,54 @@ async function main() {
     //    seed can insert raw rows without double-firing them. CRITICAL.
     await client.query("SET session_replication_role = 'replica'");
 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  ⚠️  DESTRUCTIVE RESET — TRUNCATE … RESTART IDENTITY CASCADE  ⚠️
+    // ───────────────────────────────────────────────────────────────────────
+    //  This wipes EVERY seeded table (and the two upload audit tables) to
+    //  empty, resets their identity sequences, and CASCADEs to any dependent
+    //  rows. It exists so repeated reseeds do NOT accumulate dead tuples /
+    //  disk — the upserts below then repopulate from scratch.
+    //
+    //  ‼️  ONLY SAFE against the fresh, empty demo project this script is run
+    //      against. It is HUMAN-RUN ONLY and will irrecoverably destroy ALL
+    //      data in these tables — NEVER point this at a project with data you
+    //      care about. There is no undo.
+    //
+    //  Table list is exhaustive: every table this script INSERTs/upserts into,
+    //  PLUS settlement_uploads + contribution_run_uploads (written by the app
+    //  during demos, not by this seed, so they'd otherwise grow unbounded).
+    // ═══════════════════════════════════════════════════════════════════════
+    console.log('• TRUNCATE (destructive reset)…');
+    await client.query(`
+      TRUNCATE TABLE
+        regions,
+        districts,
+        branches,
+        agents,
+        subscribers,
+        subscriber_balances,
+        contribution_schedules,
+        insurance_policies,
+        nominees,
+        transactions,
+        claims,
+        withdrawals,
+        commission_config,
+        commissions,
+        settlement_batches,
+        notifications,
+        distributors,
+        employers,
+        employees,
+        contribution_runs,
+        contribution_run_lines,
+        demo_personas,
+        users,
+        settlement_uploads,
+        contribution_run_uploads
+      RESTART IDENTITY CASCADE
+    `);
+
     // ── regions ────────────────────────────────────────────────────────────
     console.log('• regions…');
     await bulkInsert(
@@ -1240,6 +1288,29 @@ async function main() {
     //    application — must go through the normal trigger machinery.
     await client.query("SET session_replication_role = 'origin'");
     await client.query('COMMIT');
+
+    // Reclaim disk from the dead tuples left by the TRUNCATE + churn. VACUUM
+    // (FULL, …) rewrites each table compactly and ANALYZE refreshes planner
+    // stats. VACUUM cannot run inside a transaction, so it goes on a FRESH
+    // connection AFTER the COMMIT. Best-effort: if it fails (e.g. lock
+    // contention or insufficient privilege on a pooled connection) we warn
+    // and carry on — the seed itself already committed successfully.
+    console.log('• VACUUM (FULL, ANALYZE) — reclaiming disk…');
+    const vacuumClient = new Client({ connectionString: DB_URL });
+    try {
+      await vacuumClient.connect();
+      await vacuumClient.query('VACUUM (FULL, ANALYZE)');
+      console.log('  → VACUUM complete.');
+    } catch (vacErr) {
+      console.warn(
+        `  ⚠ VACUUM (FULL, ANALYZE) skipped — ${vacErr.message}. ` +
+          'Seed committed successfully; disk reclamation can be run manually.'
+      );
+    } finally {
+      try {
+        await vacuumClient.end();
+      } catch {}
+    }
 
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     console.log(`\n✓ Seed complete in ${elapsed}s.`);
