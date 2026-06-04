@@ -292,7 +292,8 @@ function lineFor(emp, method) {
     employeeHalf = 0;
   }
   const gross = employerHalf + employeeHalf;
-  const retPct = emp.contributionSchedule?.retirementPct ?? 80;
+  let retPct = Number(emp.contributionSchedule?.retirementPct ?? 80);
+  if (!(retPct >= 0 && retPct <= 100)) retPct = 80;
   const retirement = round(gross * retPct / 100);
   const emergency = gross - retirement;
   return { employerHalf, employeeHalf, gross, retirement, emergency, method };
