@@ -61,4 +61,4 @@ scripts/.baseline/
 # Phase-0 audit baseline traces — useful locally for before/after comparison
 # but ~10 MB of Playwright trace zips that would bloat the repo. Re-capture
 # locally via Phase 0 protocol when needed (docs/audit/00-baseline.md §2).
-docs/audit/baseline-traces/
+docs/audits/**/baseline-traces/
