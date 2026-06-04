@@ -333,7 +333,26 @@ async function main() {
     );
 
     // ── agents ─────────────────────────────────────────────────────────────
+    // ux_agents_email forbids duplicate non-null emails, but the small name
+    // pool makes the generated 2049-agent emails collide (~1k dupes). The email
+    // is display-only (agents authenticate by phone/OTP via demo_personas), so:
+    //   (a) suffix any repeated email with the agent's unique id → globally
+    //       unique; (b) NULL existing agent emails first so re-setting them to
+    //       the new unique values can't transiently collide with an as-yet-
+    //       unupdated row's old email mid-statement.
     console.log('• agents…');
+    await client.query('UPDATE agents SET email = NULL');
+    const _seenAgentEmails = new Set();
+    const agentEmails = agents.map((a) => {
+      let email = a.email ?? null;
+      if (!email) return null;
+      if (_seenAgentEmails.has(email)) {
+        const [local, domain] = email.split('@');
+        email = `${local}.${a.id}@${domain}`;
+      }
+      _seenAgentEmails.add(email);
+      return email;
+    });
     await bulkInsert(
       client,
       'agents',
@@ -364,7 +383,7 @@ async function main() {
         agents.map((a) => a.center?.[0] ?? null),
         agents.map((a) => a.center?.[1] ?? null),
         agents.map((a) => a.phone ?? null),
-        agents.map((a) => a.email ?? null),
+        agentEmails,
         agents.map((a) => a.rating ?? null),
         agents.map((a) => a.performance ?? null),
         agents.map((a) => a.status ?? 'active'),
@@ -763,7 +782,10 @@ async function main() {
              updated_at = now()`,
       [
         COMMISSION_CONFIG.ratePerSubscriber,
-        COMMISSION_CONFIG.cadence,
+        // cadence/nextRunDate are vestigial post commission-simplify (the mock
+        // dropped them) but the live column is still NOT NULL — keep a sane
+        // placeholder so re-seeds satisfy the constraint.
+        COMMISSION_CONFIG.cadence ?? 'monthly-first',
         COMMISSION_CONFIG.nextRunDate ?? null,
         'seed',
       ]
