@@ -72,6 +72,28 @@ vi.mock('../_lib/jwt.js', () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Password helper — keep the REAL bcrypt behaviour (so the happy path stays
+// byte-faithful) but wrap `hashPassword` in a spy so we can assert it is NOT
+// invoked on the password-less branch (preserving the short-circuit that
+// avoids paying the ~80ms bcrypt cost on OTP-only logins). `importActual`
+// preserves `validatePasswordShape`/`verifyPassword` unchanged.
+// ---------------------------------------------------------------------------
+
+// `vi.hoisted` so the spy exists before the hoisted `vi.mock` factory below
+// runs (the factory references it during module init, not lazily).
+const { hashPasswordSpy } = vi.hoisted(() => ({
+  hashPasswordSpy: vi.fn<(plain: string) => Promise<string>>(),
+}));
+vi.mock('./_lib/password.js', async (importActual) => {
+  const actual = await importActual<typeof import('./_lib/password.js')>();
+  hashPasswordSpy.mockImplementation((plain: string) => actual.hashPassword(plain));
+  return {
+    ...actual,
+    hashPassword: (plain: string) => hashPasswordSpy(plain),
+  };
+});
+
+// ---------------------------------------------------------------------------
 // Import the handler AFTER mocks are registered so the bindings resolve to
 // the stubs above.
 // ---------------------------------------------------------------------------
@@ -130,6 +152,7 @@ describe('POST /api/auth/verify-otp', () => {
     fromCalls.length = 0;
     signJwtMock.mockClear();
     signJwtMock.mockImplementation(async () => 'signed-token-fake');
+    hashPasswordSpy.mockClear();
     res = makeRes();
   });
 
@@ -329,6 +352,103 @@ describe('POST /api/auth/verify-otp', () => {
     );
     expect(res.__getStatus()).toBe(200);
     expect((res.__getPayload() as { user: { hasPassword: boolean } }).user.hasPassword).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // Concurrent persona-lookup + password-hash, preserving the bcrypt short-
+  // circuit. The lookup and hash run inside a single Promise.all, but the
+  // hash arm is only entered when a password was actually supplied — an
+  // OTP-only login must never start bcrypt.
+  // -------------------------------------------------------------------------
+
+  it('does NOT invoke hashPassword when no password is supplied (short-circuit preserved)', async () => {
+    queueFrom('subscribers', {
+      data: { id: 's-0001', name: 'Brian' },
+      error: null,
+    });
+    queueFrom('users', { data: { password_hash: null }, error: null });
+
+    await call(
+      makeReq({
+        body: {
+          phone: '+256777247884',
+          otp: '123456',
+          role: 'subscriber',
+          // No `password` key at all — the OTP-only happy path.
+        },
+      }),
+      res,
+    );
+
+    expect(res.__getStatus()).toBe(200);
+    // The whole point of the short-circuit: bcrypt is never started.
+    expect(hashPasswordSpy).not.toHaveBeenCalled();
+    expect(
+      (res.__getPayload() as { user: { hasPassword: boolean } }).user.hasPassword,
+    ).toBe(false);
+  });
+
+  it('does NOT invoke hashPassword when password is an empty string (treated as not provided)', async () => {
+    queueFrom('subscribers', {
+      data: { id: 's-0001', name: 'Brian' },
+      error: null,
+    });
+    queueFrom('users', { data: { password_hash: null }, error: null });
+
+    await call(
+      makeReq({
+        body: {
+          phone: '+256777247884',
+          otp: '123456',
+          role: 'subscriber',
+          password: '',
+        },
+      }),
+      res,
+    );
+
+    expect(res.__getStatus()).toBe(200);
+    expect(hashPasswordSpy).not.toHaveBeenCalled();
+  });
+
+  it('invokes hashPassword once and stamps the hash when a valid password is supplied', async () => {
+    queueFrom('subscribers', {
+      data: { id: 's-0001', name: 'Brian' },
+      error: null,
+    });
+    // The upsert reads back the freshly-stamped hash, so hasPassword: true.
+    queueFrom('users', { data: { password_hash: 'bcrypted' }, error: null });
+
+    await call(
+      makeReq({
+        body: {
+          phone: '+256777247884',
+          otp: '123456',
+          role: 'subscriber',
+          password: 'Demo1234',
+        },
+      }),
+      res,
+    );
+
+    expect(res.__getStatus()).toBe(200);
+    // Hash arm was entered exactly once, with the supplied plaintext.
+    expect(hashPasswordSpy).toHaveBeenCalledTimes(1);
+    expect(hashPasswordSpy).toHaveBeenCalledWith('Demo1234');
+
+    // The upsert patch carried a real bcrypt hash (not the plaintext) —
+    // proves the parallel hash result flowed through to the write unchanged.
+    const usersUpsert = fromCalls.find(
+      (c) => c.table === 'users' && c.upsertArg,
+    );
+    const patch = usersUpsert?.upsertArg as { password_hash?: string };
+    expect(typeof patch.password_hash).toBe('string');
+    expect(patch.password_hash).not.toBe('Demo1234');
+    expect(patch.password_hash?.startsWith('$2')).toBe(true);
+
+    expect(
+      (res.__getPayload() as { user: { hasPassword: boolean } }).user.hasPassword,
+    ).toBe(true);
   });
 
   // -------------------------------------------------------------------------
