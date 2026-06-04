@@ -136,9 +136,16 @@ export async function getUnreadCount({ role, entityId }) {
 
 /**
  * Mark a recipient's notifications read. When `ids` is omitted, every unread
- * notification belonging to the recipient is marked. The RPC requires explicit
- * ids, so in Supabase mode we first gather the recipient's unread ids when none
- * were supplied.
+ * notification belonging to the recipient is marked.
+ *
+ * Two round-trips in Supabase mode are REQUIRED here, not an oversight: the
+ * `mark_notifications_read(p_ids text[])` RPC only accepts an explicit id list
+ * (it has no "mark all unread for the caller" mode), and the `notifications`
+ * table has no UPDATE RLS policy (writes must flow through the SECURITY DEFINER
+ * RPC — CLAUDE.md §5/§7), so a single client-side `UPDATE ... WHERE` is not an
+ * option. We therefore gather the recipient's unread ids first when none were
+ * supplied, then hand them to the RPC. Collapsing this to one call needs an RPC
+ * change (add a recipient-scoped "mark all" path) — out of scope this wave.
  * @param {{ role: string, entityId: string, ids?: string[] }} params
  * @returns {Promise<void>}
  */

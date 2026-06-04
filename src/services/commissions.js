@@ -222,22 +222,16 @@ export async function getAgentCommissionDetail(agentId) {
   if (error) throw _rpcError(error, 'get_agent_commission_detail');
   if (!data) return null;
 
-  // Also pull the underlying commission rows so callers that need the raw set
-  // (e.g. Agent dashboard CommissionsPage.groupByPaidCycle) still get it.
-  const { data: rawRows, error: cErr } = await supabase
-    .from('commissions')
-    .select(
-      'id, agent_id, branch_id, subscriber_id, subscriber_name, amount, status, first_contribution_date, due_date, paid_date, txn_ref, paid_amount'
-    )
-    .eq('agent_id', agentId);
-  if (cErr) throw _rpcError(cErr, 'get_agent_commission_detail:rows');
-
+  // The RPC already returns the per-line breakdown the UI consumes as
+  // `paidTransactions` / `dueTransactions`; no consumer reads a separate raw
+  // `commissions` array off this detail, so a second SELECT for those rows was
+  // dead weight (one round-trip saved). If a caller ever needs the full raw set
+  // here, prefer extending the RPC rather than reintroducing the extra query.
   return {
     ...data,
     totalCommissions: Number(data.totalCommissions ?? 0),
     totalPaid: Number(data.totalPaid ?? 0),
     totalDue: Number(data.totalDue ?? 0),
-    commissions: (rawRows || []).map(_rowToCommission),
   };
 }
 
