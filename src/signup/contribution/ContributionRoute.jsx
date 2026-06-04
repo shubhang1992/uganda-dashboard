@@ -56,6 +56,9 @@ export default function ContributionRoute() {
    * the required fields must be present.
    */
   function buildPayload(schedule, phone) {
+    const includeInsurance = schedule.includeInsurance ?? false;
+    const insuranceCover = schedule.insuranceCover ?? 0;
+    const insurancePremium = schedule.insurancePremium ?? 0;
     return {
       phone,
       fullName: signup.fullName,
@@ -72,15 +75,22 @@ export default function ContributionRoute() {
         amount: schedule.amount,
         retirementPct: schedule.retirementPct,
         emergencyPct: schedule.emergencyPct,
-        includeInsurance: schedule.includeInsurance ?? false,
-        insurancePremium: schedule.insurancePremium ?? 0,
-        insuranceCover:   schedule.insuranceCover   ?? 0,
+        includeInsurance,
+        insurancePremium,
+        insuranceCover,
       },
       pensionBeneficiaries: signup.pensionBeneficiaries ?? [],
       insuranceBeneficiaries: signup.insuranceBeneficiaries ?? [],
       insuranceSameAsPension: !!signup.insuranceSameAsPension,
       insuranceChoiceMade: !!signup.insuranceChoiceMade,
       paymentMethod: schedule.paymentMethod,
+      // Persist the insurance policy at signup when the subscriber opted in.
+      // create_subscriber_from_signup (0042 _insert_subscriber_chain) reads
+      // payload.insurancePolicy → insurance_policies; omitting it (no opt-in)
+      // means no policy row is created. Without this, insurance never persisted.
+      ...(includeInsurance && insuranceCover > 0
+        ? { insurancePolicy: { cover: insuranceCover, premiumMonthly: insurancePremium } }
+        : {}),
     };
   }
 
@@ -96,7 +106,9 @@ export default function ContributionRoute() {
     //    orphan rows are possible.
     let subscriberId = null;
     try {
-      const result = await subscriberService.createFromSignup(payload);
+      // Pass the stable per-attempt nonce so a double-submit / reload / retry
+      // replays idempotently (0042) rather than minting a duplicate subscriber.
+      const result = await subscriberService.createFromSignup(payload, signup.signupNonce);
       subscriberId = result?.subscriberId;
     } catch (err) {
       // Log so the actual RPC error is visible during demos — Supabase RPC

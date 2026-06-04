@@ -24,6 +24,9 @@ function formatSchedule(schedule) {
  */
 function buildPayload(signup) {
   const schedule = signup.contributionSchedule || {};
+  const includeInsurance = schedule.includeInsurance ?? false;
+  const insuranceCover = schedule.insuranceCover ?? 0;
+  const insurancePremium = schedule.insurancePremium ?? 0;
   return {
     phone: toCanonicalUGPhone(signup.phone) || signup.phone,
     fullName: signup.fullName,
@@ -40,13 +43,19 @@ function buildPayload(signup) {
       amount: schedule.amount,
       retirementPct: schedule.retirementPct,
       emergencyPct: schedule.emergencyPct,
-      includeInsurance: schedule.includeInsurance ?? false,
+      includeInsurance,
     },
     pensionBeneficiaries: signup.pensionBeneficiaries ?? [],
     insuranceBeneficiaries: signup.insuranceBeneficiaries ?? [],
     insuranceSameAsPension: !!signup.insuranceSameAsPension,
     insuranceChoiceMade: !!signup.insuranceChoiceMade,
     paymentMethod: schedule.paymentMethod,
+    // Persist the insurance policy when the subscriber opted in (parity with
+    // the self-signup path; 0042 _insert_subscriber_chain reads
+    // payload.insurancePolicy). Omitted when no insurance was selected.
+    ...(includeInsurance && insuranceCover > 0
+      ? { insurancePolicy: { cover: insuranceCover, premiumMonthly: insurancePremium } }
+      : {}),
   };
 }
 
@@ -73,7 +82,10 @@ export default function OnboardingComplete({ subscriberName, awareness, schedule
     setErrorMessage('');
     try {
       const payload = buildPayload(signup);
-      await subscriberService.createFromAgentOnboard(payload, agentId);
+      // Stable per-subscriber nonce: the "Try again" retry below reuses it (so a
+      // transient failure can't double-create), while "Onboard another" resets
+      // signup → a fresh nonce for the next subscriber (0042 idempotency).
+      await subscriberService.createFromAgentOnboard(payload, agentId, signup.signupNonce);
       setStatus('success');
     } catch (err) {
       setStatus('error');

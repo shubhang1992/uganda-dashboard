@@ -28,6 +28,12 @@ function createOnboardingSessionId() {
  * @property {string} onboardingSessionId  — passed to every KYC API call so
  *   the backend can link OCR → NIRA → OTP → face-match → AML stages.
  *   Generated on first signup-context mount; persists across refresh.
+ * @property {string} signupNonce          — per-attempt idempotency key passed
+ *   to create_subscriber_from_signup / _agent_onboard (0042 p_nonce). Stable
+ *   across retries + reloads of the SAME signup (persisted to localStorage), so
+ *   a double-submit / network-retry returns the original subscriber id instead
+ *   of minting a duplicate chain. A fresh nonce is minted on reset() (i.e. the
+ *   next subscriber the agent onboards gets a distinct nonce).
  *
  * Step 1 — ID upload (front + back)
  * @property {File|Blob|null}          idFrontFile
@@ -99,6 +105,7 @@ function createOnboardingSessionId() {
 
 const INITIAL_STATE = {
   onboardingSessionId: '',
+  signupNonce: '',
 
   stepId: 'id-upload',
 
@@ -155,7 +162,11 @@ function reducer(state, action) {
     case 'patch':
       return { ...state, ...action.payload };
     case 'reset':
-      return { ...INITIAL_STATE, onboardingSessionId: createOnboardingSessionId() };
+      return {
+        ...INITIAL_STATE,
+        onboardingSessionId: createOnboardingSessionId(),
+        signupNonce: createOnboardingSessionId(),
+      };
     default:
       return state;
   }
@@ -169,9 +180,13 @@ function reducer(state, action) {
 const EPHEMERAL_KEYS = ['idFrontFile', 'idBackFile', 'selfieFile', 'idFrontPreviewUrl', 'idBackPreviewUrl', 'password'];
 
 function loadPersisted() {
-  // Always create a fresh session ID by default; if persisted state has one,
-  // the spread below overwrites it so refresh keeps the same correlation key.
-  const fresh = { ...INITIAL_STATE, onboardingSessionId: createOnboardingSessionId() };
+  // Always create a fresh session ID + signup nonce by default; if persisted
+  // state has them, the spread below overwrites so refresh keeps the same keys.
+  const fresh = {
+    ...INITIAL_STATE,
+    onboardingSessionId: createOnboardingSessionId(),
+    signupNonce: createOnboardingSessionId(),
+  };
   if (typeof window === 'undefined') return fresh;
   try {
     const raw = window.localStorage.getItem(SIGNUP_STORAGE_KEY);
@@ -186,8 +201,10 @@ function loadPersisted() {
     return {
       ...fresh,
       ...parsed,
-      // Preserve persisted session id; if absent (legacy persist), keep the fresh one.
+      // Preserve persisted session id + signup nonce; if absent (legacy
+      // persist), keep the fresh ones so a reload reuses the same idempotency key.
       onboardingSessionId: parsed.onboardingSessionId || fresh.onboardingSessionId,
+      signupNonce: parsed.signupNonce || fresh.signupNonce,
       ...ephemeral,
     };
   } catch {

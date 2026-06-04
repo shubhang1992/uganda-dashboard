@@ -463,6 +463,16 @@ describe('subscriber service — real (Supabase) branch', () => {
       expect(result).toEqual({ subscriberId: 's-new-123' });
       const call = supabaseMock.__getRpcCalls('create_subscriber_from_signup').at(-1);
       expect(call.args.payload).toEqual({ phone: '+25671...' });
+      // No nonce passed → p_nonce defaults to null (0042 treats null as "no
+      // idempotency key", same as the pre-nonce behaviour).
+      expect(call.args.p_nonce).toBeNull();
+    });
+
+    it('threads the idempotency nonce through as p_nonce (0042)', async () => {
+      supabaseMock.__queueRpc('create_subscriber_from_signup', { data: 's-9', error: null });
+      await svc.createFromSignup({ phone: 'x' }, 'signup-nonce-abc');
+      const call = supabaseMock.__getRpcCalls('create_subscriber_from_signup').at(-1);
+      expect(call.args.p_nonce).toBe('signup-nonce-abc');
     });
 
     it('throws on RPC error', async () => {
@@ -485,6 +495,15 @@ describe('subscriber service — real (Supabase) branch', () => {
       const result = await svc.createFromAgentOnboard({ phone: 'x' }, 'a-001');
       expect(result.subscriberId).toBe('s-new-456');
       const call = supabaseMock.__getRpcCalls('create_subscriber_from_agent_onboard').at(-1);
+      expect(call.args.calling_agent_id).toBe('a-001');
+      expect(call.args.p_nonce).toBeNull();
+    });
+
+    it('threads the idempotency nonce through as p_nonce (0042)', async () => {
+      supabaseMock.__queueRpc('create_subscriber_from_agent_onboard', { data: 's-7', error: null });
+      await svc.createFromAgentOnboard({ phone: 'x' }, 'a-001', 'onboard-nonce-xyz');
+      const call = supabaseMock.__getRpcCalls('create_subscriber_from_agent_onboard').at(-1);
+      expect(call.args.p_nonce).toBe('onboard-nonce-xyz');
       expect(call.args.calling_agent_id).toBe('a-001');
     });
   });

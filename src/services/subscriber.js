@@ -1024,16 +1024,23 @@ export async function updateProfile(id, updates = {}) {
  *
  * @param {object} payload - SignupContext snapshot. See plan §"Signup → real
  *   subscriber persistence" for the exact field list.
+ * @param {string} [nonce] - Per-attempt idempotency key (0042 `p_nonce`). A
+ *   replay with the same nonce returns the original subscriber id instead of
+ *   minting a duplicate chain. Stable across retries/reloads of one signup
+ *   attempt (see SignupContext.signupNonce).
  * @returns {Promise<{subscriberId: string}>}
  */
-export async function createFromSignup(payload) {
+export async function createFromSignup(payload, nonce) {
   if (!IS_SUPABASE_ENABLED) {
     // Mock fallback: synthesise a fake subscriber ID so callers can pretend
     // the write succeeded. We don't actually insert anything into the mock.
     const id = `s-mock-${Date.now()}`;
     return { subscriberId: id };
   }
-  const { data, error } = await supabase.rpc('create_subscriber_from_signup', { payload });
+  const { data, error } = await supabase.rpc('create_subscriber_from_signup', {
+    payload,
+    p_nonce: nonce ?? null,
+  });
   if (error) throw error;
   return { subscriberId: data };
 }
@@ -1044,9 +1051,12 @@ export async function createFromSignup(payload) {
  *
  * @param {object} payload - SignupContext snapshot.
  * @param {string} agentId - The agent's authenticated agent_id.
+ * @param {string} [nonce] - Per-attempt idempotency key (0042 `p_nonce`); see
+ *   createFromSignup. Distinct per onboarded subscriber (reset() mints a fresh
+ *   one), stable across retries of the same one.
  * @returns {Promise<{subscriberId: string}>}
  */
-export async function createFromAgentOnboard(payload, agentId) {
+export async function createFromAgentOnboard(payload, agentId, nonce) {
   if (!IS_SUPABASE_ENABLED) {
     const id = `s-mock-${Date.now()}`;
     return { subscriberId: id };
@@ -1054,6 +1064,7 @@ export async function createFromAgentOnboard(payload, agentId) {
   const { data, error } = await supabase.rpc('create_subscriber_from_agent_onboard', {
     payload,
     calling_agent_id: agentId,
+    p_nonce: nonce ?? null,
   });
   if (error) throw error;
   return { subscriberId: data };
