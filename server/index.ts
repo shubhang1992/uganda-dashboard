@@ -53,6 +53,10 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { corsOptions } from './cors.js';
 import { toExpress } from './adapter.js';
+// Server-side admin client (service-role, RLS-bypassing singleton). Imported
+// the same way the route handlers do — NEVER re-create a client or re-read the
+// service-role key here. Used solely by the /readyz readiness probe below.
+import supabaseAdmin from '../api/_lib/supabase-admin.js';
 
 // 14 handler imports — every handler exports a Vercel-shaped default. NodeNext
 // requires the `.js` extension on relative imports even when the source is
@@ -103,6 +107,33 @@ app.set('trust proxy', 1);
 // uptime-monitor response stays as tiny as before.
 app.get('/healthz', cors(corsOptions), (_req, res) => {
   res.status(200).json({ ok: true });
+});
+
+// ─── 4b. /readyz — READINESS probe (distinct from /healthz liveness). Where
+// /healthz must stay I/O-free (process up, even if Supabase is misconfigured),
+// /readyz performs ONE cheap read against the single-row `commission_config`
+// table to confirm the DB is actually reachable. The browser warmup ping
+// (`src/components/WarmupBanner.jsx`) targets THIS route — it wants to know the
+// backend can serve real data after a cold start, not merely that the process
+// answered. Uses the shared service-role admin client (block 2 import); does
+// NOT instantiate a client or read keys here. Same route-level cors(corsOptions)
+// pattern as /healthz so the cross-origin GET carries Access-Control-Allow-Origin
+// and registered BEFORE route mounts so a catch-all can't shadow it. 200 on a
+// successful read; 503 with a tiny JSON body when the read errors.
+app.get('/readyz', cors(corsOptions), async (_req, res) => {
+  try {
+    const { error } = await supabaseAdmin
+      .from('commission_config')
+      .select('id')
+      .limit(1);
+    if (error) {
+      res.status(503).json({ ok: false, code: 'not_ready' });
+      return;
+    }
+    res.status(200).json({ ok: true });
+  } catch {
+    res.status(503).json({ ok: false, code: 'not_ready' });
+  }
 });
 
 // ─── 5. Sentry request instrumentation — in @sentry/node v8 this is set up

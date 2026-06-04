@@ -2,21 +2,23 @@ import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../config/env.js';
 
 /**
- * Derive the API origin (no `/api` suffix) so we can hit `/healthz`, which
+ * Derive the API origin (no `/api` suffix) so we can hit `/readyz`, which
  * Express mounts at the root of the server, not under `/api`. Works for both
  * the dev rewrite (`/api`) and an absolute prod URL.
  */
 function deriveHealthcheckUrl(apiBase) {
   const root = apiBase.replace(/\/api\/?$/, '');
-  if (!root || root === '/') return '/healthz';
-  return `${root}/healthz`;
+  if (!root || root === '/') return '/readyz';
+  return `${root}/readyz`;
 }
 
 /**
  * Render free-tier instances cold-start in 30–60s. While the backend boots,
  * a sales rep clicking the demo sees nothing happen until their first
  * request resolves or times out (20s — see apiFetch). The hook pings
- * `/healthz` (a no-I/O liveness route) on mount and resolves to `false`
+ * `/readyz` (a readiness route that does one cheap DB read, so a `200`
+ * means the backend can actually serve data — not just that the process
+ * is up) on mount and resolves to `false`
  * either when the ping returns or after 3 seconds, whichever happens
  * first. After that the banner hides regardless — the rest of the UI is
  * usable while the ping continues in the background.
