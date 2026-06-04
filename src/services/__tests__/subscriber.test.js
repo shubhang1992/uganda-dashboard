@@ -205,13 +205,18 @@ describe('subscriber service — real (Supabase) branch', () => {
       expect(await svc.getSubscriberAgent('s-1')).toBeNull();
     });
 
-    it('fetches agent + branch name via two-step lookup', async () => {
-      supabaseMock.__queueFrom('subscribers', { data: { agent_id: 'a-001' }, error: null });
-      supabaseMock.__queueFrom('agents', {
+    it('fetches agent + branch name via a single embedded query', async () => {
+      // getSubscriberAgent now collapses the old two-step lookup into one
+      // PostgREST embed: subscribers → agents(*, branches(name)). The embedded
+      // agent arrives nested on the subscriber row.
+      supabaseMock.__queueFrom('subscribers', {
         data: {
-          id: 'a-001', name: 'Daniel', branch_id: 'b-kam-015',
-          rating: 4.5, performance: 'excellent', status: 'active',
-          branches: { name: 'Kampala Central' },
+          agent_id: 'a-001',
+          agents: {
+            id: 'a-001', name: 'Daniel', branch_id: 'b-kam-015',
+            rating: 4.5, performance: 'excellent', status: 'active',
+            branches: { name: 'Kampala Central' },
+          },
         },
         error: null,
       });

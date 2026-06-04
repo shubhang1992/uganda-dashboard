@@ -374,9 +374,15 @@ export async function getSubscriberTransactions(id, { type, range, status } = {}
   }
 
   if (!id) return [];
+  // Narrowed from select('*') to exactly the columns mapTransactionRow reads
+  // (the sole consumer of these rows). This is the highest-volume subscriber
+  // list path, so trimming the over-fetch matters; keep this column set in sync
+  // with mapTransactionRow if a new mapped field is added.
   let q = supabase
     .from('transactions')
-    .select('*')
+    .select(
+      'id, subscriber_id, agent_id, type, amount, date, status, method, txn_ref, bucket, split_retirement, split_emergency',
+    )
     .eq('subscriber_id', id)
     .order('date', { ascending: false });
   if (type) q = q.eq('type', type);
@@ -471,24 +477,27 @@ export async function getSubscriberAgent(subscriberId) {
     };
   }
   if (!subscriberId) return null;
-  // Two-step lookup — the cleaner approach (subscribers.agent_id → agents.id)
-  // is hard to express as a single PostgREST join without a relationship
-  // defined as an embed, so we fetch the agent_id first and then the agent.
-  const sub = unwrap(
+  // Single-query embed: subscribers.agent_id → agents.id is a real FK
+  // (0001_initial_schema.sql: `agent_id TEXT REFERENCES agents(id)`), so
+  // PostgREST resolves agents as an embedded resource, and agents.branch_id →
+  // branches gives the nested branch name. RLS is applied per embedded table
+  // exactly as in the prior two-step (the subscriber's policies already allowed
+  // reading their own agent + branch rows), so this collapses the round-trips
+  // without changing what's visible. A plain (non-inner) embed is used so a
+  // null/dangling agent_id still returns the subscriber row; the null-agent
+  // guard below preserves the prior "no agent → null" behaviour.
+  const row = unwrap(
     await supabase
       .from('subscribers')
-      .select('agent_id')
+      .select('agent_id, agents(*, branches(name))')
       .eq('id', subscriberId)
       .maybeSingle(),
   );
-  if (!sub?.agent_id) return null;
-  const agent = unwrap(
-    await supabase
-      .from('agents')
-      .select('*, branches(name)')
-      .eq('id', sub.agent_id)
-      .maybeSingle(),
-  );
+  if (!row?.agent_id) return null;
+  // PostgREST returns the embedded agent as an object (or array for some
+  // relationship shapes); normalise before mapping.
+  const agent = Array.isArray(row.agents) ? row.agents[0] : row.agents;
+  if (!agent) return null;
   return mapAgentRow(agent);
 }
 
