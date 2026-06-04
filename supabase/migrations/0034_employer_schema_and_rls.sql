@@ -31,7 +31,7 @@
 --   * service-role (api/_lib/supabase-admin.ts + the seed) has bypassrls, so
 --     seeding writes these tables directly despite FORCE.
 --   * Forward-only; reversible via 0034_employer_schema_and_rls.down.sql.
---   * NOT YET APPLIED TO LIVE — applying it is a gated cutover step.
+--   * Applied to live (employer ship 2026-06-03); part of the 0001→0042 restore baseline.
 -- =============================================================================
 
 -- =============================================================================

@@ -15,7 +15,7 @@
 --     rows default to 0 (the column does not drive any run-line derivation, so
 --     a 0 default keeps every prior run total identical).
 --   * Forward-only; reversible via 0037_employee_monthly_contribution.down.sql.
---   * NOT YET APPLIED TO LIVE — applying it is a gated cutover step.
+--   * Part of the 0001→0042 baseline applied in order at the restore cutover.
 -- =============================================================================
 
 ALTER TABLE public.employees

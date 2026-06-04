@@ -15,7 +15,7 @@
 --   * REVOKE ALL FROM PUBLIC; GRANT EXECUTE TO authenticated.
 --   * `updated_at` set inline (no shared trigger in this repo).
 --   * Forward-only; reversible via 0035_employer_rpcs.down.sql.
---   * NOT YET APPLIED TO LIVE — gated cutover step.
+--   * Applied to live (employer ship 2026-06-03); part of the 0001→0042 restore baseline.
 --
 -- ⚠️ HARD CONSTRAINT (plan deep dive §A.5): submit_contribution_run MUST NOT
 --    write to `transactions`, `subscriber_balances`, or `commissions`.

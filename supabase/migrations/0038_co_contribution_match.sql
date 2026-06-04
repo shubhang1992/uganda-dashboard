@@ -34,7 +34,7 @@
 --   * Same signature — CREATE OR REPLACE keeps the existing REVOKE/GRANT.
 --   * Forward-only; reversible via 0038_co_contribution_match.down.sql (which
 --     restores the original salary-based body from 0035).
---   * NOT YET APPLIED TO LIVE — applying it is a gated cutover step.
+--   * Part of the 0001→0042 baseline applied in order at the restore cutover.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.submit_contribution_run(

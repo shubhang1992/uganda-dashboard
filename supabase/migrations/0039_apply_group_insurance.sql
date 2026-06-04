@@ -26,7 +26,7 @@
 --     service_role — matching the 0036 write-RPC grant restriction (this is a
 --     mutation reached only post-login).
 --   * Forward-only; reversible via 0039_apply_group_insurance.down.sql.
---   * NOT YET APPLIED TO LIVE — a gated cutover step.
+--   * Part of the 0001→0042 baseline applied in order at the restore cutover.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
