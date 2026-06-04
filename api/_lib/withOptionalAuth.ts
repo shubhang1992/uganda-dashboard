@@ -2,6 +2,21 @@
 //
 // Used by `/api/chat` so role-aware responses fall out naturally for signed-in
 // users while still serving anonymous prospects on the landing page.
+//
+// ⚠️ SECURITY — THIS MIDDLEWARE FAILS OPEN. ⚠️
+// A missing, malformed, expired, or forged token does NOT reject the request:
+// `req.user` is simply left `null` and the handler runs anonymously (see the
+// swallowed catch below). This is intentional ONLY for routes that are safe to
+// serve to anonymous callers and merely *enhance* the response when a valid
+// session happens to be present.
+//
+// NEVER use `withOptionalAuth` to:
+//   - return per-user / per-tenant data (it cannot prove who the caller is), or
+//   - gate an authorization-protected action.
+// A handler that reads `req.user.subscriberId` (etc.) behind this middleware
+// will crash on anonymous calls and — worse — trusts whatever claims an
+// unverified-but-present token carries. For anything that must be authenticated
+// or authorized, use `withAuth`, which rejects (401) on a bad/absent token.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyJwt, type JwtClaims } from './jwt.js';
