@@ -20,8 +20,20 @@
 // 401 handling: supabase-js does NOT expose a generic per-response hook. Service
 // callers that fall back to `apiFetch` (services/api.js) get 401 detection via
 // `onAuthExpired` listeners there. For supabase-js calls, downstream services
-// (agents 9-12) should inspect each `.from()` / `.rpc()` error and forward
-// PGRST301 / 401-equivalent errors to the same `onAuthExpired` channel.
+// inspect each `.from()` / `.rpc()` error and forward PGRST301 / 401-equivalent
+// errors via `forwardSupabaseAuthError()` below, which drives the SAME
+// logout+redirect outcome that `apiFetch`'s `notifyAuthExpired()` does.
+//
+// Why not call `notifyAuthExpired` directly: it is private to services/api.js
+// (only `onAuthExpired` — the subscribe side — is exported). Re-exporting it
+// would be an api.js change outside this task's file scope, so we reuse the
+// other end of the SAME channel AuthContext already listens on: AuthContext's
+// `storage`-event handler logs the user out + redirects to "/" when the
+// `upensions_token` key is cleared (AuthContext.jsx ~144). We clear the auth
+// keys and dispatch that synthetic StorageEvent, producing an identical
+// logout. (RESTORE-VERIFY: once api.js exports a notifier, swap the storage
+// dispatch below for a direct call to it so we hit the in-process
+// `authExpiredListeners` Set without the StorageEvent indirection.)
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -62,6 +74,61 @@ export function setToken(token) {
 }
 export function clearToken() {
   safeRemove(TOKEN_KEY);
+}
+
+// `upensions_auth` mirrors the key apiFetch's notifyAuthExpired() clears, so the
+// post-logout state is identical whether the 401 came from `/api/*` or supabase.
+const AUTH_KEY = 'upensions_auth';
+
+/**
+ * True when a supabase-js error means the session JWT is missing/expired/invalid
+ * — i.e. it should log the user out, NOT be handled as a domain error.
+ *
+ * PostgREST surfaces an expired/invalid JWT as code `PGRST301` (JWT expired) or
+ * `PGRST302` (anonymous access disallowed); `.rpc()` / `.from()` propagate that
+ * in `error.code`. Some transports also attach an HTTP `status`/`statusCode` of
+ * 401, which we treat the same. We deliberately do NOT log out on PGRST116
+ * (no rows) or RLS-denied reads that return empty — only on auth-token failures.
+ */
+export function isSupabaseAuthError(error) {
+  if (!error) return false;
+  const code = error.code || error.error || '';
+  if (code === 'PGRST301' || code === 'PGRST302') return true;
+  const status = error.status ?? error.statusCode ?? error.httpStatus;
+  return status === 401;
+}
+
+/**
+ * Forward a supabase-js auth error to the same logout channel `apiFetch` uses.
+ *
+ * Detection is gated by `isSupabaseAuthError` so a normal domain error (empty
+ * read, RLS-denied row, validation failure) never trips a logout. On a real
+ * token failure we clear the auth + token keys and dispatch the synthetic
+ * `storage` event AuthContext listens on, which runs the same logout + redirect
+ * as the in-process `onAuthExpired` listeners would.
+ *
+ * @param {unknown} error - the `error` field from a supabase-js `.from()`/`.rpc()` result.
+ * @returns {boolean} true if the error was an auth error and was forwarded.
+ */
+export function forwardSupabaseAuthError(error) {
+  if (!isSupabaseAuthError(error)) return false;
+  safeRemove(AUTH_KEY);
+  safeRemove(TOKEN_KEY);
+  // Same-tab `storage` events don't fire automatically, so dispatch one
+  // explicitly. AuthContext's onStorage handler keys on `upensions_token` with
+  // a null newValue and performs logout()+navigate('/') — identical to the
+  // notifyAuthExpired() outcome in services/api.js.
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    try {
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: TOKEN_KEY, oldValue: 'expired', newValue: null }),
+      );
+    } catch {
+      /* StorageEvent constructor unavailable (very old engines) — keys already
+         cleared above, so a subsequent navigation re-evaluates as logged-out. */
+    }
+  }
+  return true;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;

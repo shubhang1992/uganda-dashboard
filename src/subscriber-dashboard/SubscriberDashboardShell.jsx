@@ -23,7 +23,6 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const NomineesPage = lazy(() => import('./pages/NomineesPage'));
 const InsurancePage = lazy(() => import('./pages/InsurancePage'));
-const StubPage = lazy(() => import('./pages/StubPage'));
 
 function PageFallback() {
   return (
@@ -35,7 +34,9 @@ function PageFallback() {
 
 export default function SubscriberDashboardShell() {
   const { role } = useAuth();
-  if (role !== 'subscriber') return <Navigate to="/dashboard" replace />;
+  // Wrong-role access is sent to /coming-soon — the same convention the agent,
+  // branch, and employer shells use (App.jsx also routes role-less users there).
+  if (role !== 'subscriber') return <Navigate to="/coming-soon" replace />;
   // Mount the subscriber-scoped panel provider (wraps the generic
   // DashboardPanelProvider). The shared <Settings /> slide-in panel inside
   // SubscriberShell continues to read settingsOpen / setSettingsOpen via
@@ -65,8 +66,16 @@ export default function SubscriberDashboardShell() {
             <Route path="settings/profile" element={<Suspense fallback={<PageFallback />}><ProfilePage /></Suspense>} />
             <Route path="settings/nominees" element={<Suspense fallback={<PageFallback />}><NomineesPage /></Suspense>} />
             <Route path="settings/insurance" element={<Suspense fallback={<PageFallback />}><InsurancePage /></Suspense>} />
-            <Route path="settings/notifications" element={<Suspense fallback={<PageFallback />}><StubPage title="Notifications" /></Suspense>} />
-            <Route path="settings/security" element={<Suspense fallback={<PageFallback />}><StubPage title="Security" /></Suspense>} />
+            {/* settings/notifications was an orphaned StubPage URL (no nav links
+                here — the Notifications row on the Settings page is "Soon" and
+                disabled). Redirect it back to the Settings page rather than
+                stranding visitors on a dead stub. */}
+            <Route path="settings/notifications" element={<Navigate to="/dashboard/settings" replace />} />
+            {/* settings/security: password change actually works via the shared
+                <Settings /> slide-in panel, which the Settings page opens from
+                its "Password & security" row (setSettingsOpen). This URL has no
+                dedicated surface, so redirect to the real Settings page. */}
+            <Route path="settings/security" element={<Navigate to="/dashboard/settings" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Routes>
