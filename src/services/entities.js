@@ -219,6 +219,38 @@ const LEVEL_MAPPERS = {
   distributor: mapDistributor,
 };
 
+// ─── List-path column projections ────────────────────────────────────────────
+// LIST reads (getChildren / getAllAtLevel / getEntityPage) only need the
+// columns the level's mapper actually reads — pulling `*` over the ~5k
+// subscriber set (or ~2k agents) ships wide rows the UI never renders.
+//
+// CONSERVATIVE RULE: a level is narrowed ONLY if its mapper reads a strict
+// SUBSET of the table's columns. `branch` and `agent` mappers read essentially
+// every column on their tables, so narrowing them buys ~nothing and risks
+// silently dropping a column the mapper expects — those stay `*`. DETAIL reads
+// (`getEntity`) also stay `*`.
+//
+// Each list MUST be a superset of the columns its mapper dereferences (see
+// mapRegion/mapDistrict/mapSubscriber/mapDistributor above). `subscriber`
+// intentionally omits balance columns — they don't exist on `subscribers`
+// (they live in `subscriber_balances`); `getAllAtLevel` never joined them, so
+// the mapped balance fields have always defaulted to 0 on the list path.
+const LEVEL_LIST_COLUMNS = {
+  region: 'id, name, parent_id, center_lng, center_lat',
+  district: 'id, name, region_id, center_lng, center_lat, active',
+  subscriber:
+    'id, name, phone, email, gender, age, dob, nin, occupation, agent_id, ' +
+    'district_id, kyc_status, is_active, registered_date, products_held, ' +
+    'contribution_history, current_unit_value, unit_value_as_of',
+  distributor:
+    'id, name, parent_id, manager_name, manager_phone, manager_email, status, created_at',
+};
+
+// Column projection for a level's LIST reads; `*` for un-narrowed levels.
+function listColumns(level) {
+  return LEVEL_LIST_COLUMNS[level] ?? '*';
+}
+
 // ─── In-memory sync cache for getEntitySync ─────────────────────────────────
 // `getEntitySync` is called by `DashboardNavContext.buildSelectedIds` during
 // URL routing to walk the parent chain. Supabase calls are async, so we keep
@@ -314,7 +346,7 @@ export async function getChildren(parentLevel, parentId) {
 
   const { data, error } = await supabase
     .from(table)
-    .select('*')
+    .select(listColumns(cfg.childLevel))
     .eq(cfg.column, parentId);
 
   if (error) throw error;
@@ -324,14 +356,29 @@ export async function getChildren(parentLevel, parentId) {
 }
 
 /**
- * @endpoint SELECT * FROM <level-table>
+ * @endpoint SELECT <projection> FROM <level-table>
  * @param {string} level - region|district|branch|agent|subscriber
  * @returns {Promise<Array<Object>>}
  * @cache ['entities', level]
- * @description Pages through PostgREST in 1,000-row chunks because the
- *   default cap is 1,000 rows — subscribers (~30k) and agents (~2k) would
- *   otherwise be silently truncated. Server-side cursor pagination is still
- *   the long-term direction; see `docs/api-contracts.md`.
+ * @description Returns the COMPLETE set at a level (callers reduce/aggregate
+ *   over the whole list — reports, totals, charts — so truncation would
+ *   silently corrupt their numbers). PostgREST caps a single response at
+ *   1,000 rows, so larger levels (subscribers ~5k, agents ~2k) span multiple
+ *   pages.
+ *
+ *   AUDIT-2-5: previously this paged STRICTLY SERIALLY — request page 0, await,
+ *   request page 1, await, … up to a 100-page (100k-row) ceiling. For ~5k
+ *   subscribers that is ~5 blocking round-trips end-to-end, and the original
+ *   code path was capped at 100 sequential trips. We now fetch page 0, and if
+ *   (and only if) it came back FULL, learn the exact total via a single
+ *   `count: 'exact', head: true` probe and fan out the remaining pages in
+ *   PARALLEL. Same projection, same rows, same order within each page — just
+ *   gathered concurrently instead of in a waterfall. Small levels
+ *   (region/district/branch/distributor, and any level whose first page isn't
+ *   full) issue exactly ONE query, identical to before.
+ *
+ *   The narrowed `listColumns(level)` projection (vs the old `*`) further
+ *   shrinks each subscriber/agent row to the columns the mapper reads.
  */
 export async function getAllAtLevel(level) {
   if (!IS_SUPABASE_ENABLED) {
@@ -342,23 +389,62 @@ export async function getAllAtLevel(level) {
   if (!table || !mapper) return [];
 
   const PAGE_SIZE = 1000;
-  const SAFETY_CAP_PAGES = 100; // 100k-row ceiling to bound a runaway loop
-  const mapped = [];
-  for (let page = 0; page < SAFETY_CAP_PAGES; page++) {
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .range(from, to);
-    if (error) throw error;
-    const rows = data ?? [];
-    for (const row of rows) {
+  const SAFETY_CAP_ROWS = 100_000; // 100k-row ceiling to bound a runaway fan-out
+  const columns = listColumns(level);
+
+  const collect = (rows) => {
+    const out = [];
+    for (const row of rows ?? []) {
       const entity = mapper(row);
-      mapped.push(entity);
+      out.push(entity);
       cacheEntity(level, entity);
     }
-    if (rows.length < PAGE_SIZE) break;
+    return out;
+  };
+
+  // Page 0 — always serial (it tells us whether a fan-out is even needed).
+  const { data: firstData, error: firstError } = await supabase
+    .from(table)
+    .select(columns)
+    .range(0, PAGE_SIZE - 1);
+  if (firstError) throw firstError;
+  const firstRows = firstData ?? [];
+  const mapped = collect(firstRows);
+
+  // Common case (every small level + any level that fits in one page): done in
+  // a single round-trip, byte-for-byte the same result the old loop produced.
+  if (firstRows.length < PAGE_SIZE) return mapped;
+
+  // The set spans multiple pages. Learn the exact total with a HEAD count, then
+  // fetch pages 1..N concurrently. `count: 'exact'` (not 'estimated') so we
+  // never drop the tail — this list MUST be complete for the aggregating
+  // callers (ViewSubscribers totals, KYC roll-ups, report CSV exports).
+  const { count, error: countError } = await supabase
+    .from(table)
+    .select(columns, { count: 'exact', head: true });
+  if (countError) throw countError;
+
+  const total = Math.min(count ?? firstRows.length, SAFETY_CAP_ROWS);
+  if (total <= PAGE_SIZE) return mapped;
+
+  const pageRequests = [];
+  for (let from = PAGE_SIZE; from < total; from += PAGE_SIZE) {
+    const to = Math.min(from + PAGE_SIZE - 1, total - 1);
+    pageRequests.push(
+      supabase
+        .from(table)
+        .select(columns)
+        .range(from, to)
+        .then(({ data, error }) => {
+          if (error) throw error;
+          return data ?? [];
+        }),
+    );
+  }
+
+  const pages = await Promise.all(pageRequests);
+  for (const rows of pages) {
+    mapped.push(...collect(rows));
   }
   return mapped;
 }
@@ -427,7 +513,7 @@ export async function getEntityPage(level, opts = {}) {
   // a "Showing X of Y" affordance.
   let query = supabase
     .from(table)
-    .select('*', { count: 'estimated' });
+    .select(listColumns(level), { count: 'estimated' });
 
   if (search.trim() && level === 'subscriber') {
     // ILIKE escape: PostgREST handles `%` literally inside the value. The
