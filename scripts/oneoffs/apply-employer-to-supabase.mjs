@@ -1,9 +1,20 @@
+// ============================================================================
+// HISTORICAL — superseded one-off; employer cutover complete; omits
+// employees.monthly_contribution; do not re-run.
+//
+// This applied migrations 0034 + 0035 only and predates later employer-schema
+// columns (notably employees.monthly_contribution). The employer cutover it
+// performed is DONE (migrations 0032–0036 are applied to live). Re-running it
+// would seed/upsert with a stale column set. Kept for provenance under
+// scripts/oneoffs/ — it is not wired into any npm script or CI.
+// ============================================================================
+//
 // One-time cutover helper: apply the Employer backend (migrations 0034 + 0035)
 // and seed ONLY the employer demo data into a Supabase project. Idempotent and
 // SCOPED — it touches only the employer tables (+ one demo_personas row); it
 // NEVER truncates or reseeds subscribers/agents/branches/distributors.
 //
-// Run:  npx dotenv -e .env.local -- node scripts/apply-employer-to-supabase.mjs
+// Run:  npx dotenv -e .env.local -- node scripts/oneoffs/apply-employer-to-supabase.mjs
 // Needs SUPABASE_DB_URL (the Supabase pooler connection string) in the env.
 //
 // Safe to re-run: migrations use IF NOT EXISTS / CREATE OR REPLACE / DROP POLICY
@@ -18,17 +29,17 @@ import {
   CONTRIBUTION_RUNS,
   CONTRIBUTION_RUN_LINES,
   EMPLOYER_DEMO_PHONE,
-} from '../src/data/employerSeed.js';
+} from '../../src/data/employerSeed.js';
 
 const { Client } = pg;
 
 const DB_URL = process.env.SUPABASE_DB_URL;
 if (!DB_URL) {
-  console.error('ERROR: SUPABASE_DB_URL is not set. Run via: npx dotenv -e .env.local -- node scripts/apply-employer-to-supabase.mjs');
+  console.error('ERROR: SUPABASE_DB_URL is not set. Run via: npx dotenv -e .env.local -- node scripts/oneoffs/apply-employer-to-supabase.mjs');
   process.exit(1);
 }
 
-const mig = (f) => readFileSync(fileURLToPath(new URL(`../supabase/migrations/${f}`, import.meta.url)), 'utf8');
+const mig = (f) => readFileSync(fileURLToPath(new URL(`../../supabase/migrations/${f}`, import.meta.url)), 'utf8');
 
 const client = new Client({ connectionString: DB_URL });
 

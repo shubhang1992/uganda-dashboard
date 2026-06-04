@@ -87,7 +87,7 @@ This is a TEST-side fix that requires a coordinated edit in two files (`e2e/spec
 
 ## Trace artifacts retained
 
-- `docs/audit/baseline-traces/aml-resolution-stdout.log` — Playwright output
+- `docs/audits/2026-04-distributor/baseline-traces/aml-resolution-stdout.log` — Playwright output
 - `test-results/flows-agent-onboard-subscr-98fac-subscriber-balances-via-RPC-chromium/test-failed-1.png` — screenshot at failure
 - `test-results/flows-agent-onboard-subscr-98fac-subscriber-balances-via-RPC-chromium/trace.zip` — full trace
 - `test-results/flows-agent-onboard-subscr-98fac-subscriber-balances-via-RPC-chromium/error-context.md` — Playwright error context dump
