@@ -20,7 +20,8 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { formatUGX, formatNumber } from '../../utils/currency';
 import { formatDate, formatRelativeTime } from '../../utils/date';
 import { getChatResponse } from '../../services/chat';

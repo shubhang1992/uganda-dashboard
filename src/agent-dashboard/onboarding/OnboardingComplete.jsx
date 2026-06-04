@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGXExact, normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
+import { normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatUGX } from '../../utils/currency';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSignup } from '../../signup/SignupContext';
 import * as subscriberService from '../../services/subscriber';
@@ -11,7 +13,7 @@ function formatSchedule(schedule) {
   if (!schedule || !schedule.amount) return null;
   const freq = FREQUENCY_LABEL[normalizeFrequency(schedule.frequency)] || 'Monthly';
   const split = `${schedule.retirementPct ?? 80}% retirement / ${100 - (schedule.retirementPct ?? 80)}% emergency`;
-  return `${freq} · ${formatUGXExact(schedule.amount)} · ${split}`;
+  return `${freq} · ${formatUGX(schedule.amount, { compact: false })} · ${split}`;
 }
 
 /**

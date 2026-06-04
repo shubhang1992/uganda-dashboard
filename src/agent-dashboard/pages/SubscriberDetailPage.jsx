@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGX, formatUGXExact, normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
+import { normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatUGX } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 import { getInitials } from '../../utils/dashboard';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
@@ -152,7 +154,7 @@ export default function SubscriberDetailPage() {
               <div className={styles.scheduleStat}>
                 <span className={styles.scheduleLabel}>Amount</span>
                 <span className={styles.scheduleValue}>
-                  {formatUGXExact(schedule.amount || 0)}
+                  {formatUGX(schedule.amount || 0, { compact: false })}
                 </span>
               </div>
               <div className={styles.scheduleStat}>

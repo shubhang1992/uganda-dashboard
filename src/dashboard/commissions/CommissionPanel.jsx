@@ -6,7 +6,8 @@ import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { SUPPORT_EMAIL } from '../../config/env';
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { formatDate } from '../../utils/date';

@@ -4,7 +4,8 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAllEntities } from '../../hooks/useEntity';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 import { useDashboard } from '../../contexts/DashboardContext';
@@ -15,7 +16,6 @@ import KpiCard from '../shared/KpiCard';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
 import styles from './ViewSubscribers.module.css';
-
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Helpers                                                                   */
@@ -43,7 +43,6 @@ function monthlyAverage(sub) {
   return Math.round(arr.reduce((s, v) => s + v, 0) / arr.length);
 }
 
-
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Sort options                                                              */
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -53,7 +52,6 @@ const SORT_OPTIONS = [
   { key: 'registration', label: 'Registration Date', fn: (a, b) => (b.registeredDate || '').localeCompare(a.registeredDate || '') },
   { key: 'name', label: 'Name', fn: (a, b) => a.name.localeCompare(b.name) },
 ];
-
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Subscriber Detail                                                         */
@@ -199,7 +197,6 @@ function SubscriberDetail({ subscriber, agentsMap, branchesMap }) {
     </div>
   );
 }
-
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  ViewSubscribers — main panel                                              */

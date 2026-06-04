@@ -1,15 +1,8 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import {
-  EASE_OUT_EXPO,
-  formatUGXExact,
-  calcFV,
-  parseAmount,
-  FREQUENCY,
-  periodsPerYear,
-  normalizeFrequency,
-} from '../../utils/finance';
-import { formatNumber } from '../../utils/currency';
+import { calcFV, parseAmount, FREQUENCY, periodsPerYear, normalizeFrequency } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatNumber, formatUGX } from '../../utils/currency';
 import {
   RETIREMENT_AGE,
   MIN_CONTRIBUTION,
@@ -163,7 +156,7 @@ export default function ContributionSettingsForm({
             <div className={styles.sectionHead}>
               <span className={styles.sectionIdx}>02</span>
               <h2 className={styles.sectionTitle}>How much {freq.cadence}?</h2>
-              <span className={styles.sectionAside}>Min {formatUGXExact(MIN_CONTRIBUTION)}</span>
+              <span className={styles.sectionAside}>Min {formatUGX(MIN_CONTRIBUTION, { compact: false })}</span>
             </div>
             <label className={styles.amountField} data-error={(touched && belowMin) || undefined}>
               <span className={styles.amountPrefix} aria-hidden="true">UGX</span>
@@ -190,12 +183,12 @@ export default function ContributionSettingsForm({
                   data-active={amount === v}
                   onClick={() => { setAmountStr(String(v)); setTouched(true); }}
                 >
-                  {formatUGXExact(v)}
+                  {formatUGX(v, { compact: false })}
                 </button>
               ))}
             </div>
             {touched && belowMin && (
-              <p className={styles.errorLine}>Minimum {formatUGXExact(MIN_CONTRIBUTION)}.</p>
+              <p className={styles.errorLine}>Minimum {formatUGX(MIN_CONTRIBUTION, { compact: false })}.</p>
             )}
           </section>
 
@@ -259,7 +252,7 @@ export default function ContributionSettingsForm({
                 <span className={styles.insuranceTitle}>Add life insurance</span>
                 <span className={styles.insuranceDetail}>
                   {includeInsurance
-                    ? `+${formatUGXExact(insurancePremium)} · ${formatUGXExact(INSURANCE_COVER)} cover`
+                    ? `+${formatUGX(insurancePremium, { compact: false })} · ${formatUGX(INSURANCE_COVER, { compact: false })} cover`
                     : 'UGX 2,000 / mo · UGX 1M cover'}
                 </span>
               </span>
@@ -276,38 +269,38 @@ export default function ContributionSettingsForm({
               <span className={styles.summaryCadence}>{freq.cadence[0].toUpperCase() + freq.cadence.slice(1)}</span>
             </div>
             <div className={styles.summaryBig}>
-              {hasAmount ? formatUGXExact(totalPerPeriod) : 'UGX —'}
+              {hasAmount ? formatUGX(totalPerPeriod, { compact: false }) : 'UGX —'}
             </div>
             <ul className={styles.summaryList}>
               <li className={styles.summaryRow}>
                 <span>Per year</span>
-                <span>{hasAmount ? formatUGXExact(annualTotal) : '—'}</span>
+                <span>{hasAmount ? formatUGX(annualTotal, { compact: false }) : '—'}</span>
               </li>
               <li className={styles.summaryRow}>
                 <span>
                   <span className={styles.summaryDot} data-tone="retirement" /> Retirement ({retirementPct}%)
                 </span>
-                <span>{hasAmount ? formatUGXExact(retirementPerPeriod) : '—'}</span>
+                <span>{hasAmount ? formatUGX(retirementPerPeriod, { compact: false }) : '—'}</span>
               </li>
               <li className={styles.summaryRow}>
                 <span>
                   <span className={styles.summaryDot} data-tone="emergency" /> Emergency ({emergencyPct}%)
                 </span>
-                <span>{hasAmount ? formatUGXExact(emergencyPerPeriod) : '—'}</span>
+                <span>{hasAmount ? formatUGX(emergencyPerPeriod, { compact: false }) : '—'}</span>
               </li>
               {includeInsurance && (
                 <li className={styles.summaryRow}>
                   <span>
                     <span className={styles.summaryDot} data-tone="insurance" /> Life insurance
                   </span>
-                  <span>+{formatUGXExact(insurancePremium)}</span>
+                  <span>+{formatUGX(insurancePremium, { compact: false })}</span>
                 </li>
               )}
             </ul>
             {showProjection && retirementFV > 0 && (
               <div className={styles.projection}>
                 <span className={styles.projLabel}>Projected at age {RETIREMENT_AGE}</span>
-                <span className={styles.projValue}>{formatUGXExact(Math.round(retirementFV))}</span>
+                <span className={styles.projValue}>{formatUGX(Math.round(retirementFV), { compact: false })}</span>
                 <span className={styles.projNote}>Retirement bucket, compounded over {Math.round(years)} years.</span>
               </div>
             )}

@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import Settings from '../../dashboard/settings/Settings';
 import BottomTabBar from './BottomTabBar';
 import SideNav from './SideNav';

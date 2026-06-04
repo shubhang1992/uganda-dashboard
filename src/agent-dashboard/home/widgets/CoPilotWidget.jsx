@@ -25,7 +25,9 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGX } from '../../../utils/finance';
+import { EASE_OUT_EXPO } from '../../../utils/motion';
+import { formatUGX } from '../../../utils/currency';
+
 import { useAgentSubscribers } from '../../../hooks/useAgent';
 import { useEntityCommissionSummary } from '../../../hooks/useCommission';
 import styles from './CoPilotWidget.module.css';

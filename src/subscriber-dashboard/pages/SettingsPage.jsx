@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGX, formatUGXExact } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatUGX } from '../../utils/currency';
+
 import { formatDate } from '../../utils/date';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
@@ -232,7 +234,7 @@ export default function SettingsPage() {
 
           {sub?.insurance?.cover ? (
             <p className={styles.coverHint}>
-              Cover {formatUGX(sub.insurance.cover)} · Premium {formatUGXExact(sub.insurance.premiumMonthly || 0)} / month
+              Cover {formatUGX(sub.insurance.cover)} · Premium {formatUGX(sub.insurance.premiumMonthly || 0, { compact: false })} / month
             </p>
           ) : null}
 

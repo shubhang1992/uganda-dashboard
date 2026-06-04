@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
-import { formatUGX } from '../../utils/finance';
+import { formatUGX } from '../../utils/currency';
+
 import { formatDate } from '../../utils/date';
 import ReportTable from '../../components/reports/ReportTable';
 import SearchFilter from '../../components/reports/SearchFilter';

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useCurrentSubscriber, useSubscriberClaims } from '../../../hooks/useSubscriber';
-import { formatUGX, formatUGXExact } from '../../../utils/finance';
+import { formatUGX } from '../../../utils/currency';
+
 import { formatDate } from '../../../utils/date';
 import { downloadCSV } from '../../../utils/csv';
 import ReportTable from '../../../components/reports/ReportTable';
@@ -62,7 +63,7 @@ export default function InsuranceStatement() {
       label: 'Claimed',
       sortable: true,
       align: 'right',
-      render: (row) => formatUGXExact(row.amount),
+      render: (row) => formatUGX(row.amount, { compact: false }),
     },
     {
       key: 'status',
@@ -132,7 +133,7 @@ export default function InsuranceStatement() {
           <span className={frameStyles.kpiLabel}>Current cover</span>
           <span className={frameStyles.kpiValue}>{formatUGX(insurance.cover || 0)}</span>
           <span className={frameStyles.kpiSub}>
-            {insurance.status === 'active' ? 'Active' : 'Inactive'} · {formatUGXExact(insurance.premiumMonthly || 0)} / mo
+            {insurance.status === 'active' ? 'Active' : 'Inactive'} · {formatUGX(insurance.premiumMonthly || 0, { compact: false })} / mo
           </span>
         </div>
         <div className={frameStyles.kpi}>

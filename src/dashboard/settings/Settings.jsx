@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { isValidUGPhone } from '../../utils/phone';
 import { getInitials } from '../../utils/dashboard';
 import { useAuth } from '../../contexts/AuthContext';

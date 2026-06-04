@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { formatUGXExact } from '../../../utils/finance';
+import { formatUGX } from '../../../utils/currency';
+
 import styles from './PoliciesWidget.module.css';
 
 /**
@@ -69,7 +70,7 @@ export default function PoliciesWidget({ subscriber }) {
               </span>
               <span className={styles.rowBody}>
                 <span className={styles.rowTitle}>{p.name}</span>
-                <span className={styles.rowMeta}>{formatUGXExact(p.cover)} cover</span>
+                <span className={styles.rowMeta}>{formatUGX(p.cover, { compact: false })} cover</span>
               </span>
               <span className={styles.pill} data-tone={p.status}>
                 <span className={styles.pillDot} aria-hidden="true" />

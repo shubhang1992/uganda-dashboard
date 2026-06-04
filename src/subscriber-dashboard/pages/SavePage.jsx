@@ -2,16 +2,9 @@ import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
-import {
-  EASE_OUT_EXPO,
-  formatUGXExact,
-  parseAmount,
-  calcFV,
-  FREQUENCY,
-  normalizeFrequency,
-  periodsPerYear,
-} from '../../utils/finance';
-import { formatNumber, formatUGXShort } from '../../utils/currency';
+import { parseAmount, calcFV, FREQUENCY, normalizeFrequency, periodsPerYear } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatNumber, formatUGXShort, formatUGX } from '../../utils/currency';
 import { useCurrentSubscriber, useMakeContribution, useUpdateSchedule } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import {
@@ -150,7 +143,7 @@ export default function SavePage() {
         await updateSchedule.mutateAsync(schedulePayload);
         setResultTx(null);
         setView('success');
-        addToast('success', `${mode.cadence} top-up of ${formatUGXExact(amount)} scheduled.`);
+        addToast('success', `${mode.cadence} top-up of ${formatUGX(amount, { compact: false })} scheduled.`);
       } else {
         // One-off: ad-hoc contribution. Payload shape unchanged.
         const tx = await makeContribution.mutateAsync({
@@ -160,7 +153,7 @@ export default function SavePage() {
         });
         setResultTx(tx);
         setView('success');
-        addToast('success', `${formatUGXExact(amount)} added to your savings.`);
+        addToast('success', `${formatUGX(amount, { compact: false })} added to your savings.`);
       }
     } catch (err) {
       addToast('error', err?.message || 'Could not complete the top-up.');
@@ -188,7 +181,7 @@ export default function SavePage() {
         <section className={styles.section} aria-labelledby="save-amount-label">
           <div className={styles.sectionHead}>
             <h2 className={styles.sectionTitle} id="save-amount-label">How much?</h2>
-            <span className={styles.sectionAside}>Min {formatUGXExact(MIN_CONTRIBUTION)}</span>
+            <span className={styles.sectionAside}>Min {formatUGX(MIN_CONTRIBUTION, { compact: false })}</span>
           </div>
 
           <PillChipGroup label="Quick top-up amount" layout="grid" columns={3}>
@@ -217,7 +210,7 @@ export default function SavePage() {
           </label>
 
           {belowMin && (
-            <p id="save-amount-error" className={styles.errorLine} role="alert">Minimum {formatUGXExact(MIN_CONTRIBUTION)} required.</p>
+            <p id="save-amount-error" className={styles.errorLine} role="alert">Minimum {formatUGX(MIN_CONTRIBUTION, { compact: false })} required.</p>
           )}
         </section>
 
@@ -304,7 +297,7 @@ export default function SavePage() {
                   <span className={styles.insuranceTitle}>Add life insurance</span>
                   <span className={styles.insuranceDetail}>
                     {includeInsurance && projection
-                      ? `+${formatUGXExact(projection.premiumPerPeriod)} · ${formatUGXExact(INSURANCE_COVER)} cover`
+                      ? `+${formatUGX(projection.premiumPerPeriod, { compact: false })} · ${formatUGX(INSURANCE_COVER, { compact: false })} cover`
                       : 'UGX 2,000 / mo · UGX 1M cover'}
                   </span>
                 </span>
@@ -331,25 +324,25 @@ export default function SavePage() {
                 <span className={styles.summaryEyebrow}>What you&apos;ll pay</span>
                 <span className={styles.summaryCadence}>{mode.cadence}</span>
               </div>
-              <div className={styles.summaryBig}>{formatUGXExact(projection.totalPerPeriod)}</div>
+              <div className={styles.summaryBig}>{formatUGX(projection.totalPerPeriod, { compact: false })}</div>
               <ul className={styles.summaryList}>
                 <li className={styles.summaryRow}>
                   <span>Per year</span>
-                  <span>{formatUGXExact(projection.annualTotal)}</span>
+                  <span>{formatUGX(projection.annualTotal, { compact: false })}</span>
                 </li>
                 {includeInsurance && (
                   <li className={styles.summaryRow}>
                     <span>
                       <span className={styles.summaryDot} data-tone="insurance" /> Life insurance
                     </span>
-                    <span>+{formatUGXExact(projection.premiumPerPeriod)}</span>
+                    <span>+{formatUGX(projection.premiumPerPeriod, { compact: false })}</span>
                   </li>
                 )}
               </ul>
               {projection.retirementFV > 0 && (
                 <div className={styles.projection}>
                   <span className={styles.projLabel}>Projected at age {RETIREMENT_AGE}</span>
-                  <span className={styles.projValue}>{formatUGXExact(Math.round(projection.retirementFV))}</span>
+                  <span className={styles.projValue}>{formatUGX(Math.round(projection.retirementFV), { compact: false })}</span>
                   <span className={styles.projNote}>
                     Retirement bucket, compounded over {Math.round(projection.years)} years.
                   </span>
@@ -383,7 +376,7 @@ export default function SavePage() {
           onClick={handleContinue}
         >
           <span>Top up</span>
-          {hasAmount && <span className={styles.primaryAmt}>{formatUGXExact(amount)}</span>}
+          {hasAmount && <span className={styles.primaryAmt}>{formatUGX(amount, { compact: false })}</span>}
         </button>
       </footer>
 
@@ -419,7 +412,7 @@ export default function SavePage() {
                   <span className={styles.confirmEyebrow}>
                     {isRecurring ? `You'll pay ${mode.cadence.toLowerCase()}` : 'You’re paying'}
                   </span>
-                  <div className={styles.confirmBig}>{formatUGXExact(amount)}</div>
+                  <div className={styles.confirmBig}>{formatUGX(amount, { compact: false })}</div>
 
                   <ul className={styles.confirmList}>
                     <li className={styles.confirmRow}>
@@ -427,14 +420,14 @@ export default function SavePage() {
                         <span className={styles.summaryDot} data-tone="retirement" />
                         Retirement ({retirementPct}%)
                       </span>
-                      <strong>{formatUGXExact(retAmt)}</strong>
+                      <strong>{formatUGX(retAmt, { compact: false })}</strong>
                     </li>
                     <li className={styles.confirmRow}>
                       <span>
                         <span className={styles.summaryDot} data-tone="emergency" />
                         Emergency ({emergencyPct}%)
                       </span>
-                      <strong>{formatUGXExact(emgAmt)}</strong>
+                      <strong>{formatUGX(emgAmt, { compact: false })}</strong>
                     </li>
                     {isRecurring && includeInsurance && projection && (
                       <li className={styles.confirmRow}>
@@ -442,7 +435,7 @@ export default function SavePage() {
                           <span className={styles.summaryDot} data-tone="insurance" />
                           Life insurance
                         </span>
-                        <strong>+{formatUGXExact(projection.premiumPerPeriod)}</strong>
+                        <strong>+{formatUGX(projection.premiumPerPeriod, { compact: false })}</strong>
                       </li>
                     )}
                     <li className={styles.confirmRow}>
@@ -452,13 +445,13 @@ export default function SavePage() {
                     {!isRecurring && (
                       <li className={styles.confirmRow} data-highlight="true">
                         <span>New balance</span>
-                        <strong>{formatUGXExact(newBalance)}</strong>
+                        <strong>{formatUGX(newBalance, { compact: false })}</strong>
                       </li>
                     )}
                     {isRecurring && projection && (
                       <li className={styles.confirmRow} data-highlight="true">
                         <span>Projected at age {RETIREMENT_AGE}</span>
-                        <strong>{formatUGXExact(Math.round(projection.retirementFV))}</strong>
+                        <strong>{formatUGX(Math.round(projection.retirementFV), { compact: false })}</strong>
                       </li>
                     )}
                   </ul>
@@ -500,8 +493,8 @@ export default function SavePage() {
                   </h2>
                   <p className={styles.successSubtitle}>
                     {isRecurring
-                      ? `Your ${mode.cadence.toLowerCase()} top-up of ${formatUGXExact(amount)} is set. We'll prompt you each time it's due.`
-                      : `${formatUGXExact(amount)} is now working for you. Your new balance is ${formatUGXExact(newBalance)}.`}
+                      ? `Your ${mode.cadence.toLowerCase()} top-up of ${formatUGX(amount, { compact: false })} is set. We'll prompt you each time it's due.`
+                      : `${formatUGX(amount, { compact: false })} is now working for you. Your new balance is ${formatUGX(newBalance, { compact: false })}.`}
                   </p>
                   {resultTx?.reference && (
                     <div className={styles.successRef}>

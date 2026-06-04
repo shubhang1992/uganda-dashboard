@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { EASE_OUT_EXPO as EASE } from '../../utils/motion';
+
 import styles from './DistributorSelect.module.css';
 
 const SUB_ROLES = [

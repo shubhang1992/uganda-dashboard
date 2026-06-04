@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { getInitials } from '../../utils/dashboard';
 import { useCurrentSubscriber, useSubscriberAgent } from '../../hooks/useSubscriber';
 import { useSubscriberTickets } from '../../hooks/useTickets';

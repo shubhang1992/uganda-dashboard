@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { calcFV, EASE_OUT_EXPO, parseAmount, FREQUENCY, periodsPerYear } from '../../utils/finance';
+import { calcFV, parseAmount, FREQUENCY, periodsPerYear } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
 import { formatUGX, formatNumber } from '../../utils/currency';
 import {
   RETIREMENT_AGE,

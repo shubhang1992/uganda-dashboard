@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useCurrentSubscriber } from '../../../hooks/useSubscriber';
-import { formatUGXExact, formatUGX } from '../../../utils/finance';
+import { formatUGX } from '../../../utils/currency';
+
 import { formatDate } from '../../../utils/date';
 import { downloadCSV } from '../../../utils/csv';
 import ReportTable from '../../../components/reports/ReportTable';
@@ -88,7 +89,7 @@ export default function AllTransactions() {
       sortable: true,
       render: (row) => (
         <span className={row.amount >= 0 ? frameStyles.amountPositive : frameStyles.amountNegative}>
-          {row.amount >= 0 ? '+' : '−'}{formatUGXExact(Math.abs(row.amount))}
+          {row.amount >= 0 ? '+' : '−'}{formatUGX(Math.abs(row.amount), { compact: false })}
         </span>
       ),
     },

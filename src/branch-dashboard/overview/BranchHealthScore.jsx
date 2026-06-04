@@ -1,7 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { formatUGX, formatNumber } from '../../utils/currency';
+import { formatDate, formatRelativeTime } from '../../utils/date';
 import { getChatResponse } from '../../services/chat';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -145,22 +147,6 @@ function generateActivity(agents) {
   return events.sort((a, b) => b.time - a.time).slice(0, 8);
 }
 
-function timeAgo(ts) {
-  const mins = Math.floor((Date.now() - ts) / 60_000);
-  if (mins < 1) return 'now'; if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60); if (hrs < 24) return `${hrs}h`;
-  return `${Math.floor(hrs / 24)}d`;
-}
-
-function formatBranchDate() {
-  return new Date().toLocaleDateString('en-UG', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
-
 function computeAlerts(metrics, commissionSummary) {
   const totalSubs = metrics.totalSubscribers || 0;
   const activeSubs = metrics.activeSubscribers || 0;
@@ -276,7 +262,7 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
           <span className={styles.heroWelcome}>
             Welcome back, {user?.name || 'Branch Admin'}
             <span className={styles.heroDot} aria-hidden="true">·</span>
-            {formatBranchDate()}
+            {formatDate(new Date(), { variant: 'long' })}
           </span>
         </div>
         <div className={styles.heroActions}>
@@ -411,7 +397,7 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
                   <span className={styles.activityDot} data-type={event.type} />
                   <div className={styles.activityContent}>
                     <span className={styles.activityText}>{event.text}</span>
-                    <span className={styles.activityTime}>{timeAgo(event.time)}</span>
+                    <span className={styles.activityTime}>{formatRelativeTime(event.time)}</span>
                   </div>
                 </motion.div>
               ))

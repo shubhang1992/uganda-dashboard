@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import HomeDesktop from './HomeDesktop';

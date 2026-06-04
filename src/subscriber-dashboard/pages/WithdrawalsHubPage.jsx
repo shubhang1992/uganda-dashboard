@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGX } from '../../utils/finance';
-import { formatUGXShort } from '../../utils/currency';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
+import { formatUGXShort, formatUGX } from '../../utils/currency';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import PageHeader from '../../components/PageHeader';
 import styles from './WithdrawalsHubPage.module.css';

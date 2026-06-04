@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import PulseCard from './widgets/PulseCard';

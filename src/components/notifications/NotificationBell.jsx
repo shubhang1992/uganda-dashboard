@@ -1,7 +1,8 @@
 import { useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { useUnreadNotificationCount } from '../../hooks/useNotifications';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
 import NotificationList from './NotificationList';

@@ -20,7 +20,8 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../../utils/finance';
+import { EASE_OUT_EXPO } from '../../../utils/motion';
+
 import { getSubscriberChatResponse } from '../../../services/chat';
 import { useToast } from '../../../contexts/ToastContext';
 import styles from './CoPilotWidget.module.css';

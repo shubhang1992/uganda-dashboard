@@ -15,7 +15,8 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { formatUGX, formatNumber } from '../../utils/currency';
 import { formatRelativeTime } from '../../utils/date';
 import { useEmployerPanel } from '../../contexts/EmployerPanelContext';

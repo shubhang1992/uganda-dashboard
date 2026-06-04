@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useCurrentSubscriber, useSubscriberWithdrawals } from '../../../hooks/useSubscriber';
-import { formatUGX, formatUGXExact } from '../../../utils/finance';
+import { formatUGX } from '../../../utils/currency';
+
 import { formatDate } from '../../../utils/date';
 import { downloadCSV } from '../../../utils/csv';
 import ReportTable from '../../../components/reports/ReportTable';
@@ -63,7 +64,7 @@ export default function WithdrawalsHistory() {
       label: 'Amount',
       sortable: true,
       align: 'right',
-      render: (row) => formatUGXExact(row.amount),
+      render: (row) => formatUGX(row.amount, { compact: false }),
     },
     {
       key: 'bucket',

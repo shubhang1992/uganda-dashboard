@@ -1,7 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { useAuth } from '../../contexts/AuthContext';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentUnreadTicketCount } from '../../hooks/useTickets';

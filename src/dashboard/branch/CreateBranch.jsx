@@ -2,7 +2,8 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAllEntities, useCreateBranch } from '../../hooks/useEntity';
 import { useToast } from '../../contexts/ToastContext';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { isValidUGPhone } from '../../utils/phone';
 import { useDashboard } from '../../contexts/DashboardContext';
 import styles from './CreateBranch.module.css';

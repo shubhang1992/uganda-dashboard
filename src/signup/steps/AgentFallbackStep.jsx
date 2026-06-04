@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { useSignup } from '../SignupContext';
 import { referToAgent } from '../../services/kyc';
 import styles from './Step.module.css';

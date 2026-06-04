@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO, formatUGXExact, formatUGX } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatUGX } from '../../utils/currency';
+
 import { formatDate } from '../../utils/date';
 import { useCurrentSubscriber, useSubscriberTransactions } from '../../hooks/useSubscriber';
 import PageHeader from '../../components/PageHeader';
@@ -87,7 +89,7 @@ export default function ActivityPage() {
         prefix="UGX"
         amount={loading
           ? '—'
-          : `${yearSummary.net < 0 ? '−' : ''}${formatUGXExact(Math.abs(yearSummary.net)).replace('UGX ', '')}`}
+          : `${yearSummary.net < 0 ? '−' : ''}${formatUGX(Math.abs(yearSummary.net), { compact: false }).replace('UGX ', '')}`}
         statRow={loading ? (
           <span style={{ opacity: 0.6 }}>Loading your activity…</span>
         ) : (
@@ -158,7 +160,7 @@ export default function ActivityPage() {
                     <div className={styles.figures}>
                       <span className={styles.amount} data-tone={incoming ? 'in' : 'out'}>
                         {incoming ? '+ ' : '− '}
-                        {formatUGXExact(Math.abs(tx.amount))}
+                        {formatUGX(Math.abs(tx.amount), { compact: false })}
                       </span>
                       <span className={styles.date}>
                         {formatDate(tx.date, { variant: 'short' })}

@@ -1,7 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import PageHeader from '../../components/PageHeader';
 import styles from './ReportsPage.module.css';
 

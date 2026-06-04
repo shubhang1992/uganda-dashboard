@@ -2,8 +2,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO, formatUGXExact, formatUGX, calcFV, parseAmount } from '../../utils/finance';
-import { formatNumber } from '../../utils/currency';
+import { calcFV, parseAmount } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatNumber, formatUGX } from '../../utils/currency';
 import { useCurrentSubscriber, useRequestWithdrawal } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import { MIN_WITHDRAW, RETIREMENT_AGE } from '../../constants/savings';
@@ -114,7 +115,7 @@ export default function WithdrawPage() {
       });
       setResultWd(wd);
       setSheetView('success');
-      addToast('success', `Withdrawal of ${formatUGXExact(amount)} requested.`);
+      addToast('success', `Withdrawal of ${formatUGX(amount, { compact: false })} requested.`);
     } catch (err) {
       addToast('error', err?.message || 'Could not request withdrawal.');
     } finally {
@@ -153,15 +154,15 @@ export default function WithdrawPage() {
             className={styles.slider}
             style={{ '--pct': `${sliderPct}%` }}
             aria-label={`Withdrawal amount from your ${bucket === 'emergency' ? 'Savings' : 'Retirement'} pot in UGX`}
-            aria-valuetext={`${formatUGXExact(sliderValue)} of ${formatUGXExact(Math.max(max, MIN_WITHDRAW))}`}
+            aria-valuetext={`${formatUGX(sliderValue, { compact: false })} of ${formatUGX(Math.max(max, MIN_WITHDRAW), { compact: false })}`}
           />
           <div className={styles.sliderEnds}>
-            <span>{formatUGXExact(MIN_WITHDRAW)}</span>
-            <span className={styles.sliderMax}>{formatUGXExact(Math.max(max, MIN_WITHDRAW))}</span>
+            <span>{formatUGX(MIN_WITHDRAW, { compact: false })}</span>
+            <span className={styles.sliderMax}>{formatUGX(Math.max(max, MIN_WITHDRAW), { compact: false })}</span>
           </div>
           {sliderDisabled && !locked && (
             <p className={styles.helperLine}>
-              This pot is below the {formatUGXExact(MIN_WITHDRAW)} minimum.
+              This pot is below the {formatUGX(MIN_WITHDRAW, { compact: false })} minimum.
             </p>
           )}
         </section>
@@ -183,7 +184,7 @@ export default function WithdrawPage() {
                 <span className={styles.bucketDot} data-tone="emergency" />
                 Savings
               </span>
-              <span className={styles.bucketBal}>{formatUGXExact(emergencyBalance)}</span>
+              <span className={styles.bucketBal}>{formatUGX(emergencyBalance, { compact: false })}</span>
             </button>
             <button
               type="button"
@@ -197,7 +198,7 @@ export default function WithdrawPage() {
                 <span className={styles.bucketDot} data-tone="retirement" />
                 Retirement
               </span>
-              <span className={styles.bucketBal}>{formatUGXExact(retirementBalance)}</span>
+              <span className={styles.bucketBal}>{formatUGX(retirementBalance, { compact: false })}</span>
               {!retirementEligible && (
                 <span className={styles.lockPill}>
                   <svg aria-hidden="true" viewBox="0 0 12 12" width="9" height="9">
@@ -263,7 +264,7 @@ export default function WithdrawPage() {
           disabled={!hasAmount}
           onClick={handleReview}
         >
-          {hasAmount ? `Withdraw ${formatUGXExact(amount)}` : 'Withdraw'}
+          {hasAmount ? `Withdraw ${formatUGX(amount, { compact: false })}` : 'Withdraw'}
         </button>
       </footer>
 
@@ -305,7 +306,7 @@ export default function WithdrawPage() {
                     className={styles.sheetInner}
                   >
                     <span className={styles.confirmEyebrow}>You&apos;re taking out</span>
-                    <div className={styles.confirmBig}>{formatUGXExact(amount)}</div>
+                    <div className={styles.confirmBig}>{formatUGX(amount, { compact: false })}</div>
 
                     <ul className={styles.summaryList}>
                       <li className={styles.summaryRow}>
@@ -322,7 +323,7 @@ export default function WithdrawPage() {
                       </li>
                       <li className={styles.summaryRow}>
                         <span>Remaining in pot</span>
-                        <strong>{formatUGXExact(remainingAfter)}</strong>
+                        <strong>{formatUGX(remainingAfter, { compact: false })}</strong>
                       </li>
                     </ul>
 
@@ -371,7 +372,7 @@ export default function WithdrawPage() {
                     </div>
                     <h2 className={styles.successTitle}>Withdrawal requested</h2>
                     <p className={styles.successSubtitle}>
-                      {formatUGXExact(amount)} will arrive via {methodLabel} within 2 business days.
+                      {formatUGX(amount, { compact: false })} will arrive via {methodLabel} within 2 business days.
                     </p>
                     {resultWd?.reference && (
                       <div className={styles.successRef}>Reference <strong>{resultWd.reference}</strong></div>
@@ -416,7 +417,7 @@ function PageHeaderHero({ amount, bucket, remainingAfter, onBack }) {
       eyebrow="YOU'RE TAKING OUT"
       prefix="UGX"
       amount={amount > 0 ? formatNumber(amount) : '0'}
-      subtitle={`From your ${potLabel} pot · ${formatUGXExact(remainingAfter)} remaining`}
+      subtitle={`From your ${potLabel} pot · ${formatUGX(remainingAfter, { compact: false })} remaining`}
       onBack={onBack}
     />
   );

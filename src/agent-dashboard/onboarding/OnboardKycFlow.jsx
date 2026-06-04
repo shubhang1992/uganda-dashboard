@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { useSignup } from '../../signup/SignupContext';
 import { STEPS, AGENT_STEP, PENDING_REVIEW_STEP, getStepIndex } from '../../signup/SignupShell';
 

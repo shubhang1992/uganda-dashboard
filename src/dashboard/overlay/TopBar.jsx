@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useChildren } from '../../hooks/useEntity';
 import { CHILD_LEVEL } from '../../constants/levels';
-import { formatUGX, EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { EASE_OUT_EXPO as EASE } from '../../utils/motion';
+import { formatUGX } from '../../utils/currency';
+
 import { downloadCSV } from '../../utils/csv';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useOutsideClick } from '../../hooks/useOutsideClick';

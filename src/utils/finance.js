@@ -1,12 +1,9 @@
 // Shared finance utilities — single source of truth.
 //
-// NOTE: Currency formatting lives in `src/utils/currency.js` and date
-// formatting in `src/utils/date.js`. The legacy `formatUGX`, `formatUGXExact`,
-// and `fmtShort` exports below are thin shims that forward to those modules,
-// kept for back-compat across ~50 call sites. New code should import from
-// `currency.js` / `date.js` directly.
-
-import { formatUGX as _formatUGX, formatUGXShort } from './currency';
+// NOTE: Currency formatting lives in `src/utils/currency.js`, date formatting
+// in `src/utils/date.js`, and motion curves in `src/utils/motion.js`. Import
+// money/date/animation helpers directly from those modules — this file owns
+// only the finance-domain logic (frequencies, projections, money parsing).
 
 /** @type {number} Monthly interest rate (annual / 12) */
 export const MONTHLY_RATE = 0.10 / 12;
@@ -132,37 +129,6 @@ export function calcFV(pmt, years) {
 }
 
 /**
- * Format a UGX number to short form with prefix (e.g. "UGX 1.2M").
- * @deprecated Import { formatUGX } from `@/utils/currency` instead.
- * @param {number} n - Amount in UGX
- * @returns {string} Formatted string
- */
-export function formatUGX(n) {
-  return _formatUGX(n, { compact: true });
-}
-
-/**
- * Format a UGX number with full precision (e.g. "UGX 50,000").
- * Use when exact amounts matter — e.g., contribution schedules, receipts.
- * @deprecated Import { formatUGX } from `@/utils/currency` with `{ compact: false }`.
- * @param {number} n - Amount in UGX
- * @returns {string} Formatted string
- */
-export function formatUGXExact(n) {
-  return _formatUGX(n, { compact: false });
-}
-
-/**
- * Short form without "UGX" prefix (e.g. "1.2M").
- * @deprecated Import { formatUGXShort } from `@/utils/currency`.
- * @param {number} n - Amount in UGX
- * @returns {string} Formatted string
- */
-export function fmtShort(n) {
-  return formatUGXShort(n);
-}
-
-/**
  * Convert slider position (0-100) to amount using log scale.
  * @param {number} v - Slider value (0-100)
  * @param {number} min - Minimum amount
@@ -184,10 +150,3 @@ export function amtToSlider(a, min, max) {
   const lo = Math.log(min), hi = Math.log(max);
   return ((Math.log(Math.max(a, min)) - lo) / (hi - lo)) * 100;
 }
-
-/**
- * @deprecated Import from `src/utils/motion.js` instead. Re-exported here for
- * backwards compatibility with existing call sites; migrate when touching the
- * surrounding code.
- */
-export { EASE_OUT_EXPO } from './motion';

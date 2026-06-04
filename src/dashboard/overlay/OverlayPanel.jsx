@@ -4,7 +4,8 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useChildren, useTopBranch, useSearch, useEntityMetrics, useChildrenMetrics } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { CHILD_LEVEL } from '../../constants/levels';
-import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { EASE_OUT_EXPO as EASE } from '../../utils/motion';
+
 import { formatUGX, formatNumber } from '../../utils/currency';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';

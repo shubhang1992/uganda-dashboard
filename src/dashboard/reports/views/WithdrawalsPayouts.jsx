@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useAllEntities, useAllEntitiesMap, useChildren, useAllEntitiesMetrics, useChildrenMetrics } from '../../../hooks/useEntity';
 import { useBranchScope } from '../../../contexts/BranchScopeContext';
-import { formatUGX } from '../../../utils/finance';
+import { formatUGX } from '../../../utils/currency';
+
 import ReportView from '../ReportView';
 import ReportTable from '../ReportTable';
 import FilterSelect from '../FilterSelect';
