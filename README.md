@@ -12,7 +12,7 @@ The codebase covers four surfaces:
 
 1. **Public landing page** (`/`) — scrollytelling marketing site that demos 40 years of compounded savings via scroll-linked animation.
 2. **Signup / KYC flow** (`/signup/*`) — 9-step subscriber onboarding (phone OTP, NIRA ID OCR, NIRA verify, face match, AML screen, agent fallback).
-3. **Role dashboards** (`/dashboard/...`) — currently live for Subscriber, Agent, Branch, Distributor. Employer + Admin roles are deferred.
+3. **Role dashboards** (`/dashboard/...`) — 5 of 6 roles built: Subscriber, Agent, Branch, Distributor, and Employer (the Employer role shipped to production 2026-06-03). Admin is deferred (no shell, no RLS policies yet).
 4. **Express backend on Render** (`server/index.ts` mounts `api/*.ts`) — 14 routes covering auth, KYC mocks, contact, chat. Singapore region, Node 22, free tier. Database is Supabase (Postgres + RLS + custom HS256 JWT via `jose`).
 
 ## Tech stack
@@ -25,7 +25,7 @@ The codebase covers four surfaces:
 - **CSS Modules** (no Tailwind, no component library) — design tokens in `src/index.css`
 - **Leaflet 1.9** + **Recharts 3** for the distributor map and charts
 - **Express 5** TypeScript handlers in `api/` mounted by `server/index.ts`; hosted on **Render** (Singapore, free tier, Node 22). Frontend hosted on **Vercel** (Vite preset, no functions).
-- **Supabase** (Postgres + RLS + PostgREST). 28 migrations under `supabase/migrations/`.
+- **Supabase** (Postgres + RLS + PostgREST). 42 migrations under `supabase/migrations/` (`0001`–`0042`).
 - **jose** for custom HS256 JWT signing/verification
 - **Playwright 1.60** for E2E (browser-driven full-app suite under `e2e/`)
 - **Vitest 4** for unit tests
@@ -87,7 +87,7 @@ npx playwright test path/to/spec.ts --project chromium
 
 ## Database
 
-Schema lives in `supabase/migrations/*.sql` (28 numbered migrations as of 2026-05-26). State-machine writes flow through `SECURITY DEFINER` RPCs invoked with `supabase.rpc(name, args)`; direct table writes are blocked by RLS. RLS policies read `auth.jwt() ->> 'app_role'` (NOT `'role'`, which is the Postgres `authenticated` role — see CLAUDE.md §5 anti-pattern 7).
+Schema lives in `supabase/migrations/*.sql` (42 numbered migrations, `0001`–`0042`). State-machine writes flow through `SECURITY DEFINER` RPCs invoked with `supabase.rpc(name, args)`; direct table writes are blocked by RLS. RLS policies read `auth.jwt() ->> 'app_role'` (NOT `'role'`, which is the Postgres `authenticated` role — see CLAUDE.md §5 anti-pattern 7).
 
 Apply migrations with the Supabase CLI:
 
