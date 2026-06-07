@@ -91,12 +91,6 @@ const REPORTS = [
 
 const REPORT_BY_KEY = Object.fromEntries(REPORTS.map((r) => [r.key, r]));
 
-/** Human label for an employee's funding mode. */
-function fundingModeLabel(emp) {
-  const mode = emp?.contributionConfig?.mode ?? 'employer-only';
-  return mode === 'co-contribution' ? 'Co-contribution' : 'Employer-only';
-}
-
 /** Title-case an employee status string for display. */
 function statusLabel(status) {
   if (!status) return '—';
@@ -338,9 +332,8 @@ function ReportHeading({ title, summary }) {
 
 const ROSTER_COLUMNS = [
   { key: 'name', label: 'Name' },
-  { key: 'jobTitle', label: 'Job title' },
-  { key: 'salary', label: 'Salary (UGX)' },
-  { key: 'fundingMode', label: 'Funding mode' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'monthly', label: 'Monthly saving (UGX)' },
   { key: 'status', label: 'Status' },
   { key: 'netBalance', label: 'Net balance (UGX)' },
 ];
@@ -353,9 +346,8 @@ function StaffRosterReport({ employerId, onReady }) {
     () =>
       employees.map((e) => ({
         name: e.name,
-        jobTitle: e.jobTitle || '—',
-        salary: Math.round(e.salary || 0),
-        fundingMode: fundingModeLabel(e),
+        phone: e.phone || '—',
+        monthly: Math.round(e.monthlyContribution || 0),
         status: statusLabel(e.status),
         netBalance: Math.round(e.netBalance || 0),
       })),
@@ -364,7 +356,7 @@ function StaffRosterReport({ employerId, onReady }) {
 
   const totals = useMemo(
     () => ({
-      salary: rows.reduce((s, r) => s + r.salary, 0),
+      monthly: rows.reduce((s, r) => s + r.monthly, 0),
       netBalance: rows.reduce((s, r) => s + r.netBalance, 0),
     }),
     [rows],
@@ -380,22 +372,21 @@ function StaffRosterReport({ employerId, onReady }) {
     <ReportFrame
       query={query}
       isEmpty={employees.length === 0}
-      emptyTitle="No staff yet"
-      emptyBody="Onboard staff to see them in this report."
-      loadingLabel="Loading staff roster"
+      emptyTitle="No members yet"
+      emptyBody="Onboard members to see them in this report."
+      loadingLabel="Loading roster"
     >
       <ReportHeading
-        title="Staff roster"
-        summary={`${formatNumber(rows.length)} ${rows.length === 1 ? 'employee' : 'employees'}`}
+        title="Member roster"
+        summary={`${formatNumber(rows.length)} ${rows.length === 1 ? 'member' : 'members'}`}
       />
       <div className={styles.tableScroll}>
         <table className={styles.table}>
           <thead>
             <tr>
               <th scope="col">Name</th>
-              <th scope="col">Job title</th>
-              <th scope="col" className={styles.num}>Salary</th>
-              <th scope="col">Funding</th>
+              <th scope="col">Phone</th>
+              <th scope="col" className={styles.num}>Monthly saving</th>
               <th scope="col">Status</th>
               <th scope="col" className={styles.num}>Net balance</th>
             </tr>
@@ -404,9 +395,8 @@ function StaffRosterReport({ employerId, onReady }) {
             {rows.map((r, i) => (
               <tr key={`${r.name}-${i}`}>
                 <th scope="row" className={styles.rowHead}>{r.name}</th>
-                <td>{r.jobTitle}</td>
-                <td className={styles.num}>{formatUGX(r.salary, { compact: false })}</td>
-                <td>{r.fundingMode}</td>
+                <td>{r.phone}</td>
+                <td className={styles.num}>{formatUGX(r.monthly, { compact: false })}</td>
                 <td>
                   <span className={styles.statusTag} data-status={r.status.toLowerCase()}>{r.status}</span>
                 </td>
@@ -417,8 +407,8 @@ function StaffRosterReport({ employerId, onReady }) {
           <tfoot>
             <tr>
               <th scope="row" colSpan={2}>Totals</th>
-              <td className={styles.num}>{formatUGX(totals.salary, { compact: false })}</td>
-              <td colSpan={2} aria-hidden="true" />
+              <td className={styles.num}>{formatUGX(totals.monthly, { compact: false })}</td>
+              <td aria-hidden="true" />
               <td className={styles.num}>{formatUGX(totals.netBalance, { compact: false })}</td>
             </tr>
           </tfoot>

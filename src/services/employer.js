@@ -1,38 +1,24 @@
 // Employer data service — Supabase-backed read/write for the Employer
-// dashboard, mirroring `src/services/entities.js`.
+// dashboard.
 //
-// Dual-path: every function checks `IS_SUPABASE_ENABLED` (from
-// `src/services/api.js`). When true it hits Supabase directly (reads are
-// RLS-auto-scoped to the caller's employer via the JWT `employerId` claim that
-// `supabaseClient.js` forwards; writes go through the 0035 SECURITY DEFINER
-// RPCs). When false (`VITE_USE_SUPABASE=false`) it falls back to the frozen
-// `src/data/employerSeed.js` rows layered with a per-session mutation store
-// (balance-delta technique borrowed from `src/services/subscriber.js`).
+// UNIFIED MODEL (0043–0045): an employer's "staff" are REAL subscribers tagged
+// with `subscribers.employer_id`. This service reads `subscribers` (+ their
+// balances / schedule / insurance / nominees) scoped to the caller's employer
+// via the `employerId` JWT claim + the 0043 employer RLS, and funds them via
+// `submit_employer_contribution_run` (employer-source `transactions`). The old
+// standalone `employees` / `contribution_run_lines` machinery is retired.
 //
-// Naming convention: Supabase returns snake_case rows. The mappers below
-// (`mapEmployer`/`mapEmployee`/`mapRun`/`mapRunLine`) translate to the camelCase
-// shape that the hooks + components consume — same idiom as `entities.js`
-// `mapBranch`. Only THIS service file imports `employerSeed.js`
-// (CLAUDE.md §4.1).
+// Dual-path: every function checks `IS_SUPABASE_ENABLED`. When false
+// (`VITE_USE_SUPABASE=false`) it falls back to the frozen `employerSeed.js`
+// MEMBERS (subscriber-shaped) layered with a per-session mutation store. Only
+// THIS service file imports `employerSeed.js` (CLAUDE.md §4.1).
 //
-// ⚠️ The mock `submitContributionRun` re-derives every amount with the SAME
-// math as the `submit_contribution_run` RPC (0038) / the `lineFor` helper in
-// employerSeed.js. NEW co-contribution model: the employer MATCHES a % of the
-// employee's own monthly saving, capped by an optional fixed UGX maximum:
-//   co (matchPct present): employee_half = round(monthlyContribution);
-//     employer_half = round(employee_half*matchPct/100), then
-//     min(employer_half, round(maxContribution)) when maxContribution is set.
-//   co (legacy, employeePct, no matchPct): employer_half = employerAmount ??
-//     round(salary*employerPct/100); employee_half = employeeAmount ??
-//     round(salary*employeePct/100)  (dual-read back-compat).
-//   employer-only: employer_half = employerAmount ?? round(salary*employerPct
-//     /100); employee_half = 0.
-// Then retirement = round(gross*retPct/100); emergency = gross - retirement;
-// units = gross / 1000. It skips suspended / not-owned / not-found /
-// zero-contribution employees, mutates session balance-deltas, appends to an
-// in-memory `_mockRuns`, and is idempotent via a nonce→result map. It creates
-// NO commission side-effects (no `transactions`, `subscriber_balances`, or
-// `commissions` writes) — matching the RPC's hard constraint.
+// Member shape (camelCase) reused across the roster/detail components:
+//   { id, name, phone, email, gender, age, nin, employerId, status, isActive,
+//     joinedDate, monthlyContribution, contributionSchedule, retirementBalance,
+//     emergencyBalance, netBalance, unitsHeld, ownContributions,
+//     employerContributions, totalContributions, insuranceCover,
+//     insurancePremiumMonthly, insuranceStatus, insuranceRenewalDate, nominees }
 
 import { supabase } from './supabaseClient';
 import { IS_SUPABASE_ENABLED } from './api';
@@ -40,23 +26,27 @@ import { normalizeFrequency } from '../utils/finance';
 import { currentTime } from '../data/mockData';
 import {
   EMPLOYER,
-  EMPLOYEES,
+  MEMBERS,
   CONTRIBUTION_RUNS,
-  CONTRIBUTION_RUN_LINES,
+  MEMBER_TRANSACTIONS,
   EMPLOYER_UNIT_PRICE,
   LEADERBOARD_COMPETITORS,
 } from '../data/employerSeed';
 
 const round = (n) => Math.round(n);
 
+/** PostgREST embeds a to-one relation as an object, but can surface a single-
+ *  element array depending on FK detection — normalise to the row (or null). */
+function oneOf(rel) {
+  if (Array.isArray(rel)) return rel[0] ?? null;
+  return rel ?? null;
+}
+
 // =============================================================================
 // Mappers (snake_case DB row → camelCase frontend shape)
 // =============================================================================
 
-/**
- * Map an `employers` row. `default_contribution_config` is JSONB and already
- * camelCase inside (mode/employerPct/…); pass it through untouched.
- */
+/** Map an `employers` row (unchanged). */
 export function mapEmployer(row) {
   if (!row) return null;
   return {
@@ -76,14 +66,16 @@ export function mapEmployer(row) {
 }
 
 /**
- * Map an `employees` row. The JSONB columns (`contribution_config`,
- * `contribution_schedule`, `nominees`) are already camelCase inside, so they
- * pass through. `contribution_schedule.frequency` (if present) is run through
- * `normalizeFrequency` per the hard rule (CLAUDE.md §4.6).
+ * Map a tagged `subscribers` row (+ embedded balances / schedule / insurance /
+ * nominees) to the employer-dashboard "member" shape. The funding MODE is NOT
+ * carried per-member (Issue 2 — it is the company-wide employer default); only
+ * the member's own monthly saving + schedule split are per-member.
  */
-export function mapEmployee(row) {
+export function mapMember(row) {
   if (!row) return null;
-  const schedule = row.contribution_schedule ?? null;
+  const bal = oneOf(row.subscriber_balances);
+  const sched = oneOf(row.contribution_schedules);
+  const ins = oneOf(row.insurance_policies);
   return {
     id: row.id,
     employerId: row.employer_id,
@@ -93,36 +85,31 @@ export function mapEmployee(row) {
     gender: row.gender,
     age: row.age,
     nin: row.nin,
-    jobTitle: row.job_title,
-    salary: Number(row.salary ?? 0),
-    status: row.status,
-    joinedDate: row.joined_date,
-    monthlyContribution: Number(row.monthly_contribution ?? 0),
-    contributionConfig: row.contribution_config ?? null,
-    contributionSchedule: schedule
+    isActive: row.is_active !== false,
+    status: row.is_active === false ? 'suspended' : 'active',
+    joinedDate: row.registered_date ?? row.created_at ?? null,
+    monthlyContribution: Number(sched?.amount ?? 0),
+    contributionSchedule: sched
       ? {
-          ...schedule,
-          frequency: schedule.frequency
-            ? normalizeFrequency(schedule.frequency)
-            : schedule.frequency,
+          frequency: sched.frequency ? normalizeFrequency(sched.frequency) : 'monthly',
+          amount: Number(sched.amount ?? 0),
+          retirementPct: Number(sched.retirement_pct ?? 80),
+          emergencyPct: Number(sched.emergency_pct ?? 20),
         }
       : null,
-    retirementBalance: Number(row.retirement_balance ?? 0),
-    emergencyBalance: Number(row.emergency_balance ?? 0),
-    netBalance: Number(row.net_balance ?? 0),
-    unitsHeld: Number(row.units_held ?? 0),
-    totalContributions: Number(row.total_contributions ?? 0),
-    insuranceCover: Number(row.insurance_cover ?? 0),
-    insurancePremiumMonthly: Number(row.insurance_premium_monthly ?? 0),
-    insuranceStatus: row.insurance_status ?? 'inactive',
-    insuranceRenewalDate: row.insurance_renewal_date ?? null,
+    retirementBalance: Number(bal?.retirement_balance ?? 0),
+    emergencyBalance: Number(bal?.emergency_balance ?? 0),
+    netBalance: Number(bal?.total_balance ?? 0),
+    unitsHeld: Number(bal?.units ?? 0),
+    insuranceCover: Number(ins?.cover ?? 0),
+    insurancePremiumMonthly: Number(ins?.premium_monthly ?? 0),
+    insuranceStatus: ins?.status ?? 'inactive',
+    insuranceRenewalDate: ins?.renewal_date ?? null,
     nominees: Array.isArray(row.nominees) ? row.nominees : [],
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
   };
 }
 
-/** Map a `contribution_runs` header row. */
+/** Map a `contribution_runs` header row (employer run history — kept). */
 export function mapRun(row) {
   if (!row) return null;
   return {
@@ -138,89 +125,75 @@ export function mapRun(row) {
   };
 }
 
-/** Map a `contribution_run_lines` row. */
-export function mapRunLine(row) {
+/** Map a contribution `transactions` row to the dashboard's line shape. */
+export function mapTxn(row) {
   if (!row) return null;
   return {
     id: row.id,
-    runId: row.run_id,
-    employeeId: row.employee_id,
-    employerAmount: Number(row.employer_amount ?? 0),
-    employeeAmount: Number(row.employee_amount ?? 0),
-    retirementAmount: Number(row.retirement_amount ?? 0),
-    emergencyAmount: Number(row.emergency_amount ?? 0),
+    subscriberId: row.subscriber_id,
+    type: row.type,
+    source: row.source ?? 'own',
+    amount: Number(row.amount ?? 0),
+    date: row.date,
     method: row.method,
+    retirementAmount: Number(row.split_retirement ?? 0),
+    emergencyAmount: Number(row.split_emergency ?? 0),
+    contributionRunId: row.contribution_run_id ?? null,
   };
 }
 
 // =============================================================================
-// Mock fallback — per-session mutation store layered over employerSeed.js
+// Mock fallback — per-session mutation store layered over employerSeed MEMBERS
 // =============================================================================
-//
-// Borrowed from subscriber.js: a session map of balance-deltas + config /
-// insurance / profile overrides + appended runs, all resetting on refresh.
-// Keyed by employeeId for the balance deltas and per-key overrides; the run
-// list + nonce ledger live at module scope (one employer in the demo seed).
 
-const _mockEmployeeMutations = new Map();
-/** Appended runs (newest-first when read). */
+const _mockMemberMutations = new Map();
 let _mockRuns = [];
-/** Appended run lines (flat). */
-let _mockRunLines = [];
-/** nonce → prior result, for idempotency. */
+let _mockTxns = []; // appended employer-source transactions (session)
 const _mockNonceResults = new Map();
-/** Employer profile override (applied on top of EMPLOYER on read). */
 let _mockEmployerOverride = null;
+const _mockLinked = []; // members onboarded this session
+const _mockInvites = []; // employer invites created this session
 
-function readEmployeeSession(id) {
-  if (!_mockEmployeeMutations.has(id)) {
-    _mockEmployeeMutations.set(id, {
-      configOverride: null,
+function readMemberSession(id) {
+  if (!_mockMemberMutations.has(id)) {
+    _mockMemberMutations.set(id, {
+      balanceDelta: { retirement: 0, emergency: 0, net: 0, units: 0 },
+      ownDelta: 0,
+      employerDelta: 0,
       insuranceOverride: null,
-      balanceDelta: {
-        retirement: 0,
-        emergency: 0,
-        net: 0,
-        units: 0,
-        totalContributions: 0,
-      },
     });
   }
-  return _mockEmployeeMutations.get(id);
+  return _mockMemberMutations.get(id);
 }
 
-/** Layer the session mutations over a frozen seed employee. */
-function applyEmployeeMutations(emp) {
-  if (!emp) return emp;
-  const m = readEmployeeSession(emp.id);
-  const cfg = m.configOverride ?? emp.contributionConfig;
-  const ins = m.insuranceOverride ?? {
-    cover: emp.insuranceCover,
-    premium: emp.insurancePremiumMonthly,
-    status: emp.insuranceStatus,
-    renewalDate: emp.insuranceRenewalDate,
+function applyMemberMutations(m) {
+  if (!m) return m;
+  const s = readMemberSession(m.id);
+  const ins = s.insuranceOverride ?? {
+    cover: m.insuranceCover,
+    premium: m.insurancePremiumMonthly,
+    status: m.insuranceStatus,
+    renewalDate: m.insuranceRenewalDate,
   };
   return {
-    ...emp,
-    contributionConfig: cfg,
+    ...m,
+    retirementBalance: Math.max(0, (m.retirementBalance || 0) + s.balanceDelta.retirement),
+    emergencyBalance: Math.max(0, (m.emergencyBalance || 0) + s.balanceDelta.emergency),
+    netBalance: Math.max(0, (m.netBalance || 0) + s.balanceDelta.net),
+    unitsHeld: Math.max(0, (m.unitsHeld || 0) + s.balanceDelta.units),
+    ownContributions: Math.max(0, (m.ownContributions || 0) + s.ownDelta),
+    employerContributions: Math.max(0, (m.employerContributions || 0) + s.employerDelta),
     insuranceCover: ins.cover,
     insurancePremiumMonthly: ins.premium,
     insuranceStatus: ins.status,
     insuranceRenewalDate: ins.renewalDate,
-    retirementBalance: Math.max(0, (emp.retirementBalance || 0) + m.balanceDelta.retirement),
-    emergencyBalance: Math.max(0, (emp.emergencyBalance || 0) + m.balanceDelta.emergency),
-    netBalance: Math.max(0, (emp.netBalance || 0) + m.balanceDelta.net),
-    unitsHeld: Math.max(0, (emp.unitsHeld || 0) + m.balanceDelta.units),
-    totalContributions: Math.max(0, (emp.totalContributions || 0) + m.balanceDelta.totalContributions),
   };
 }
 
-/** All employees (seed + session mutations), in seed order. */
-function mockEmployees() {
-  return EMPLOYEES.map(applyEmployeeMutations);
+function mockMembers() {
+  return [...MEMBERS, ..._mockLinked].map(applyMemberMutations);
 }
 
-/** All runs: appended session runs (newest first) then seed runs (newest first). */
 function mockRuns() {
   const seedRuns = [...CONTRIBUTION_RUNS].sort((a, b) =>
     String(b.runAt ?? '').localeCompare(String(a.runAt ?? '')),
@@ -228,158 +201,65 @@ function mockRuns() {
   return [..._mockRuns, ...seedRuns];
 }
 
-function mockRunLines(runId) {
-  const seedLines = CONTRIBUTION_RUN_LINES.filter((l) => l.runId === runId);
-  const sessionLines = _mockRunLines.filter((l) => l.runId === runId);
-  return [...sessionLines, ...seedLines];
-}
-
-/**
- * Re-derive one employee's line amounts the SAME way the RPC does. Mirrors
- * `lineFor` in employerSeed.js + the SQL in 0038. NEW co-contribution model:
- * the employer MATCHES `matchPct` of the employee's own monthly saving
- * (monthlyContribution), capped by an optional fixed UGX maximum on the
- * employer top-up. Dual-read: a legacy co row (employeePct, no matchPct) falls
- * back to the OLD salary-based math so an un-migrated row never zeroes out.
- * employer-only is unchanged. Returns { skip } + a reason when the employee
- * should be skipped (suspended / zero contribution).
- */
-function mockLineFor(emp) {
-  if (emp.status !== 'active') return { skip: 'suspended' };
-  const cfg = emp.contributionConfig ?? {};
+/** Mock employer run — posts an employer-source contribution per active member. */
+function _mockSubmitEmployerRun(employerId, { periodLabel, method, nonce } = {}) {
+  if (nonce && _mockNonceResults.has(nonce)) return _mockNonceResults.get(nonce);
+  const cfg = { ...EMPLOYER.defaultContributionConfig, ...(_mockEmployerOverride?.defaultContributionConfig ?? {}) };
   const mode = cfg.mode ?? 'employer-only';
-  let employerHalf;
-  let employeeHalf;
-  if (mode === 'co-contribution') {
-    if (cfg.matchPct != null) {
-      // NEW: employee funds their own saving; employer matches a % of it.
-      employeeHalf = round(Number(emp.monthlyContribution ?? 0));
-      employerHalf = round(employeeHalf * Number(cfg.matchPct ?? 0) / 100);
+  const runId = `run-mock-${nonce ?? mockRuns().length + 1}`;
+  let employerTotal = 0;
+  let lines = 0;
+  const skipped = [];
+
+  for (const m of mockMembers()) {
+    if (m.status !== 'active') { skipped.push({ subscriberId: m.id, reason: 'suspended' }); continue; }
+    let amt;
+    if (mode === 'co-contribution') {
+      amt = round(Number(m.monthlyContribution ?? 0) * Number(cfg.matchPct ?? 0) / 100);
       if (cfg.maxContribution != null && cfg.maxContribution !== '') {
-        employerHalf = Math.min(employerHalf, round(Number(cfg.maxContribution)));
+        amt = Math.min(amt, round(Number(cfg.maxContribution)));
       }
     } else {
-      // LEGACY fallback: two independent % of salary (pre-redesign rows).
-      employerHalf =
-        cfg.employerAmount != null
-          ? round(Number(cfg.employerAmount))
-          : round((emp.salary ?? 0) * Number(cfg.employerPct ?? 0) / 100);
-      employeeHalf =
-        cfg.employeeAmount != null
-          ? round(Number(cfg.employeeAmount))
-          : round((emp.salary ?? 0) * Number(cfg.employeePct ?? 0) / 100);
+      amt = round(Number(cfg.employerAmount ?? 0));
     }
-  } else {
-    employerHalf =
-      cfg.employerAmount != null
-        ? round(Number(cfg.employerAmount))
-        : round((emp.salary ?? 0) * Number(cfg.employerPct ?? 0) / 100);
-    employeeHalf = 0;
-  }
-  const gross = employerHalf + employeeHalf;
-  if (gross <= 0) return { skip: 'zero_contribution' };
-  let retPct = Number(emp.contributionSchedule?.retirementPct ?? 80);
-  if (!(retPct >= 0 && retPct <= 100)) retPct = 80;
-  const retirement = round(gross * retPct / 100);
-  const emergency = gross - retirement;
-  return { employerHalf, employeeHalf, gross, retirement, emergency };
-}
+    if (amt <= 0) { skipped.push({ subscriberId: m.id, reason: 'zero_contribution' }); continue; }
 
-/**
- * Mock `submit_contribution_run`. Re-derives amounts server-style, skips
- * suspended / not-owned / not-found / zero employees, mutates session
- * balance-deltas, appends a run + lines, and is idempotent via the nonce
- * ledger. Creates NO commission side-effects.
- */
-function _mockSubmitContributionRun(employerId, { rows, periodLabel, method, nonce } = {}) {
-  if (nonce && _mockNonceResults.has(nonce)) {
-    return _mockNonceResults.get(nonce);
-  }
-  if (!Array.isArray(rows)) throw new Error('rows must be an array');
-
-  const byId = Object.fromEntries(mockEmployees().map((e) => [e.id, e]));
-  const runId = `run-mock-${Date.now()}`;
-  const lines = [];
-  const skipped = [];
-  let employerTotal = 0;
-  let employeeTotal = 0;
-  let grandTotal = 0;
-
-  for (const row of rows) {
-    const employeeId = row?.employeeId;
-    if (!employeeId) {
-      skipped.push({ employeeId: employeeId ?? null, reason: 'missing_employee_id' });
-      continue;
-    }
-    const emp = byId[employeeId];
-    if (!emp) {
-      skipped.push({ employeeId, reason: 'not_found' });
-      continue;
-    }
-    // Ownership guard — never fund another employer's staff.
-    if (emp.employerId !== employerId) {
-      skipped.push({ employeeId, reason: 'not_owned' });
-      continue;
-    }
-    const derived = mockLineFor(emp);
-    if (derived.skip) {
-      skipped.push({ employeeId, reason: derived.skip });
-      continue;
-    }
-
-    const lineId = `crl-mock-${Date.now()}-${lines.length + 1}`;
-    lines.push({
-      id: lineId,
-      runId,
-      employeeId,
-      employerAmount: derived.employerHalf,
-      employeeAmount: derived.employeeHalf,
-      retirementAmount: derived.retirement,
-      emergencyAmount: derived.emergency,
+    const retPct = Number(m.contributionSchedule?.retirementPct ?? 80);
+    const retirement = round(amt * retPct / 100);
+    const emergency = amt - retirement;
+    const s = readMemberSession(m.id);
+    s.balanceDelta.retirement += retirement;
+    s.balanceDelta.emergency += emergency;
+    s.balanceDelta.net += amt;
+    s.balanceDelta.units += amt / EMPLOYER_UNIT_PRICE;
+    s.employerDelta += amt;
+    _mockTxns.unshift({
+      id: `t-mock-${runId}-${lines + 1}`,
+      subscriberId: m.id,
+      type: 'contribution',
+      source: 'employer',
+      amount: amt,
+      date: currentTime().toISOString(),
       method: method ?? null,
+      retirementAmount: retirement,
+      emergencyAmount: emergency,
+      contributionRunId: runId,
     });
-
-    // Bump the employee's session balance-deltas (the ONLY balance write).
-    const m = readEmployeeSession(employeeId);
-    m.balanceDelta.retirement += derived.retirement;
-    m.balanceDelta.emergency += derived.emergency;
-    m.balanceDelta.net += derived.gross;
-    m.balanceDelta.units += derived.gross / EMPLOYER_UNIT_PRICE;
-    m.balanceDelta.totalContributions += derived.gross;
-
-    employerTotal += derived.employerHalf;
-    employeeTotal += derived.employeeHalf;
-    grandTotal += derived.gross;
+    employerTotal += amt;
+    lines += 1;
   }
 
   let finalRunId = runId;
-  if (lines.length > 0) {
+  if (lines > 0) {
     _mockRuns = [
-      {
-        id: runId,
-        employerId,
-        periodLabel: periodLabel ?? null,
-        status: 'completed',
-        employerTotal,
-        employeeTotal,
-        grandTotal,
-        runAt: currentTime().toISOString(),
-      },
+      { id: runId, employerId, periodLabel: periodLabel ?? null, status: 'completed',
+        employerTotal, employeeTotal: 0, grandTotal: employerTotal, runAt: currentTime().toISOString() },
       ..._mockRuns,
     ];
-    _mockRunLines = [...lines, ..._mockRunLines];
   } else {
     finalRunId = null;
   }
-
-  const result = {
-    runId: finalRunId,
-    linesCreated: lines.length,
-    employerTotal,
-    employeeTotal,
-    grandTotal,
-    skipped,
-  };
+  const result = { runId: finalRunId, linesCreated: lines, employerTotal, employeeTotal: 0, grandTotal: employerTotal, skipped };
   if (nonce) _mockNonceResults.set(nonce, result);
   return result;
 }
@@ -388,10 +268,11 @@ function _mockSubmitContributionRun(employerId, { rows, periodLabel, method, non
 // Reads
 // =============================================================================
 
+const MEMBER_SELECT =
+  '*, subscriber_balances(*), contribution_schedules(*), insurance_policies(*), nominees(*)';
+
 /**
  * @endpoint SELECT * FROM employers WHERE id = $1 (RLS auto-scopes to self).
- * @param {string} id - employer ID ('emp-001').
- * @returns {Promise<Object|null>} mapped employer, or null.
  * @cache ['employer', id]
  */
 export async function getEmployer(id) {
@@ -399,11 +280,7 @@ export async function getEmployer(id) {
     if (id && EMPLOYER.id !== id) return null;
     return { ...EMPLOYER, ...(_mockEmployerOverride ?? {}) };
   }
-  const { data, error } = await supabase
-    .from('employers')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle();
+  const { data, error } = await supabase.from('employers').select('*').eq('id', id).maybeSingle();
   if (error) {
     if (error.code === 'PGRST116') return null;
     throw error;
@@ -412,54 +289,70 @@ export async function getEmployer(id) {
 }
 
 /**
- * @endpoint SELECT * FROM employees WHERE employer_id = $1 (RLS auto-scopes).
- * @param {string} employerId
- * @returns {Promise<Array<Object>>}
- * @cache ['employees', employerId]
+ * Roster: the employer's tagged subscribers (members).
+ * @endpoint SELECT subscribers (+ balances/schedule/insurance/nominees)
+ *   WHERE employer_id = $1 (RLS auto-scopes).
+ * @cache ['employees', employerId]   (key kept for hook/component stability)
  */
 export async function getEmployees(employerId) {
   if (!IS_SUPABASE_ENABLED) {
-    if (!employerId) return mockEmployees();
-    return mockEmployees().filter((e) => e.employerId === employerId);
+    if (!employerId) return mockMembers();
+    return mockMembers().filter((m) => m.employerId === employerId);
   }
   if (!employerId) return [];
   const { data, error } = await supabase
-    .from('employees')
-    .select('*')
+    .from('subscribers')
+    .select(MEMBER_SELECT)
     .eq('employer_id', employerId);
   if (error) throw error;
-  return (data ?? []).map(mapEmployee);
+  return (data ?? []).map(mapMember);
+}
+
+/** Sum a member's own/employer contribution totals from their transactions. */
+async function fetchMemberBreakdown(subscriberId) {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('amount, source, type')
+    .eq('subscriber_id', subscriberId)
+    .eq('type', 'contribution');
+  if (error) throw error;
+  let own = 0;
+  let employer = 0;
+  for (const t of data ?? []) {
+    if (t.source === 'employer') employer += Number(t.amount ?? 0);
+    else own += Number(t.amount ?? 0);
+  }
+  return { ownContributions: own, employerContributions: employer, totalContributions: own + employer };
 }
 
 /**
- * @endpoint SELECT * FROM employees WHERE id = $1 (RLS auto-scopes).
- * @param {string} employeeId
- * @returns {Promise<Object|null>}
+ * One member (tagged subscriber) + their own/employer contribution breakdown.
  * @cache ['employee', employeeId]
  */
 export async function getEmployee(employeeId) {
   if (!IS_SUPABASE_ENABLED) {
     if (!employeeId) return null;
-    const emp = EMPLOYEES.find((e) => e.id === employeeId);
-    return emp ? applyEmployeeMutations(emp) : null;
+    const m = mockMembers().find((x) => x.id === employeeId);
+    return m ?? null;
   }
   if (!employeeId) return null;
   const { data, error } = await supabase
-    .from('employees')
-    .select('*')
+    .from('subscribers')
+    .select(MEMBER_SELECT)
     .eq('id', employeeId)
     .maybeSingle();
   if (error) {
     if (error.code === 'PGRST116') return null;
     throw error;
   }
-  return mapEmployee(data);
+  if (!data) return null;
+  const member = mapMember(data);
+  const breakdown = await fetchMemberBreakdown(employeeId);
+  return { ...member, ...breakdown };
 }
 
 /**
- * @endpoint SELECT * FROM contribution_runs WHERE employer_id = $1 (RLS).
- * @param {string} employerId
- * @returns {Promise<Array<Object>>} newest-first.
+ * @endpoint SELECT * FROM contribution_runs WHERE employer_id = $1, newest-first.
  * @cache ['contributionRuns', employerId]
  */
 export async function getContributionRuns(employerId) {
@@ -478,9 +371,8 @@ export async function getContributionRuns(employerId) {
 }
 
 /**
- * @endpoint SELECT a run header + its lines (RLS auto-scopes).
- * @param {string} runId
- * @returns {Promise<{run: Object, lines: Array<Object>}|null>}
+ * A run header + its per-member lines (now the employer-source `transactions`
+ * carrying contribution_run_id). RLS auto-scopes via the employer policies.
  * @cache ['contributionRun', runId]
  */
 export async function getContributionRun(runId) {
@@ -488,114 +380,77 @@ export async function getContributionRun(runId) {
     if (!runId) return null;
     const run = mockRuns().find((r) => r.id === runId);
     if (!run) return null;
-    return { run, lines: mockRunLines(runId) };
+    const lines = _mockTxns.filter((t) => t.contributionRunId === runId);
+    return { run, lines };
   }
   if (!runId) return null;
   const { data: runRow, error: runErr } = await supabase
-    .from('contribution_runs')
-    .select('*')
-    .eq('id', runId)
-    .maybeSingle();
+    .from('contribution_runs').select('*').eq('id', runId).maybeSingle();
   if (runErr) {
     if (runErr.code === 'PGRST116') return null;
     throw runErr;
   }
   if (!runRow) return null;
-  const { data: lineRows, error: lineErr } = await supabase
-    .from('contribution_run_lines')
-    .select('*')
-    .eq('run_id', runId);
-  if (lineErr) throw lineErr;
+  const { data: txRows, error: txErr } = await supabase
+    .from('transactions')
+    .select('*, subscribers(name)')
+    .eq('contribution_run_id', runId);
+  if (txErr) throw txErr;
   return {
     run: mapRun(runRow),
-    lines: (lineRows ?? []).map(mapRunLine),
+    lines: (txRows ?? []).map((t) => ({ ...mapTxn(t), memberName: t.subscribers?.name ?? null })),
   };
 }
 
 /**
- * @endpoint SELECT contribution_run_lines for ONE employee, joined to the run
- *   header for the period label + run date (RLS auto-scopes via the run join —
- *   a line is only visible if its run belongs to the caller's employer).
- *   Newest run first. Mock filters `CONTRIBUTION_RUN_LINES` (+ session lines)
- *   by employeeId and joins to the run period/date the same way.
- * @param {string} employeeId
- * @returns {Promise<Array<{ id, runId, employeeId, employerAmount,
- *   employeeAmount, retirementAmount, emergencyAmount, method, periodLabel,
- *   runAt }>>} newest-first.
+ * One member's contribution history (own + employer transactions), newest-first.
  * @cache ['employeeContributions', employeeId]
  */
 export async function getEmployeeContributions(employeeId) {
   if (!IS_SUPABASE_ENABLED) {
     if (!employeeId) return [];
-    const runById = Object.fromEntries(mockRuns().map((r) => [r.id, r]));
-    const seedLines = CONTRIBUTION_RUN_LINES.filter((l) => l.employeeId === employeeId);
-    const sessionLines = _mockRunLines.filter((l) => l.employeeId === employeeId);
-    return [...sessionLines, ...seedLines]
-      .map((l) => {
-        const run = runById[l.runId] ?? null;
-        return {
-          ...mapRunLine(l),
-          periodLabel: run?.periodLabel ?? null,
-          runAt: run?.runAt ?? null,
-        };
-      })
-      .sort((a, b) => String(b.runAt ?? '').localeCompare(String(a.runAt ?? '')));
+    const seed = MEMBER_TRANSACTIONS.filter((t) => t.subscriberId === employeeId);
+    const session = _mockTxns.filter((t) => t.subscriberId === employeeId);
+    return [...session, ...seed].sort((a, b) =>
+      String(b.date ?? '').localeCompare(String(a.date ?? '')));
   }
   if (!employeeId) return [];
   const { data, error } = await supabase
-    .from('contribution_run_lines')
-    .select('*, contribution_runs(period_label, run_at)')
-    .eq('employee_id', employeeId);
+    .from('transactions')
+    .select('*')
+    .eq('subscriber_id', employeeId)
+    .eq('type', 'contribution')
+    .order('date', { ascending: false });
   if (error) throw error;
-  return (data ?? [])
-    .map((row) => ({
-      ...mapRunLine(row),
-      periodLabel: row.contribution_runs?.period_label ?? null,
-      runAt: row.contribution_runs?.run_at ?? null,
-    }))
-    .sort((a, b) => String(b.runAt ?? '').localeCompare(String(a.runAt ?? '')));
+  return (data ?? []).map(mapTxn);
 }
 
 /**
- * @endpoint RPC get_employer_metrics() (Supabase) — aggregates for the
- *   hero/overview. Mock computes the identical shape from the seed.
- * @returns {Promise<{
- *   headcount:number, active:number, suspended:number,
- *   totalBalance:number, totalContributions:number, insuredCount:number,
- *   employerYtd:number, employeeYtd:number,
- *   modeSplit:{ coContribution:number, employerOnly:number },
- * }>}
+ * @endpoint RPC get_employer_metrics() — aggregates over tagged subscribers.
  * @cache ['employerMetrics', employerId]
  */
 export async function getEmployerMetrics() {
   if (!IS_SUPABASE_ENABLED) {
-    const emps = mockEmployees();
-    const headcount = emps.length;
-    const active = emps.filter((e) => e.status === 'active').length;
-    const suspended = emps.filter((e) => e.status === 'suspended').length;
-    const totalBalance = emps.reduce((s, e) => s + (e.netBalance || 0), 0);
-    const totalContributions = emps.reduce((s, e) => s + (e.totalContributions || 0), 0);
-    const insuredCount = emps.filter((e) => e.insuranceStatus === 'active').length;
-    const coContribution = emps.filter((e) => (e.contributionConfig?.mode) === 'co-contribution').length;
-    const employerOnly = headcount - coContribution;
-    // YTD = sum over runs in the current calendar year (demo clock).
-    const year = currentTime().getFullYear();
-    const runsThisYear = mockRuns().filter((r) => {
-      const y = new Date(r.runAt).getFullYear();
-      return y === year;
-    });
-    const employerYtd = runsThisYear.reduce((s, r) => s + (r.employerTotal || 0), 0);
-    const employeeYtd = runsThisYear.reduce((s, r) => s + (r.employeeTotal || 0), 0);
+    const members = mockMembers();
+    const headcount = members.length;
+    const active = members.filter((m) => m.status === 'active').length;
+    const suspended = headcount - active;
+    const totalBalance = members.reduce((s, m) => s + (m.netBalance || 0), 0);
+    const ownContributions = members.reduce((s, m) => s + (m.ownContributions || 0), 0);
+    const employerContributions = members.reduce((s, m) => s + (m.employerContributions || 0), 0);
+    const insuredCount = members.filter((m) => m.insuranceStatus === 'active').length;
+    const cfg = { ...EMPLOYER.defaultContributionConfig, ...(_mockEmployerOverride?.defaultContributionConfig ?? {}) };
+    const isCo = cfg.mode === 'co-contribution';
     return {
-      headcount,
-      active,
-      suspended,
-      totalBalance,
-      totalContributions,
+      headcount, active, suspended, totalBalance,
+      totalContributions: ownContributions + employerContributions,
+      ownContributions, employerContributions,
       insuredCount,
-      employerYtd,
-      employeeYtd,
-      modeSplit: { coContribution, employerOnly },
+      employerYtd: employerContributions,
+      employeeYtd: ownContributions,
+      modeSplit: isCo
+        ? { coContribution: headcount, employerOnly: 0 }
+        : { coContribution: 0, employerOnly: headcount },
     };
   }
   const { data, error } = await supabase.rpc('get_employer_metrics');
@@ -603,84 +458,89 @@ export async function getEmployerMetrics() {
   return data ?? {};
 }
 
-/**
- * Monthly-contributions leaderboard for the Overview hero — the caller's own
- * "this month" total ranked against a field of peer employers.
- *
- * Dual-path by construction: the employer's OWN figure is the NEWEST
- * contribution run's `grandTotal`, read through `getContributionRuns` so the
- * number is byte-identical on the Supabase and mock branches (runs exist on
- * both). That "you" entry is merged with the seeded `LEADERBOARD_COMPETITORS`
- * (invented demo peers — see employerSeed.js), sorted by `monthlyTotal`
- * descending, and assigned a 1-based `rank`.
- *
- * `deltaRanks` is a static seeded "↑2" on the employer's own row — an honest
- * mock: there is no historical-rank store to diff against, so we don't fabricate
- * a per-competitor movement (competitors report 0).
- *
- * @future A `get_employer_leaderboard()` RPC would replace the seeded peers by
- *   aggregating `SUM(contribution_runs.grand_total)` per employer for the
- *   current calendar month across ALL employers, tagging `isYou` from the
- *   `employerId` JWT claim (and could derive a real `deltaRanks` from a
- *   prior-month snapshot). No SQL is needed now — the demo runs entirely off the
- *   seed + the caller's own runs.
- *
- * @param {string} employerId
- * @returns {Promise<Array<{ rank:number, name:string, monthlyTotal:number,
- *   isYou:boolean, deltaRanks:number }>>} ranked best-first.
- * @cache ['employerLeaderboard', employerId]
- */
+/** Monthly-contributions leaderboard for the Overview hero (unchanged shape). */
 export async function getEmployerLeaderboard(employerId) {
   if (!employerId) return [];
-
-  // OWN "this month" = newest run's grandTotal. Reuse getContributionRuns so the
-  // figure is identical on both paths (it already RLS/ownership-scopes the runs).
   const runs = await getContributionRuns(employerId);
   const myMonthly = runs[0]?.grandTotal ?? 0;
-
-  // The employer's display name (best-effort; falls back to a neutral label so
-  // the chip never renders an empty company name).
   const me = await getEmployer(employerId);
   const myName = me?.name || 'Your company';
-
   const entries = [
     { name: myName, monthlyTotal: myMonthly, isYou: true, deltaRanks: 2 },
-    ...LEADERBOARD_COMPETITORS.map((c) => ({
-      name: c.name,
-      monthlyTotal: c.monthlyTotal,
-      isYou: false,
-      deltaRanks: 0,
-    })),
+    ...LEADERBOARD_COMPETITORS.map((c) => ({ name: c.name, monthlyTotal: c.monthlyTotal, isYou: false, deltaRanks: 0 })),
   ];
-
-  return entries
-    .sort((a, b) => b.monthlyTotal - a.monthlyTotal)
-    .map((e, i) => ({ ...e, rank: i + 1 }));
+  return entries.sort((a, b) => b.monthlyTotal - a.monthlyTotal).map((e, i) => ({ ...e, rank: i + 1 }));
 }
 
 // =============================================================================
-// Writes — Supabase via 0035 SECURITY DEFINER RPCs; mock via session store.
+// Writes — Supabase via 0044 SECURITY DEFINER RPCs; mock via session store.
 // =============================================================================
 
 /**
- * Submits a contribution run. NON-optimistic — the server (RPC) is the truth.
- * The server RE-DERIVES every amount from employees.salary + contribution_config
- * (client amounts are advisory). Idempotent via `nonce`.
- *
- * @param {string} employerId - caller's employer (used by the mock ownership
- *   guard; under Supabase the RPC reads it from the JWT claim).
- * @param {{ rows: Array<{employeeId:string}>, periodLabel?:string,
- *           method?:string, nonce?:string }} payload
- * @returns {Promise<{ runId:string|null, linesCreated:number,
- *   employerTotal:number, employeeTotal:number, grandTotal:number,
- *   skipped:Array<{employeeId:string, reason:string}> }>}
+ * Onboard an employee = create a real subscriber tagged to this employer (or
+ * link an existing untagged subscriber with the same phone). agent_id is NULL,
+ * so NO agent commission fires.
+ * @param {string} employerId
+ * @param {Object} payload - signup-shaped (phone, fullName, dob, gender, nin,
+ *   districtId, consent, contributionSchedule, nominees, …)
+ * @param {string} [nonce]
+ * @returns {Promise<{ subscriberId: string }>}
  */
-export async function submitContributionRun(employerId, { rows, periodLabel, method, nonce } = {}) {
+export async function createSubscriberFromEmployerOnboard(employerId, payload, nonce) {
   if (!IS_SUPABASE_ENABLED) {
-    return _mockSubmitContributionRun(employerId, { rows, periodLabel, method, nonce });
+    // Mock: synthesize a 0-balance member (identity only — they set their own
+    // saving later), append to the session roster.
+    const id = `s-mock-${nonce ?? _mockLinked.length + 1}`;
+    _mockLinked.push({
+      id,
+      employerId,
+      name: payload?.fullName ?? 'New member',
+      phone: payload?.phone ?? null,
+      email: payload?.email ?? null,
+      gender: payload?.gender ?? null,
+      age: null,
+      nin: payload?.nin ?? null,
+      isActive: true,
+      status: 'active',
+      joinedDate: currentTime().toISOString().slice(0, 10),
+      monthlyContribution: 0,
+      contributionSchedule: null,
+      retirementBalance: 0,
+      emergencyBalance: 0,
+      netBalance: 0,
+      unitsHeld: 0,
+      ownContributions: 0,
+      employerContributions: 0,
+      totalContributions: 0,
+      insuranceCover: 0,
+      insurancePremiumMonthly: 0,
+      insuranceStatus: 'inactive',
+      insuranceRenewalDate: null,
+      nominees: [],
+    });
+    return { subscriberId: id };
   }
-  const { data, error } = await supabase.rpc('submit_contribution_run', {
-    p_rows: rows,
+  const { data, error } = await supabase.rpc('create_subscriber_from_employer_onboard', {
+    payload,
+    calling_employer_id: employerId,
+    p_nonce: nonce ?? null,
+  });
+  if (error) throw error;
+  return { subscriberId: data };
+}
+
+/**
+ * Submits an employer contribution run (funds all active tagged subscribers per
+ * the company-wide config). NON-optimistic — the RPC is the truth. Idempotent
+ * via `nonce`.
+ * @param {string} employerId
+ * @param {{ periodLabel?:string, method?:string, nonce?:string }} payload
+ */
+export async function submitContributionRun(employerId, { periodLabel, method, nonce } = {}) {
+  if (!IS_SUPABASE_ENABLED) {
+    return _mockSubmitEmployerRun(employerId, { periodLabel, method, nonce });
+  }
+  const { data, error } = await supabase.rpc('submit_employer_contribution_run', {
     p_period_label: periodLabel ?? null,
     p_method: method ?? null,
     p_nonce: nonce ?? null,
@@ -690,122 +550,111 @@ export async function submitContributionRun(employerId, { rows, periodLabel, met
 }
 
 /**
- * Replaces an employee's contribution config.
- * @param {string} employeeId
- * @param {Object} config - { mode, employerPct, employeePct, employerAmount, employeeAmount }
- * @returns {Promise<Object>} the updated employee (mapped).
- */
-export async function updateEmployeeContributionConfig(employeeId, config) {
-  if (!IS_SUPABASE_ENABLED) {
-    const emp = EMPLOYEES.find((e) => e.id === employeeId);
-    if (!emp) throw new Error('Employee not found');
-    readEmployeeSession(employeeId).configOverride = config;
-    return applyEmployeeMutations(emp);
-  }
-  const { data, error } = await supabase.rpc('update_employee_contribution_config', {
-    p_employee_id: employeeId,
-    p_config: config,
-  });
-  if (error) throw error;
-  return mapEmployee(data);
-}
-
-/**
- * Sets an employee's insurance cover + monthly premium. Status derives from
- * cover (>0 → 'active').
- * @param {string} employeeId
- * @param {{ cover:number, premium:number }} payload
- * @returns {Promise<Object>} the updated employee (mapped).
- */
-export async function updateEmployeeInsurance(employeeId, { cover, premium } = {}) {
-  if (!IS_SUPABASE_ENABLED) {
-    const emp = EMPLOYEES.find((e) => e.id === employeeId);
-    if (!emp) throw new Error('Employee not found');
-    const active = Number(cover ?? 0) > 0;
-    readEmployeeSession(employeeId).insuranceOverride = {
-      cover: Number(cover ?? 0),
-      premium: Number(premium ?? 0),
-      status: active ? 'active' : 'inactive',
-      // Demo: keep the seed renewal date if present (derivePolicyStatus reused
-      // by later phases to render active/expired).
-      renewalDate: emp.insuranceRenewalDate,
-    };
-    return applyEmployeeMutations(emp);
-  }
-  const { data, error } = await supabase.rpc('update_employee_insurance', {
-    p_employee_id: employeeId,
-    p_cover: Number(cover ?? 0),
-    p_premium: Number(premium ?? 0),
-  });
-  if (error) throw error;
-  return mapEmployee(data);
-}
-
-/**
- * Activates a FLAT group life cover across the caller's ENTIRE roster — the
- * roster-wide analogue of `updateEmployeeInsurance`. Every employee gets
- * `insuranceCover = cover`, status derived from the cover (>0 → 'active'), and
- * a zeroed premium (group cover is employer-included). Used when an employer
- * saves an employer-only default config with a group cover (Phase 7). The
- * RPC self-scopes to the caller's employer via the `employerId` JWT claim, so
- * `employerId` is only consulted by the mock path's ownership filter.
- * @param {string} employerId - caller's employer (mock-path scope; Supabase
- *   reads it from the JWT claim).
+ * Activates a FLAT group life cover across the caller's tagged subscribers.
+ * @param {string} employerId
  * @param {{ cover:number }} payload
- * @returns {Promise<{ updated:number, cover:number }>} the run summary.
+ * @returns {Promise<{ updated:number, cover:number }>}
  */
 export async function applyGroupInsurance(employerId, { cover } = {}) {
   const coverNum = Number(cover ?? 0);
   if (!IS_SUPABASE_ENABLED) {
     const active = coverNum > 0;
-    // Mirror updateEmployeeInsurance's mock write for EVERY owned employee so
-    // getEmployees / getEmployerMetrics reflect the group cover on next read.
-    const owned = mockEmployees().filter(
-      (e) => !employerId || e.employerId === employerId,
-    );
-    for (const emp of owned) {
-      readEmployeeSession(emp.id).insuranceOverride = {
-        cover: coverNum,
-        premium: 0,
+    const owned = mockMembers().filter((m) => !employerId || m.employerId === employerId);
+    for (const m of owned) {
+      readMemberSession(m.id).insuranceOverride = {
+        cover: coverNum, premium: 0,
         status: active ? 'active' : 'inactive',
-        // Keep the seed renewal date if present (same as the per-employee path).
-        renewalDate: emp.insuranceRenewalDate,
+        renewalDate: m.insuranceRenewalDate,
       };
     }
     return { updated: owned.length, cover: coverNum };
   }
-  const { data, error } = await supabase.rpc('apply_group_insurance', {
-    p_cover: coverNum,
-  });
+  const { data, error } = await supabase.rpc('apply_group_insurance', { p_cover: coverNum });
   if (error) throw error;
   return data;
 }
 
-/**
- * Patches the caller's own employer profile row. Only editable
- * profile/config keys are honoured server-side.
- * @param {Object} patch - { name?, sector?, registrationNo?, contactName?,
- *   contactPhone?, contactEmail?, district?, payrollCadence?,
- *   defaultContributionConfig? }
- * @returns {Promise<Object>} the updated employer (mapped).
- */
+/** Patches the caller's own employer profile row (incl. the company config). */
 export async function updateEmployerProfile(patch) {
   if (!IS_SUPABASE_ENABLED) {
     _mockEmployerOverride = { ...(_mockEmployerOverride ?? {}), ...patch };
     return { ...EMPLOYER, ..._mockEmployerOverride };
   }
-  const { data, error } = await supabase.rpc('update_employer_profile', {
-    p_patch: patch ?? {},
-  });
+  const { data, error } = await supabase.rpc('update_employer_profile', { p_patch: patch ?? {} });
   if (error) throw error;
   return mapEmployer(data);
 }
 
-// Re-export the data sources the mock fallback touches so static analysis
-// flags any future drift (no callers; mirrors entities.js `_mockSources`).
+// =============================================================================
+// Employer invites (KYC onboarding) — 0047 RPCs.
+// =============================================================================
+
+/** Map an employer_invites row → camelCase. */
+function mapInvite(row) {
+  if (!row) return null;
+  return {
+    token: row.token,
+    employerId: row.employer_id,
+    prefill: row.prefill ?? {},
+    collectSchedule: row.collect_schedule ?? false,
+    status: row.status,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+  };
+}
+
+/**
+ * Create an employer invite. The server reads the company config to set
+ * `collectSchedule` (true = co-contribution). Returns { token, collectSchedule }.
+ * @param {{ fullName, phone, email?, nin?, gender? }} prefill
+ */
+export async function createEmployerInvite(prefill) {
+  if (!IS_SUPABASE_ENABLED) {
+    const token = `inv-mock-${_mockInvites.length + 1}`;
+    const collectSchedule = (EMPLOYER.defaultContributionConfig?.mode === 'co-contribution');
+    _mockInvites.push({
+      token, employer_id: EMPLOYER.id, prefill, collect_schedule: collectSchedule,
+      status: 'pending', created_at: currentTime().toISOString(),
+      expires_at: new Date(currentTime().getTime() + 7 * 86400000).toISOString(),
+    });
+    return { token, collectSchedule };
+  }
+  const { data, error } = await supabase.rpc('create_employer_invite', { p_prefill: prefill });
+  if (error) throw error;
+  return data;
+}
+
+/** List the employer's PENDING invites (the roster's pending-KYC rows). */
+export async function listPendingInvites(employerId) {
+  if (!IS_SUPABASE_ENABLED) {
+    return _mockInvites.filter((i) => i.employer_id === employerId && i.status === 'pending').map(mapInvite);
+  }
+  if (!employerId) return [];
+  const { data, error } = await supabase
+    .from('employer_invites')
+    .select('*')
+    .eq('employer_id', employerId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapInvite);
+}
+
+/** Cancel (expire) a pending invite. */
+export async function cancelEmployerInvite(token) {
+  if (!IS_SUPABASE_ENABLED) {
+    const inv = _mockInvites.find((i) => i.token === token);
+    if (inv) inv.status = 'expired';
+    return;
+  }
+  const { error } = await supabase.rpc('cancel_employer_invite', { p_token: token });
+  if (error) throw error;
+}
+
+// Re-export the data sources the mock fallback touches (drift detection).
 export const _employerMockSources = {
   EMPLOYER,
-  EMPLOYEES,
+  MEMBERS,
   CONTRIBUTION_RUNS,
-  CONTRIBUTION_RUN_LINES,
+  MEMBER_TRANSACTIONS,
 };

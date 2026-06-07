@@ -61,20 +61,9 @@ function deriveMetrics(metrics, employees) {
   };
 }
 
-/** A member contributes if their config yields a non-zero employer/employee half. */
+/** A member "contributes" if they have a non-zero own monthly saving. */
 function contributesSomething(emp) {
-  const cfg = emp.contributionConfig ?? {};
-  const employerHalf =
-    cfg.employerAmount != null
-      ? Number(cfg.employerAmount)
-      : (emp.salary ?? 0) * Number(cfg.employerPct ?? 0) / 100;
-  const employeeHalf =
-    cfg.mode === 'co-contribution'
-      ? cfg.employeeAmount != null
-        ? Number(cfg.employeeAmount)
-        : (emp.salary ?? 0) * Number(cfg.employeePct ?? 0) / 100
-      : 0;
-  return employerHalf + employeeHalf > 0;
+  return Number(emp.monthlyContribution ?? 0) > 0;
 }
 
 /* ── Insights (Copilot strip) ───────────────────────────────────────────────── */
@@ -235,7 +224,7 @@ function generateActivity(runs, employees) {
     events.push({
       id: `join-${emp.id}`,
       type: 'registration',
-      text: `${emp.name.split(' ')[0]} enrolled · ${emp.jobTitle}`,
+      text: `${emp.name.split(' ')[0]} enrolled as a member`,
       time: emp.joinedDate,
     });
   });

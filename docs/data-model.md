@@ -11,10 +11,10 @@
 Country (Uganda)
 └── Distributor (1 — national singleton, d-001)
     └── Region (4)
-        └── District (135)
-            └── Branch (~314)
-                └── Agent (~500+)
-                    └── Subscriber (~30,000)
+        └── District (136)
+            └── Branch (~316)
+                └── Agent (~2,049)
+                    └── Subscriber (~5,000)
 ```
 
 Each entity references its parent via `parentId`. Metrics roll up from subscriber → agent → branch → district → region → distributor → country. The Distributor tier was introduced in migration `0016_distributors_table.sql` to give the network operator its own row + RLS surface; on the geographic side it sits *between* Country and Region but acts as a pass-through for aggregation today (single row, `parentId = "ug"`).
@@ -98,7 +98,7 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 | Field | Type | Storage | Description |
 |-------|------|---------|-------------|
 | id | string | Stored | Format: `d-{name}` (e.g., `d-kampala`) |
-| name | string | Stored | Official GADM district name (135 real Ugandan districts) |
+| name | string | Stored | Official GADM district name (136 real Ugandan districts) |
 | parentId | string | Stored | Region ID |
 | center | [number, number] | Stored | Map centroid coordinates |
 | active | boolean | Stored | Always `true` in mock |
@@ -246,7 +246,7 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 ### Business Rules
 - **National singleton today.** The demo seeds exactly one employer (`emp-001`). Demo login phone `EMPLOYER_DEMO_PHONE` (`+256700000031`) resolves to it via `demo_personas`; any other phone on the `employer` role falls back to `emp-001`.
 - **No employer health score.** Unlike a Branch, the Employer has **no derived health/scheme-health score**. The funder-redesign removed the scheme-health gauge / participation composite from the Overview hero (an employer is a funder, not a sales line); there is no `score` field and no formula. The hero now leads with total contributions + funder tiles + a monthly-contributions leaderboard — see `FRONTEND.md §9.5`.
-- **Group life insurance.** Selecting the `employer-only` default config with a `groupCoverAmount` activates **flat group life cover for the whole roster** via the `apply_group_insurance` RPC (`0039`): every owned employee's `insuranceCover` is set to the flat amount, `insuranceStatus` derives from it (`>0 → active`, `0 → inactive` — a `0` cover switches group cover off), and `insurancePremiumMonthly` is zeroed (employer-included). The per-employee insurance editor still applies individual overrides afterwards. `0039` is **authored but NOT yet applied to live**.
+- **Group life insurance.** Selecting the `employer-only` default config with a `groupCoverAmount` activates **flat group life cover for the whole roster** via the `apply_group_insurance` RPC (`0039`): every owned employee's `insuranceCover` is set to the flat amount, `insuranceStatus` derives from it (`>0 → active`, `0 → inactive` — a `0` cover switches group cover off), and `insurancePremiumMonthly` is zeroed (employer-included). The per-employee insurance editor still applies individual overrides afterwards. `0039` is **applied to the live Singapore DB** (cutover 2026-06-05).
 - **RLS.** `employer_self_select USING (app_role='employer' AND id = auth.jwt() ->> 'employerId')`. Profile updates via `update_employer_profile` (own row only). See `BACKEND.md §8`/§10.1.
 
 ---
@@ -266,7 +266,7 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 | nin | string | Stored | National ID number |
 | jobTitle | string | Stored | Role/title |
 | salary | number | Stored | Monthly gross (UGX) — the basis for legacy/employer-only percentage run math |
-| monthlyContribution | number | Stored | The employee's OWN monthly saving (UGX) — the base the **co-contribution employer match** is computed against. Added by migration `0037` (snake_case `monthly_contribution`; **authored, NOT yet applied to live**) |
+| monthlyContribution | number | Stored | The employee's OWN monthly saving (UGX) — the base the **co-contribution employer match** is computed against. Added by migration `0037` (snake_case `monthly_contribution`; **applied to the live Singapore DB** at the 2026-06-05 cutover) |
 | status | string | Stored | `"active"` \| `"suspended"`. Suspended employees are **skipped** by `submit_contribution_run` |
 | joinedDate | date | Stored | Date the employee joined |
 | contributionConfig | object (JSONB) | Stored | Per-employee funding mode. Shape `{ mode, matchPct, maxContribution }` (co-contribution) or `{ mode, employerPct, groupCoverAmount }` (employer-only) — see below |
@@ -325,7 +325,7 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 
 **Employer-only** is unchanged: `employer_half = employerAmount ?? round(salary * employerPct / 100)`, `employee_half = 0`.
 
-**Dual-read legacy fallback.** A `co-contribution` row carrying the OLD keys (`employerPct`/`employeePct`, no `matchPct`) falls back to the pre-redesign salary-based math (`employer_half = employerAmount ?? round(salary*employerPct/100)`, `employee_half = employeeAmount ?? round(salary*employeePct/100)`) so an un-migrated live row never zeroes out during cutover. Both `0037` (`monthlyContribution` column) and `0038` (the match-model RPC body) are **authored but NOT yet applied to live**.
+**Dual-read legacy fallback.** A `co-contribution` row carrying the OLD keys (`employerPct`/`employeePct`, no `matchPct`) falls back to the pre-redesign salary-based math (`employer_half = employerAmount ?? round(salary*employerPct/100)`, `employee_half = employeeAmount ?? round(salary*employeePct/100)`) so an un-migrated live row never zeroes out during cutover. Both `0037` (`monthlyContribution` column) and `0038` (the match-model RPC body) are now **applied to the live Singapore DB** (cutover 2026-06-05). The dual-read fallback remains for any legacy rows that predate the column.
 
 #### Contribution Schedule shape
 

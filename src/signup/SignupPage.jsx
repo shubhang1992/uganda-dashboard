@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../utils/motion';
 
 import { useAuth } from '../contexts/AuthContext';
+import * as subscriberService from '../services/subscriber';
 import { SignupProvider, useSignup } from './SignupContext';
 import SignupShell, { STEPS, AGENT_STEP, PENDING_REVIEW_STEP, getStepIndex } from './SignupShell';
 import ContributionRoute from './contribution/ContributionRoute';
@@ -68,6 +69,52 @@ function SignupFlow() {
   const [pausedAt, setPausedAt] = useState(null);
   const [direction, setDirection] = useState(1);
 
+  // ── Employer-invite entry (/invite/:token) ────────────────────────────────
+  // Pre-seed the flow from the invite token (identity prefill + the employer tag
+  // + the schedule flag), then restart KYC at id-upload. On refresh the token
+  // already matches the persisted invite → just resume. Reused steps + the
+  // completion (ContributionRoute) read `signup.employerInvite`.
+  const { token: inviteToken } = useParams();
+  const [inviteReady, setInviteReady] = useState(!inviteToken);
+  const [inviteError, setInviteError] = useState('');
+
+  // Idiomatic StrictMode-safe fetch: a `cancelled` flag discards the first
+  // (double-invoked) pass's result; the live pass applies it. No ref guard —
+  // that deadlocks under StrictMode (ref blocks pass 2 while pass 1 is cancelled).
+  useEffect(() => {
+    if (!inviteToken) return undefined;
+    if (signup.employerInvite?.token === inviteToken) { setInviteReady(true); return undefined; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const inv = await subscriberService.getEmployerInvite(inviteToken);
+        if (cancelled) return;
+        signup.reset();
+        signup.patch({
+          fullName: inv.prefill?.fullName ?? '',
+          phone: inv.prefill?.phone ?? '',
+          email: inv.prefill?.email ?? '',
+          nin: inv.prefill?.nin ?? '',
+          gender: inv.prefill?.gender ?? null,
+          employerInvite: {
+            token: inviteToken,
+            employerId: inv.employerId,
+            employerName: inv.employerName,
+            collectSchedule: inv.collectSchedule,
+          },
+          stepId: 'id-upload',
+        });
+        setStepId('id-upload');
+        setInviteReady(true);
+      } catch (e) {
+        if (cancelled) return;
+        setInviteError(e?.message || 'This invite link is invalid or has expired.');
+        setInviteReady(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [inviteToken]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // When the user navigates to /signup/contribution, render the contribution
   // page in place of the signup shell. Keeping this check inside SignupFlow
   // (rather than splitting into separate Routes) means the signup flow's
@@ -117,6 +164,22 @@ function SignupFlow() {
   }
 
   const canBack = !NO_BACK_STEPS.has(stepId);
+
+  // Invite gate: wait for the token to resolve before rendering the flow (avoids
+  // a flash of a stale/blank step), and show a friendly error for a bad token.
+  if (inviteToken && !inviteReady && !inviteError) {
+    return <InviteScreen title="Loading your invite…" />;
+  }
+  if (inviteError) {
+    return (
+      <InviteScreen
+        title="Invite unavailable"
+        body={inviteError}
+        action={{ label: 'Go to home', href: '/' }}
+      />
+    );
+  }
+
   const StepNode = renderStep();
 
   if (onContribution) {
@@ -197,7 +260,15 @@ function SignupFlow() {
       // null only for that intentionally-unhandled id; nothing reaches it in
       // normal flow because consent navigates away instead of advancing.
       case 'consent':
-        return <ConsentStep onActivate={async () => navigate('/signup/contribution')} />;
+        // Invite flow stays under /invite/:token/* so the contribution step keeps
+        // the SAME provider (no remount, no lost in-memory state).
+        return (
+          <ConsentStep
+            onActivate={async () =>
+              navigate(inviteToken ? `/invite/${inviteToken}/contribution` : '/signup/contribution')
+            }
+          />
+        );
 
       case AGENT_STEP:
         return <AgentFallbackStep onExit={exitToHome} />;
@@ -209,6 +280,34 @@ function SignupFlow() {
         return null;
     }
   }
+}
+
+/** Minimal centered screen for the invite loading + error states. */
+function InviteScreen({ title, body, action }) {
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', gap: '1rem', padding: '2rem', textAlign: 'center',
+      background: 'var(--color-cloud)', fontFamily: 'var(--font-body)', color: 'var(--color-slate)',
+    }}>
+      <h2 style={{
+        fontFamily: 'var(--font-display)', color: 'var(--color-indigo)', fontWeight: 800,
+        letterSpacing: '-0.03em', margin: 0, fontSize: 'var(--text-xl)',
+      }}>
+        {title}
+      </h2>
+      {body && <p style={{ color: 'var(--color-gray)', maxWidth: 420, margin: 0, lineHeight: 1.6 }}>{body}</p>}
+      {action && (
+        <a href={action.href} style={{
+          background: 'var(--color-indigo)', color: '#fff', borderRadius: 'var(--radius-full)',
+          padding: '0.7rem 1.6rem', fontFamily: 'var(--font-display)', fontWeight: 700,
+          fontSize: 'var(--text-sm)', textDecoration: 'none', marginTop: '0.25rem',
+        }}>
+          {action.label}
+        </a>
+      )}
+    </div>
+  );
 }
 
 export default function SignupPage() {

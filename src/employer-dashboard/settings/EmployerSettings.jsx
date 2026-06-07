@@ -410,10 +410,12 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
   const initial = useMemo(() => {
     const cfg = employer?.defaultContributionConfig ?? {};
     return {
-      mode: cfg.mode ?? 'employer-only',
+      mode: cfg.mode ?? 'co-contribution',
       matchPct: cfg.matchPct ?? 50,
       maxContribution: cfg.maxContribution ?? '',
-      employerPct: cfg.employerPct ?? 8,
+      // Employer-only is now a FIXED monthly amount per member (members are
+      // subscribers with no salary) — Issue 2 / unified model.
+      employerAmount: cfg.employerAmount ?? 50000,
       groupCoverAmount: cfg.groupCoverAmount ?? '',
     };
   }, [employer]);
@@ -432,22 +434,16 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
 
   const isCo = draft.mode === 'co-contribution';
 
-  // Illustrative previews — display-only; runs re-derive per employee.
-  //  • Co mode reads off an EXAMPLE employee monthly saving (the match base),
-  //    NOT salary, so the "match of contribution" model reads concretely.
-  //  • Employer-only stays salary-based since the % applies to salary.
+  // Illustrative previews — display-only; runs re-derive per member.
+  //  • Co mode reads off an EXAMPLE member monthly saving (the match base).
+  //  • Employer-only is a fixed monthly amount per member.
   const EXAMPLE_MONTHLY = 100000;
-  const SAMPLE_SALARY = 1000000;
   const coPreview = useMemo(() => {
     const capSet = draft.maxContribution !== '' && draft.maxContribution != null;
     const uncapped = round(EXAMPLE_MONTHLY * (Number(draft.matchPct) || 0) / 100);
     const match = capSet ? Math.min(uncapped, round(Number(draft.maxContribution))) : uncapped;
     return { match, capped: capSet && uncapped > match };
   }, [draft.matchPct, draft.maxContribution]);
-  const erPreview = useMemo(
-    () => round(SAMPLE_SALARY * (Number(draft.employerPct) || 0) / 100),
-    [draft.employerPct],
-  );
 
   function handleSave(e) {
     e.preventDefault();
@@ -487,10 +483,10 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
       return;
     }
 
-    // Employer-only.
-    const employerPct = Number(draft.employerPct);
-    if (!(employerPct >= 0 && employerPct <= 100)) {
-      setErr('Employer % must be between 0 and 100.');
+    // Employer-only — a fixed monthly amount per member (Issue 2).
+    const employerAmount = Number(draft.employerAmount);
+    if (!(employerAmount >= 0) || !Number.isFinite(employerAmount)) {
+      setErr('Amount per member must be 0 or more.');
       return;
     }
     if (groupCoverAmount != null && !(groupCoverAmount >= 0)) {
@@ -501,7 +497,7 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
 
     const defaultContributionConfig = {
       mode: 'employer-only',
-      employerPct,
+      employerAmount,
       groupCoverAmount,
     };
     // Phase 7: employer-only funding bundles group life cover. Save the profile
@@ -535,8 +531,9 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
   return (
     <form className={styles.form} onSubmit={handleSave} noValidate>
       <p className={styles.intro}>
-        The default a new contribution run starts from. It seeds the new-run
-        wizard; you can still adjust any employee&apos;s own config individually.
+        This is the single company-wide funding model — it applies to{' '}
+        <strong>all</strong> members. Every contribution run uses these settings
+        for everyone; it cannot be changed per member.
       </p>
 
       <fieldset className={styles.fieldset}>
@@ -605,21 +602,20 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
       ) : (
         <div className={styles.fieldRow}>
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="emp-default-er">Employer %</label>
+            <label className={styles.label} htmlFor="emp-default-er">Amount per member / month (UGX)</label>
             <input
               id="emp-default-er"
               className={styles.input}
               type="number"
               min="0"
-              max="100"
-              step="0.5"
-              value={draft.employerPct}
+              step="1000"
+              value={draft.employerAmount}
               onChange={(e) => {
-                setDraft((d) => ({ ...d, employerPct: e.target.value }));
+                setDraft((d) => ({ ...d, employerAmount: e.target.value }));
                 if (err) setErr('');
               }}
             />
-            <span className={styles.hint}>Employer pays this % of each employee&apos;s salary.</span>
+            <span className={styles.hint}>The employer contributes this fixed amount to each member every month.</span>
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="emp-default-cover">Group insurance cover (UGX)</label>
@@ -655,13 +651,11 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
         </div>
       ) : (
         <div className={styles.preview} aria-live="polite">
-          <span className={styles.previewLabel}>
-            From a {formatUGX(SAMPLE_SALARY, { compact: false })} salary
-          </span>
+          <span className={styles.previewLabel}>Each member, every month</span>
           <div className={styles.previewRow}>
-            <span>You contribute {Number(draft.employerPct) || 0}%: <strong>{formatUGX(erPreview, { compact: false })}</strong></span>
+            <span>You contribute: <strong>{formatUGX(Number(draft.employerAmount) || 0, { compact: false })}</strong></span>
             <span>
-              Group cover: <strong>{draft.groupCoverAmount === '' ? '—' : formatUGX(Number(draft.groupCoverAmount), { compact: false })}</strong> per employee
+              Group cover: <strong>{draft.groupCoverAmount === '' ? '—' : formatUGX(Number(draft.groupCoverAmount), { compact: false })}</strong> per member
             </span>
           </div>
         </div>

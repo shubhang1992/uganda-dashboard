@@ -32,14 +32,14 @@ Covers the Express + TypeScript routes under `api/**` (mounted by `server/index.
                           ▼                             ▼
                   ┌─────────────────────────────────────────────────┐
                   │           Supabase Postgres (single DB)         │
-                  │  21 tables · 4 ENUMs · pg_trgm · 5 triggers     │
-                  │  29 RPCs (mostly SECURITY DEFINER)              │
-                  │  65 RLS policies (zero auth.uid() calls)        │
+                  │  28 tables · 2 ENUMs · pg_trgm · 5 triggers     │
+                  │  21 RPCs (mostly SECURITY DEFINER)              │
+                  │  72 RLS policies (zero auth.uid() calls)        │
                   │  supabase_realtime publication: empty (0025)    │
                   └─────────────────────────────────────────────────┘
 ```
 
-> The box reflects core **live** state. The employer migrations (`0034`/`0035`) — applied to live 2026-06-03 — add 5 tables + 4 SELECT policies + 5 RPCs (see §8/§10.1).
+> The box reflects the **full live state of the new Singapore DB** (`ap-southeast-1`, cutover **2026-06-05**), with every migration `0001`–`0042` applied — so the counts already include the 5 employer tables (`0034`), the settlement/notification tables (`0030`/`0031`), the idempotency ledgers (`settlement_uploads` `0032`, `contribution_run_uploads` `0034`, `subscriber_signup_uploads` `0042`), and the `0041` commission-aggregate RPCs. Verified counts: 28 tables · 2 ENUMs · 5 triggers · 21 RPCs (16 SECURITY DEFINER + 5 INVOKER reads, plus 4 private `_`-prefixed helpers) · 72 RLS policies.
 
 **RLS-first.** Every direct write from a normal authenticated client must pass an explicit policy or go through a `SECURITY DEFINER` RPC. Tables with no INSERT/UPDATE/DELETE policy reject all client writes by default; the service-role key (server-only) bypasses RLS for seeding + the JWT-mint path.
 
@@ -319,7 +319,7 @@ Historical incidents this exact mistake produced:
 - **0018 rollup-zero regression.** `get_entity_metrics_rollup` read `'role'` for its role gate; every drill-down rendered `0` subscribers / `—` AUM. Fixed in 0020 (after an abandoned 0019 raw-psql hotfix and a remote-only `fix_metrics_rollup_app_role` migration — see §7).
 - **0004 commission-RPC silent failures.** The 13 state-machine RPCs read `'role'`; every branch/agent action raised `role_not_permitted`. Fixed by 0007 (DO block + `pg_get_functiondef` literal-string swap) and again by 0021 (re-emitted bodies as canonical).
 
-Contract-enforced by `src/tests/jwt-claim-contract.test.js`. The audit (D1) confirmed all 65 active policies + all 29 RPCs read `app_role` correctly in live state.
+Contract-enforced by `src/tests/jwt-claim-contract.test.js`. The audit (D1) confirmed the discipline holds; on the live new DB all **72 policies + 21 RPCs** read `app_role` correctly (zero `auth.uid()`).
 
 ---
 
@@ -329,11 +329,11 @@ Forward-only. Never edit a shipped migration. For schema fixes, add a new `00NN_
 
 ### Numbering
 
-Files are zero-padded, monotonically increasing. **0019 is intentionally absent** — it was an abandoned raw-psql hotfix for the metrics-rollup `app_role` bug; the canonical fix landed as 0020. See `0020_entity_metrics_rollup_v3.sql:3–5` for the supersession history.
+Files are zero-padded, monotonically increasing. **0019 was historically absent** — it was a remote-only raw-psql hotfix for the metrics-rollup `app_role` bug, never committed at the time (the canonical body fix landed as 0020). It has since been **backfilled as `0019_fix_metrics_rollup_app_role.sql`** (a defensive, idempotent ACL-only migration capturing the original hotfix), so the tree now holds a contiguous `0001`–`0042`. The new Singapore DB records it in the ledger as `0019`. See `0020_entity_metrics_rollup_v3.sql:3–5` for the supersession history.
 
 ### `.down.sql` partners
 
-Newer migrations ship a `.down.sql` partner alongside the forward file (`0016`, `0022`, `0023`, `0024`, `0025`, `0026`). Older migrations (0001–0015) do not have downs.
+Newer migrations ship a `.down.sql` partner alongside the forward file (`0016`, `0022`–`0026`, and every migration `0029`–`0042`). Older migrations (`0001`–`0015`, plus the backfilled `0019`) do not have downs.
 
 ### Idempotency
 
@@ -344,9 +344,11 @@ Re-running migrations should be safe. The audit (D12) flagged **four** migration
 - `0010_function_search_path.sql` — bare `ALTER FUNCTION ... SET search_path` (same as 0006 — pg-safe to re-run, but no guards).
 - `0025_drop_realtime_publication.sql` — `ALTER PUBLICATION ... DROP TABLE` does **not** accept `IF EXISTS`; sequential drops would fail loudly if the publication state has drifted (the file comment explicitly documents this).
 
-The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE` / `DROP ... IF EXISTS` guards consistently.
+The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE` / `DROP ... IF EXISTS` guards consistently. **`0028_replay_safety_guards.sql` re-asserts the end-state of these four in a forward-only, idempotent way** (it does NOT edit the historical files) — each block is a no-op if the prior migration already succeeded, so a replay against a fresh DB converges. This is why the new Singapore DB (built by replaying `0001`–`0042` in order) applied cleanly.
 
 ### Migration inventory
+
+> **Applied state (new DB).** All migrations `0001`–`0042` are applied **and ledger-recorded** on the live Singapore project (`ap-southeast-1`, cutover **2026-06-05**). The DB was rebuilt from scratch by replaying every file in order, so there is **no ledger drift** on the new project (the historical "6 missing migrations" drift in §16 was specific to the now-retired Tokyo project). Per-row "applied to live 2026-06-03" tags below are **historical** — they record when a migration first reached the *old* Tokyo prod; on the new DB they are simply part of the applied `0001`–`0042` chain. The `0037`/`0038`/`0039` rows that previously read "NOT YET APPLIED TO LIVE — gated cutover step" are **now applied** (the cutover happened).
 
 | File | Lines | Scope |
 |---|---|---|
@@ -368,6 +370,7 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 | `0016_distributors_table.sql` (+ `.down.sql`) | 69 | `distributors` table + policies; seeds `d-001` |
 | `0017_unique_constraints.sql` | 53 | `ux_agents_email`, `ux_subscribers_nin`, `ux_commissions_agent_subscriber` |
 | `0018_entity_metrics_rollup.sql` | 532 | **Superseded by 0020** — left in tree (audit D4) |
+| `0019_fix_metrics_rollup_app_role.sql` | 53 | **Backfilled hotfix** (was remote-only — audit D5). Defensive, idempotent ACL-only capture of the original `fix_metrics_rollup_app_role` remote hotfix that patched the 0018 `'role'`→`'app_role'` gate between 0018 and 0020. Body fix proper lives in 0020; this file exists so the tree is contiguous and the new-DB ledger records a `0019`. |
 | `0020_entity_metrics_rollup_v3.sql` | 1,536 | Canonical metrics rollup. Reads `app_role` correctly. `_demo_now() = '2026-05-18'` |
 | `0021_commission_rpcs_app_role.sql` | 1,055 | Re-emits all 13 commission RPCs reading `app_role` directly (canonical) |
 | `0022_audit_perf.sql` (+ `.down.sql`) | 150 | `idx_transactions_type_date`, `idx_commissions_status`, `get_top_branch` rewrite |
@@ -375,6 +378,8 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 | `0024_upsert_nominees.sql` (+ `.down.sql`) | 147 | `nominees_share_range_chk` (`NOT VALID`) + `upsert_nominees` RPC |
 | `0025_drop_realtime_publication.sql` (+ `.down.sql`) | 18 | Drops 3 tables from `supabase_realtime` (zero subscribers — Phase 1+2 confirmed) |
 | `0026_users_password_hash.sql` (+ `.down.sql`) | 22 | Adds nullable `users.password_hash TEXT` for bcrypt digests |
+| `0027_post_audit_polish.sql` | 212 | **Post-audit polish (ACL + CHECK + UNIQUE).** Closes 3 audit findings: D3 — adds the missing `REVOKE EXECUTE … FROM PUBLIC` preamble to `upsert_nominees`'s grant. D8 — adds defensive `CHECK` constraints on free-text status columns (`subscribers.kyc_status`, `withdrawals.status`, `claims.status`, …). D9 — a UNIQUE index on `nominees` to block duplicate-NIN within a `(subscriber_id, type)` bucket. **Note:** the D8 `commissions_status_chk` it added was a stale 7-value enum that did **not** include `'paid'` — later dropped by `0040` because it blocked `apply_settlement` from flipping lines to `paid`. |
+| `0028_replay_safety_guards.sql` | 254 | **Replay-safety guards (audit D12).** Forward-only, idempotent re-assertion of the end-state of the four non-idempotent legacy migrations (`0003` `CREATE POLICY` → `DROP POLICY IF EXISTS`+recreate; `0006`/`0010` `ALTER FUNCTION` re-assert; `0025` publication drop guard). Does NOT edit the historical files — each block no-ops if already applied. This is what lets a fresh DB replay `0001`–`0042` cleanly. |
 | `0029_commission_simplify.sql` (+ `.down.sql`) | 380 | **Commission simplification.** Drops the 14 state-machine + dispute RPCs, `get_run_branch_breakdown`, the `commissions_before_update` trigger/function, and the `settlement_runs` / `settlement_run_branch_reviews` tables (+ their enum types). Collapses `commission_status` to `('due','paid')`. Drops `commissions.{run_id, agent_confirmed, previous_status, dispute_reason, disputed_at, disputed_by, resolved_at, resolved_by, outcome_reason, hold_reason}`; adds `paid_amount NUMERIC`. Re-emits the 3 read RPCs (`get_commission_summary`, `get_entity_commission_summary`, `get_agent_commission_detail`) in slimmed paid/due-only form. |
 | `0030_settlement_batches.sql` (+ `.down.sql`) | 72 | NEW `settlement_batches` table (one row per agent-settlement; SELECT-only RLS — distributor all, branch/agent own). |
 | `0031_notifications.sql` (+ `.down.sql`) | 280 | NEW `notifications` table (`recipient_role` ∈ `agent`/`branch`; SELECT-only RLS) + the `apply_settlement(p_rows jsonb)` and `mark_notifications_read(p_ids text[])` RPCs. |
@@ -383,15 +388,18 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 | `0034_employer_schema_and_rls.sql` (+ `.down.sql`) | ~235 | **Employer schema + RLS (Phase 0).** 5 new tables — `employers`, `employees` (standalone roster, NOT subscribers; balances live here, not `subscriber_balances`), `contribution_runs`, `contribution_run_lines` (per-employee ledger; employees are NOT in `transactions`), `contribution_run_uploads` (idempotency ledger, parallel to `settlement_uploads`). TEXT PKs (`emp-001`, `empe-NNN`, `run-NNN`); ENABLE + FORCE RLS on all 5; indexes on `employees(employer_id)`, `contribution_runs(employer_id)`, `contribution_run_lines(run_id, employee_id)`. One SELECT policy per table scoped by the camelCase `employerId` claim (run_lines via an EXISTS join to the parent run); `contribution_run_uploads` has **no policy/grant** (RPC-internal). No client write policies — writes go through the 0035 RPCs. **Applied to live 2026-06-03.** |
 | `0035_employer_rpcs.sql` (+ `.down.sql`) | ~520 | **Employer RPCs (Phase 0).** 5 SECURITY DEFINER functions, each gated on `app_role = 'employer'` + scoped to the `employerId` claim, `SET search_path = public, pg_temp`, house grant pattern (REVOKE PUBLIC / GRANT authenticated). `submit_contribution_run(p_rows, p_period_label, p_method, p_nonce)` — re-derives every amount server-side from `employees.salary` + `contribution_config`, splits gross by the employee's schedule, writes `contribution_run_lines` + bumps `employees` balances **inline** (UGX 1,000/unit), nonce-idempotent via `contribution_run_uploads`, skips suspended/not-owned/not-found/zero rows; **MUST NOT write `transactions`/`subscriber_balances`/`commissions`** (no commission code path is reachable). `update_employee_contribution_config`, `update_employee_insurance`, `update_employer_profile` (ownership-checked patches), `get_employer_metrics()` (STABLE — hero/overview aggregates). Structural template = `apply_settlement` (0032). **Applied to live 2026-06-03.** |
 | `0036_anon_revoke_and_rls_initplan.sql` (+ `.down.sql`) | ~90 | **Anon-EXECUTE lockdown + employer RLS InitPlan fix** (commit `c6c0386`). REVOKEs EXECUTE FROM PUBLIC, anon and GRANTs to authenticated, service_role on the post-auth WRITE/admin RPCs: `apply_settlement`, `submit_contribution_run`, `update_employee_contribution_config`, `update_employee_insurance`, `update_employer_profile`, `create_subscriber_from_agent_onboard`, `mark_notifications_read`. **Deliberately KEEPS anon EXECUTE on `create_subscriber_from_signup`** (signup runs pre-JWT). Also wraps `auth.jwt()` in `(SELECT auth.jwt())` for the four 0034 employer SELECT policies (`employer_self_select`, `employees_by_employer_select`, `contribution_runs_by_employer_select`, `contribution_run_lines_by_employer_select`) to fix the `auth_rls_initplan` per-row re-eval. **Applied to live 2026-06-03.** |
-| `0037_employee_monthly_contribution.sql` (+ `.down.sql`) | ~35 | **Funder-redesign data foundation (Phase 4).** Purely additive: `ALTER TABLE employees ADD COLUMN monthly_contribution NUMERIC NOT NULL DEFAULT 0` — the employee's OWN monthly saving (UGX), the base the new co-contribution employer match is computed against (see `0038`). snake_case, same shape/default as the sibling money columns; service layer maps to camelCase `monthlyContribution`. No backfill needed (seed sets per-row values; existing live rows default to `0`, which does not drive run-line derivation, so prior run totals stay identical). No RPC/policy/grant change. **NOT YET APPLIED TO LIVE — gated cutover step.** |
-| `0038_co_contribution_match.sql` (+ `.down.sql`) | ~280 | **Co-contribution match model (Phase 5).** `CREATE OR REPLACE`s `submit_contribution_run` (same signature → keeps the existing REVOKE/GRANT) to switch ONLY the co-contribution branch to the **match model**: the employer matches `matchPct`% of each employee's own `monthly_contribution`, capped by an optional UGX maximum on the employer top-up. `co (matchPct present)`: `employee_half = round(monthly_contribution)`; `employer_half = round(employee_half * matchPct/100)`, then `LEAST(employer_half, round(maxContribution))` when set. **Dual-read legacy fallback** — a co row with `employeePct` and NO `matchPct` falls back to the OLD salary-based math (`employer_half = employerAmount ?? round(salary*employerPct/100)`, `employee_half = employeeAmount ?? round(salary*employeePct/100)`) so an un-migrated live row never zeroes out during cutover. `employer-only` branch unchanged. The 80/20 split, `employerId` gate, nonce idempotency, totals accumulation, and inline balance/units bump are byte-identical to `0035`; the full ⚠️ HARD CONSTRAINT (NEVER writes `transactions`/`subscriber_balances`/`commissions`) still holds. **NOT YET APPLIED TO LIVE — gated cutover step.** |
-| `0039_apply_group_insurance.sql` (+ `.down.sql`) | ~90 | **Roster-wide group life insurance (Phase 7).** Adds ONE SECURITY DEFINER RPC, `apply_group_insurance(p_cover numeric) → jsonb` — the roster-wide analogue of `update_employee_insurance`. Gated on `app_role = 'employer'` + scoped to the `employerId` claim; sets a FLAT group cover on EVERY owned employee (`insurance_cover = round(p_cover)`, `insurance_status` derived from cover `>0 → active`, `insurance_premium_monthly = 0` — employer-included). Returns `{ updated, cover }`. `REVOKE EXECUTE FROM PUBLIC, anon; GRANT EXECUTE TO authenticated, service_role` (post-auth mutation, matching the `0036` write-RPC restriction). Called by the settings tab when an employer saves an employer-only default with a group cover amount. **NOT YET APPLIED TO LIVE — gated cutover step.** |
+| `0037_employee_monthly_contribution.sql` (+ `.down.sql`) | ~35 | **Funder-redesign data foundation (Phase 4).** Purely additive: `ALTER TABLE employees ADD COLUMN monthly_contribution NUMERIC NOT NULL DEFAULT 0` — the employee's OWN monthly saving (UGX), the base the new co-contribution employer match is computed against (see `0038`). snake_case, same shape/default as the sibling money columns; service layer maps to camelCase `monthlyContribution`. No backfill needed (seed sets per-row values; existing live rows default to `0`, which does not drive run-line derivation, so prior run totals stay identical). No RPC/policy/grant change. **Applied to the live Singapore DB at the 2026-06-05 cutover.** |
+| `0038_co_contribution_match.sql` (+ `.down.sql`) | ~280 | **Co-contribution match model (Phase 5).** `CREATE OR REPLACE`s `submit_contribution_run` (same signature → keeps the existing REVOKE/GRANT) to switch ONLY the co-contribution branch to the **match model**: the employer matches `matchPct`% of each employee's own `monthly_contribution`, capped by an optional UGX maximum on the employer top-up. `co (matchPct present)`: `employee_half = round(monthly_contribution)`; `employer_half = round(employee_half * matchPct/100)`, then `LEAST(employer_half, round(maxContribution))` when set. **Dual-read legacy fallback** — a co row with `employeePct` and NO `matchPct` falls back to the OLD salary-based math (`employer_half = employerAmount ?? round(salary*employerPct/100)`, `employee_half = employeeAmount ?? round(salary*employeePct/100)`) so an un-migrated live row never zeroes out during cutover. `employer-only` branch unchanged. The 80/20 split, `employerId` gate, nonce idempotency, totals accumulation, and inline balance/units bump are byte-identical to `0035`; the full ⚠️ HARD CONSTRAINT (NEVER writes `transactions`/`subscriber_balances`/`commissions`) still holds. **Applied to the live Singapore DB at the 2026-06-05 cutover.** |
+| `0039_apply_group_insurance.sql` (+ `.down.sql`) | ~90 | **Roster-wide group life insurance (Phase 7).** Adds ONE SECURITY DEFINER RPC, `apply_group_insurance(p_cover numeric) → jsonb` — the roster-wide analogue of `update_employee_insurance`. Gated on `app_role = 'employer'` + scoped to the `employerId` claim; sets a FLAT group cover on EVERY owned employee (`insurance_cover = round(p_cover)`, `insurance_status` derived from cover `>0 → active`, `insurance_premium_monthly = 0` — employer-included). Returns `{ updated, cover }`. `REVOKE EXECUTE FROM PUBLIC, anon; GRANT EXECUTE TO authenticated, service_role` (post-auth mutation, matching the `0036` write-RPC restriction). Called by the settings tab when an employer saves an employer-only default with a group cover amount. **Applied to the live Singapore DB at the 2026-06-05 cutover.** |
+| `0040_post_restore_cleanup.sql` (+ `.down.sql`) | 74 | **Post-restore cleanup (cutover step, after 0039 + a verified backup).** Forward-only, drop-only. (1) **CRITICAL** — drops the stale `commissions_status_chk` (the 7-value CHECK introduced in `0027` that did NOT include `'paid'`, blocking `apply_settlement` from flipping lines to `paid` and breaking live settlements); the simplified two-state flow needs no CHECK, and the `.down.sql` deliberately does NOT recreate it. (2) Drops 6 unused indexes (`idx_transactions_subscriber_id`, `demo_personas_phone_role_idx`, `commissions_agent_id_idx`, `idx_subscribers_registered`/`_gender`/`_kyc`) no longer backing any query path after the rollup/RLS simplifications. (3) Drops 2 dead columns. Every statement `IF EXISTS`-guarded. **Applied to the live Singapore DB at the 2026-06-05 cutover.** |
+| `0041_commission_aggregate_rpcs.sql` (+ `.down.sql`) | 264 | **Commission aggregate read RPCs (perf/correctness).** Moves the 3 commission read-folds that lived in JS (`src/services/commissions.js`) server-side as STABLE SECURITY DEFINER functions: `get_agent_commission_list`, `get_pending_dues_by_agent`, `get_pending_dues_by_branch`. WHY: the JS folds did an unbounded `from('commissions').select(...)` then grouped in the browser — PostgREST's default 1000-row cap silently dropped commissions past row 1000, under-reporting on the full dataset. Folding in Postgres removes the cap (one rowset crosses the wire, not thousands). Same shapes the JS folds emitted (P4 maps snake→camel). **SCOPE caveat:** SECURITY DEFINER bypasses RLS, so these fold whatever rows are *visible* and must not widen beyond the equivalent RLS-scoped SELECT — distributor is the sole consumer of the list. **Applied to the live Singapore DB at the 2026-06-05 cutover.** |
+| `0042_signup_writeflow_hardening.sql` (+ `.down.sql`) | 948 | **Signup / write-flow hardening (5 independent sections).** (3.1) New `subscriber_signup_uploads` idempotency ledger (mirrors `settlement_uploads`) + optional `p_nonce` on BOTH signup-entry RPCs (`create_subscriber_from_signup`, `create_subscriber_from_agent_onboard`) — a replayed re-submit/reload/second-tab returns the stored prior subscriber id instead of minting a duplicate chain. (3.2) Nominee sum-to-100 enforcement in `_insert_subscriber_chain` (copies the `0024` invariant: tolerance 0.01, empty exempt, ERRCODE `P0005`). (3.3) `NULLIF((v_config->>'maxContribution'),'')` cast fix in `submit_contribution_run` (an empty string threw `22P02`). (3.4) `distributors_update_self` hardened — adds the house `app_role='distributor'` gate + a BEFORE UPDATE trigger (`distributors_enforce_editable_cols`) freezing `id`/`parent_id`. (3.5) Commission dedup grain re-emit of `trg_transactions_contribution` to key the `NOT EXISTS` guard on `(agent_id, subscriber_id)` (matching `ux_commissions_agent_subscriber`, 0017). **⚠️ The 3.5 `CREATE OR REPLACE` re-emit inadvertently dropped the `0006` `SECURITY DEFINER` + pinned `search_path` from `trg_transactions_contribution` — see §12 (likely-unintended regression to fix in a follow-up migration).** **Applied to the live Singapore DB at the 2026-06-05 cutover.** |
 
-### Supersession history: 0018 → 0019 (missing) → 0020
+### Supersession history: 0018 → 0019 (backfilled) → 0020
 
 - `0018_entity_metrics_rollup.sql` shipped the first body but the role gate read `auth.jwt() ->> 'role'`, raising `role_not_permitted` on every call (every drill-down rendered zeros).
-- A raw-psql v2 hotfix was applied to remote — never landed in git as `0019`.
-- A targeted remote-only migration `fix_metrics_rollup_app_role` (timestamp `20260519165115`, audit D5) was applied to remote between 0018 and 0020 — it patches the role gate string but is **not in the local git tree**.
+- A raw-psql v2 hotfix (`fix_metrics_rollup_app_role`) was applied to the old Tokyo remote between 0018 and 0020 (timestamp `20260519165115`, audit D5) — it patched the role-gate string but originally **never landed in git**.
+- That hotfix is now **backfilled as `0019_fix_metrics_rollup_app_role.sql`** (defensive, idempotent ACL-only), so the tree is contiguous and the new Singapore DB records a `0019` in its ledger. The body fix proper still lives in 0020.
 - `0020_entity_metrics_rollup_v3.sql` is the canonical superseder — same `(p_level TEXT, p_entity_ids TEXT[]) → jsonb` signature, output keys are a superset of 0018, time-bucket fields + demographics + KYC counts all live here. **Apply only via the new file; 0018 is operationally stale.**
 
 ### Applying migrations
@@ -403,32 +411,32 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 
 ## §8. Schema overview
 
-**21 tables** in the core schema (+ **5 employer tables** added by `0034`, applied to live 2026-06-03), **4 ENUMs**, `pg_trgm` extension. All primary keys are `TEXT` for deterministic seed IDs (`a-001`, `b-kam-015`, `c-00001`, `d-001`, `s-XXXXXX`, `emp-001`, `empe-NNN`). Field-level definitions live in `docs/data-model.md` — only domain grouping + one-line purpose is captured here.
+**28 tables** total on the live Singapore DB (`0001`–`0042` all applied) — the original core schema + `distributors` (`0016`) + the settlement/notification stack (`settlement_batches` `0030`, `notifications` `0031`, `settlement_uploads` `0032`) + the **5 employer tables** (`0034`) + the new **`subscriber_signup_uploads`** idempotency ledger (`0042`). **2 ENUMs** (`commission_status`, `nominee_type` — the other 2 were dropped with the commission state machine in `0029`), `pg_trgm` extension. All primary keys are `TEXT` for deterministic seed IDs (`a-001`, `b-kam-015`, `c-00001`, `d-001`, `s-XXXXXX`, `emp-001`, `empe-NNN`). Field-level definitions live in `docs/data-model.md` — only domain grouping + one-line purpose is captured here.
 
 ### Domain: Geo (2 tables)
 
 | Table | Purpose |
 |---|---|
 | `regions` | 4 static rows (Central/Eastern/Northern/Western). `parent_id` always `'ug'`. |
-| `districts` | 135 static rows from the GADM list; FK → `regions(id)`. |
+| `districts` | 136 static rows from the GADM list; FK → `regions(id)`. |
 
 ### Domain: Network (3 tables)
 
 | Table | Purpose |
 |---|---|
 | `distributors` | National-singleton network operator. Seeded with `d-001`; seed script also inserts `d-002` (audit D15: `mockData.js` only knows `d-001`). Columns: `id TEXT PK`, `name`, `parent_id` (default `'ug'`), `manager_name`, `manager_phone`, `manager_email`, `status`, `created_at`, `updated_at`. Defined in `0016`. |
-| `branches` | ~314 rows; FK → `districts(id)`. Carries denorm `score`, `rank`, `district_rank`, `district_branch_count` (seeded once, never refreshed). |
-| `agents` | ~500–2,000 rows; FK → `branches(id)`. `languages` / `specialties` are JSONB arrays. `coverage_rate INT` added in 0018, backfilled from active proxy. |
+| `branches` | ~316 rows; FK → `districts(id)`. Carries denorm `score`, `rank`, `district_rank`, `district_branch_count` (seeded once, never refreshed). |
+| `agents` | ~2,049 rows; FK → `branches(id)`. `languages` / `specialties` are JSONB arrays. `coverage_rate INT` added in 0018, backfilled from active proxy. |
 
 ### Domain: Subscribers + per-subscriber (8 tables)
 
 | Table | Purpose |
 |---|---|
-| `subscribers` | ~30k rows; FK → `agents(id)` + `districts(id)`. Partial `UNIQUE(phone) WHERE NOT is_demo_signup` lets demo signups collide-and-overwrite. |
+| `subscribers` | ~5,000 rows (reseeded smaller on the new Singapore DB — was ~30k on old Tokyo prod); FK → `agents(id)` + `districts(id)`. Partial `UNIQUE(phone) WHERE NOT is_demo_signup` lets demo signups collide-and-overwrite. |
 | `subscriber_balances` | One row per subscriber; maintained by trigger (§11). |
 | `contribution_schedules` | One row per subscriber; UPSERTed at signup. `retirement_pct + emergency_pct = 100`. |
 | `insurance_policies` | One row per subscriber; nullable. `status` ∈ `'active' \| 'inactive'` (TEXT — see D8). |
-| `nominees` | Pension + insurance beneficiaries; per-row `CHECK (share BETWEEN 0 AND 100)`. **No `UNIQUE` per `(subscriber_id, type)`** (audit D9) — duplicate beneficiaries are possible at the table level; sum-to-100 enforcement now lives in `upsert_nominees` (0024). |
+| `nominees` | Pension + insurance beneficiaries; per-row `CHECK (share BETWEEN 0 AND 100)`. **Partial UNIQUE `(subscriber_id, type, nin) WHERE nin IS NOT NULL`** (`nominees_subscriber_id_type_unique`, added by `0027` — audit D9) blocks duplicate-NIN within a `(subscriber, type)` bucket; rows with NULL `nin` or genuinely distinct nominees are still allowed (multiple per type is legitimate). Sum-to-100 is enforced in `upsert_nominees` (0024) **and** the signup chain `_insert_subscriber_chain` (0042 §3.2). |
 | `transactions` | Append-only ledger; triggers update balances + first-contribution commission. Includes `type` ∈ `'contribution' \| 'withdrawal' \| 'premium' \| …`. |
 | `claims` | Insurance claims; per-subscriber. |
 | `withdrawals` | Withdrawal records; per-subscriber. |
@@ -443,7 +451,7 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 | `notifications` (0031) | In-app feed: `id, recipient_role` (`'agent'`/`'branch'`)`, recipient_id, type` (`'commission_settled'`)`, title, body, amount, ref_id, is_read, created_at`. SELECT-only RLS (agent/branch own; distributor all); writes via `apply_settlement` / reads cleared via `mark_notifications_read`. `ref_id` is a real FK → `settlement_batches(id) ON DELETE SET NULL` (0033, BL-15) — it is only ever a batch id; SET NULL keeps the append-only feed row if a batch is deleted/re-seeded. |
 | `settlement_uploads` (0032) | Per-upload idempotency ledger (BL-13): `nonce` (PK), `result` (the JSONB the RPC returned), `created_at`. RPC-internal — RLS-forced with **no policies and no grants**; only the `apply_settlement` SECURITY DEFINER RPC reads/writes it (short-circuits a replayed `p_nonce`). |
 
-### Domain: KYC / Auth (4 tables)
+### Domain: KYC / Auth / Signup (5 tables)
 
 | Table | Purpose |
 |---|---|
@@ -451,6 +459,7 @@ The remaining migrations use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE`
 | `demo_personas` | `(phone, role) → entity_id` lookup for non-subscriber roles. 8 seeded rows: 3 agents, 2 branches, 2 distributors, 1 employer (`+256700000031` → `emp-001`). |
 | `agent_referrals` | KYC fallback referrals (from `/api/kyc/agent-referral`). |
 | `contact_submissions` | Landing-page contact form submissions (from `/api/contact`). |
+| `subscriber_signup_uploads` (0042) | Signup idempotency ledger (mirrors `settlement_uploads`): `nonce` PK + stored `result`. RPC-internal — RLS-forced with **no policies and no grants**; only the signup-entry RPCs (`create_subscriber_from_signup` / `create_subscriber_from_agent_onboard`) read/write it. A replayed signup with the same `p_nonce` returns the prior subscriber id instead of minting a duplicate chain. |
 
 ### Domain: Employer (5 tables, `0034` — applied to live 2026-06-03)
 
@@ -459,7 +468,7 @@ The Employer is a B2B account with a **standalone** roster — `employees` are N
 | Table | Purpose |
 |---|---|
 | `employers` | One row per B2B account (`emp-001`). `name`, `sector`, `registration_no`, `contact_*`, `district`, `payroll_cadence`, `default_contribution_config JSONB` (`{ mode, employerPct, employeePct, employerAmount, employeeAmount }` — the template a new run starts from). |
-| `employees` | Standalone staff roster (`empe-NNN`); FK → `employers(id) ON DELETE CASCADE`. Pension balances live HERE (`retirement_balance`/`emergency_balance`/`net_balance`/`units_held`/`total_contributions`) — bumped **inline** by `submit_contribution_run` (no trigger on this table). `monthly_contribution NUMERIC` (the employee's OWN monthly saving — the base the co-contribution match is computed against; added by `0037`, **authored but NOT yet applied to live**). `contribution_config JSONB` (per-employee funding mode), `contribution_schedule JSONB` (`{ retirementPct, emergencyPct }`, default 80/20), insurance cols, `nominees JSONB`. `status ∈ active|suspended`. Index on `employer_id`. |
+| `employees` | Standalone staff roster (`empe-NNN`); FK → `employers(id) ON DELETE CASCADE`. Pension balances live HERE (`retirement_balance`/`emergency_balance`/`net_balance`/`units_held`/`total_contributions`) — bumped **inline** by `submit_contribution_run` (no trigger on this table). `monthly_contribution NUMERIC` (the employee's OWN monthly saving — the base the co-contribution match is computed against; added by `0037`, applied to live at the 2026-06-05 cutover). `contribution_config JSONB` (per-employee funding mode), `contribution_schedule JSONB` (`{ retirementPct, emergencyPct }`, default 80/20), insurance cols, `nominees JSONB`. `status ∈ active|suspended`. Index on `employer_id`. |
 | `contribution_runs` | One row per funding batch (`run-NNN`); FK → `employers(id)`. `period_label`, `status ∈ draft|completed`, `employer_total`/`employee_total`/`grand_total`, `run_at`. Index on `employer_id`. |
 | `contribution_run_lines` | Per-employee line inside a run; FK → `contribution_runs(id)` + `employees(id)`, both `ON DELETE CASCADE`. `employer_amount`/`employee_amount`/`retirement_amount`/`emergency_amount`/`method`. **Doubles as the per-employee contribution ledger** (employees are NOT in `transactions`). Indexes on `run_id`, `employee_id`. |
 | `contribution_run_uploads` | RPC-internal idempotency ledger (`nonce` PK, `result JSONB`) — parallel to `settlement_uploads`. No policy, no grant; only `submit_contribution_run` reads/writes it. |
@@ -475,7 +484,7 @@ The Employer is a B2B account with a **standalone** roster — `employees` are N
 
 ### Status columns are TEXT with implicit enums (audit D8)
 
-`subscribers.kyc_status`, `withdrawals.status`, `claims.status`, `insurance_policies.status`, `agent_referrals.status`, `distributors.status` — all `TEXT` with documented value sets but no `CHECK` constraint. Discipline lives in client code (and the BEFORE-UPDATE trigger for `subscribers`). The two surviving enums (`commission_status`, `nominee_type`) are properly enforced.
+Six status columns are `TEXT` (not ENUM). **`0027` added `CHECK` constraints (audit D8) to three** — `subscribers_kyc_status_chk` (`complete`/`pending`/`incomplete`), `withdrawals_status_chk` (`paid`/`processing`), `claims_status_chk` (`submitted`/`under_review`/`approved`/`paid`/`rejected`). The remaining three — `insurance_policies.status`, `agent_referrals.status`, `distributors.status` — are still `TEXT` with no `CHECK` (discipline lives in client code + the BEFORE-UPDATE trigger for `subscribers`). Note: `0027` also added a `commissions_status_chk`, but it was a stale 7-value list missing `'paid'` and was **dropped by `0040`** (it blocked settlements). The two surviving enums (`commission_status`, `nominee_type`) are properly enforced at the type level.
 
 ### Indexes
 
@@ -486,6 +495,8 @@ Added in `0017_unique_constraints.sql` (3 partial / full unique): `ux_agents_ema
 Added in `0009`, `0013`, `0018`, `0020`, `0022`: FK covering indexes, `idx_transactions_date`, `idx_transactions_subscriber_id`, `idx_subscribers_registered`, `idx_subscribers_agent_id`, `idx_subscribers_gender`, `idx_subscribers_kyc`, `idx_transactions_type_date` (partial, `WHERE type IN ('contribution','withdrawal')`), `idx_commissions_status`.
 
 Dropped in `0011`, `0023`: unused indexes and the duplicate `subscribers_agent_id_idx` (728 KB → kept the smaller `idx_subscribers_agent_id` at 264 KB).
+
+Dropped in `0040_post_restore_cleanup.sql` (6, at the new-DB cutover — no longer backing any query path after the rollup/RLS simplifications): `idx_transactions_subscriber_id` (superseded by the composite `transactions (subscriber_id, date DESC)`), `demo_personas_phone_role_idx` (superseded by the UNIQUE `(phone, role)`), `commissions_agent_id_idx`, `idx_subscribers_registered`, `idx_subscribers_gender`, `idx_subscribers_kyc`.
 
 ### Denormalized columns seeded but never re-written (audit D11)
 
@@ -504,10 +515,10 @@ Columns the seed populates but no API code path updates (some are read-only metr
 ### Discipline summary
 
 - Every JWT signed by `signJwt` carries `role: 'authenticated'` (Postgres role) + `app_role: <JwtRole>` (application role).
-- **Every active RLS policy reads `auth.jwt() ->> 'app_role'`** — never `'role'`. Audit D1 verified all 65 policies in live state are correct.
+- **Every active RLS policy reads `auth.jwt() ->> 'app_role'`** — never `'role'`. The live Singapore DB now has **72 policies** (was 65 at the original audit D1 — the delta is the employer table family from `0034` plus the `0042` `distributors_update_self` re-emit); all read `app_role` correctly.
 - **0 policies use `auth.uid()`** — would return `NULL` for our custom JWTs.
-- Every table is both `ENABLE` and `FORCE` ROW LEVEL SECURITY — table owners are not exempt. `distributors` was `ENABLE`-only until `0033_post_audit_hardening.sql` added the missing `ALTER TABLE distributors FORCE ROW LEVEL SECURITY` (it was never FORCE'd by `0016`, BL-24); since 0033 applied to live (2026-06-03) all 21 tables are FORCE'd. (Practical exposure was minimal regardless — all writes flow through service-role/DEFINER paths.)
-- The `commissions`, `settlement_batches`, and `notifications` tables have **no direct INSERT/UPDATE/DELETE policies** (all three are SELECT-only). Commission `due → paid` transitions, `settlement_batches` rows, and `notifications` rows are all written by the `apply_settlement` SECURITY DEFINER RPC (0031, re-emitted in 0032); `mark_notifications_read` (0031) is the only other writer (it updates `is_read` on the owner's own rows). The `settlement_uploads` idempotency ledger (0032) is RPC-internal: RLS-forced with **no policies and no grants at all** (not even SELECT to `authenticated`), so it is reachable only from inside the DEFINER RPC.
+- Every table is both `ENABLE` and `FORCE` ROW LEVEL SECURITY — table owners are not exempt. `distributors` was `ENABLE`-only until `0033_post_audit_hardening.sql` added the missing `ALTER TABLE distributors FORCE ROW LEVEL SECURITY` (it was never FORCE'd by `0016`, BL-24); since 0033 every table — all 28 on the new DB, including the employer family and the RPC-internal idempotency ledgers — is FORCE'd. (Practical exposure was minimal regardless — all writes flow through service-role/DEFINER paths.)
+- The `commissions`, `settlement_batches`, and `notifications` tables have **no direct INSERT/UPDATE/DELETE policies** (all three are SELECT-only). Commission `due → paid` transitions, `settlement_batches` rows, and `notifications` rows are all written by the `apply_settlement` SECURITY DEFINER RPC (0031, re-emitted in 0032); `mark_notifications_read` (0031) is the only other writer (it updates `is_read` on the owner's own rows). The three idempotency ledgers — `settlement_uploads` (0032), `contribution_run_uploads` (0034), and `subscriber_signup_uploads` (0042) — are all RPC-internal: RLS-forced with **no policies and no grants at all** (not even SELECT to `authenticated`), so each is reachable only from inside its DEFINER RPC.
 - Most predicates are wrapped in `(SELECT auth.jwt())` (per `0008`) so PostgREST hoists the call into an InitPlan node instead of re-evaluating per row.
 
 ### Per-role permission grid
@@ -564,20 +575,20 @@ All 5 tables are ENABLE + FORCE RLS; service-role (seed + `supabase-admin.ts`) b
 
 ## §10. RPC inventory
 
-Post-`0029`/`0031`, the active core set is **15 functions** (DEFINER + INVOKER), plus **5 employer RPCs** added by `0035` (applied to live 2026-06-03 — see §10.1). All have `SET search_path` pinned (audit D2) and read `auth.jwt() ->> 'app_role'` (never `'role'`) — zero `auth.uid()` usage. The `0029` simplification dropped the 14 commission state-machine + dispute RPCs, `get_run_branch_breakdown`, and the `commissions_before_update` trigger function; `0031` added two new write RPCs.
+On the live Singapore DB (all `0001`–`0042` applied) the user-facing set is **21 RPCs** — **16 SECURITY DEFINER** + **5 INVOKER reads** — plus **4 private `_`-prefixed helpers** and **5 trigger functions** (30 functions total). Almost all read `auth.jwt() ->> 'app_role'` (never `'role'`), use zero `auth.uid()`, and pin `SET search_path` (audit D2). **Exception (likely regression):** `trg_transactions_contribution` lost both its `SECURITY DEFINER` and its pinned `search_path` when `0042` re-emitted it via `CREATE OR REPLACE` — see §12. The `0029` simplification dropped the 14 commission state-machine + dispute RPCs, `get_run_branch_breakdown`, and the `commissions_before_update` trigger function; later migrations added `0031` (2 write RPCs), `0035` (5 employer RPCs), `0039` (`apply_group_insurance`), and `0041` (3 commission-aggregate read RPCs).
 
 Breakdown:
 
-- 3 trigger functions (0002) — see §11 (`commissions_before_update` dropped in 0029)
-- 1 trigger function (0005) — `trg_subscribers_enforce_editable_cols`
-- 2 private helpers (0002, then rewritten in 0014 + 0015) — `_validate_signup_payload`, `_insert_subscriber_chain`
-- 1 helper (0014) — `_canonical_ug_phone`
-- 1 helper (0020 / 0023) — `_demo_now()` (IMMUTABLE; pinned search_path)
-- 6 read RPCs (0002, with `get_entity_metrics_rollup` introduced in 0018 and superseded in 0020, `get_top_branch` rewritten in 0022, and the 3 commission read RPCs re-emitted in 0029)
-- 2 atomic-write RPCs (0002) — `create_subscriber_from_signup`, `create_subscriber_from_agent_onboard`
-- 1 nominees upsert RPC (0024) — `upsert_nominees`
-- 2 settlement / notification write RPCs — `apply_settlement` (0031, re-emitted with FIFO + idempotency as `(p_rows, p_nonce)` in 0032), `mark_notifications_read` (0031)
-- **5 employer RPCs (0035)** — `submit_contribution_run`, `update_employee_contribution_config`, `update_employee_insurance`, `update_employer_profile`, `get_employer_metrics` (see §10.1)
+- **5 trigger functions** — `trg_subscribers_after_insert` (0002, DEFINER via 0006), `trg_transactions_contribution` (0002, re-emitted 0042 — now INVOKER, see §12), `trg_transactions_withdrawal` (0002, DEFINER via 0006), `trg_subscribers_enforce_editable_cols` (0005), **`trg_distributors_enforce_editable_cols` (0042 — NEW**, freezes `id`/`parent_id`). (`commissions_before_update` dropped in 0029.)
+- **4 private helpers** — `_validate_signup_payload`, `_insert_subscriber_chain` (0002, rewritten 0014/0015), `_canonical_ug_phone` (0014), `_demo_now()` (0020/0023; IMMUTABLE, pinned search_path)
+- **5 INVOKER read RPCs** — `get_commission_summary`, `get_entity_commission_summary`, `get_agent_commission_detail` (re-emitted slim in 0029), `get_breadcrumb`, `search_entities`
+- **16 SECURITY DEFINER RPCs:**
+  - 2 metric reads — `get_entity_metrics_rollup` (0018→0020), `get_top_branch` (0022)
+  - **3 commission-aggregate reads (0041 — NEW)** — `get_agent_commission_list`, `get_pending_dues_by_agent`, `get_pending_dues_by_branch` (STABLE; moved from JS folds to dodge PostgREST's 1000-row cap)
+  - 2 atomic-write (0002, `p_nonce` added 0042) — `create_subscriber_from_signup`, `create_subscriber_from_agent_onboard`
+  - 1 nominees upsert (0024) — `upsert_nominees`
+  - 2 settlement / notification (0031, `apply_settlement` re-emitted `(p_rows, p_nonce)` in 0032) — `apply_settlement`, `mark_notifications_read`
+  - **6 employer RPCs** — `submit_contribution_run`, `update_employee_contribution_config`, `update_employee_insurance`, `update_employer_profile`, `get_employer_metrics` (0035) + `apply_group_insurance` (0039) (see §10.1)
 
 ### Read RPCs (6)
 
@@ -593,9 +604,19 @@ All `LANGUAGE plpgsql STABLE`. Most are SECURITY DEFINER + role-gated; `search_e
 | `get_commission_summary` | `(p_branch_id TEXT DEFAULT NULL)` | `jsonb { totalCommissions, totalPaid, totalDue, countTotal, countPaid, countDue }` (0029) | `commissions.js#getCommissionSummary` |
 | `get_entity_metrics_rollup` | `(p_level TEXT, p_entity_ids TEXT[])` | `jsonb` keyed by entity id; 8 base counts + time-period buckets (`daily/weekly/monthlyContributions[12]/Withdrawals` + `prev*`), `newSubscribers*`, `genderRatio`, `ageDistribution`, `kycPending/Incomplete` | `entities.js#getEntityMetricsRollup`. **Canonical body in 0020** (supersedes 0018 + the remote `fix_metrics_rollup_app_role`). Time buckets anchor on `_demo_now()` = `'2026-05-18 23:59:59+00'`. |
 
+### Commission-aggregate read RPCs (3, `0041` — NEW)
+
+`STABLE SECURITY DEFINER SET search_path = public, pg_temp`. These move the three commission read-folds that used to run in the browser (`src/services/commissions.js`) into Postgres, so they aggregate over **every** visible row instead of being silently truncated at PostgREST's 1000-row default page cap. They do **not** branch on `app_role` — RLS on `commissions` already scopes the row set per JWT claim (distributor: all; branch: own; agent: own) — but because they are DEFINER they bypass RLS, so they must not widen visibility beyond the equivalent RLS-scoped SELECT (**SCOPE caveat**: distributor is the sole consumer of the list today).
+
+| RPC | Signature | Returns | Caller |
+|---|---|---|---|
+| `get_agent_commission_list` | `(p_status_focus text DEFAULT NULL)` | `TABLE(agent_id, agent_name, employee_id, branch_id, branch_name, total_commissions, total_paid, total_due, subscribers_onboarded, active_subscribers, filtered_amount, filtered_count)` | `commissions.js#getAgentCommissionList` |
+| `get_pending_dues_by_agent` | `()` | `TABLE(agent_id, agent_name, employee_id, branch_id, branch_name, pending_amount, pending_count)` | `commissions.js#getPendingDuesByAgent` (settlement template prefill) |
+| `get_pending_dues_by_branch` | `()` | `TABLE(branch_id, branch_name, pending_amount, pending_count, agent_count)` | `commissions.js#getPendingDuesByBranch` |
+
 ### Atomic-write RPCs (2)
 
-Both `SECURITY DEFINER SET search_path = public`. Wrap multi-table inserts so signup is one transactional unit.
+Both `SECURITY DEFINER SET search_path = public`. Wrap multi-table inserts so signup is one transactional unit. Both gained an optional `p_nonce` parameter in `0042` (idempotent replay via the `subscriber_signup_uploads` ledger).
 
 ```
 create_subscriber_from_signup(payload jsonb) RETURNS TEXT
@@ -630,27 +651,20 @@ Both follow the house grant pattern (`REVOKE ALL … FROM PUBLIC; GRANT EXECUTE 
 
 `upsert_nominees(p_subscriber_id TEXT, p_pension JSONB, p_insurance JSONB) RETURNS JSONB`. SECURITY DEFINER, role-gated to `subscriber` (own row) or `admin`. Validates `SUM(share)` per type rounds to 100 or empty array. DELETE + INSERT in one transaction. Returns the canonical `{ pension, insurance }` shape that `getSubscriberNominees` consumes.
 
-**Grant pattern gap (audit D3):**
+**Grant pattern gap (audit D3) — CLOSED by `0027`.** The `0024` grant revoked only from `anon` and left the default `PUBLIC` EXECUTE grant in place, diverging from the house `REVOKE ALL … FROM PUBLIC;` then `GRANT … TO authenticated` pattern. `0027_post_audit_polish.sql` added the missing `REVOKE EXECUTE … FROM PUBLIC`. **Verified on the new DB:** `upsert_nominees`'s ACL is `authenticated` + `service_role` only — `PUBLIC` can no longer EXECUTE it. The discipline is now uniform across the RPC surface.
 
-```sql
-GRANT EXECUTE ON FUNCTION public.upsert_nominees(TEXT, JSONB, JSONB) TO authenticated;
-REVOKE EXECUTE ON FUNCTION public.upsert_nominees(TEXT, JSONB, JSONB) FROM anon;
-```
+### §10.1 Employer RPCs (6 — 5 from `0035` + `apply_group_insurance` from `0039`; all applied to the live Singapore DB)
 
-Every other RPC in the codebase precedes the `GRANT EXECUTE ... TO authenticated` with `REVOKE ALL ON FUNCTION ... FROM PUBLIC;` (defence-in-depth — `PUBLIC` includes any future role). `upsert_nominees` revokes only from `anon`. Benign at execution time (the function still gates on `app_role`), but inconsistent with the codebase convention.
-
-### §10.1 Employer RPCs (5 from `0035` — applied to live 2026-06-03; +1 from `0039` — authored, NOT yet applied)
-
-All `LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp`, gated on `auth.jwt() ->> 'app_role' = 'employer'`, scoped to the caller's `auth.jwt() ->> 'employerId'`, with the house grant pattern (`REVOKE ALL … FROM PUBLIC; GRANT EXECUTE … TO authenticated`). `0036` re-asserts this lockdown on the four WRITE/admin RPCs (`submit_contribution_run`, `update_employee_contribution_config`, `update_employee_insurance`, `update_employer_profile`) — explicitly REVOKEing anon EXECUTE and GRANTing authenticated, service_role. Structural template = `apply_settlement` (0032). Called by `src/services/employer.js` via `supabase.rpc(...)` (the mock branch re-implements the same math offline). **The funder-redesign adds two follow-on migrations to this family — `0038` (re-emits `submit_contribution_run` with the co-contribution match model) and `0039` (new `apply_group_insurance` RPC) — both authored but NOT yet applied to live.**
+All `LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp`, gated on `auth.jwt() ->> 'app_role' = 'employer'`, scoped to the caller's `auth.jwt() ->> 'employerId'`, with the house grant pattern (`REVOKE ALL … FROM PUBLIC; GRANT EXECUTE … TO authenticated`). `0036` re-asserts this lockdown on the four WRITE/admin RPCs (`submit_contribution_run`, `update_employee_contribution_config`, `update_employee_insurance`, `update_employer_profile`) — explicitly REVOKEing anon EXECUTE and GRANTing authenticated, service_role. Structural template = `apply_settlement` (0032). Called by `src/services/employer.js` via `supabase.rpc(...)` (the mock branch re-implements the same math offline). **The funder-redesign follow-ons in this family — `0038` (re-emits `submit_contribution_run` with the co-contribution match model) and `0039` (new `apply_group_insurance` RPC) — are now applied to the live Singapore DB (cutover 2026-06-05).**
 
 | RPC | Signature | What it does |
 |---|---|---|
-| `submit_contribution_run` | `(p_rows jsonb, p_period_label text, p_method text, p_nonce text) → jsonb` | The core write. `p_rows = [{ employeeId }]`; any client amounts are **advisory and ignored**. Nonce short-circuits against `contribution_run_uploads` (idempotent replay). For each row: locks the employee `FOR UPDATE`; verifies it belongs to the caller's employer (else skip `not_owned`); skips `not_found`/`suspended`/`zero_contribution`. **Re-derives amounts server-side** from the employee's config + figures, splits the gross by the employee's `contribution_schedule` (default 80/20, `emergency = gross − retirement` to avoid penny drift), INSERTs the `contribution_run_lines` row, and bumps the `employees` balance columns **inline** (`net_balance`/`units_held` @ UGX 1,000/unit). After the loop INSERTs one `contribution_runs` header (only if ≥1 line) + writes the nonce ledger. Returns `{ runId, linesCreated, employerTotal, employeeTotal, grandTotal, skipped: [{ employeeId, reason }] }`. **⚠️ MUST NOT write `transactions`, `subscriber_balances`, or `commissions`** — employees aren't subscribers, so a `transactions` insert would FK-fail AND fire `trg_transactions_contribution` (which mutates `subscriber_balances` + creates an agent commission). No commission code path is reachable from this RPC; employer balances live on `employees` and are the RPC's own inline write (there is no employee trigger). **Match math (`0038`, NOT yet applied to live):** the `co-contribution` branch now matches `matchPct`% of the employee's own `monthly_contribution` — `employee_half = round(monthly_contribution)`; `employer_half = round(employee_half * matchPct/100)`, then `LEAST(employer_half, round(maxContribution))` when the cap is set. A **dual-read legacy fallback** keeps a co row with `employeePct` and NO `matchPct` on the OLD salary-based math (`employer_half = employerAmount ?? round(salary*employerPct/100)`, `employee_half = employeeAmount ?? round(salary*employeePct/100)`) so an un-migrated live row never zeroes out during cutover. `employer-only` (`employer_half = employerAmount ?? round(salary*employerPct/100)`, `employee_half = 0`) is unchanged. |
+| `submit_contribution_run` | `(p_rows jsonb, p_period_label text, p_method text, p_nonce text) → jsonb` | The core write. `p_rows = [{ employeeId }]`; any client amounts are **advisory and ignored**. Nonce short-circuits against `contribution_run_uploads` (idempotent replay). For each row: locks the employee `FOR UPDATE`; verifies it belongs to the caller's employer (else skip `not_owned`); skips `not_found`/`suspended`/`zero_contribution`. **Re-derives amounts server-side** from the employee's config + figures, splits the gross by the employee's `contribution_schedule` (default 80/20, `emergency = gross − retirement` to avoid penny drift), INSERTs the `contribution_run_lines` row, and bumps the `employees` balance columns **inline** (`net_balance`/`units_held` @ UGX 1,000/unit). After the loop INSERTs one `contribution_runs` header (only if ≥1 line) + writes the nonce ledger. Returns `{ runId, linesCreated, employerTotal, employeeTotal, grandTotal, skipped: [{ employeeId, reason }] }`. **⚠️ MUST NOT write `transactions`, `subscriber_balances`, or `commissions`** — employees aren't subscribers, so a `transactions` insert would FK-fail AND fire `trg_transactions_contribution` (which mutates `subscriber_balances` + creates an agent commission). No commission code path is reachable from this RPC; employer balances live on `employees` and are the RPC's own inline write (there is no employee trigger). **Match math (`0038`, applied to live):** the `co-contribution` branch now matches `matchPct`% of the employee's own `monthly_contribution` — `employee_half = round(monthly_contribution)`; `employer_half = round(employee_half * matchPct/100)`, then `LEAST(employer_half, round(maxContribution))` when the cap is set. A **dual-read legacy fallback** keeps a co row with `employeePct` and NO `matchPct` on the OLD salary-based math (`employer_half = employerAmount ?? round(salary*employerPct/100)`, `employee_half = employeeAmount ?? round(salary*employeePct/100)`) so an un-migrated live row never zeroes out during cutover. `employer-only` (`employer_half = employerAmount ?? round(salary*employerPct/100)`, `employee_half = 0`) is unchanged. |
 | `update_employee_contribution_config` | `(p_employee_id text, p_config jsonb) → jsonb` | Ownership-checked. Replaces `contribution_config`, returns the updated row as `to_jsonb`. |
 | `update_employee_insurance` | `(p_employee_id text, p_cover numeric, p_premium numeric) → jsonb` | Ownership-checked. Sets cover + monthly premium; `insurance_status` derives from cover (`>0 → active`). Returns the updated row. |
 | `update_employer_profile` | `(p_patch jsonb) → jsonb` | Patches the caller's own `employers` row (editable profile/config keys only — `id`/timestamps never patched). Returns the updated row. |
 | `get_employer_metrics` | `() → jsonb` (**STABLE**) | Hero/overview aggregates scoped to the caller's employer: `{ headcount, active, suspended, totalBalance, totalContributions, insuredCount, employerYtd, employeeYtd, modeSplit: { coContribution, employerOnly } }`. "YTD" = sum over `contribution_runs` in the current calendar year. Mirrors `get_entity_commission_summary`'s STABLE shape. |
-| `apply_group_insurance` *(`0039` — authored, **NOT yet applied to live**)* | `(p_cover numeric) → jsonb` | Roster-wide analogue of `update_employee_insurance`. Sets a FLAT group cover on EVERY employee owned by the caller (no ownership arg — the `WHERE employer_id = <claim>` is the gate): `insurance_cover = round(p_cover)`, `insurance_status` derived from cover (`>0 → active`, else `inactive` — a `0` cover acts as a "switch group cover off" toggle), `insurance_premium_monthly = 0` (employer-included group benefit). Returns `{ updated, cover }` (`updated` = roster row count). Grant: `REVOKE EXECUTE FROM PUBLIC, anon; GRANT EXECUTE TO authenticated, service_role`. Called by the settings tab when an employer saves an employer-only default with a group cover amount. |
+| `apply_group_insurance` *(`0039` — applied to live)* | `(p_cover numeric) → jsonb` | Roster-wide analogue of `update_employee_insurance`. Sets a FLAT group cover on EVERY employee owned by the caller (no ownership arg — the `WHERE employer_id = <claim>` is the gate): `insurance_cover = round(p_cover)`, `insurance_status` derived from cover (`>0 → active`, else `inactive` — a `0` cover acts as a "switch group cover off" toggle), `insurance_premium_monthly = 0` (employer-included group benefit). Returns `{ updated, cover }` (`updated` = roster row count). Grant: `REVOKE EXECUTE FROM PUBLIC, anon; GRANT EXECUTE TO authenticated, service_role`. Called by the settings tab when an employer saves an employer-only default with a group cover amount. |
 
 ---
 
@@ -696,14 +710,17 @@ The settlement stack is split across three migrations with a cross-file ownershi
 
 ## §12. Triggers
 
-Four triggers across the migrations (the `commissions_before_update` dispute-snapshot trigger was dropped in `0029`). All three cross-table triggers are SECURITY DEFINER + `search_path` pinned.
+**Five triggers** on the live DB (the `commissions_before_update` dispute-snapshot trigger was dropped in `0029`; `0042` added the `distributors_enforce_editable_cols` freeze). `trg_subscribers_after_insert` and `trg_transactions_withdrawal` are SECURITY DEFINER + `search_path` pinned; the two enforce-editable-cols triggers are INVOKER by design. **⚠️ `trg_transactions_contribution` is currently INVOKER with an unpinned `search_path` — a regression introduced by the `0042` re-emit (see callout below).**
 
 | Trigger | Table | Timing | Function | Security |
 |---|---|---|---|---|
-| `subscribers_after_insert` | `subscribers` | AFTER INSERT | `trg_subscribers_after_insert()` | DEFINER (0006) — seeds `subscriber_balances`, `ON CONFLICT DO NOTHING` |
-| `transactions_after_insert_contribution` | `transactions` WHEN `type='contribution'` | AFTER INSERT | `trg_transactions_contribution()` | DEFINER (0006) — bumps balances, applies 80/20 default or explicit split, creates first-contribution commission at **hardcoded `v_unit_price NUMERIC := 1000` at line 113 of `0002_rpc_functions.sql`** |
-| `transactions_after_insert_withdrawal` | `transactions` WHEN `type='withdrawal'` | AFTER INSERT | `trg_transactions_withdrawal()` | DEFINER (0006) — decrements balances; emergency-first fallback when split is missing |
+| `subscribers_after_insert` | `subscribers` | AFTER INSERT | `trg_subscribers_after_insert()` | DEFINER (0006), `search_path` pinned — seeds `subscriber_balances`, `ON CONFLICT DO NOTHING` |
+| `transactions_after_insert_contribution` | `transactions` WHEN `type='contribution'` | AFTER INSERT | `trg_transactions_contribution()` | **⚠️ INVOKER, search_path unpinned** on live (regressed by the `0042` re-emit — was DEFINER+pinned via 0006). Bumps balances, applies 80/20 default or explicit split, creates the first-contribution commission (dedup grain now `(agent_id, subscriber_id)` per `0042` §3.5) at **hardcoded `v_unit_price NUMERIC := 1000`** (0002 line 113, re-emitted at `0042` line 832) |
+| `transactions_after_insert_withdrawal` | `transactions` WHEN `type='withdrawal'` | AFTER INSERT | `trg_transactions_withdrawal()` | DEFINER (0006), `search_path` pinned — decrements balances; emergency-first fallback when split is missing |
 | `subscribers_enforce_editable_cols` | `subscribers` | BEFORE UPDATE | `trg_subscribers_enforce_editable_cols()` (0005) | INVOKER (`search_path` pinned by 0010, role-claim rewritten by 0007). Rejects any change outside `name/email/phone/occupation/consent_at` from `app_role='subscriber'` callers. |
+| `distributors_enforce_editable_cols` *(0042 — NEW)* | `distributors` | BEFORE UPDATE | `trg_distributors_enforce_editable_cols()` | INVOKER (`search_path=public`). Freezes `id`/`parent_id` for `app_role='distributor'` callers (pairs with the `0042` `distributors_update_self` app_role-gate hardening). |
+
+> ⚠️ **Regression — `trg_transactions_contribution` lost SECURITY DEFINER + pinned `search_path` (introduced by `0042`).** `0006` had hardened this function via a standalone `ALTER FUNCTION … SECURITY DEFINER` + `SET search_path = public, pg_temp` (the body itself, written in `0002`, was a plain INVOKER function). `0042` §3.5 re-emitted the function with `CREATE OR REPLACE FUNCTION … LANGUAGE plpgsql AS $$…$$;` to change only the dedup grain — and since `CREATE OR REPLACE` resets any attribute the new statement doesn't restate, the re-emit (described in-file as "byte-faithful to 0002") silently reverted it to **INVOKER with no pinned search_path** (verified on the live new DB: `prosecdef=false`, `proconfig=null`). Impact: (1) re-opens the `0006` issue for a *direct* subscriber-role `INSERT` into `transactions` (the trigger's writes to `subscriber_balances` + `commissions` would hit RLS) — the signup/agent-onboard paths are unaffected because they run inside `SECURITY DEFINER` RPCs; (2) re-opens the `0010` mutable-`search_path` hardening (Supabase advisor will flag `function_search_path_mutable`). **Fix:** a follow-up migration (`0043`) that re-runs `ALTER FUNCTION public.trg_transactions_contribution() SECURITY DEFINER; ALTER FUNCTION … SET search_path = public, pg_temp;` (or re-emits the body *with* both clauses). The other two cross-table triggers were untouched by `0042` and retain DEFINER+pinned.
 
 **Why 0006 exists.** The three cross-table trigger functions in 0002 originally ran as the caller's invoker context. When a subscriber-role direct INSERT into `transactions` fired the contribution trigger, the trigger tried to write to `subscriber_balances` + `commissions` — but the subscriber JWT has no INSERT policy on those tables, so RLS rejected and the whole INSERT aborted. 0006 promotes the three functions to `SECURITY DEFINER` + pins `search_path = public, pg_temp`.
 
@@ -733,7 +750,7 @@ Run via `npm run seed`. Materialises the full `src/data/mockData.js` hierarchy i
 
 - Reads `SUPABASE_DB_URL` from `.env.local` (pooler URL, port 6543). Direct `pg.Client` connection (NOT through Supabase JS).
 - Wraps everything in `BEGIN … COMMIT`.
-- Runs `SET session_replication_role = 'replica'` at line 189 for the duration of the seed so the 30k seeded contribution transactions don't double-insert via `trg_transactions_contribution`. Restored to `'origin'` before `COMMIT` (and inside the `catch` for safety).
+- Runs `SET session_replication_role = 'replica'` at line 189 for the duration of the seed so the seeded contribution transactions (~27k on the 5k-subscriber dataset) don't double-insert via `trg_transactions_contribution`. Restored to `'origin'` before `COMMIT` (and inside the `catch` for safety).
 - Bulk insert via `INSERT … FROM unnest($1::type[], $2::type[], …) ON CONFLICT (pk) DO UPDATE` — one round-trip per 2,000-row chunk. Idempotent on re-run.
 - **Phone dedup:** subscribers with duplicate phones get reassigned to a synthetic `+25671XXXXXXX` range so the partial unique index `subscribers(phone) WHERE NOT is_demo_signup` stays satisfied. Per-run state (a `Set`); if live subscribers exist when seed re-runs, dupes silently reassign to different `+25671XXXXXXX` numbers (audit D14).
 - `demo_personas` seeded with 8 rows: agents `a-001/a-042/a-118` at phones `+2567000000{1,2,3}`, branches `b-kam-015/b-mba-290` at `+2567000000{11,12}`, distributors `d-001/d-002` at `+2567000000{21,22}`, and the employer `emp-001` at `EMPLOYER_DEMO_PHONE` (`+256700000031`).
@@ -743,28 +760,38 @@ Run via `npm run seed`. Materialises the full `src/data/mockData.js` hierarchy i
 
 **Approximate row volumes after seed:**
 
+Generation is driven by `TARGET_SUBS = 5000` in `src/data/mockData.js:220` (was 30,000 on the old Tokyo prod — the new Singapore DB was reseeded smaller). Verified counts on the live new DB:
+
 | Table | Rows |
 |---|---|
 | regions | 4 |
-| districts | 135 |
-| branches | ~314 |
-| agents | ~500–2,000 |
-| subscribers | ~30,000 |
-| commissions | ~30,000 (mix of `due` + `paid`; paid rows carry `paid_amount`) |
-| settlement_batches | a few (0030) |
-| notifications | a few (0031, `commission_settled`) |
+| districts | 136 |
+| branches | ~316 |
+| agents | ~2,049 |
+| subscribers | ~5,000 |
+| subscriber_balances / contribution_schedules | ~5,000 each (1:1 with subscribers) |
+| insurance_policies | ~2,786 (nullable — only insured subscribers) |
+| nominees | ~24,188 |
+| transactions | ~27,310 (contribution ledger) |
+| claims | ~1,879 |
+| withdrawals | ~5,065 |
+| commissions | ~5,000 (mix of `due` + `paid`; paid rows carry `paid_amount`) |
+| settlement_batches | 2 (0030) |
+| notifications | 4 (0031, `commission_settled`) |
 | distributors | 2 |
 | demo_personas | 8 |
 | employers | 1 (0034 — `emp-001`) |
 | employees | 16 (0034) |
-| contribution_runs | 3 (0034) |
-| contribution_run_lines | 3 runs × active employees (0034) |
+| contribution_runs | 3–4 (0034) |
+| contribution_run_lines | ~56 (0034) |
+
+The three idempotency ledgers (`settlement_uploads`, `contribution_run_uploads`, `subscriber_signup_uploads`) and the `users` / `agent_referrals` / `contact_submissions` tables are **empty after a fresh seed** — they fill only from live runtime activity.
 
 **`users` table is NOT populated by the seed** (audit D13). `password_hash` (added in 0026) and `last_login_at` are stamped only on live signups via `/api/auth/verify-otp`. Demo subscribers/agents/branches/distributors have no `users` row by default; the JWT-mint path upserts on first OTP verify.
 
 **`mockData.js` `DISTRIBUTORS` drift** (audit D15). `src/data/mockData.js:92–103` exports a `DISTRIBUTORS` dictionary containing only `d-001`. The seed inserts `d-001` AND `d-002`. Mock-backed mode (`VITE_USE_SUPABASE='false'`) will miss `d-002`.
 
-**`MOCK_NOW`** = `new Date(2026, 4, 22)` (= `2026-05-22`) at `src/data/mockData.js:24`. Today is `2026-05-26`; small relative-date demos may show negative-day signals.
+**`MOCK_NOW`** = `new Date(2026, 4, 26)` (= `2026-05-26`) at `src/data/mockData.js:25`. The wall-clock date is now past this (`2026-06-05`); slide `MOCK_NOW` forward (or flip to `new Date()`) when relative-date demos start showing stale/negative-day signals.
 
 ### `scripts/seed-loader.mjs`
 
@@ -812,13 +839,13 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 
 **Database invariants:**
 
-- `upsert_nominees` `GRANT` is missing the `REVOKE ALL ON FUNCTION ... FROM PUBLIC` preamble used by every other RPC (audit D3). Benign at execution time; inconsistent with house style.
-- `nominees` table has no `UNIQUE(subscriber_id, type, …)` — duplicate beneficiaries are possible at the table level (audit D9). Sum-to-100 lives in `upsert_nominees` only; direct INSERTs bypass.
-- Status columns (`subscribers.kyc_status`, `withdrawals.status`, `claims.status`, `insurance_policies.status`, `agent_referrals.status`, `distributors.status`) are TEXT with implicit enums and no `CHECK` constraint (audit D8). Discipline lives in client code.
-- 4 migrations lack idempotency guards on at least one statement: `0003`, `0006`, `0010`, `0025` (audit D12).
+- ~~`upsert_nominees` `GRANT` missing the `REVOKE ALL … FROM PUBLIC` preamble (audit D3)~~ — **CLOSED by `0027`**; verified on the new DB (ACL is `authenticated`/`service_role` only, no PUBLIC). The discipline is now uniform.
+- ~~`nominees` has no per-bucket `UNIQUE` (audit D9)~~ — **CLOSED by `0027`**: partial UNIQUE `(subscriber_id, type, nin) WHERE nin IS NOT NULL` blocks duplicate-NIN. Sum-to-100 is enforced in `upsert_nominees` (0024) **and** the signup chain (0042 §3.2).
+- Status columns — `0027` added `CHECK`s to `subscribers.kyc_status` / `withdrawals.status` / `claims.status` (audit D8); `insurance_policies.status` / `agent_referrals.status` / `distributors.status` remain `TEXT`-with-implicit-enum, no `CHECK`. (`0027`'s `commissions_status_chk` was later dropped by `0040` — it was missing `'paid'` and blocked settlements.)
+- 4 legacy migrations lack idempotency guards on at least one statement: `0003`, `0006`, `0010`, `0025` (audit D12) — **`0028_replay_safety_guards` re-asserts their end-state idempotently** (forward-only), which is why the clean `0001`–`0042` replay onto the new DB succeeded.
 - **First-contribution race — mitigated.** `commissions` now carries `ux_commissions_agent_subscriber UNIQUE(agent_id, subscriber_id)` (0017). The trigger's `NOT EXISTS` pre-check is preserved as a fast path; the unique index is the authoritative guard (CLAUDE.md §10b reference).
 - **0018 superseded by 0020** but left in tree (audit D4). Operationally stale; do not apply.
-- **`fix_metrics_rollup_app_role`** remote-only migration (timestamp `20260519165115`) is **not in the local git tree** (audit D5). Replay-safe — 0020 supersedes intent.
+- **`fix_metrics_rollup_app_role`** (audit D5) was remote-only on old Tokyo prod — now **backfilled as `0019_fix_metrics_rollup_app_role.sql`** in the tree, and the new DB's ledger records it as `0019`. `0020` still supersedes its body fix.
 
 **Seed-data drift:**
 
@@ -897,13 +924,13 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 - Open `/dashboard` as that agent → verify agent-scoped queries return rows (RLS predicate `agent_id = auth.jwt() ->> 'agentId'` matches).
 - From the distributor account, call `apply_settlement(p_rows, p_nonce)` with a small payload of one agent's pending dues; verify the matching `commissions` lines flip to `paid`, a `settlement_batches` row appears, and agent + branch `notifications` rows are emitted. (Realtime no longer propagates — 0025 dropped the publication; React Query manual invalidation handles refresh.)
 
-### Migration-ledger drift — `db push` is NOT the live deploy path (BL-6)
+### Migration ledger — clean on the new DB (was drifted on old Tokyo prod) (BL-6)
 
-**Live schema reaches the hosted project via manual apply (`psql -f <file>` against `SUPABASE_DB_URL`, or the Supabase MCP `mcp__supabase__apply_migration` / `execute_sql`) + `scripts/seed-supabase.mjs`, NOT via `supabase db push`.** This repo's migration FILES use `00XX_name.sql` naming while the live ledger stores timestamp versions, so `db push` is not the deploy path. Do **not** run `supabase db push` (or `supabase db reset`) against live without first reconciling the migration ledger — it can half-apply and abort mid-stream.
+**The new Singapore DB (`ap-southeast-1`, cutover 2026-06-05) was rebuilt clean by replaying every migration `0001`–`0042` in order** (via the Supabase MCP `apply_migration`). Its `supabase_migrations.schema_migrations` ledger therefore records all 42 — including the backfilled `0019_fix_metrics_rollup_app_role` — with sequential `20260605…` timestamps: **files and ledger are fully in sync, no drift.** This is a clean break from the retired Tokyo project, whose ledger had accumulated drift (kept below for history).
 
-- **The drift:** the live `supabase_migrations.schema_migrations` ledger is missing **6 local migrations** — `0022_audit_perf`, `0023_rls_initplan_fixes`, `0024_upsert_nominees`, `0025_drop_realtime_publication`, `0027_post_audit_polish`, `0028_replay_safety_guards`. Their *effects* are already applied to live (verified out-of-band), but the ledger does not record them. (The ledger also carries a remote-only `20260519165115 fix_metrics_rollup_app_role` with no local file.) **`0029`–`0036` are all applied to live AND ledger-recorded** — the ledger previously stopped at `0031`; the `0032`/`0033` settlement-stack fixes, the `0034`/`0035` employer migrations, and the `0036` anon-revoke / RLS-InitPlan migration were applied manually via `psql -f` on **2026-06-03** and the ledger was reconciled to record `0032`–`0036` at the same time.
-- **Why it's dangerous:** `db push` re-attempts any migration the ledger doesn't record. Re-running the 6 missing files would re-execute known **non-idempotent** legacy statements (`0003`/`0006`/`0010`/`0025` — see §15b audit D12; e.g. `0025`'s unguarded `ALTER PUBLICATION … DROP TABLE` against an already-removed member errors on a second run). A failure part-way leaves the ledger + schema half-applied.
-- **Before any future `db push` against live (cutover gate):** reconcile the ledger first — `supabase migration repair --status applied 0022 0023 0024 0025 0027 0028` (and reconcile/retire `fix_metrics_rollup_app_role`) so the 6 rows are marked applied — **or** continue treating `db push` as out-of-band and keep applying schema via the manual `psql -f` / MCP path + `npm run seed`. Either way, take and verify a full backup before touching the live ledger (pairs with the lossy-`0029.down.sql` backup gate, BL-9). This subsection is the canonical record of "how migrations reach live."
+- **New DB = no drift.** Files `0001`–`0042` ↔ ledger `0001`–`0042`. Because the rebuild applied each file exactly once and in order, `db push` would now find nothing to re-attempt. The **routine** path is still explicit per-file apply (`mcp__supabase__apply_migration` / `psql -f <file>` against `SUPABASE_DB_URL`) + `scripts/seed-supabase.mjs` — and `supabase db reset` remains **local-only** (it drops + reseeds; never run it against live).
+- **Historical (retired Tokyo prod) — for context only.** That ledger was missing **6 local migrations** (`0022`/`0023`/`0024`/`0025`/`0027`/`0028`) whose *effects* had been applied out-of-band, plus a remote-only `20260519165115 fix_metrics_rollup_app_role`. `0032`–`0036` were applied manually via `psql -f` on **2026-06-03** and the ledger reconciled then. The new-DB rebuild resolved all of it; no `migration repair` is needed on the new project.
+- **Still true regardless of DB:** `0003`/`0006`/`0010`/`0025` contain non-idempotent statements (§15b audit D12). `0028_replay_safety_guards` re-asserts their end-state idempotently — which is exactly why the clean `0001`–`0042` replay onto the new DB succeeded without manual intervention. Always take + verify a full backup before any destructive ledger or schema operation against live (pairs with the lossy-`0029.down.sql` backup gate, BL-9). This subsection is the canonical record of "how migrations reach live."
 
 ### Migration discipline (forward-only)
 
@@ -918,7 +945,7 @@ These affect the demo experience or future sessions — track but do NOT bundle 
 
 - `CLAUDE.md` — slim index, hard rules, glossary, demo credentials, awareness items.
 - `FRONTEND.md` — service/hook/context inventory, dashboard variants, design tokens, React Query keys + invalidation, frontend-side demo behaviours.
-- `docs/api-contracts.md` — currently describes a REST surface that does not exist (audit X1). Treat as stale until reconciled.
+- `docs/api-contracts.md` — current request/response + RPC catalogue (the old aspirational ~30-route REST surface was archived to `docs/archive/api-contracts-2024-original.md`; audit X1 reconciled). Covers the 14 routes, the 21 RPCs (incl. 0041 aggregates + employer family), and PostgREST reads.
 - `docs/data-model.md` — field-level entity definitions, metric-aggregation rules, branch-health-score formula, KYC/withdrawal/AUM open questions.
 - `docs/role-permissions.md` — role × capability matrix.
 - `docs/SPEC.md` — product spec: personas, workflows, business rules.

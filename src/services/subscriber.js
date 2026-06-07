@@ -168,6 +168,7 @@ function mapSubscriberRow(row) {
     occupation: row.occupation,
     parentId: row.agent_id,             // legacy field name kept for callers
     agentId: row.agent_id,
+    employerId: row.employer_id ?? null, // set when an employer onboarded them (0043)
     districtId: row.district_id,
     kycStatus: row.kyc_status,
     isActive: row.is_active,
@@ -230,6 +231,7 @@ function mapTransactionRow(row) {
     subscriberId: row.subscriber_id,
     agentId: row.agent_id,
     type: row.type,
+    source: row.source ?? 'own',        // 'own' | 'employer' (0043)
     amount,
     date: row.date,
     status: row.status,
@@ -381,7 +383,7 @@ export async function getSubscriberTransactions(id, { type, range, status } = {}
   let q = supabase
     .from('transactions')
     .select(
-      'id, subscriber_id, agent_id, type, amount, date, status, method, txn_ref, bucket, split_retirement, split_emergency',
+      'id, subscriber_id, agent_id, type, source, amount, date, status, method, txn_ref, bucket, split_retirement, split_emergency',
     )
     .eq('subscriber_id', id)
     .order('date', { ascending: false });
@@ -394,6 +396,43 @@ export async function getSubscriberTransactions(id, { type, range, status } = {}
   }
   const rows = unwrap(await q);
   return (rows ?? []).map(mapTransactionRow);
+}
+
+/**
+ * Total / own / employer contribution breakdown for a subscriber (0043). "own"
+ * = the subscriber's own contributions; "employer" = contributions posted by
+ * their employer (source='employer'). Drives the employer-benefits view on the
+ * subscriber dashboard.
+ * @param {string} id
+ * @returns {Promise<{ own:number, employer:number, total:number }>}
+ */
+export async function getContributionBreakdown(id) {
+  if (!id) return { own: 0, employer: 0, total: 0 };
+  if (!IS_SUPABASE_ENABLED) {
+    const sub = SUBSCRIBERS[id];
+    const tx = sub ? (applyMutations(sub).transactions || []) : [];
+    let own = 0;
+    let employer = 0;
+    for (const t of tx) {
+      if (t.type !== 'contribution') continue;
+      if (t.source === 'employer') employer += Number(t.amount || 0);
+      else own += Math.abs(Number(t.amount || 0));
+    }
+    return { own, employer, total: own + employer };
+  }
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('amount, source, type')
+    .eq('subscriber_id', id)
+    .eq('type', 'contribution');
+  if (error) throw error;
+  let own = 0;
+  let employer = 0;
+  for (const t of data ?? []) {
+    if (t.source === 'employer') employer += Number(t.amount || 0);
+    else own += Number(t.amount || 0);
+  }
+  return { own, employer, total: own + employer };
 }
 
 export async function getSubscriberClaims(id) {
@@ -1039,6 +1078,39 @@ export async function createFromSignup(payload, nonce) {
   }
   const { data, error } = await supabase.rpc('create_subscriber_from_signup', {
     payload,
+    p_nonce: nonce ?? null,
+  });
+  if (error) throw error;
+  return { subscriberId: data };
+}
+
+/**
+ * Fetch a pending employer invite by token (anon — the invitee is pre-login).
+ * @returns {Promise<{ employerId, employerName, prefill, collectSchedule }>}
+ */
+export async function getEmployerInvite(token) {
+  if (!IS_SUPABASE_ENABLED) {
+    return { employerId: 'emp-001', employerName: 'Nile Breweries Demo Ltd', prefill: {}, collectSchedule: false };
+  }
+  const { data, error } = await supabase.rpc('get_employer_invite', { p_token: token });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Complete an employer invite after KYC — creates a subscriber tagged to the
+ * employer (agent_id NULL ⇒ no commission). For employer-only invites the
+ * payload's contributionSchedule carries only the split (no amount); for
+ * co-contribution it carries the full schedule + a first contribution is made.
+ * @returns {Promise<{ subscriberId: string }>}
+ */
+export async function createFromEmployerInvite(payload, token, nonce) {
+  if (!IS_SUPABASE_ENABLED) {
+    return { subscriberId: `s-mock-inv-${Date.now()}` };
+  }
+  const { data, error } = await supabase.rpc('create_subscriber_from_employer_invite', {
+    payload,
+    p_token: token,
     p_nonce: nonce ?? null,
   });
   if (error) throw error;

@@ -88,7 +88,7 @@ export default function InsuranceBenefits({ splitMode = false }) {
         if (!q) return true;
         return (
           (e.name || '').toLowerCase().includes(q) ||
-          (e.jobTitle || '').toLowerCase().includes(q)
+          (e.phone || '').toLowerCase().includes(q)
         );
       })
       // Covered first, then by cover amount descending — the densest detail up top.
@@ -144,7 +144,7 @@ export default function InsuranceBenefits({ splitMode = false }) {
       {/* Search + coverage filter */}
       <div className={styles.controls}>
         <label className={styles.searchWrap}>
-          <span className={styles.srOnly}>Search employees by name or job title</span>
+          <span className={styles.srOnly}>Search members by name or phone</span>
           <svg className={styles.searchIcon} viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
             <circle cx="10.5" cy="10.5" r="6" stroke="currentColor" strokeWidth="1.75" />
             <path d="M20 20l-4.5-4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
@@ -152,7 +152,7 @@ export default function InsuranceBenefits({ splitMode = false }) {
           <input
             type="search"
             className={styles.search}
-            placeholder="Search name or job title"
+            placeholder="Search name or phone"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -220,7 +220,7 @@ export default function InsuranceBenefits({ splitMode = false }) {
                     >
                       <span className={styles.colName} role="cell">
                         <span className={styles.name}>{emp.name}</span>
-                        <span className={styles.subline}>{emp.jobTitle || '—'}</span>
+                        <span className={styles.subline}>{emp.phone || '—'}</span>
                       </span>
                       <span className={styles.colCover} role="cell">
                         {covered ? formatUGX(emp.insuranceCover, { compact: false }) : 'No cover'}

@@ -33,10 +33,10 @@ Sign-in flow: Role Select → (Distributor Sub-select if applicable) → Phone E
 | Map Overview | Full | Interactive Leaflet map with drill-down |
 | Overlay Panel | Full | KPIs, entity lists, commission summary at every hierarchy level |
 | Breadcrumb Navigation | Full | Country → Region → District → Branch → Agent |
-| View Branches | Full | All ~314 branches, list + detail slide-in |
+| View Branches | Full | All ~316 branches, list + detail slide-in |
 | Create Branch | Full | Multi-step form: Branch Details → Admin Details → Review |
-| View Agents | Full | All ~500+ agents, list + detail slide-in |
-| View Subscribers | Full | All ~30,000 subscribers, list + detail slide-in |
+| View Agents | Full | All ~2,049 agents, list + detail slide-in |
+| View Subscribers | Full | All ~5,000 subscribers, list + detail slide-in |
 | Commission Panel | Full | Home (rate card + Total/Settled/Outstanding summary + pending dues with Branch⇄Agent toggle + Download template + Upload settlement + settlement history), agents list, agent detail, subscribers |
 | Reports Panel | Full | All 11 reports |
 | Settings Panel | Full | Profile + password |

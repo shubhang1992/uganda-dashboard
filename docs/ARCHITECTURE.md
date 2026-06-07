@@ -74,14 +74,14 @@ The platform is a thin, three-tier stack with a deliberately narrow contract bet
                   ▼                                      ▼
          ┌─────────────────────────────────────────────────────────────────┐
          │                Supabase Postgres (single project)               │
-         │  21 tables · 2 ENUMs · pg_trgm · 4 triggers                     │
-         │  29 functions (22 public RPCs)                                  │
-         │  65 RLS policies (zero `auth.uid()` calls — all read app_role)  │
+         │  28 tables · 2 ENUMs · pg_trgm · 5 triggers                     │
+         │  30 functions (21 RPCs + 4 helpers + 5 triggers)                │
+         │  72 RLS policies (zero `auth.uid()` calls — all read app_role)  │
          │  supabase_realtime publication: empty (no tables)               │
          │                                                                 │
-         │  31 migrations after Phase 6A (`0d0776e`):                      │
-         │    0001 → 0031 inclusive, with 0019 retained as a captured      │
-         │    remote hotfix (no longer skipped). See §13.                  │
+         │  42 migrations on the new DB (cutover 2026-06-05):              │
+         │    0001 → 0042 inclusive (0019 backfilled, no longer            │
+         │    skipped). New Singapore DB — no ledger drift. See §13.       │
          └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -239,7 +239,7 @@ AuthContext.logout + navigate('/')  (no hard reload — preserves Query state)
 
 `change-password.ts` joined the cleanup too (Phase 1A `aab34e9`): it now uses `extractBearer` from `api/_lib/bearer.ts` instead of its own inline `Authorization` header parser. Same one-source rule as the rest of the auth surface.
 
-**The `auth.uid()` consequence.** Because the JWT is custom and not minted by Supabase Auth, there is no `auth.users` row — so `auth.uid()` returns `NULL` inside every Postgres expression. Every RLS policy and every RPC must read JWT claims via `auth.jwt() ->> '<key>'`. The audit (D2) confirms **zero `auth.uid()` usage across all 29 RPCs and all 65 RLS policies** — the discipline holds.
+**The `auth.uid()` consequence.** Because the JWT is custom and not minted by Supabase Auth, there is no `auth.users` row — so `auth.uid()` returns `NULL` inside every Postgres expression. Every RLS policy and every RPC must read JWT claims via `auth.jwt() ->> '<key>'`. The audit (D2) confirms the discipline holds: **zero `auth.uid()` usage across all 21 RPCs and all 72 RLS policies** on the live new DB.
 
 **The `'role'` vs `'app_role'` trap.** This is the highest-stakes correctness check in the platform, verified on every single policy (D1).
 
@@ -586,7 +586,7 @@ REVOKE ALL ON FUNCTION public.create_subscriber_from_signup(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_subscriber_from_signup(jsonb) TO anon, authenticated;
 ```
 
-Phase 6A (`0d0776e`, D3) extended the `REVOKE FROM PUBLIC` → `GRANT TO authenticated` pattern to `upsert_nominees`, which had been the lone holdout. The discipline is now uniform across all 22 public RPCs.
+`0027_post_audit_polish` (D3) extended the `REVOKE FROM PUBLIC` → `GRANT TO authenticated` pattern to `upsert_nominees`, which had been the lone holdout. The discipline is now uniform across all 21 RPCs (verified on the new DB: `upsert_nominees` ACL is `authenticated`/`service_role` only, no PUBLIC).
 
 **Tables with NO direct INSERT/UPDATE/DELETE policy** (writes flow ONLY through RPCs):
 
@@ -636,7 +636,7 @@ Supabase Realtime is now **disabled for every `public.*` table** — the publica
 | `commissions` | OFF | `0025_drop_realtime_publication.sql` removed the original `commissions` publication once it had zero `.channel()` subscribers; React Query staleTime + manual invalidation covers cross-laptop demo sync |
 | `settlement_batches` | OFF | Added by the 0029–0031 settlement simplification; SELECT-only and never published |
 | `notifications` | OFF | Same — surfaced via a polling/invalidation-backed `NotificationBell`, not a realtime subscription |
-| `transactions` | OFF | High write volume (~30k seeded rows) would burn free-tier realtime connections |
+| `transactions` | OFF | High write volume (~27k seeded rows) would burn free-tier realtime connections |
 | `subscribers` | OFF | High write volume; React Query's 5-min staleTime + manual invalidation is sufficient |
 | `subscriber_balances` | OFF | Same — manual invalidation on contribution / withdrawal is fine |
 
@@ -656,7 +656,7 @@ SELECT tablename
 
 ## 13. Migration & schema-evolution discipline
 
-**Forward-only migrations** under `supabase/migrations/`. Sequential 4-digit prefix; never edit a shipped migration. The full list today runs `0001` → `0031`, **31 migrations after Phase 6A** (`0d0776e`); `0029`–`0031` deliver the commission-flow simplification (`due → paid`).
+**Forward-only migrations** under `supabase/migrations/`. Sequential 4-digit prefix; never edit a shipped migration. The full list today runs `0001` → `0042` (**42 migrations**, with `0019` backfilled as the captured remote hotfix); `0029`–`0031` deliver the commission-flow simplification (`due → paid`), `0032`–`0036` the settlement fixes + employer family, `0037`–`0039` the funder-redesign, and `0040`–`0042` the post-restore cleanup + commission-aggregate RPCs + signup/write-flow hardening. All are applied to the new Singapore DB (cutover 2026-06-05).
 
 **Discipline rules:**
 
@@ -706,7 +706,7 @@ See also: [`BACKEND.md §7`](./BACKEND.md) (migration history).
 **Build (backend, Render):**
 
 - **Express 5.2** on **Node 22**, mounted by `server/index.ts` with the `toExpress(handler)` adapter (`server/adapter.ts`) wrapping each `api/*.ts` handler.
-- `render.yaml` blueprint pins `runtime: node`, `plan: free`, `region: singapore` (irreversible — chosen because Supabase is in `ap-northeast-1` Tokyo; Singapore minimises the Render→Supabase hop), `autoDeployTrigger: off`, `healthCheckPath: /healthz`, `buildCommand: npm ci && npm run build:api && npm prune --omit=dev`, `startCommand: node dist-server/server/index.js`.
+- `render.yaml` blueprint pins `runtime: node`, `plan: free`, `region: singapore` (irreversible — originally chosen to sit near the then-Tokyo `ap-northeast-1` Supabase; since the **2026-06-05 cutover the Supabase project is itself in Singapore `ap-southeast-1`**, so Render and Postgres are now **co-located** in the same region — even lower RTT, and the immutable region choice happens to be ideal), `autoDeployTrigger: off`, `healthCheckPath: /healthz`, `buildCommand: npm ci && npm run build:api && npm prune --omit=dev`, `startCommand: node dist-server/server/index.js`.
 - `npm run build:api` runs `tsc -p server/tsconfig.json` (NodeNext module + moduleResolution, `outDir: ../dist-server`). This is also the **CI build gate** — if a `.js` extension drifts from a relative import, CI fails before Render does.
 
 **Deploy:**
@@ -714,7 +714,7 @@ See also: [`BACKEND.md §7`](./BACKEND.md) (migration history).
 - **Frontend (Vercel):** auto-deploys on push to `main` via the GitHub App integration. Preview URL per PR. Build runs in Vercel's builder.
 - **Backend (Render):** **manual deploys only** (`autoDeployTrigger: off` — mirrors CLAUDE.md §1 guardrail). Trigger via Render dashboard → Manual Deploy, or `curl -X POST $RENDER_DEPLOY_HOOK_URL`. Render has no preview environments on the free tier — every PR shares the single Singapore production backend.
 - **Cold-start:** Render free tier spins down after 15 min idle; first request waits ~35–70s. Mitigation: GHA cron `*/14 * * * *` hitting `/healthz` (`.github/workflows/keepalive.yml`) + cron-job.org/UptimeRobot 5-min backup + frontend `useWarmup()` banner before the sign-in modal opens. See `docs/render-operational.md` for the wake strategy detail.
-- **Region rationale:** Uganda → Singapore (~150–200ms) + Singapore → Supabase-Tokyo (~70ms) ≈ 220–270ms per call. Oregon would add ~370–430ms; Frankfurt would pay an even longer Render→Supabase hop. The choice is immutable after service creation.
+- **Region rationale:** Uganda → Singapore (~150–200ms) + the Render→Supabase hop. Post-cutover the Supabase project is in Singapore (`ap-southeast-1`) too (was Tokyo `ap-northeast-1`), so that second hop is now **intra-region (~1–5ms)** instead of the old ~70ms cross-region leg — roughly ~155–205ms per call. Oregon would add ~370–430ms; Frankfurt would pay an even longer hop. The choice is immutable after service creation — and now happens to be co-located with the DB.
 - **CI gating (`.github/workflows/test.yml`):**
   - On every PR + push to `main`: lint + Vitest unit (~30s) + `npm run build:api` (tsc gate, ~15s) before any Playwright run.
   - E2E gated on lint + unit + tsc success: smoke + flows on chromium + mobile-chromium for PRs; full matrix on push to `main`. `--workers=1` because the suite shares one Supabase project. Playwright spins up Vite (`:5173`) + Express (`:3001`) locally via `webServer.command = 'npm run dev:all'`.

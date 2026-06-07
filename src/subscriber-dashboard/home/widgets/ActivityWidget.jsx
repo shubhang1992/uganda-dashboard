@@ -49,6 +49,10 @@ export default function ActivityWidget({ subscriber }) {
         <ul className={styles.list}>
           {transactions.map((tx) => {
             const meta = TX_META[tx.type] || TX_META.contribution;
+            const label =
+              tx.type === 'contribution' && tx.source === 'employer'
+                ? 'Employer contribution'
+                : meta.label;
             const negative = tx.amount < 0;
             return (
               <li key={tx.id} className={styles.row}>
@@ -58,7 +62,7 @@ export default function ActivityWidget({ subscriber }) {
                   </svg>
                 </span>
                 <div className={styles.main}>
-                  <span className={styles.label}>{meta.label}</span>
+                  <span className={styles.label}>{label}</span>
                   <span className={styles.meta}>
                     {formatTxDate(tx.date)}
                     {tx.method && (

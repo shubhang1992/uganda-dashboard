@@ -29,14 +29,20 @@ export default function ReviewStep({ onNext }) {
   const signup = useSignup();
   const { data: districts = [] } = useAllEntities('district');
 
+  // "OCR already ran" is signalled by idConfidence (set only by the OCR patch
+  // below), NOT by fullName — an employer invite pre-fills fullName before OCR,
+  // so gating on it would skip OCR and leave the OCR-only fields (card number,
+  // DOB) blank, which is exactly the invite auto-fill bug we're fixing here.
   const [ocrState, setOcrState] = useState(
-    signup.fullName ? 'done' : 'running'
+    signup.idConfidence != null ? 'done' : 'running'
   );
   const [ocrError, setOcrError] = useState('');
 
-  /* Run OCR silently on mount (only if fields aren't already filled) */
+  /* Run OCR silently on mount, unless it already ran (idConfidence set). Gating
+   * on idConfidence — not fullName — means an employer-invite flow (which
+   * pre-fills name/nin/gender) STILL runs OCR, so card number + DOB auto-fill. */
   useEffect(() => {
-    if (signup.fullName) return;
+    if (signup.idConfidence != null) return;
     let cancelled = false;
     (async () => {
       try {
@@ -46,19 +52,25 @@ export default function ReviewStep({ onNext }) {
           sessionId: signup.onboardingSessionId,
         });
         if (cancelled) return;
-        // districtId is intentionally not on the OCR result — Ugandan IDs
-        // don't carry a district. The user picks it manually below, so it
-        // must not be marked as "Auto-filled".
+        // Fill only fields that are still empty: an employer invite pre-fills
+        // name/nin/gender deliberately, so OCR tops up the gaps (card number,
+        // DOB) without clobbering the employer's entries. For a normal signup
+        // every field is empty, so this fills them all exactly as before.
+        // districtId is intentionally NOT on the OCR result — Ugandan IDs don't
+        // carry a district; the user picks it manually so it's never auto-filled.
+        const applied = {
+          fullName: signup.fullName || result.fullName,
+          nin: signup.nin || result.nin,
+          cardNumber: signup.cardNumber || result.cardNumber,
+          dob: signup.dob || result.dob,
+          gender: signup.gender || result.gender,
+        };
         signup.patch({
-          fullName: result.fullName,
-          nin: result.nin,
-          cardNumber: result.cardNumber,
-          dob: result.dob,
-          gender: result.gender,
+          ...applied,
           barcodeRaw: result.barcodeRaw,
           idConfidence: result.confidence,
         });
-        setInitialValues((prev) => ({ ...prev, ...result }));
+        setInitialValues((prev) => ({ ...prev, ...applied }));
         setOcrState('done');
       } catch (e) {
         if (cancelled) return;

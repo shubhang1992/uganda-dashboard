@@ -153,6 +153,12 @@ const INITIAL_STATE = {
 
   contributionSchedule: null,
 
+  // Set when the flow is entered via an employer invite (/invite/:token). Drives
+  // the employer-tagged completion + the split-only (employer-only) variant.
+  // { token, employerId, employerName, collectSchedule } | null. Persisted
+  // (non-ephemeral) so it survives the consent→/signup/contribution remount.
+  employerInvite: null,
+
   failureReason: null,
   failureStage: null,
 };

@@ -267,3 +267,45 @@
     display: none;
   }
 }
+
+/* ── Pending invites (awaiting KYC) ────────────────────────────────────────── */
+.pending {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px dashed #c7c6e0;
+  border-radius: 0.7rem;
+  background: #f6f6fb;
+}
+.pendingHead {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #6b6a8a;
+}
+.pendingList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.pendingRow { display: flex; align-items: center; gap: 0.6rem; }
+.pendingName { font-weight: 600; color: #1f2937; }
+.pendingPhone { color: #6b7280; font-size: 0.86rem; }
+.pendingBadge {
+  margin-left: auto;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: #fff4e5;
+  color: #b15c00;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.pendingCancel {
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.5rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #b42318;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.pendingCancel:hover:not(:disabled) { background: #fdecec; }
+.pendingCancel:disabled { opacity: 0.6; cursor: not-allowed; }

@@ -104,7 +104,7 @@ const MORE_ITEMS = [
   { id: 'insurance', label: 'Insurance', icon: ICONS.insurance },
   { id: 'reports', label: 'Reports', icon: ICONS.reports },
   { id: 'support', label: 'Support', icon: ICONS.support },
-  { id: 'onboard', label: 'Onboard staff', icon: ICONS.onboard },
+  { id: 'onboard', label: 'Onboard member', icon: ICONS.onboard },
   { id: 'settings', label: 'Settings', icon: ICONS.settings },
   { id: 'logout', label: 'Log out', icon: ICONS.logout },
 ];
@@ -199,17 +199,15 @@ export default function EmployerSidebar({ mode = 'desktop', onNavigate }) {
             </button>
           ))}
 
-          {/* Onboard staff — distinct greyed (placeholder) entry */}
+          {/* Onboard a member */}
           <button
             type="button"
             className={styles.drawerRow}
             data-active={active === 'onboard'}
-            data-variant="muted"
             onClick={() => handleClick('onboard')}
           >
             <span className={styles.drawerRowIcon}>{ICONS.onboard}</span>
-            <span className={styles.drawerRowLabel}>Onboard staff</span>
-            <span className={styles.soonTag}>Soon</span>
+            <span className={styles.drawerRowLabel}>Onboard member</span>
           </button>
         </div>
 
@@ -267,19 +265,17 @@ export default function EmployerSidebar({ mode = 'desktop', onNavigate }) {
           </div>
         ))}
 
-        {/* Onboard staff — distinct greyed (placeholder) entry */}
+        {/* Onboard a member */}
         <div style={{ position: 'relative' }}>
           <button
             className={styles.navBtn}
             data-active={active === 'onboard'}
-            data-variant="muted"
             onClick={() => handleClick('onboard')}
             onMouseEnter={() => setHovered('onboard')}
             onMouseLeave={() => setHovered(null)}
-            aria-label="Onboard staff (coming soon)"
+            aria-label="Onboard member"
           >
             <span className={styles.iconWrap}>{ICONS.onboard}</span>
-            <span className={styles.soonDot} aria-hidden="true" />
             {hovered === 'onboard' && (
               <motion.span
                 className={styles.tooltip}
@@ -287,7 +283,7 @@ export default function EmployerSidebar({ mode = 'desktop', onNavigate }) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.15 }}
               >
-                Onboard staff · Soon
+                Onboard member
               </motion.span>
             )}
           </button>
@@ -368,12 +364,10 @@ export default function EmployerSidebar({ mode = 'desktop', onNavigate }) {
                     key={item.id}
                     role="menuitem"
                     className={styles.moreItem}
-                    data-variant={item.id === 'onboard' ? 'muted' : undefined}
                     onClick={() => handleClick(item.id)}
                   >
                     <span className={styles.moreIcon}>{item.icon}</span>
                     <span>{item.label}</span>
-                    {item.id === 'onboard' && <span className={styles.soonTag}>Soon</span>}
                   </button>
                 ))}
               </motion.div>

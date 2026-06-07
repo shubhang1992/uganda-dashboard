@@ -1,0 +1,144 @@
+/* Onboard-staff wizard. Mirrors the employer panel idiom (CSS Modules, brand
+   indigo #292867). Kept intentionally compact — three short steps. */
+
+.stepper {
+  display: flex;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--text-muted, #6b7280);
+}
+.stepDot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: #ececed;
+  color: #6b7280;
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex: none;
+}
+.step[data-state='current'] { color: #292867; font-weight: 700; }
+.step[data-state='current'] .stepDot { background: #292867; color: #fff; }
+.step[data-state='done'] .stepDot { background: #2f9e64; color: #fff; }
+.stepLabel { white-space: nowrap; }
+
+.body { display: flex; flex-direction: column; gap: 0.85rem; }
+
+.field { display: flex; flex-direction: column; gap: 0.35rem; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.label { font-size: 0.8rem; font-weight: 600; color: #374151; }
+.input {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.6rem;
+  font: inherit;
+  font-size: 0.92rem;
+  background: #fff;
+  color: #111827;
+}
+.input:focus-visible { outline: 2px solid #292867; outline-offset: 1px; border-color: #292867; }
+
+.note {
+  margin: 0.25rem 0 0;
+  padding: 0.7rem 0.8rem;
+  background: #f3f3f8;
+  border-radius: 0.6rem;
+  font-size: 0.84rem;
+  color: #4b5563;
+  line-height: 1.45;
+}
+
+.summary { display: flex; flex-direction: column; gap: 0.55rem; }
+.summaryRow { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.9rem; }
+.summaryLabel { color: #6b7280; }
+.summaryValue { font-weight: 600; color: #111827; text-align: right; }
+.consent {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  margin-top: 0.5rem;
+  font-size: 0.86rem;
+  color: #374151;
+  line-height: 1.4;
+}
+.consent input { margin-top: 0.2rem; flex: none; }
+
+.err {
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.75rem;
+  background: #fdecec;
+  color: #b42318;
+  border-radius: 0.6rem;
+  font-size: 0.84rem;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #ececef;
+}
+.ghost,
+.primary {
+  padding: 0.6rem 1.1rem;
+  border-radius: 0.6rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.ghost { background: #fff; border-color: #d1d5db; color: #374151; }
+.ghost:hover:not(:disabled) { background: #f9fafb; }
+.primary { background: #292867; color: #fff; }
+.primary:hover:not(:disabled) { background: #211f54; }
+.primary:disabled,
+.ghost:disabled { opacity: 0.6; cursor: not-allowed; }
+.ghost:focus-visible,
+.primary:focus-visible { outline: 2px solid #292867; outline-offset: 2px; }
+
+.linkBox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.6rem;
+  background: #f9fafb;
+}
+.linkText {
+  flex: 1;
+  font-size: 0.82rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #292867;
+  word-break: break-all;
+}
+.copyBtn {
+  flex: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.5rem;
+  border: 1px solid #292867;
+  background: #292867;
+  color: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.copyBtn:hover { background: #211f54; }
+.copyBtn:focus-visible { outline: 2px solid #292867; outline-offset: 2px; }

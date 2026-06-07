@@ -1,0 +1,45 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 1rem;
+  background: linear-gradient(160deg, #2f2d77 0%, #292867 100%);
+  color: #fff;
+  box-shadow: 0 10px 30px -16px rgba(41, 40, 103, 0.6);
+}
+.head { display: flex; flex-direction: column; gap: 0.3rem; }
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+}
+.eyebrowDot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #8be0b6;
+}
+.title { margin: 0; font-size: 1rem; font-weight: 800; letter-spacing: -0.02em; }
+
+.total { display: flex; flex-direction: column; gap: 0.1rem; }
+.totalLabel { font-size: 0.78rem; color: rgba(255, 255, 255, 0.7); }
+.totalValue { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em; }
+
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.splitCell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.1);
+}
+.splitCell[data-accent='true'] { background: rgba(139, 224, 182, 0.18); }
+.splitLabel { font-size: 0.74rem; color: rgba(255, 255, 255, 0.75); }
+.splitValue { font-size: 1.02rem; font-weight: 700; }

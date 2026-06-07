@@ -186,6 +186,20 @@ export default function App() {
             </ErrorBoundary>
           }
         />
+        {/* Employer-invite entry — same KYC signup flow, pre-seeded from the
+            invite token (employer-tagged subscriber on completion). Wildcard so
+            the /invite/:token/contribution sub-step stays in the SAME provider
+            (no remount → no lost-patch handoff). */}
+        <Route
+          path="/invite/:token/*"
+          element={
+            <ErrorBoundary>
+              <Suspense fallback={<DashboardFallback />}>
+                <SignupPage />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
         <Route path="/dashboard/*" element={<ProtectedDashboard />} />
       </Routes>
       <SignInModal />

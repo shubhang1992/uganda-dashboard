@@ -49,9 +49,9 @@ const {
 const employerSeed = await import('../src/data/employerSeed.js');
 const {
   EMPLOYER,
-  EMPLOYEES,
+  MEMBERS,
   CONTRIBUTION_RUNS,
-  CONTRIBUTION_RUN_LINES,
+  MEMBER_TRANSACTIONS,
   EMPLOYER_DEMO_PHONE,
 } = employerSeed;
 
@@ -286,9 +286,7 @@ async function main() {
         notifications,
         distributors,
         employers,
-        employees,
         contribution_runs,
-        contribution_run_lines,
         demo_personas,
         users,
         settlement_uploads,
@@ -1072,67 +1070,112 @@ async function main() {
       ]
     );
 
-    // ── employees (standalone roster) ────────────────────────────────────────
-    console.log('• employees…');
+    // ── employer members (tagged subscribers) ────────────────────────────────
+    // Unified model (0043): the employer's staff are REAL subscribers tagged with
+    // employer_id, agent_id NULL (no agent commission). Triggers are off during
+    // this seed (session_replication_role='replica'), so we seed balances AND the
+    // own/employer transaction history directly without double-counting.
+    console.log('• employer members (tagged subscribers)…');
     await bulkInsert(
       client,
-      'employees',
+      'subscribers',
       [
         { name: 'id', type: 'text' },
-        { name: 'employer_id', type: 'text' },
         { name: 'name', type: 'text' },
-        { name: 'phone', type: 'text' },
         { name: 'email', type: 'text' },
+        { name: 'phone', type: 'text' },
         { name: 'gender', type: 'text' },
         { name: 'age', type: 'int' },
+        { name: 'dob', type: 'date' },
         { name: 'nin', type: 'text' },
-        { name: 'job_title', type: 'text' },
-        { name: 'salary', type: 'numeric' },
-        { name: 'monthly_contribution', type: 'numeric' },
-        { name: 'status', type: 'text' },
-        { name: 'joined_date', type: 'date' },
-        { name: 'contribution_config', type: 'jsonb' },
-        { name: 'retirement_balance', type: 'numeric' },
-        { name: 'emergency_balance', type: 'numeric' },
-        { name: 'net_balance', type: 'numeric' },
-        { name: 'units_held', type: 'numeric' },
-        { name: 'total_contributions', type: 'numeric' },
-        { name: 'contribution_schedule', type: 'jsonb' },
-        { name: 'insurance_cover', type: 'numeric' },
-        { name: 'insurance_premium_monthly', type: 'numeric' },
-        { name: 'insurance_status', type: 'text' },
-        { name: 'insurance_renewal_date', type: 'date' },
-        { name: 'nominees', type: 'jsonb' },
+        { name: 'occupation', type: 'text' },
+        { name: 'agent_id', type: 'text' },
+        { name: 'employer_id', type: 'text' },
+        { name: 'district_id', type: 'text' },
+        { name: 'is_active', type: 'boolean' },
+        { name: 'registered_date', type: 'date' },
       ],
       [
-        EMPLOYEES.map((e) => e.id),
-        EMPLOYEES.map((e) => e.employerId),
-        EMPLOYEES.map((e) => e.name),
-        EMPLOYEES.map((e) => e.phone ?? null),
-        EMPLOYEES.map((e) => e.email ?? null),
-        EMPLOYEES.map((e) => e.gender ?? null),
-        EMPLOYEES.map((e) => e.age ?? null),
-        EMPLOYEES.map((e) => e.nin ?? null),
-        EMPLOYEES.map((e) => e.jobTitle ?? null),
-        EMPLOYEES.map((e) => e.salary ?? 0),
-        EMPLOYEES.map((e) => e.monthlyContribution ?? 0),
-        EMPLOYEES.map((e) => e.status ?? 'active'),
-        EMPLOYEES.map((e) => toDateStr(e.joinedDate)),
-        EMPLOYEES.map((e) => JSON.stringify(e.contributionConfig ?? {})),
-        EMPLOYEES.map((e) => e.retirementBalance ?? 0),
-        EMPLOYEES.map((e) => e.emergencyBalance ?? 0),
-        EMPLOYEES.map((e) => e.netBalance ?? 0),
-        EMPLOYEES.map((e) => e.unitsHeld ?? 0),
-        EMPLOYEES.map((e) => e.totalContributions ?? 0),
-        EMPLOYEES.map((e) => JSON.stringify(e.contributionSchedule ?? {})),
-        EMPLOYEES.map((e) => e.insuranceCover ?? 0),
-        EMPLOYEES.map((e) => e.insurancePremiumMonthly ?? 0),
-        EMPLOYEES.map((e) => e.insuranceStatus ?? 'inactive'),
-        EMPLOYEES.map((e) => toDateStr(e.insuranceRenewalDate)),
-        EMPLOYEES.map((e) => JSON.stringify(e.nominees ?? [])),
+        MEMBERS.map((m) => m.id),
+        MEMBERS.map((m) => m.name),
+        MEMBERS.map((m) => m.email ?? null),
+        MEMBERS.map((m) => m.phone ?? null),
+        MEMBERS.map((m) => m.gender ?? null),
+        MEMBERS.map((m) => m.age ?? null),
+        MEMBERS.map((m) => toDateStr(m.dob)),
+        MEMBERS.map((m) => m.nin ?? null),
+        MEMBERS.map((m) => m.occupation ?? null),
+        MEMBERS.map(() => null),                       // agent_id NULL → no commission
+        MEMBERS.map((m) => m.employerId),
+        MEMBERS.map((m) => m.districtId ?? 'd-kampala'),
+        MEMBERS.map((m) => m.status !== 'suspended'),
+        MEMBERS.map((m) => toDateStr(m.joinedDate)),
       ],
       'id'
     );
+
+    await bulkInsert(
+      client,
+      'subscriber_balances',
+      [
+        { name: 'subscriber_id', type: 'text' },
+        { name: 'retirement_balance', type: 'numeric' },
+        { name: 'emergency_balance', type: 'numeric' },
+        { name: 'total_balance', type: 'numeric' },
+        { name: 'units', type: 'numeric' },
+      ],
+      [
+        MEMBERS.map((m) => m.id),
+        MEMBERS.map((m) => m.retirementBalance ?? 0),
+        MEMBERS.map((m) => m.emergencyBalance ?? 0),
+        MEMBERS.map((m) => m.netBalance ?? 0),
+        MEMBERS.map((m) => m.unitsHeld ?? 0),
+      ],
+      'subscriber_id'
+    );
+
+    await bulkInsert(
+      client,
+      'contribution_schedules',
+      [
+        { name: 'subscriber_id', type: 'text' },
+        { name: 'frequency', type: 'text' },
+        { name: 'amount', type: 'numeric' },
+        { name: 'retirement_pct', type: 'int' },
+        { name: 'emergency_pct', type: 'int' },
+      ],
+      [
+        MEMBERS.map((m) => m.id),
+        MEMBERS.map((m) => m.contributionSchedule?.frequency ?? 'monthly'),
+        MEMBERS.map((m) => m.contributionSchedule?.amount ?? m.monthlyContribution ?? 0),
+        MEMBERS.map((m) => m.contributionSchedule?.retirementPct ?? 80),
+        MEMBERS.map((m) => m.contributionSchedule?.emergencyPct ?? 20),
+      ],
+      'subscriber_id'
+    );
+
+    const insuredMembers = MEMBERS.filter((m) => (m.insuranceCover ?? 0) > 0);
+    if (insuredMembers.length) {
+      await bulkInsert(
+        client,
+        'insurance_policies',
+        [
+          { name: 'subscriber_id', type: 'text' },
+          { name: 'cover', type: 'numeric' },
+          { name: 'premium_monthly', type: 'numeric' },
+          { name: 'status', type: 'text' },
+          { name: 'renewal_date', type: 'date' },
+        ],
+        [
+          insuredMembers.map((m) => m.id),
+          insuredMembers.map((m) => m.insuranceCover ?? 0),
+          insuredMembers.map((m) => m.insurancePremiumMonthly ?? 0),
+          insuredMembers.map((m) => m.insuranceStatus ?? 'inactive'),
+          insuredMembers.map((m) => toDateStr(m.insuranceRenewalDate)),
+        ],
+        'subscriber_id'
+      );
+    }
 
     // ── contribution_runs ────────────────────────────────────────────────────
     console.log('• contribution_runs…');
@@ -1162,30 +1205,39 @@ async function main() {
       'id'
     );
 
-    // ── contribution_run_lines ───────────────────────────────────────────────
-    console.log('• contribution_run_lines…');
+    // ── member contribution transactions (own + employer, source-tagged) ─────
+    // The employer-source rows link to their contribution_runs header via
+    // contribution_run_id (seeded above). Triggers are off (replica mode), so
+    // these do NOT re-bump the directly-seeded subscriber_balances.
+    console.log('• member transactions…');
     await bulkInsert(
       client,
-      'contribution_run_lines',
+      'transactions',
       [
         { name: 'id', type: 'text' },
-        { name: 'run_id', type: 'text' },
-        { name: 'employee_id', type: 'text' },
-        { name: 'employer_amount', type: 'numeric' },
-        { name: 'employee_amount', type: 'numeric' },
-        { name: 'retirement_amount', type: 'numeric' },
-        { name: 'emergency_amount', type: 'numeric' },
+        { name: 'subscriber_id', type: 'text' },
+        { name: 'type', type: 'text' },
+        { name: 'source', type: 'text' },
+        { name: 'amount', type: 'numeric' },
+        { name: 'date', type: 'timestamptz' },
+        { name: 'status', type: 'text' },
         { name: 'method', type: 'text' },
+        { name: 'split_retirement', type: 'numeric' },
+        { name: 'split_emergency', type: 'numeric' },
+        { name: 'contribution_run_id', type: 'text' },
       ],
       [
-        CONTRIBUTION_RUN_LINES.map((l) => l.id),
-        CONTRIBUTION_RUN_LINES.map((l) => l.runId),
-        CONTRIBUTION_RUN_LINES.map((l) => l.employeeId),
-        CONTRIBUTION_RUN_LINES.map((l) => l.employerAmount ?? 0),
-        CONTRIBUTION_RUN_LINES.map((l) => l.employeeAmount ?? 0),
-        CONTRIBUTION_RUN_LINES.map((l) => l.retirementAmount ?? 0),
-        CONTRIBUTION_RUN_LINES.map((l) => l.emergencyAmount ?? 0),
-        CONTRIBUTION_RUN_LINES.map((l) => l.method ?? null),
+        MEMBER_TRANSACTIONS.map((t) => t.id),
+        MEMBER_TRANSACTIONS.map((t) => t.subscriberId),
+        MEMBER_TRANSACTIONS.map((t) => t.type ?? 'contribution'),
+        MEMBER_TRANSACTIONS.map((t) => t.source ?? 'own'),
+        MEMBER_TRANSACTIONS.map((t) => t.amount ?? 0),
+        MEMBER_TRANSACTIONS.map((t) => toTimestamptz(t.date)),
+        MEMBER_TRANSACTIONS.map(() => 'settled'),
+        MEMBER_TRANSACTIONS.map((t) => t.method ?? null),
+        MEMBER_TRANSACTIONS.map((t) => t.retirementAmount ?? null),
+        MEMBER_TRANSACTIONS.map((t) => t.emergencyAmount ?? null),
+        MEMBER_TRANSACTIONS.map((t) => t.contributionRunId ?? null),
       ],
       'id'
     );

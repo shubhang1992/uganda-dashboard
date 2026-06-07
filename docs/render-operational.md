@@ -8,7 +8,7 @@ Operational runbook for the `uganda-dashboard-api` service on Render (free tier,
 
 - **Frontend:** Vercel (Vite + React SPA) — `uganda-dashboard-*.vercel.app`.
 - **Backend:** Render web service (Node 22, Express 5) — `uganda-dashboard-api.onrender.com` (hostname confirmed after service creation).
-- **Database:** Supabase (`ap-northeast-1`, Tokyo) — keep the Render region in Singapore to minimise the Render→Supabase RTT.
+- **Database:** Supabase (`ap-southeast-1`, **Singapore** — new project, cutover **2026-06-05**; was `ap-northeast-1` Tokyo before). Render is also in Singapore, so backend and Postgres are now **co-located in the same region** (intra-region RTT, ~1–5ms).
 - **Wake:** GHA cron (14 min) + cron-job.org/UptimeRobot (5 min backup) + frontend `useWarmup()` ping.
 
 ---
@@ -115,7 +115,7 @@ These are the 3 documented failure modes where Render keeps running but the symp
 Follow this when ready to create the Render service. **Do not run the MCP calls until each step's question is answered.**
 
 1. **Select Render workspace** — assistant will guide via `mcp__render__list_workspaces` then `mcp__render__select_workspace`. Confirm which workspace the service should live in (personal vs team).
-2. **Confirm region** — Singapore. **This is IMMUTABLE after service creation.** If Supabase ever moves to a different region, the service must be recreated.
+2. **Confirm region** — Singapore. **This is IMMUTABLE after service creation.** If Supabase ever moves to a different region, the service must be recreated. (The 2026-06-05 Supabase move from Tokyo → Singapore happened to land in Render's existing region, so no recreation was needed — backend and DB are now co-located.)
 3. **Have `SUPABASE_JWT_SECRET` on hand** — copy verbatim from the existing Vercel project's env settings (or from Supabase dashboard → API → JWT Settings). **Do NOT regenerate** during migration (audit B21) — rotating it silently fails-open under `withOptionalAuth`.
 4. **Approve `mcp__render__create_web_service`** — the call uses the `render.yaml` blueprint as input; the user confirms before execution.
 5. **Inject secrets via `mcp__render__update_environment_variables`** — set the 4 sync-false vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `SENTRY_DSN` (SENTRY_DSN may be left empty for the first deploy; wire it in Phase 5).

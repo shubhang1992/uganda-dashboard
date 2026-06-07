@@ -108,7 +108,13 @@ export default function ContributionRoute() {
     try {
       // Pass the stable per-attempt nonce so a double-submit / reload / retry
       // replays idempotently (0042) rather than minting a duplicate subscriber.
-      const result = await subscriberService.createFromSignup(payload, signup.signupNonce);
+      // Employer invites complete via a DIFFERENT RPC that tags the employer and
+      // passes agent_id NULL (no commission) — never createFromSignup (which
+      // tags a-001 and fires a commission).
+      const invite = signup.employerInvite;
+      const result = invite?.token
+        ? await subscriberService.createFromEmployerInvite(payload, invite.token, signup.signupNonce)
+        : await subscriberService.createFromSignup(payload, signup.signupNonce);
       subscriberId = result?.subscriberId;
     } catch (err) {
       // Log so the actual RPC error is visible during demos — Supabase RPC
@@ -172,7 +178,9 @@ export default function ContributionRoute() {
   }
 
   function handleCancel() {
-    navigate('/signup');
+    // Return to the invite flow (not a fresh signup) when in invite mode.
+    const inviteToken = signup.employerInvite?.token;
+    navigate(inviteToken ? `/invite/${inviteToken}` : '/signup');
   }
 
   function handleContinue() {
@@ -185,6 +193,8 @@ export default function ContributionRoute() {
       initial={signup.contributionSchedule}
       dob={signup.dob}
       phone={signup.phone}
+      // Employer-only invites collect ONLY the split (no schedule/payment).
+      collectSchedule={signup.employerInvite ? signup.employerInvite.collectSchedule : true}
       onClose={handleCancel}
       onConfirm={handleConfirm}
     />

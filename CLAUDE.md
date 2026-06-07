@@ -9,8 +9,8 @@ Slim entry index for this repo. Two deep specialist docs live under `docs/`: **`
 **Universal Pensions Uganda** is a digital long-term savings + pension platform aimed at everyday Ugandans (informal workers, gig workers, farmers, self-employed). The app in this repo is a **demo / sales-presentation tool** that sales reps walk prospects through — it is **NOT** a production fintech. Mocked OTP, mocked KYC, `demo_personas` fallback IDs, a hardcoded UGX 1,000 unit price, and a 24-hour fixed JWT are **intentional demo scope** and must not be treated as production-prep TODOs.
 
 - **Live URL:** `uganda-dashboard.vercel.app` (auto-deploy on push to `main` — do not push without explicit approval). **Applies to both:** Vercel (frontend, automatic via the GitHub App integration) and Render (backend at `uganda-dashboard-api.onrender.com`, **manual** deploys only — `autoDeployTrigger: off` in `render.yaml`).
-- **Stack:** React 19 · Vite 6 · CSS Modules (no Tailwind) · Framer Motion 12 · React Router 7 · TanStack Query 5 / Virtual 3 · Leaflet 1.9 · Recharts 3 · Express 5 on Render (Node 22, Singapore region) · Supabase Postgres · custom HS256 JWT via `jose`.
-- **Role build status (5 of 6 built):** subscriber, agent, branch, distributor, and employer are live. Admin is deferred (no shell, no RLS policies yet — see `docs/BACKEND.md §8`). Employer **shipped to production 2026-06-03** (merged to `main` via PR #8; Vercel frontend + Render backend deployed; desktop-first shell mirroring branch admin — see `docs/FRONTEND.md` + `docs/BACKEND.md §8`); its DB stack (migrations `0032`–`0036`) is applied to live and recorded in the ledger. Next when resumed: **Admin** (central admin with global rights).
+- **Stack:** React 19 · Vite 6 · CSS Modules (no Tailwind) · Framer Motion 12 · React Router 7 · TanStack Query 5 / Virtual 3 · Leaflet 1.9 · Recharts 3 · Express 5 on Render (Node 22, Singapore region) · Supabase Postgres (Singapore `ap-southeast-1` — **new project, cutover 2026-06-05**; replaced the old Tokyo `ap-northeast-1` project) · custom HS256 JWT via `jose`.
+- **Role build status (5 of 6 built):** subscriber, agent, branch, distributor, and employer are live. Admin is deferred (no shell, no RLS policies yet — see `docs/BACKEND.md §8`). Employer **shipped to production 2026-06-03** (merged to `main` via PR #8; Vercel frontend + Render backend deployed; desktop-first shell mirroring branch admin — see `docs/FRONTEND.md` + `docs/BACKEND.md §8`); its DB stack (migrations `0032`–`0036`) is part of the full `0001`–`0042` chain now applied + ledger-recorded on the new Singapore DB. Next when resumed: **Admin** (central admin with global rights).
 
 ---
 
@@ -135,9 +135,9 @@ The seeded demo data is generated via `npm run seed` (`scripts/seed-supabase.mjs
 
 Role | Quick login | Seeded count
 --- | --- | ---
-Subscriber | 5 seeded phones, e.g. `+25671 100 0001`, `…0002`, `…0003`, `…0004`, `…0005` | ~30,000
+Subscriber | 5 seeded phones, e.g. `+25671 100 0001`, `…0002`, `…0003`, `…0004`, `…0005` | ~5,000
 Agent | Any `agent` role login; `demo_personas` falls back to `a-001` if no phone match | ~2,049
-Branch | Any `branch` role login; fallback to `b-kam-015` (Kampala branch) | ~314
+Branch | Any `branch` role login; fallback to `b-kam-015` (Kampala branch) | ~316
 Distributor | Any `distributor` role login; fallback to `d-001` | 1 (singleton)
 Employer | `EMPLOYER_DEMO_PHONE` = `+25670 000 0031` (`src/data/employerSeed.js`); `demo_personas` falls back to `emp-001` if no phone match | 1 employer / 16 employees
 Admin | (deferred — no dashboard) | —
@@ -189,9 +189,8 @@ See `FRONTEND.md §16a` and `BACKEND.md §14a` for the role-specific demo-scope 
 ### 10b. Awareness items (worth knowing, not urgent)
 
 - **`MOCK_NOW = new Date(2026, 4, 26)`** (2026-05-26) in `src/data/mockData.js` anchors "due in N days" demos. Slide it forward (or flip to `new Date()`) when the demo's relative dates start looking stale.
-- **README.md is stale** — currently 87 lines, only documents the landing page, claims "Vite 8" (actually Vite 6.3), no mention of dashboards or backend. Flagged here; a ~30-min refresh is a separate follow-up.
 - **NPM deps inventory (verified 2026-05-22 in audit Phase 6):** every direct dep in `package.json` is actually used. `dotenv` is used by `e2e/fixtures/db.ts:13` + `playwright.config.ts:16` (NOT unused). `react-is` is required transitively by `recharts` (build fails without it). `jose` is used in `api/_lib/jwt.ts`; `pg` is used in `scripts/seed-supabase.mjs`. None should be removed.
-- **Real bugs in the demo experience** (not demo-scope) are catalogued in `docs/FRONTEND.md §16b` (subscriber Settings/notifications + Settings/security are `StubPage` placeholders) and `docs/BACKEND.md §14b` (nominee shares can sum >100%, admin role unbuilt). The employer role is **shipped to production** (migrations `0032`–`0036` applied to live); only employee **onboarding** remains a deferred placeholder (Phase 9). The commission dispute/maker-checker flow was removed in the 0029–0031 simplification, so the old `agent_dispute_line` / `disputeCommission` items no longer apply.
+- **Real bugs in the demo experience** (not demo-scope) are catalogued in `docs/FRONTEND.md §16b` (subscriber Settings/notifications + Settings/security are `StubPage` placeholders) and `docs/BACKEND.md §14b` (nominee shares can sum >100%, admin role unbuilt). The employer role is **shipped to production** (migrations `0032`–`0036`, part of the full `0001`–`0042` chain now on the new Singapore DB); only employee **onboarding** remains a deferred placeholder (Phase 9). The commission dispute/maker-checker flow was removed in the 0029–0031 simplification, so the old `agent_dispute_line` / `disputeCommission` items no longer apply.
 
 ---
 
