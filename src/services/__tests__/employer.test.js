@@ -88,14 +88,23 @@ describe('employer service — real (Supabase) branch', () => {
   describe('getEmployees → subscribers WHERE employer_id', () => {
     it('selects subscribers filtered by employer_id and maps the member shape', async () => {
       supabaseMock.__queueFrom('subscribers', {
-        data: [{ id: 's-1', employer_id: 'emp-001', name: 'Jane', phone: '700100099', is_active: true,
+        data: [{ id: 's-1', employer_id: 'emp-001', name: 'Jane', phone: '700100099', is_active: true, kyc_status: 'pending',
           subscriber_balances: { total_balance: 300000, retirement_balance: 240000, emergency_balance: 60000, units: 300 },
           contribution_schedules: { amount: 100000, retirement_pct: 80, emergency_pct: 20, frequency: 'monthly' } }],
         error: null,
       });
       const members = await svc.getEmployees('emp-001');
       expect(supabaseMock.__getFromCalls('subscribers').at(-1).chain.eq).toHaveBeenCalledWith('employer_id', 'emp-001');
-      expect(members[0]).toMatchObject({ id: 's-1', status: 'active', netBalance: 300000, monthlyContribution: 100000 });
+      expect(members[0]).toMatchObject({ id: 's-1', status: 'active', netBalance: 300000, monthlyContribution: 100000, kycStatus: 'pending' });
+    });
+
+    it('maps a missing kyc_status to "complete" (legacy rows are not "pending")', async () => {
+      supabaseMock.__queueFrom('subscribers', {
+        data: [{ id: 's-2', employer_id: 'emp-001', name: 'Sam', is_active: true }],
+        error: null,
+      });
+      const members = await svc.getEmployees('emp-001');
+      expect(members[0].kycStatus).toBe('complete');
     });
   });
 
@@ -105,6 +114,15 @@ describe('employer service — real (Supabase) branch', () => {
       const m = await svc.getEmployerMetrics();
       expect(m.headcount).toBe(16);
       expect(supabaseMock.__getRpcCalls('get_employer_metrics').length).toBe(1);
+    });
+  });
+
+  describe('removeEmployee', () => {
+    it('calls the remove_employer_member RPC (un-link, not suspend)', async () => {
+      supabaseMock.__queueRpc('remove_employer_member', { data: { id: 's-1', removed: true }, error: null });
+      const res = await svc.removeEmployee('emp-001', 's-1');
+      expect(res).toMatchObject({ id: 's-1', removed: true });
+      expect(supabaseMock.__getRpcCalls('remove_employer_member').length).toBe(1);
     });
   });
 });
@@ -130,6 +148,39 @@ describe('employer service — mock-fallback branch (IS_SUPABASE_ENABLED=false)'
     expect(members).toHaveLength(MEMBERS.length);
     expect(members[0]).toMatchObject({ id: MEMBERS[0].id, status: 'active' });
     expect(members[0].netBalance).toBeGreaterThan(0);
+  });
+
+  it('seeded members are all KYC-complete (pending KYC = pending invites, not members)', async () => {
+    const members = await svc.getEmployees('emp-001');
+    // Real signup always completes KYC; no employer member is ever pending.
+    const pending = members.filter((m) => m.kycStatus === 'pending' || m.kycStatus === 'incomplete');
+    expect(pending).toHaveLength(0);
+    expect(members.every((m) => typeof m.kycStatus === 'string')).toBe(true);
+  });
+
+  it('removeEmployee un-links a member from the roster (mock) — it does not suspend', async () => {
+    const before = await svc.getEmployees('emp-001');
+    const target = before.find((m) => m.status === 'active');
+    const res = await svc.removeEmployee('emp-001', target.id);
+    expect(res).toMatchObject({ id: target.id, removed: true });
+
+    const after = await svc.getEmployees('emp-001');
+    expect(after).toHaveLength(before.length - 1);
+    expect(after.find((m) => m.id === target.id)).toBeUndefined();
+    // Other members are untouched (no status change anywhere).
+    expect(after.filter((m) => m.status === 'suspended')).toHaveLength(
+      before.filter((m) => m.status === 'suspended').length,
+    );
+  });
+
+  it('bulkCreateEmployerInvites creates one pending invite per row (mock)', async () => {
+    const res = await svc.bulkCreateEmployerInvites([
+      { fullName: 'Bulk One', phone: '700000001', email: 'one@example.com' },
+      { fullName: 'Bulk Two', phone: '700000002', email: 'two@example.com' },
+    ]);
+    expect(res).toMatchObject({ created: 2, failed: 0, total: 2 });
+    const pending = await svc.listPendingInvites('emp-001');
+    expect(pending.length).toBe(2);
   });
 
   it('submitContributionRun posts the employer match to every active member', async () => {

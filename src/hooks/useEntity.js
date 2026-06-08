@@ -353,6 +353,37 @@ export function useUpdateDistributor() {
 }
 
 /**
+ * Mutation to create a new distributor (admin only — RLS/RPC gated). Invalidates
+ * the flat distributor collection so the admin ViewDistributors list refreshes.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useCreateDistributor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: entities.createDistributor,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entities', 'distributor'] });
+      queryClient.invalidateQueries({ queryKey: ['entitiesMap', 'distributor'] });
+      queryClient.invalidateQueries({ queryKey: ['platformOverview'] });
+    },
+  });
+}
+
+/**
+ * Admin: TRUE platform-wide overview (all subscribers incl. employer-onboarded +
+ * channel breakdown + distributor/employer counts). Wraps get_platform_overview
+ * (0050, admin-gated). Powers the admin country Summary card. 5-min staleTime.
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object>}
+ */
+export function usePlatformOverview() {
+  return useQuery({
+    queryKey: ['platformOverview'],
+    queryFn: entities.getPlatformOverview,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
  * Mutation to flip a branch between active and inactive. Optimistically
  * updates the cached entity so the status pill flips instantly; rolls back
  * on error.

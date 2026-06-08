@@ -10,7 +10,7 @@ Slim entry index for this repo. Two deep specialist docs live under `docs/`: **`
 
 - **Live URL:** `uganda-dashboard.vercel.app` (auto-deploy on push to `main` — do not push without explicit approval). **Applies to both:** Vercel (frontend, automatic via the GitHub App integration) and Render (backend at `uganda-dashboard-api.onrender.com`, **manual** deploys only — `autoDeployTrigger: off` in `render.yaml`).
 - **Stack:** React 19 · Vite 6 · CSS Modules (no Tailwind) · Framer Motion 12 · React Router 7 · TanStack Query 5 / Virtual 3 · Leaflet 1.9 · Recharts 3 · Express 5 on Render (Node 22, Singapore region) · Supabase Postgres (Singapore `ap-southeast-1` — **new project, cutover 2026-06-05**; replaced the old Tokyo `ap-northeast-1` project) · custom HS256 JWT via `jose`.
-- **Role build status (5 of 6 built):** subscriber, agent, branch, distributor, and employer are live. Admin is deferred (no shell, no RLS policies yet — see `docs/BACKEND.md §8`). Employer **shipped to production 2026-06-03** (merged to `main` via PR #8; Vercel frontend + Render backend deployed; desktop-first shell mirroring branch admin — see `docs/FRONTEND.md` + `docs/BACKEND.md §8`); its DB stack (migrations `0032`–`0036`) is part of the full `0001`–`0042` chain now applied + ledger-recorded on the new Singapore DB. Next when resumed: **Admin** (central admin with global rights).
+- **Role build status (6 of 6 built):** subscriber, agent, branch, distributor, employer, and admin are live. **Admin** (central head-office role with global rights) ships a map-theme shell at `src/admin-dashboard/` that reuses the distributor map/overlay/view panels and adds platform-wide **Distributors** and **Employers** managers (list + metrics + create). Its backend is migration `0049_admin_role` (admin `*_select_admin` RLS clones of the distributor grants + employer-family SELECT; `create_distributor` / `create_employer` / `get_all_employers_metrics` SECURITY DEFINER RPCs) — applied to the Singapore DB 2026-06-08. Admin demo login: pick **Admin** → any phone → any 6-digit code (fallback persona `admin-001`). Employer **shipped to production 2026-06-03** (merged to `main` via PR #8; Vercel frontend + Render backend deployed; desktop-first shell mirroring branch admin — see `docs/FRONTEND.md` + `docs/BACKEND.md §8`); its DB stack (migrations `0032`–`0036`) is part of the full chain on the new Singapore DB.
 
 ---
 
@@ -140,7 +140,7 @@ Agent | Any `agent` role login; `demo_personas` falls back to `a-001` if no phon
 Branch | Any `branch` role login; fallback to `b-kam-015` (Kampala branch) | ~316
 Distributor | Any `distributor` role login; fallback to `d-001` | 1 (singleton)
 Employer | `EMPLOYER_DEMO_PHONE` = `+25670 000 0031` (`src/data/employerSeed.js`); `demo_personas` falls back to `emp-001` if no phone match | 1 employer / 16 employees
-Admin | (deferred — no dashboard) | —
+Admin | Any `admin` role login; `demo_personas` falls back to `admin-001` | 1 (head-office, global)
 
 **Fallback rule.** `demo_personas` maps a phone → role-scoped ID. When no row matches, `verifyOtp` returns the hardcoded fallback IDs above so every demo login succeeds. Intentional. See `BACKEND.md §5` for the lookup chain and `BACKEND.md §12` for seed mechanics.
 
@@ -155,7 +155,7 @@ Agent | Field agent who onboards and supports subscribers (mobile-first, routed 
 Branch | Sub-distributor entity that supervises agents in a district.
 Distributor | Top-of-tree network operator (one in the demo seed: `d-001`).
 Employer | B2B account managing a **standalone** staff roster (`employees`, outside the agent→subscriber tree — no agent commissions). Funds staff pension via "contribution runs"; desktop-first dashboard mirroring branch admin. Scoped by the `employerId` JWT claim. See `BACKEND.md §8`/§12 + `docs/data-model.md`.
-Admin | (Deferred) Head-office platform admin with global rights — no dashboard built.
+Admin | Head-office platform admin with global rights. Map-theme dashboard (`src/admin-dashboard/`) reusing the distributor map/panels (platform-wide reads via `*_select_admin` RLS) plus Distributors & Employers managers (list/metrics/create via `0049` RPCs). No scope claim — sees everything.
 Commission settlement | Two-state flow `due → paid`. Commissions auto-generate as `due` at the configured flat rate-per-subscriber on a subscriber's first contribution. The distributor pays offline, then downloads a per-agent Excel template (prefilled with pending dues), fills Amount Paid + payment reference/date, and re-uploads; the matching agent's `due` lines flip to `paid` via the `apply_settlement` RPC, which also records a `settlement_batches` row and notifies the agent + branch. No maker-checker, runs, branch review, holds, disputes, or cadence. See `BACKEND.md §11`.
 RPC | Remote procedure call — a Postgres function (typically `SECURITY DEFINER`) invoked via `supabase.rpc('name', args)`. Atomic writes only.
 RLS | Row-Level Security — Postgres policies that scope SELECT/INSERT/UPDATE/DELETE per JWT claim.
@@ -190,7 +190,7 @@ See `FRONTEND.md §16a` and `BACKEND.md §14a` for the role-specific demo-scope 
 
 - **`MOCK_NOW = new Date(2026, 4, 26)`** (2026-05-26) in `src/data/mockData.js` anchors "due in N days" demos. Slide it forward (or flip to `new Date()`) when the demo's relative dates start looking stale.
 - **NPM deps inventory (verified 2026-05-22 in audit Phase 6):** every direct dep in `package.json` is actually used. `dotenv` is used by `e2e/fixtures/db.ts:13` + `playwright.config.ts:16` (NOT unused). `react-is` is required transitively by `recharts` (build fails without it). `jose` is used in `api/_lib/jwt.ts`; `pg` is used in `scripts/seed-supabase.mjs`. None should be removed.
-- **Real bugs in the demo experience** (not demo-scope) are catalogued in `docs/FRONTEND.md §16b` (subscriber Settings/notifications + Settings/security are `StubPage` placeholders) and `docs/BACKEND.md §14b` (nominee shares can sum >100%, admin role unbuilt). The employer role is **shipped to production** (migrations `0032`–`0036`, part of the full `0001`–`0042` chain now on the new Singapore DB); only employee **onboarding** remains a deferred placeholder (Phase 9). The commission dispute/maker-checker flow was removed in the 0029–0031 simplification, so the old `agent_dispute_line` / `disputeCommission` items no longer apply.
+- **Real bugs in the demo experience** (not demo-scope) are catalogued in `docs/FRONTEND.md §16b` (subscriber Settings/notifications + Settings/security are `StubPage` placeholders) and `docs/BACKEND.md §14b` (nominee shares can sum >100%). The employer role is **shipped to production** (migrations `0032`–`0036`, part of the full `0001`–`0042` chain now on the new Singapore DB); only employee **onboarding** remains a deferred placeholder (Phase 9). The commission dispute/maker-checker flow was removed in the 0029–0031 simplification, so the old `agent_dispute_line` / `disputeCommission` items no longer apply.
 
 ---
 

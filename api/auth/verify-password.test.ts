@@ -171,7 +171,8 @@ describe('POST /api/auth/verify-password', () => {
   });
 
   it('returns 400 invalid_request when role is missing or invalid', async () => {
-    for (const role of [undefined, 'admin', 42, '']) {
+    // 'admin' is now a valid role (all six ship); 'superadmin' stands in as the unknown role.
+    for (const role of [undefined, 'superadmin', 42, '']) {
       const r = makeRes();
       await call(
         makeReq({

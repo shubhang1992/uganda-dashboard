@@ -9,6 +9,7 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
 import NotificationBell from '../../components/notifications/NotificationBell';
+import ScoreGauge from '../../components/ScoreGauge';
 import styles from './BranchHealthScore.module.css';
 
 /* ── Derived metrics ── */
@@ -82,40 +83,6 @@ function generateInsights(metrics, agents) {
   return insights.slice(0, 4);
 }
 
-/* ── Gauge ── */
-function ScoreGauge({ score }) {
-  const size = 160, cx = 80, cy = 80, r = 62, strokeW = 13;
-  const startAngle = 135, sweepAngle = 270;
-  const p2c = (a) => { const rad = (a * Math.PI) / 180; return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }; };
-  const s = p2c(startAngle), e = p2c(startAngle + sweepAngle);
-  const arcPath = `M ${s.x} ${s.y} A ${r} ${r} 0 1 1 ${e.x} ${e.y}`;
-  const totalArc = 2 * Math.PI * r * (sweepAngle / 360);
-  const gap = totalArc - (score / 100) * totalArc;
-  const ticks = [0, 25, 50, 75, 100].map((pct) => {
-    const angle = startAngle + (pct / 100) * sweepAngle;
-    const inner = p2c(angle);
-    const outerR = r + strokeW / 2 + 4;
-    const rad = (angle * Math.PI) / 180;
-    return { inner, outer: { x: cx + outerR * Math.cos(rad), y: cy + outerR * Math.sin(rad) }, pct };
-  });
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={styles.gauge}>
-      <defs>
-        <linearGradient id="scoreGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="var(--color-alert)" /><stop offset="35%" stopColor="var(--color-amber)" />
-          <stop offset="65%" stopColor="var(--color-accent-mint)" /><stop offset="100%" stopColor="var(--color-positive)" />
-        </linearGradient>
-        <filter id="glow"><feGaussianBlur stdDeviation="6" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-      </defs>
-      <path d={arcPath} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={strokeW + 6} strokeLinecap="round" />
-      <path d={arcPath} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={strokeW} strokeLinecap="round" />
-      {ticks.map((t) => <line key={t.pct} x1={t.inner.x} y1={t.inner.y} x2={t.outer.x} y2={t.outer.y} stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" strokeLinecap="round" />)}
-      <motion.path d={arcPath} fill="none" stroke="url(#scoreGrad)" strokeWidth={strokeW} strokeLinecap="round" filter="url(#glow)"
-        strokeDasharray={totalArc} initial={{ strokeDashoffset: totalArc }} animate={{ strokeDashoffset: gap }}
-        transition={{ duration: 1.4, delay: 0.3, ease: EASE_OUT_EXPO }} />
-    </svg>
-  );
-}
 
 function BreakdownBar({ label, value, color }) {
   return (
@@ -279,7 +246,7 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
         {/* Col 1: Score */}
         <div className={styles.scoreSection}>
           <div className={styles.gaugeWrap}>
-            <ScoreGauge score={branch?.score ?? score.total} />
+            <ScoreGauge value={branch?.score ?? score.total} />
             <div className={styles.scoreCenter}>
               <motion.span className={styles.scoreNumber}
                 initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}

@@ -1,0 +1,312 @@
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { EASE_OUT_EXPO } from '../utils/motion';
+
+import { DashboardProvider, useDashboard } from '../contexts/DashboardContext';
+import { AdminPanelProvider, useAdminPanel } from '../contexts/AdminPanelContext';
+import { useAuth } from '../contexts/AuthContext';
+import { useCurrentEntity } from '../hooks/useEntity';
+import { useIsMobile } from '../hooks/useIsMobile';
+import logo from '../assets/logo.png';
+import AdminSidebar from './sidebar/AdminSidebar';
+// The admin dashboard mirrors the distributor map-theme, so it reuses the
+// distributor's map, overlay chrome, metrics row, and view panels verbatim —
+// they are role-blind (RLS scopes the data) and admin now has the SELECT grants.
+const UgandaMap = lazy(() => import('../dashboard/map/UgandaMap'));
+import OverlayPanel from '../dashboard/overlay/OverlayPanel';
+import Breadcrumb from '../dashboard/overlay/Breadcrumb';
+import MetricsRow from '../dashboard/cards/MetricsRow';
+import TopBar from '../dashboard/overlay/TopBar';
+import CreateBranch from '../dashboard/branch/CreateBranch';
+import ViewBranches from '../dashboard/branch/ViewBranches';
+import ViewAgents from '../dashboard/agent/ViewAgents';
+import ViewSubscribers from '../dashboard/subscriber/ViewSubscribers';
+import ViewReports from '../dashboard/reports/ViewReports';
+import CommissionPanel from '../dashboard/commissions/CommissionPanel';
+import Settings from '../dashboard/settings/Settings';
+import ViewTickets from '../dashboard/tickets/ViewTickets';
+// Admin-exclusive: country-level Summary card (true platform totals + distributor/
+// employer framing) shown instead of the distributor OverlayPanel at country level.
+import AdminCountryOverview from './AdminCountryOverview';
+// Admin-exclusive panels.
+import ViewDistributors from './distributors/ViewDistributors';
+import CreateDistributor from './distributors/CreateDistributor';
+import ViewEmployers from './employers/ViewEmployers';
+import CreateEmployer from './employers/CreateEmployer';
+// Reuse the distributor shell layout styles for pixel-identical chrome.
+import styles from '../dashboard/DashboardShell.module.css';
+
+const DRAWER_ITEMS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'distributors', label: 'Distributors' },
+  { id: 'employers', label: 'Employers' },
+  { id: 'branches', label: 'View Branches' },
+  { id: 'agents', label: 'View Agents' },
+  { id: 'subscribers', label: 'Subscribers' },
+  { id: 'commissions', label: 'Commissions' },
+  { id: 'tickets', label: 'Support' },
+  { id: 'reports', label: 'Reports' },
+  { id: 'settings', label: 'Settings' },
+];
+
+function MobileHeader({ onMenuToggle, menuOpen }) {
+  const { level, drillUp, reset } = useDashboard();
+  const isDeep = level !== 'country';
+
+  function handleBack() {
+    if (level === 'region') reset();
+    else drillUp(level);
+  }
+
+  return (
+    <div className={styles.mobileHeader}>
+      <div className={styles.mobileHeaderLeft}>
+        {isDeep && (
+          <button className={styles.backBtn} onClick={handleBack} aria-label="Go back">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
+              <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        )}
+        <img src={logo} alt="Universal Pensions" className={styles.mobileHeaderLogo} width={120} height={36} />
+      </div>
+      <button
+        className={styles.hamburger}
+        onClick={onMenuToggle}
+        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={menuOpen}
+      >
+        <span className={styles.hamburgerLine} data-open={menuOpen} />
+        <span className={styles.hamburgerLine} data-open={menuOpen} />
+        <span className={styles.hamburgerLine} data-open={menuOpen} />
+      </button>
+    </div>
+  );
+}
+
+function MobileDrawer({ open, onClose }) {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const {
+    reset,
+    setBranchMenuOpen, setCreateBranchOpen, setViewBranchesOpen,
+    setAgentMenuOpen, setViewAgentsOpen,
+    setViewSubscribersOpen,
+    setViewReportsOpen,
+    setCommissionsOpen,
+    setSettingsOpen,
+    setViewTicketsOpen,
+  } = useDashboard();
+  const {
+    setViewDistributorsOpen,
+    setViewEmployersOpen,
+    closeAllPanels: adminCloseAllPanels,
+  } = useAdminPanel();
+
+  useEffect(() => {
+    if (!open) return;
+    function handleEsc(e) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleEsc);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleEsc);
+      document.body.style.overflow = '';
+    };
+  }, [open, onClose]);
+
+  function handleItem(id) {
+    onClose();
+    // Close every panel (reused + admin) so only one slide-in shows.
+    setBranchMenuOpen(false);
+    setAgentMenuOpen(false);
+    setViewBranchesOpen(false);
+    setViewAgentsOpen(false);
+    setViewSubscribersOpen(false);
+    setCreateBranchOpen(false);
+    setViewReportsOpen(false);
+    setCommissionsOpen(false);
+    setSettingsOpen(false);
+    setViewTicketsOpen(false);
+    adminCloseAllPanels();
+
+    switch (id) {
+      case 'overview':
+        reset();
+        break;
+      case 'distributors':
+        setViewDistributorsOpen(true);
+        break;
+      case 'employers':
+        setViewEmployersOpen(true);
+        break;
+      case 'branches':
+        setViewBranchesOpen(true);
+        break;
+      case 'agents':
+        setViewAgentsOpen(true);
+        break;
+      case 'subscribers':
+        setViewSubscribersOpen(true);
+        break;
+      case 'commissions':
+        setCommissionsOpen(true);
+        break;
+      case 'tickets':
+        setViewTicketsOpen(true);
+        break;
+      case 'reports':
+        setViewReportsOpen(true);
+        break;
+      case 'settings':
+        setSettingsOpen(true);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            className={styles.drawerOverlay}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className={styles.drawer}
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
+          >
+            <nav className={styles.drawerNav}>
+              {DRAWER_ITEMS.map((item) => (
+                <button key={item.id} className={styles.drawerItem} onClick={() => handleItem(item.id)}>
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+            <button
+              className={styles.drawerLogout}
+              onClick={() => { onClose(); logout(); navigate('/'); }}
+            >
+              Log out
+            </button>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+const LEVEL_NAMES = { country: 'National Overview', region: 'Region', district: 'District', branch: 'Branch', agent: 'Agent' };
+
+function NavAnnouncer() {
+  const { level, selectedIds } = useDashboard();
+  const { data: entity } = useCurrentEntity(level, selectedIds);
+  const announcement = useMemo(() => {
+    if (level === 'country') return 'Now viewing National Overview';
+    if (entity?.name) return `Now viewing ${entity.name} ${LEVEL_NAMES[level] || ''}`;
+    return '';
+  }, [level, entity?.name]);
+
+  return (
+    <div
+      aria-live="polite"
+      style={{
+        position: 'absolute',
+        width: '1px',
+        height: '1px',
+        padding: 0,
+        margin: '-1px',
+        overflow: 'hidden',
+        clip: 'rect(0, 0, 0, 0)',
+        whiteSpace: 'nowrap',
+        border: 0,
+      }}
+    >
+      {announcement}
+    </div>
+  );
+}
+
+function AdminDashboardContent() {
+  const isMobile = useIsMobile();
+  // Lazy-mount panels so their data hooks don't fire on dashboard cold load
+  // (mirrors the distributor shell's AUDIT-1-10 fix).
+  const {
+    level,
+    createBranchOpen,
+    viewBranchesOpen,
+    viewAgentsOpen,
+    viewSubscribersOpen,
+    viewReportsOpen,
+    commissionsOpen,
+    settingsOpen,
+    viewTicketsOpen,
+  } = useDashboard();
+  const {
+    viewDistributorsOpen,
+    createDistributorOpen,
+    viewEmployersOpen,
+    createEmployerOpen,
+  } = useAdminPanel();
+  return (
+    <>
+      <main className={styles.main} id="main">
+        <NavAnnouncer />
+        {!isMobile && (
+          <Suspense fallback={null}>
+            <UgandaMap />
+          </Suspense>
+        )}
+        <Breadcrumb />
+        {/* Admin-framed Summary at country level; reuse the distributor overlay
+            for deeper geographic drill-down (region/district/branch/agent). */}
+        {level === 'country' ? <AdminCountryOverview /> : <OverlayPanel />}
+        <TopBar />
+        <MetricsRow />
+      </main>
+      {/* Admin-exclusive panels */}
+      {viewDistributorsOpen && <ViewDistributors />}
+      {createDistributorOpen && <CreateDistributor />}
+      {viewEmployersOpen && <ViewEmployers />}
+      {createEmployerOpen && <CreateEmployer />}
+      {/* Reused distributor-shell panels */}
+      {createBranchOpen && <CreateBranch />}
+      {viewBranchesOpen && <ViewBranches />}
+      {viewAgentsOpen && <ViewAgents />}
+      {viewSubscribersOpen && <ViewSubscribers />}
+      {viewReportsOpen && <ViewReports />}
+      {commissionsOpen && <CommissionPanel />}
+      {settingsOpen && <Settings />}
+      {viewTicketsOpen && <ViewTickets />}
+    </>
+  );
+}
+
+export default function AdminDashboardShell() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const handleMenuToggle = useCallback(() => setMenuOpen((o) => !o), []);
+  const handleMenuClose = useCallback(() => setMenuOpen(false), []);
+  return (
+    <DashboardProvider>
+      <AdminPanelProvider>
+        <div className={styles.shell}>
+          <AdminSidebar />
+          <MobileHeader onMenuToggle={handleMenuToggle} menuOpen={menuOpen} />
+          <MobileDrawer open={menuOpen} onClose={handleMenuClose} />
+          <AdminDashboardContent />
+        </div>
+      </AdminPanelProvider>
+    </DashboardProvider>
+  );
+}

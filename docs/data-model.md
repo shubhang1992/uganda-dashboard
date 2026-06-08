@@ -237,7 +237,7 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 | contactName / contactPhone / contactEmail | string | Stored | Primary HR/admin contact |
 | district | string | Stored | Operating district |
 | payrollCadence | string | Stored | `"monthly"` \| `"weekly"` \| … |
-| defaultContributionConfig | object (JSONB) | Stored | The template a new run starts from. Shape `{ mode, matchPct, maxContribution }` (co-contribution) or `{ mode, employerPct, groupCoverAmount }` (employer-only) — see [Contribution Config shape](#contribution-config-shape) |
+| defaultContributionConfig | object (JSONB) | Stored | The template a new run starts from. Shape `{ mode, matchPct, maxContribution }` (co-contribution) or `{ mode, employerPct }` (employer-only), plus company-wide group-insurance fields `insuranceEnabled` (boolean) + `groupCoverAmount` that apply to **both** modes — see [Contribution Config shape](#contribution-config-shape) |
 | createdAt / updatedAt | timestamptz | Stored | Row timestamps (`updated_at` maintained inline by the `0035` RPCs — no shared trigger) |
 
 ### Relationships
@@ -245,8 +245,9 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 
 ### Business Rules
 - **National singleton today.** The demo seeds exactly one employer (`emp-001`). Demo login phone `EMPLOYER_DEMO_PHONE` (`+256700000031`) resolves to it via `demo_personas`; any other phone on the `employer` role falls back to `emp-001`.
-- **No employer health score.** Unlike a Branch, the Employer has **no derived health/scheme-health score**. The funder-redesign removed the scheme-health gauge / participation composite from the Overview hero (an employer is a funder, not a sales line); there is no `score` field and no formula. The hero now leads with total contributions + funder tiles + a monthly-contributions leaderboard — see `FRONTEND.md §9.5`.
-- **Group life insurance.** Selecting the `employer-only` default config with a `groupCoverAmount` activates **flat group life cover for the whole roster** via the `apply_group_insurance` RPC (`0039`): every owned employee's `insuranceCover` is set to the flat amount, `insuranceStatus` derives from it (`>0 → active`, `0 → inactive` — a `0` cover switches group cover off), and `insurancePremiumMonthly` is zeroed (employer-included). The per-employee insurance editor still applies individual overrides afterwards. `0039` is **applied to the live Singapore DB** (cutover 2026-06-05).
+- **No employer health score.** Unlike a Branch, the Employer has **no derived health/scheme-health score**. The funder-redesign removed the scheme-health gauge / participation composite from the Overview hero (an employer is a funder, not a sales line); there is no `score` field and no formula. The hero now leads with total contributions + funder tiles + a monthly **standing** gauge — the employer's peer **rank** shown in the Branch score-gauge language (still a rank, NOT a re-introduced health composite); the old recent-runs bar-trend was removed — see `FRONTEND.md §9.5`.
+- **Group life insurance.** Group insurance is now a company-wide TRUE/FALSE config (`insuranceEnabled` in `defaultContributionConfig`), set via **Settings → Default config** and **independent of the funding mode** (previously it was only available in `employer-only` mode). Saving syncs the roster through the `apply_group_insurance` RPC (`0039`) on **every save**: when cover `> 0` it activates **flat group life cover for the whole roster** — every owned employee's `insuranceCover` is set to the flat amount, `insuranceStatus` derives from it (`>0 → active`, `0 → inactive`), and `insurancePremiumMonthly` is zeroed (employer-included); a `0` cover clears it (switches group cover off). The per-employee insurance editor still applies individual overrides afterwards. `0039` is **applied to the live Singapore DB** (cutover 2026-06-05).
+- **Pending KYC surfacing.** The Overview hero surfaces each member's `kycStatus` (already a `subscribers` column) as a **"Pending KYC"** count + a nudge panel (`PendingKyc`); pending = `kycStatus` in (`pending`, `incomplete`). A few demo staff (Mary Auma, Diana Nabirye, Juliet Akello) are seeded `pending`.
 - **RLS.** `employer_self_select USING (app_role='employer' AND id = auth.jwt() ->> 'employerId')`. Profile updates via `update_employer_profile` (own row only). See `BACKEND.md §8`/§10.1.
 
 ---
@@ -309,11 +310,17 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
   "maxContribution": 80000    // optional UGX cap on the employer top-up; null/'' = uncapped
 }
 
-// employer-only: employer funds a % of salary; selecting this mode also activates
-// flat group life insurance for all staff (see Business Rules)
+// employer-only: employer funds a % of salary
 {
   "mode": "employer-only",
-  "employerPct": 8,           // % of salary funded by the employer
+  "employerPct": 8            // % of salary funded by the employer
+}
+
+// group insurance is a company-wide TRUE/FALSE config carried on
+// default_contribution_config alongside the mode fields above (BOTH modes —
+// it is independent of the funding mode; see Business Rules)
+{
+  "insuranceEnabled": true,   // company-wide group life on/off
   "groupCoverAmount": 5000000 // flat group life cover (UGX) applied roster-wide via apply_group_insurance
 }
 ```

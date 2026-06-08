@@ -151,6 +151,23 @@ function MapController({ bounds, center, zoom, fitOptions }) {
       map.flyTo(center, zoom, { duration: 0.8 });
     }
   }, [map, bounds, center, zoom, fitOptions]);
+
+  // Keep Leaflet's pixel projection in sync with the real container size. If the
+  // map mounts (or the layout shifts) while the container is mis-sized, Leaflet's
+  // cached origin goes stale and click hit-testing (mouseEventToLayerPoint +
+  // _containsPoint) lands OFF the region/district polygons — so hover still works
+  // (DOM-based) but a click "does nothing". invalidateSize() recomputes it.
+  useEffect(() => {
+    const fix = () => map.invalidateSize({ animate: false });
+    const raf = requestAnimationFrame(fix);
+    let ro;
+    try {
+      ro = new ResizeObserver(fix);
+      ro.observe(map.getContainer());
+    } catch { /* ResizeObserver unsupported — the rAF pass still corrects mount-time sizing */ }
+    return () => { cancelAnimationFrame(raf); ro?.disconnect(); };
+  }, [map]);
+
   return null;
 }
 
@@ -349,12 +366,14 @@ function UgandaMap() {
   const onRegionClick = useCallback((e) => {
     const name = e.target.feature.properties.name;
     const regionId = REGION_NAME_TO_ID[name];
+    console.log('[DIAG region-click]', JSON.stringify({ name, regionId }));
     if (regionId) drillDown('region', regionId);
   }, [drillDown, REGION_NAME_TO_ID]);
 
   const onDistrictClick = useCallback((e) => {
     const name = e.target.feature.properties.name;
     const districtId = DISTRICT_NAME_TO_ID[name];
+    console.log('[DIAG district-click]', JSON.stringify({ name, districtId }));
     if (districtId) drillDown('district', districtId);
   }, [drillDown, DISTRICT_NAME_TO_ID]);
 

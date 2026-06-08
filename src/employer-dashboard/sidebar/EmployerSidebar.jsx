@@ -3,8 +3,9 @@
 // 64px indigo-deep rail, teal left active indicator (via the CSS `::before`),
 // hover tooltips (desktop), a mobile bottom bar with a "More" overflow, and a
 // drawer mode reused by EmployerDashboardShell's mobile slide-in. Active item
-// is DERIVED from which panel is open (no setState-in-effect). "Onboard staff"
-// is a distinct greyed entry that opens the placeholder panel.
+// is DERIVED from which panel is open (no setState-in-effect). "Employees" is a
+// single entry that opens a small menu → "View employees" / "Onboard an
+// employee" (rail: right-flyout popover; drawer: inline accordion).
 //
 // The repo's sidebars use inline SVG icons (not lucide-react) — see
 // BranchSidebar — so this mirrors that convention for visual consistency.
@@ -89,9 +90,21 @@ const NAV_ITEMS = [
   { id: 'employees', label: 'Employees', icon: ICONS.employees },
   { id: 'runs', label: 'Contribution Runs', icon: ICONS.runs },
   { id: 'insurance', label: 'Insurance', icon: ICONS.insurance },
-  { id: 'reports', label: 'Reports', icon: ICONS.reports },
+  { id: 'reports', label: 'Analytics', icon: ICONS.reports },
   { id: 'support', label: 'Support', icon: ICONS.support },
 ];
+
+// The "Employees" entry fans out to these two actions (view vs onboard).
+const STAFF_OPTIONS = [
+  { id: 'employees', label: 'View employees', icon: ICONS.employees },
+  { id: 'onboard', label: 'Onboard an employee', icon: ICONS.onboard },
+];
+
+const CHEVRON = (
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="16" height="16">
+    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 const BOTTOM_ITEMS = [
   { id: 'settings', label: 'Settings', icon: ICONS.settings },
@@ -102,7 +115,7 @@ const MOBILE_NAV = NAV_ITEMS.slice(0, 3);
 
 const MORE_ITEMS = [
   { id: 'insurance', label: 'Insurance', icon: ICONS.insurance },
-  { id: 'reports', label: 'Reports', icon: ICONS.reports },
+  { id: 'reports', label: 'Analytics', icon: ICONS.reports },
   { id: 'support', label: 'Support', icon: ICONS.support },
   { id: 'onboard', label: 'Onboard member', icon: ICONS.onboard },
   { id: 'settings', label: 'Settings', icon: ICONS.settings },
@@ -112,12 +125,13 @@ const MORE_ITEMS = [
 export default function EmployerSidebar({ mode = 'desktop', onNavigate }) {
   const [hovered, setHovered] = useState(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [staffMenuOpen, setStaffMenuOpen] = useState(false);
   const moreWrapRef = useRef(null);
+  const staffWrapRef = useRef(null);
   const { logout } = useAuth();
   const navigate = useNavigate();
   const {
     employeesOpen, setEmployeesOpen,
-    employeeDetailOpen, setEmployeeDetailOpen,
     runsOpen, setRunsOpen,
     insuranceOpen, setInsuranceOpen,
     reportsOpen, setReportsOpen,
@@ -130,7 +144,7 @@ export default function EmployerSidebar({ mode = 'desktop', onNavigate }) {
 
   // `active` is derived from which panel is open — no setState-in-effect.
   const active = useMemo(() => {
-    if (employeesOpen || employeeDetailOpen) return 'employees';
+    if (employeesOpen) return 'employees';
     if (runsOpen) return 'runs';
     if (insuranceOpen) return 'insurance';
     if (reportsOpen) return 'reports';
@@ -138,14 +152,24 @@ export default function EmployerSidebar({ mode = 'desktop', onNavigate }) {
     if (onboardOpen) return 'onboard';
     if (settingsOpen) return 'settings';
     return 'overview';
-  }, [employeesOpen, employeeDetailOpen, runsOpen, insuranceOpen, reportsOpen, supportOpen, onboardOpen, settingsOpen]);
+  }, [employeesOpen, runsOpen, insuranceOpen, reportsOpen, supportOpen, onboardOpen, settingsOpen]);
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
   const moreOutsideRefs = useMemo(() => [moreWrapRef], []);
   useOutsideClick(moreOpen, closeMore, moreOutsideRefs);
 
+  // Staff fly-out (rail only — the drawer uses an inline accordion, which
+  // shouldn't dismiss on outside click; the drawer itself closes on navigate).
+  const closeStaff = useCallback(() => setStaffMenuOpen(false), []);
+  const staffOutsideRefs = useMemo(() => [staffWrapRef], []);
+  useOutsideClick(staffMenuOpen && !isDrawer, closeStaff, staffOutsideRefs);
+
+  // The "Employees" entry is highlighted whenever either of its panels is open.
+  const staffActive = active === 'employees' || active === 'onboard';
+
   function handleClick(id) {
     setMoreOpen(false);
+    setStaffMenuOpen(false);
 
     if (id === 'overview') {
       closeAllPanels();
@@ -172,8 +196,6 @@ export default function EmployerSidebar({ mode = 'desktop', onNavigate }) {
       settings: setSettingsOpen,
     }[id];
     opener?.(true);
-    // Detail panel is only ever opened from the roster — close it on nav.
-    if (employeeDetailOpen) setEmployeeDetailOpen(false);
     onNavigate?.();
   }
 
@@ -186,29 +208,65 @@ export default function EmployerSidebar({ mode = 'desktop', onNavigate }) {
         </div>
 
         <div className={styles.drawerSection}>
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={styles.drawerRow}
-              data-active={active === item.id}
-              onClick={() => handleClick(item.id)}
-            >
-              <span className={styles.drawerRowIcon}>{item.icon}</span>
-              <span className={styles.drawerRowLabel}>{item.label}</span>
-            </button>
-          ))}
-
-          {/* Onboard a member */}
-          <button
-            type="button"
-            className={styles.drawerRow}
-            data-active={active === 'onboard'}
-            onClick={() => handleClick('onboard')}
-          >
-            <span className={styles.drawerRowIcon}>{ICONS.onboard}</span>
-            <span className={styles.drawerRowLabel}>Onboard member</span>
-          </button>
+          {NAV_ITEMS.map((item) => {
+            if (item.id === 'employees') {
+              // Consolidated "Employees" — taps expand an inline accordion with
+              // "View employees" + "Onboard an employee".
+              return (
+                <div key="employees" className={styles.drawerGroup}>
+                  <button
+                    type="button"
+                    className={styles.drawerRow}
+                    data-active={staffActive}
+                    onClick={() => setStaffMenuOpen((prev) => !prev)}
+                    aria-expanded={staffMenuOpen}
+                  >
+                    <span className={styles.drawerRowIcon}>{ICONS.employees}</span>
+                    <span className={styles.drawerRowLabel}>Employees</span>
+                    <span className={styles.drawerChevron} data-open={staffMenuOpen || undefined} aria-hidden="true">
+                      {CHEVRON}
+                    </span>
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {staffMenuOpen && (
+                      <motion.div
+                        className={styles.drawerSub}
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: EASE_OUT_EXPO }}
+                      >
+                        {STAFF_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            className={styles.drawerSubRow}
+                            data-active={active === opt.id}
+                            onClick={() => handleClick(opt.id)}
+                          >
+                            <span className={styles.drawerRowIcon}>{opt.icon}</span>
+                            <span className={styles.drawerRowLabel}>{opt.label}</span>
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            }
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={styles.drawerRow}
+                data-active={active === item.id}
+                onClick={() => handleClick(item.id)}
+              >
+                <span className={styles.drawerRowIcon}>{item.icon}</span>
+                <span className={styles.drawerRowLabel}>{item.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className={styles.drawerSpacer} />
@@ -240,54 +298,88 @@ export default function EmployerSidebar({ mode = 'desktop', onNavigate }) {
       </div>
 
       <div className={styles.navItems}>
-        {NAV_ITEMS.map((item) => (
-          <div key={item.id} style={{ position: 'relative' }}>
-            <button
-              className={styles.navBtn}
-              data-active={active === item.id}
-              onClick={() => handleClick(item.id)}
-              onMouseEnter={() => setHovered(item.id)}
-              onMouseLeave={() => setHovered(null)}
-              aria-label={item.label}
-            >
-              <span className={styles.iconWrap}>{item.icon}</span>
-              {hovered === item.id && (
-                <motion.span
-                  className={styles.tooltip}
-                  initial={{ opacity: 0, x: -4 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.15 }}
+        {NAV_ITEMS.map((item) => {
+          if (item.id === 'employees') {
+            // Consolidated "Employees" — opens a fly-out with "View employees"
+            // + "Onboard an employee".
+            return (
+              <div key="employees" className={styles.staffWrap} ref={staffWrapRef}>
+                <button
+                  className={styles.navBtn}
+                  data-active={staffActive}
+                  onClick={() => setStaffMenuOpen((prev) => !prev)}
+                  onMouseEnter={() => setHovered('employees')}
+                  onMouseLeave={() => setHovered(null)}
+                  aria-haspopup="menu"
+                  aria-expanded={staffMenuOpen}
+                  aria-label="Employees"
                 >
-                  {item.label}
-                </motion.span>
-              )}
-            </button>
-          </div>
-        ))}
-
-        {/* Onboard a member */}
-        <div style={{ position: 'relative' }}>
-          <button
-            className={styles.navBtn}
-            data-active={active === 'onboard'}
-            onClick={() => handleClick('onboard')}
-            onMouseEnter={() => setHovered('onboard')}
-            onMouseLeave={() => setHovered(null)}
-            aria-label="Onboard member"
-          >
-            <span className={styles.iconWrap}>{ICONS.onboard}</span>
-            {hovered === 'onboard' && (
-              <motion.span
-                className={styles.tooltip}
-                initial={{ opacity: 0, x: -4 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.15 }}
+                  <span className={styles.iconWrap}>{ICONS.employees}</span>
+                  {hovered === 'employees' && !staffMenuOpen && (
+                    <motion.span
+                      className={styles.tooltip}
+                      initial={{ opacity: 0, x: -4 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      Employees
+                    </motion.span>
+                  )}
+                </button>
+                <AnimatePresence>
+                  {staffMenuOpen && (
+                    <motion.div
+                      role="menu"
+                      aria-label="Employees"
+                      className={styles.staffMenu}
+                      initial={{ opacity: 0, x: -4 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -4 }}
+                      transition={{ duration: 0.18, ease: EASE_OUT_EXPO }}
+                    >
+                      {STAFF_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          role="menuitem"
+                          className={styles.staffItem}
+                          onClick={() => handleClick(opt.id)}
+                        >
+                          <span className={styles.staffItemIcon}>{opt.icon}</span>
+                          <span>{opt.label}</span>
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          }
+          return (
+            <div key={item.id} style={{ position: 'relative' }}>
+              <button
+                className={styles.navBtn}
+                data-active={active === item.id}
+                onClick={() => handleClick(item.id)}
+                onMouseEnter={() => setHovered(item.id)}
+                onMouseLeave={() => setHovered(null)}
+                aria-label={item.label}
               >
-                Onboard member
-              </motion.span>
-            )}
-          </button>
-        </div>
+                <span className={styles.iconWrap}>{item.icon}</span>
+                {hovered === item.id && (
+                  <motion.span
+                    className={styles.tooltip}
+                    initial={{ opacity: 0, x: -4 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    {item.label}
+                  </motion.span>
+                )}
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       <div className={styles.bottomItems}>

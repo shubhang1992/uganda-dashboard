@@ -35,6 +35,7 @@ const VALID_ROLES = new Set<JwtRole>([
   'branch',
   'distributor',
   'employer',
+  'admin',
 ]);
 
 async function touchLastLogin(phone: string, role: JwtRole): Promise<void> {

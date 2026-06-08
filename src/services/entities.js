@@ -908,6 +908,85 @@ export async function updateDistributor(id, patch) {
   return mapped;
 }
 
+/**
+ * @endpoint RPC create_distributor(p_name, p_manager_name, p_manager_phone,
+ *   p_manager_email, p_parent_id) — admin-only SECURITY DEFINER write (0049).
+ * @param {{name: string, managerName?: string, managerPhone?: string,
+ *   managerEmail?: string, parentId?: string}} payload
+ * @returns {Promise<Object>} newly-inserted, mapped distributor row
+ * @cache Caller invalidates: ['entities','distributor']
+ * @scope Admin only — the RPC RAISEs for any other app_role.
+ */
+export async function createDistributor(payload) {
+  if (!IS_SUPABASE_ENABLED) {
+    // Emergency mock fallback — shaped row, not persisted.
+    const id = payload.id ?? `d-new-${Date.now()}`;
+    return mapDistributor({
+      id,
+      name: payload.name,
+      parent_id: payload.parentId ?? 'ug',
+      manager_name: payload.managerName ?? null,
+      manager_phone: payload.managerPhone ?? null,
+      manager_email: payload.managerEmail ?? null,
+      status: 'active',
+      created_at: new Date().toISOString(),
+    });
+  }
+  const { data, error } = await supabase.rpc('create_distributor', {
+    p_name: payload.name,
+    p_manager_name: payload.managerName ?? null,
+    p_manager_phone: payload.managerPhone ?? null,
+    p_manager_email: payload.managerEmail ?? null,
+    p_parent_id: payload.parentId ?? 'ug',
+  });
+  if (error) throw error;
+  const mapped = mapDistributor(data);
+  cacheEntity('distributor', mapped);
+  return mapped;
+}
+
+/**
+ * @endpoint RPC get_platform_overview() — admin-only TRUE platform totals (0050).
+ * @description Unlike get_entity_metrics_rollup('country','ug') (which counts
+ *   subscribers via the agent tree and so misses employer-onboarded ones), this
+ *   counts EVERY subscriber regardless of acquisition channel, and returns the
+ *   distributor/employer counts + the channel breakdown the admin Summary needs.
+ * @returns {Promise<{totalSubscribers:number, subscribersViaDistributor:number,
+ *   subscribersViaEmployer:number, subscribersDirect:number, activeSubscribers:number,
+ *   inactiveSubscribers:number, distributors:number, employers:number, branches:number,
+ *   agents:number, aum:number, totalContributions:number, totalWithdrawals:number}>}
+ * @scope Admin only — the RPC RAISEs for any other app_role.
+ */
+export async function getPlatformOverview() {
+  if (!IS_SUPABASE_ENABLED) {
+    // Emergency mock fallback — reuse the mock country rollup for the network
+    // numbers; the employer channel isn't tracked in this service's mock, so
+    // it's reported as the distributor channel (acceptable for the rollback path).
+    const rollup = await getEntityMetricsRollup('country', ['ug']);
+    const c = rollup?.ug ?? {};
+    const total = c.totalSubscribers ?? 0;
+    const active = Math.round(total * ((c.activeRate ?? 0) / 100));
+    return {
+      totalSubscribers: total,
+      subscribersViaDistributor: total,
+      subscribersViaEmployer: 0,
+      subscribersDirect: 0,
+      activeSubscribers: active,
+      inactiveSubscribers: Math.max(0, total - active),
+      distributors: 1,
+      employers: 1,
+      branches: c.totalBranches ?? 0,
+      agents: c.totalAgents ?? 0,
+      aum: c.aum ?? 0,
+      totalContributions: c.totalContributions ?? 0,
+      totalWithdrawals: c.totalWithdrawals ?? 0,
+    };
+  }
+  const { data, error } = await supabase.rpc('get_platform_overview');
+  if (error) throw error;
+  return data ?? {};
+}
+
 // ─── Mock-fallback shims (used when IS_SUPABASE_ENABLED === false) ─────────
 // These mirror the original mock behaviour just well enough to keep the
 // rollback flag flipping the app back to a working state. They INTENTIONALLY

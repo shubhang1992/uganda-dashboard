@@ -4,14 +4,13 @@
 //
 // An employer is a FUNDER, not a saver, so the hero leads with money put in +
 // people covered rather than a subscriber-style health gauge:
-//   * Centrepiece — total contributions to date + a mini bar-trend of recent
-//     runs' grand totals (replaces the old participation gauge). The column
-//     where the gauge sat is now an empty slot reserved for a later
-//     leaderboard chip (a separate phase owns that).
+//   * Centrepiece — total contributions to date (a single clean hero figure).
+//   * Monthly standing — col 1 hosts the employer's league rank among peers,
+//     rendered in the Branch dashboard's score-gauge language (shared ScoreGauge).
 //   * Funder tiles — this month's contribution (newest run + delta vs prior),
 //     staff funded, avg contribution / employee, and run cadence.
 //   * Metric tiles / alerts open the employer slide-in panels (employees /
-//     runs / insurance) via `useEmployerPanel`, not the branch report hub.
+//     runs / KYC) via `useEmployerPanel`, not the branch report hub.
 //   * Activity feed is built from the contribution-run history + most-recent
 //     enrolments (the employer has no agent leaderboard).
 //
@@ -24,11 +23,13 @@ import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { formatUGX, formatNumber } from '../../utils/currency';
 import { formatDate, formatRelativeTime } from '../../utils/date';
-import { getChatResponse } from '../../services/chat';
+import { getEmployerChatResponse } from '../../services/chat';
 import { useToast } from '../../contexts/ToastContext';
 import { useEmployerScope } from '../../contexts/EmployerScopeContext';
 import { useEmployerPanel } from '../../contexts/EmployerPanelContext';
+import { companyFundingLabel } from '../employees/fundingLabel';
 import NotificationBell from '../../components/notifications/NotificationBell';
+import ScoreGauge from '../../components/ScoreGauge';
 import styles from './EmployerHealthScore.module.css';
 
 /* ── Derived metrics ─────────────────────────────────────────────────────────
@@ -67,7 +68,7 @@ function contributesSomething(emp) {
 }
 
 /* ── Insights (Copilot strip) ───────────────────────────────────────────────── */
-function generateInsights(metrics, derived, runs) {
+function generateInsights(metrics, derived, runs, pendingKyc) {
   const insights = [];
 
   const part = Math.round(derived.participationRate);
@@ -75,10 +76,9 @@ function generateInsights(metrics, derived, runs) {
   else if (part >= 70) insights.push({ type: 'warning', text: `${part}% participation — room to grow`, query: 'How many staff are contributing?' });
   else insights.push({ type: 'negative', text: `${part}% participation — low`, query: 'How many staff are contributing?' });
 
-  const uninsured = (metrics.headcount || 0) - (metrics.insuredCount || 0);
-  if (uninsured > 0) insights.push({ type: 'warning', text: `${uninsured} staff without insurance`, query: 'Who is uninsured?' });
+  if (pendingKyc > 0) insights.push({ type: 'warning', text: `${pendingKyc} awaiting sign-up`, query: 'Who is pending KYC?' });
 
-  if (metrics.suspended > 0) insights.push({ type: 'warning', text: `${metrics.suspended} suspended`, query: 'Show suspended staff' });
+  if (metrics.suspended > 0) insights.push({ type: 'warning', text: `${metrics.suspended} inactive`, query: 'Show inactive staff' });
 
   const latest = runs[0];
   if (latest) insights.push({ type: 'positive', text: `Last run: ${formatUGX(latest.grandTotal)} (${latest.periodLabel})`, query: 'Show the last contribution run' });
@@ -86,116 +86,62 @@ function generateInsights(metrics, derived, runs) {
   return insights.slice(0, 4);
 }
 
-/* ── Mini bar-trend (centrepiece) ────────────────────────────────────────────
-   A compact column chart of the most recent runs' grand totals, oldest → newest
-   so the eye reads left-to-right toward the latest run. Mirrors the
-   EmployerOperations bar idiom (track + indigo→teal gradient fill, Framer
-   animate-in) but as vertical columns sized for the dark indigo hero. Each
-   column's height is proportional to its grandTotal vs the window max. */
-function MiniBarTrend({ runs }) {
-  // Last 6 runs, flipped to chronological order (runs arrive newest-first).
-  const series = useMemo(() => runs.slice(0, 6).reverse(), [runs]);
-  const max = useMemo(
-    () => series.reduce((m, r) => Math.max(m, r.grandTotal || 0), 0) || 1,
-    [series],
-  );
-
-  if (series.length === 0) return null;
-
-  return (
-    <div className={styles.trend} role="img" aria-label={`Recent contribution runs — ${series.length} runs`}>
-      {series.map((run, i) => {
-        const pct = Math.max(((run.grandTotal || 0) / max) * 100, 4);
-        const isLatest = i === series.length - 1;
-        return (
-          <div key={run.id} className={styles.trendCol}>
-            <div className={styles.trendTrack}>
-              <motion.div
-                className={styles.trendFill}
-                data-latest={isLatest || undefined}
-                initial={{ height: 0 }}
-                animate={{ height: `${pct}%` }}
-                transition={{ duration: 0.7, delay: 0.3 + i * 0.06, ease: EASE_OUT_EXPO }}
-              />
-            </div>
-            <span className={styles.trendLabel}>{run.periodLabel}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/* ── Leaderboard chip (col 1) ────────────────────────────────────────────────
-   Fills the slot the participation gauge vacated. A funder cares where their
-   monthly contribution ranks against peers, so the column leads with the
-   employer's own rank ("You're #3 of 12 this month") + a compact strip of the
-   ranks immediately around them (and #1, for context). Fed by
-   `getEmployerLeaderboard` — already sorted best-first with 1-based ranks; this
-   component is pure presentation. Empty leaderboard → renders nothing so the
-   slot stays clean. */
-function LeaderboardChip({ leaderboard }) {
-  // The employer's own row anchors everything (rank chip + which strip rows to
-  // show). Bail out cleanly if the data isn't ready or "you" is missing.
+/* ── Monthly standing (col 1) ─────────────────────────────────────────────────
+   Replaces the peer leaderboard list. A funder cares where their monthly
+   contribution ranks against peers — but the raw competitor amounts were noise.
+   This mirrors the Branch dashboard's score gauge: the shared radial arc fills to
+   the employer's standing (percentile) among peers, the centre shows their rank,
+   and a badge below shows this month's movement. Fed by `getEmployerLeaderboard`
+   — already sorted best-first with 1-based ranks; pure presentation. Empty
+   leaderboard → renders nothing so the slot stays clean. */
+function MonthlyStanding({ leaderboard }) {
+  // The employer's own row carries the rank + this-month delta. Bail cleanly if
+  // the data isn't ready or "you" is missing.
   const you = useMemo(() => leaderboard.find((e) => e.isYou), [leaderboard]);
-
-  // The few rows worth showing in the ~160px column: #1 (the leader, for
-  // aspiration) plus the immediate neighbours around "you" (above / you / below).
-  // De-duped + re-sorted by rank so #1 never doubles up when you're near the top.
-  const strip = useMemo(() => {
-    if (!you) return [];
-    const byRank = new Map(leaderboard.map((e) => [e.rank, e]));
-    const wanted = new Set([1, you.rank - 1, you.rank, you.rank + 1]);
-    return [...wanted]
-      .map((r) => byRank.get(r))
-      .filter(Boolean)
-      .sort((a, b) => a.rank - b.rank);
-  }, [leaderboard, you]);
-
   if (!you) return null;
 
   const total = leaderboard.length;
   const delta = you.deltaRanks || 0;
+  // Standing percentile drives the arc fill: rank 1 of N → 100%, rank N of N →
+  // ~1/N. A higher rank visibly fills more of the gauge.
+  const standing = total > 0 ? ((total - you.rank + 1) / total) * 100 : 0;
+  const dir = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+  const moved = Math.abs(delta);
+  const deltaText = dir === 'up'
+    ? `Up ${moved} this month`
+    : dir === 'down'
+      ? `Down ${moved} this month`
+      : 'Holding steady';
 
   return (
     <motion.div
-      className={styles.leaderboard}
+      className={styles.standing}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.2, ease: EASE_OUT_EXPO }}
-      aria-label={`You're ranked number ${you.rank} of ${total} by this month's contribution`}
+      aria-label={`Ranked number ${you.rank} of ${formatNumber(total)} employers by this month's contribution — ${deltaText.toLowerCase()}`}
     >
-      <div className={styles.leaderHead}>
-        <span className={styles.leaderEyebrow}>Monthly leaderboard</span>
-        <div className={styles.leaderRankRow}>
-          <span className={styles.leaderRank}>#{you.rank}</span>
-          {delta > 0 && (
-            <span className={styles.leaderDelta} aria-label={`Up ${delta} ${delta === 1 ? 'place' : 'places'}`}>
-              <span aria-hidden="true">▲</span>{delta}
-            </span>
-          )}
-        </div>
-        <span className={styles.leaderSub}>of {formatNumber(total)} this month</span>
-      </div>
-
-      <ul className={styles.leaderStrip} aria-label="Nearby ranks">
-        {strip.map((row, i) => (
-          <motion.li
-            key={row.rank}
-            className={styles.leaderRow}
-            data-you={row.isYou || undefined}
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4, delay: 0.35 + i * 0.06, ease: EASE_OUT_EXPO }}
+      <div className={styles.standingGaugeWrap}>
+        <ScoreGauge value={standing} size={148} />
+        <div className={styles.standingCenter}>
+          <motion.span
+            className={styles.standingRank}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.8, ease: EASE_OUT_EXPO }}
           >
-            <span className={styles.leaderRowRank}>{row.rank}</span>
-            <span className={styles.leaderRowName}>
-              {row.isYou ? 'You' : row.name}
-            </span>
-            <span className={styles.leaderRowTotal}>{formatUGX(row.monthlyTotal, { compact: true })}</span>
-          </motion.li>
-        ))}
-      </ul>
+            #{you.rank}
+          </motion.span>
+          <span className={styles.standingOf}>of {formatNumber(total)}</span>
+        </div>
+      </div>
+      <span className={styles.standingLabel}>Monthly standing</span>
+      <div className={styles.standingDelta} data-dir={dir}>
+        {dir !== 'flat' && (
+          <span className={styles.standingDeltaIcon} aria-hidden="true">{dir === 'up' ? '▲' : '▼'}</span>
+        )}
+        <span className={styles.standingDeltaText}>{deltaText}</span>
+      </div>
     </motion.div>
   );
 }
@@ -236,11 +182,7 @@ function generateActivity(runs, employees) {
 
 /* ── Alerts row ──────────────────────────────────────────────────────────────
    Up to 3 equal buttons; each opens the relevant employer panel. */
-function computeAlerts(metrics, runs) {
-  const headcount = metrics.headcount || 0;
-  const uninsured = Math.max(0, headcount - (metrics.insuredCount || 0));
-  const suspended = metrics.suspended || 0;
-
+function computeAlerts(metrics, runs, pendingKyc, insCfg) {
   // A run is "due" when the latest run isn't in the current calendar month
   // (demo heuristic — the employer funds monthly). Anchored to the real clock.
   const latest = runs[0];
@@ -251,6 +193,12 @@ function computeAlerts(metrics, runs) {
     new Date(latest.runAt).getFullYear() === now.getFullYear();
   const runDue = !runThisMonth;
 
+  // Insurance is company-wide (all-or-nothing): the 3rd tile surfaces the group
+  // cover and opens the Insurance panel — there is no per-member "suspended"
+  // control for an employer (the member owns their dormant account, not us).
+  const cover = Number(insCfg?.groupCoverAmount) || 0;
+  const insEnabled = insCfg?.insuranceEnabled ?? cover > 0;
+
   return [
     {
       value: runDue ? 'Due' : 'On track',
@@ -260,27 +208,28 @@ function computeAlerts(metrics, runs) {
       action: 'runs',
     },
     {
-      value: uninsured,
-      label: 'Without insurance',
-      sub: 'No active cover',
-      severity: uninsured > 0 ? 'alert' : 'ok',
-      action: 'insurance',
+      value: pendingKyc,
+      label: 'Pending KYC',
+      sub: pendingKyc > 0 ? 'Awaiting sign-up' : 'No pending invites',
+      severity: pendingKyc > 0 ? 'warning' : 'ok',
+      action: 'kyc',
     },
     {
-      value: suspended,
-      label: 'Suspended',
-      sub: 'Not contributing',
-      severity: suspended > 0 ? 'warning' : 'ok',
-      action: 'employees',
+      value: insEnabled ? formatUGX(cover, { compact: true }) : 'Off',
+      label: 'Insurance',
+      sub: insEnabled ? 'Cover per member' : 'Not set up',
+      severity: 'neutral',
+      action: 'insurance',
     },
   ];
 }
 
-export default function EmployerHealthScore({ metrics = {}, employees = [], runs = [], leaderboard = [], employer, user, split = false }) {
+export default function EmployerHealthScore({ metrics = {}, employees = [], runs = [], leaderboard = [], pendingInvites = [], employer, user, split = false }) {
   const { employerId } = useEmployerScope();
   const {
     setEmployeesOpen,
     setRunsOpen,
+    setKycOpen,
     setInsuranceOpen,
     closeAllPanels,
   } = useEmployerPanel();
@@ -290,13 +239,19 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
     closeAllPanels();
     if (action === 'employees') setEmployeesOpen(true);
     else if (action === 'runs') setRunsOpen(true);
+    else if (action === 'kyc') setKycOpen(true);
     else if (action === 'insurance') setInsuranceOpen(true);
   }
 
+  // Pending KYC = people the employer invited who haven't completed sign-up yet
+  // (the only real "awaiting verification" data — members who finished signup are
+  // always KYC-complete). Drives the hero tile, the Copilot insight, and the panel.
+  const pendingKyc = pendingInvites.length;
+
   const derived = useMemo(() => deriveMetrics(metrics, employees), [metrics, employees]);
   const events = useMemo(() => generateActivity(runs, employees), [runs, employees]);
-  const insights = useMemo(() => generateInsights(metrics, derived, runs), [metrics, derived, runs]);
-  const alerts = useMemo(() => computeAlerts(metrics, runs), [metrics, runs]);
+  const insights = useMemo(() => generateInsights(metrics, derived, runs, pendingKyc), [metrics, derived, runs, pendingKyc]);
+  const alerts = useMemo(() => computeAlerts(metrics, runs, pendingKyc, employer?.defaultContributionConfig), [metrics, runs, pendingKyc, employer]);
 
   // ── Centrepiece: total contributions to date + the run window it spans ──
   const totalContributions = metrics.totalContributions || 0;
@@ -330,6 +285,27 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
       )
     : null;
 
+  // Copilot answer context — the employer's OWN figures, fed to the local
+  // employer responder so every reply is truthful (no distributor-network noise,
+  // and "Who is pending KYC?" resolves against the real pending-invite list).
+  const copilotAnswerCtx = useMemo(() => {
+    const cfg = employer?.defaultContributionConfig;
+    const cover = Number(cfg?.groupCoverAmount) || 0;
+    const insOn = cfg?.insuranceEnabled ?? cover > 0;
+    return {
+      headcount: derived.headcount,
+      active: derived.active,
+      inactive: metrics.suspended || 0,
+      participationPct: Math.round(derived.participationRate),
+      pendingKyc,
+      pendingNames: pendingInvites.map((inv) => inv.prefill?.fullName).filter(Boolean),
+      fundingLabel: companyFundingLabel(cfg),
+      coverLabel: insOn && cover > 0 ? formatUGX(cover, { compact: false }) : 'no group cover',
+      totalContributions: metrics.totalContributions || 0,
+      lastRunLabel: runs[0]?.periodLabel || null,
+    };
+  }, [employer, derived, metrics, pendingKyc, pendingInvites, runs]);
+
   /* ── Copilot strip (wired to the chat mock, like the branch hero) ── */
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [copilotUserToggled, setCopilotUserToggled] = useState(false);
@@ -358,7 +334,7 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
     setMessages((prev) => [...prev, { role: 'user', text: msg }]);
     setChatInput('');
     setIsTyping(true);
-    getChatResponse(msg)
+    getEmployerChatResponse(msg, copilotAnswerCtx)
       .then((response) => {
         setTimeout(() => { setIsTyping(false); setMessages((prev) => [...prev, { role: 'assistant', text: response }]); }, 900);
       })
@@ -405,17 +381,18 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
 
       {/* ── Top section: Leaderboard slot + Funding centrepiece + Activity ── */}
       <div className={styles.topGrid}>
-        {/* Col 1: the monthly-contributions leaderboard chip. Replaces the
-            participation gauge removed earlier (an employer is a funder, not a
-            saver). Renders nothing when the leaderboard hasn't loaded, keeping
-            the slot clean while preserving the three-column rhythm. */}
+        {/* Col 1: monthly standing gauge — the employer's rank among peers shown
+            in the Branch dashboard's score-gauge language (a funder cares where
+            their contribution ranks, not the raw competitor amounts). Renders
+            nothing when the leaderboard hasn't loaded, keeping the slot clean
+            while preserving the three-column rhythm. */}
         <div className={styles.leaderSlot}>
-          {leaderboard.length > 0 && <LeaderboardChip leaderboard={leaderboard} />}
+          {leaderboard.length > 0 && <MonthlyStanding leaderboard={leaderboard} />}
         </div>
 
         {/* Col 2: Funding centrepiece + funder tiles (cards open the matching panel) */}
         <div className={styles.metricsSection}>
-          {/* Centrepiece — total contributions to date + mini bar-trend */}
+          {/* Centrepiece — total contributions to date */}
           <button type="button" className={`${styles.centrepiece} ${styles.metricCard}`} onClick={() => openPanel('runs')}>
             <span className={styles.metricLabel}>Total contributions to date</span>
             <motion.span className={styles.centreValue}
@@ -428,7 +405,6 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
                 ? `across ${formatNumber(runs.length)} run${runs.length === 1 ? '' : 's'}${sinceLabel ? ` since ${sinceLabel}` : ''}`
                 : 'No contribution runs yet'}
             </span>
-            <MiniBarTrend runs={runs} />
           </button>
 
           {/* Funder tiles */}
@@ -596,7 +572,7 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
                     </button>
                   ))}
                   <div className={styles.quickRow}>
-                    {['Staff balance?', 'Funding split?', 'Who is uninsured?'].map((q) => (
+                    {['Who is pending KYC?', 'Funding split?', 'Group insurance?'].map((q) => (
                       <button key={q} className={styles.quickPill} onClick={() => handleSend(q)}>{q}</button>
                     ))}
                   </div>

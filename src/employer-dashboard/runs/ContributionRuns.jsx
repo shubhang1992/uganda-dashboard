@@ -414,7 +414,7 @@ function NewRunWizard({ employerId, addToast, onDone, onCancel }) {
             </dl>
             <p className={styles.confirmNote}>
               Final amounts are computed server-side from the company funding model.
-              {suspendedCount > 0 ? ` ${formatNumber(suspendedCount)} suspended member(s) are skipped automatically.` : ''}
+              {suspendedCount > 0 ? ` ${formatNumber(suspendedCount)} inactive member(s) are skipped automatically.` : ''}
             </p>
           </div>
         </div>

@@ -85,6 +85,10 @@ export function mapMember(row) {
     gender: row.gender,
     age: row.age,
     nin: row.nin,
+    occupation: row.occupation ?? null,
+    // KYC completion is tracked per subscriber (subscribers.kyc_status). Missing
+    // / null is treated as complete so legacy rows don't read as "pending".
+    kycStatus: row.kyc_status ?? 'complete',
     isActive: row.is_active !== false,
     status: row.is_active === false ? 'suspended' : 'active',
     joinedDate: row.registered_date ?? row.created_at ?? null,
@@ -153,6 +157,7 @@ const _mockNonceResults = new Map();
 let _mockEmployerOverride = null;
 const _mockLinked = []; // members onboarded this session
 const _mockInvites = []; // employer invites created this session
+const _mockRemovedIds = new Set(); // members un-linked from the employer this session
 
 function readMemberSession(id) {
   if (!_mockMemberMutations.has(id)) {
@@ -191,7 +196,9 @@ function applyMemberMutations(m) {
 }
 
 function mockMembers() {
-  return [...MEMBERS, ..._mockLinked].map(applyMemberMutations);
+  return [...MEMBERS, ..._mockLinked]
+    .filter((m) => !_mockRemovedIds.has(m.id))
+    .map(applyMemberMutations);
 }
 
 function mockRuns() {
@@ -458,6 +465,78 @@ export async function getEmployerMetrics() {
   return data ?? {};
 }
 
+/**
+ * Create a new employer (admin only). Wraps the create_employer SECURITY
+ * DEFINER RPC (0049), which RAISEs for any app_role other than 'admin'.
+ * @param {{name: string, sector?: string, registrationNo?: string,
+ *   contactName?: string, contactPhone?: string, contactEmail?: string,
+ *   district?: string, payrollCadence?: string,
+ *   defaultContributionConfig?: object}} payload
+ * @returns {Promise<Object>} the newly-inserted, mapped employer row
+ */
+export async function createEmployer(payload) {
+  if (!IS_SUPABASE_ENABLED) {
+    // Emergency mock fallback — shaped row, not persisted.
+    const id = payload.id ?? `emp-new-${Date.now()}`;
+    return mapEmployer({
+      id,
+      name: payload.name,
+      sector: payload.sector ?? null,
+      registration_no: payload.registrationNo ?? null,
+      contact_name: payload.contactName ?? null,
+      contact_phone: payload.contactPhone ?? null,
+      contact_email: payload.contactEmail ?? null,
+      district: payload.district ?? null,
+      payroll_cadence: payload.payrollCadence ?? null,
+      default_contribution_config: payload.defaultContributionConfig ?? {},
+      created_at: currentTime().toISOString(),
+    });
+  }
+  const { data, error } = await supabase.rpc('create_employer', {
+    p_name: payload.name,
+    p_sector: payload.sector ?? null,
+    p_registration_no: payload.registrationNo ?? null,
+    p_contact_name: payload.contactName ?? null,
+    p_contact_phone: payload.contactPhone ?? null,
+    p_contact_email: payload.contactEmail ?? null,
+    p_district: payload.district ?? null,
+    p_payroll_cadence: payload.payrollCadence ?? null,
+    p_default_contribution_config: payload.defaultContributionConfig ?? {},
+  });
+  if (error) throw error;
+  return mapEmployer(data);
+}
+
+/**
+ * Admin roster rollup across ALL employers (one row per employer with member
+ * count + balances + contributions). Wraps the get_all_employers_metrics RPC
+ * (0049, admin-gated). Returns an array of camelCase metric objects.
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getAllEmployersMetrics() {
+  if (!IS_SUPABASE_ENABLED) {
+    // Emergency mock: the single seeded employer with rolled-up mock metrics.
+    const m = await getEmployerMetrics();
+    return [{
+      id: EMPLOYER.id,
+      name: EMPLOYER.name,
+      sector: EMPLOYER.sector ?? null,
+      district: EMPLOYER.district ?? null,
+      payrollCadence: EMPLOYER.payrollCadence ?? null,
+      createdAt: null,
+      headcount: m.headcount ?? 0,
+      activeCount: m.active ?? 0,
+      totalBalance: m.totalBalance ?? 0,
+      totalContributions: m.totalContributions ?? 0,
+      employerContributions: m.employerContributions ?? 0,
+      insuredCount: m.insuredCount ?? 0,
+    }];
+  }
+  const { data, error } = await supabase.rpc('get_all_employers_metrics');
+  if (error) throw error;
+  return data ?? [];
+}
+
 /** Monthly-contributions leaderboard for the Overview hero (unchanged shape). */
 export async function getEmployerLeaderboard(employerId) {
   if (!employerId) return [];
@@ -574,6 +653,29 @@ export async function applyGroupInsurance(employerId, { cover } = {}) {
   return data;
 }
 
+/**
+ * Remove a member from the employer's company. This UN-LINKS the subscriber
+ * from the employer (`employer_id → NULL`) so they drop off the roster — it does
+ * NOT suspend or deactivate them. Their pension account stays active and they
+ * continue as an individual subscriber. Scoped to the caller's own roster (the
+ * RPC enforces the `employerId` claim; the mock keys by id).
+ * @param {string} employerId
+ * @param {string} employeeId  the member's subscriber id
+ * @returns {Promise<{ id:string, removed:boolean }>}
+ */
+export async function removeEmployee(employerId, employeeId) {
+  if (!employeeId) throw new Error('Missing employee id');
+  if (!IS_SUPABASE_ENABLED) {
+    _mockRemovedIds.add(employeeId);
+    return { id: employeeId, removed: true };
+  }
+  const { data, error } = await supabase.rpc('remove_employer_member', {
+    p_subscriber_id: employeeId,
+  });
+  if (error) throw error;
+  return data;
+}
+
 /** Patches the caller's own employer profile row (incl. the company config). */
 export async function updateEmployerProfile(patch) {
   if (!IS_SUPABASE_ENABLED) {
@@ -622,6 +724,18 @@ export async function createEmployerInvite(prefill) {
   const { data, error } = await supabase.rpc('create_employer_invite', { p_prefill: prefill });
   if (error) throw error;
   return data;
+}
+
+/**
+ * Bulk onboarding — create an invite for each prefill (Excel mass-upload). Each
+ * is an independent `createEmployerInvite` call; one failure doesn't abort the
+ * rest. Returns a summary { created, failed, total }.
+ * @param {object[]} prefills
+ */
+export async function bulkCreateEmployerInvites(prefills = []) {
+  const results = await Promise.allSettled(prefills.map((p) => createEmployerInvite(p)));
+  const created = results.filter((r) => r.status === 'fulfilled').length;
+  return { created, failed: prefills.length - created, total: prefills.length };
 }
 
 /** List the employer's PENDING invites (the roster's pending-KYC rows). */

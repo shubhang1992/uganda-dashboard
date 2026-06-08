@@ -7,7 +7,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { toCanonicalUGPhone } from '../_lib/phone.js';
 
-const VALID_ROLES = new Set(['subscriber', 'agent', 'branch', 'distributor', 'employer']);
+const VALID_ROLES = new Set(['subscriber', 'agent', 'branch', 'distributor', 'employer', 'admin']);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

@@ -142,3 +142,149 @@
 }
 .copyBtn:hover { background: #211f54; }
 .copyBtn:focus-visible { outline: 2px solid #292867; outline-offset: 2px; }
+
+/* ── Single / Bulk toggle ─────────────────────────────────────────────────── */
+.modeToggle {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: #f3f3f8;
+  border-radius: 0.7rem;
+}
+.modeTab {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: transparent;
+  border-radius: 0.5rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.modeTab[data-active] {
+  background: #fff;
+  color: #292867;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.modeTab:focus-visible { outline: 2px solid #292867; outline-offset: 1px; }
+
+/* ── Bulk: download template (outlined CTA) ───────────────────────────────── */
+.outlineBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid #292867;
+  border-radius: 0.6rem;
+  background: #fff;
+  color: #292867;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.outlineBtn:hover { background: #f3f3f8; }
+.outlineBtn:focus-visible { outline: 2px solid #292867; outline-offset: 2px; }
+
+/* ── Bulk: upload dropzone ────────────────────────────────────────────────── */
+.dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.25rem 1rem;
+  border: 1.5px dashed #c7c6e0;
+  border-radius: 0.7rem;
+  background: #fafaff;
+  text-align: center;
+}
+.dropIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #ececf6;
+  color: #292867;
+}
+.uploadBtn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #292867;
+  border-radius: 0.6rem;
+  background: #292867;
+  color: #fff;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.uploadBtn:hover { background: #211f54; }
+.uploadBtn:focus-visible { outline: 2px solid #292867; outline-offset: 2px; }
+.dropHint { font-size: 0.78rem; color: #6b7280; }
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Bulk: review table ───────────────────────────────────────────────────── */
+.reviewWrap {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid #ececef;
+  border-radius: 0.6rem;
+}
+.reviewTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.reviewTable th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  background: #f7f7fb;
+  color: #6b7280;
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  border-bottom: 1px solid #ececef;
+}
+.reviewTable td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid #f1f1f5;
+  color: #374151;
+  vertical-align: middle;
+}
+.reviewTable tr[data-invalid] { background: #fef6f6; }
+.reviewNum { color: #9ca3af; font-variant-numeric: tabular-nums; }
+.reviewEmail {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ok,
+.bad {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ok { background: #e6f6ee; color: #166534; }
+.bad { background: #fdecec; color: #b42318; }

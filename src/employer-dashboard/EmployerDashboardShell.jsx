@@ -4,10 +4,11 @@
 //   <EmployerDashboardProvider> → <EmployerScopeProvider> → <ShellInner/>.
 //
 // Panels mount as SIBLINGS of <main> (not nested), each with `splitMode`, so a
-// panel can reflow main content beside an open panel: ViewEmployees,
-// EmployeeDetail, ContributionRuns, InsuranceBenefits, EmployerReports,
-// EmployerSettings, EmployerTickets, and OnboardStaffPanel (the invite-a-member
-// flow — creates a tokenized KYC invite that onboards an employer-tagged subscriber).
+// panel can reflow main content beside an open panel: ViewEmployees (which hosts
+// its own member list↔detail view in-place), ContributionRuns, InsuranceBenefits,
+// PendingKyc, EmployerReports, EmployerSettings, EmployerTickets, and
+// OnboardStaffPanel (the invite-a-member flow — creates a tokenized KYC invite
+// that onboards an employer-tagged subscriber).
 
 import { useState, useEffect, useCallback } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
@@ -20,10 +21,10 @@ import logo from '../assets/logo.png';
 import EmployerSidebar from './sidebar/EmployerSidebar';
 import EmployerOverview from './overview/EmployerOverview';
 import ViewEmployees from './employees/ViewEmployees';
-import EmployeeDetail from './employees/EmployeeDetail';
 import OnboardStaffPanel from './employees/OnboardStaffPanel';
 import ContributionRuns from './runs/ContributionRuns';
 import InsuranceBenefits from './insurance/InsuranceBenefits';
+import PendingKyc from './kyc/PendingKyc';
 import EmployerReports from './reports/EmployerReports';
 import EmployerTickets from './tickets/EmployerTickets';
 import EmployerSettings from './settings/EmployerSettings';
@@ -114,9 +115,9 @@ function DashboardContent({ menuOpen, onMenuToggle, onMenuClose }) {
         <EmployerOverview />
       </main>
       <ViewEmployees splitMode />
-      <EmployeeDetail splitMode />
       <ContributionRuns splitMode />
       <InsuranceBenefits splitMode />
+      <PendingKyc splitMode />
       <EmployerReports splitMode />
       <EmployerSettings splitMode />
       <EmployerTickets splitMode />

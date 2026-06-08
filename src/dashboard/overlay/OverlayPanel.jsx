@@ -45,7 +45,7 @@ function ExpandIcon({ expanded }) {
   );
 }
 
-function CollapsibleSection({ title, count, defaultOpen, children, fill, expanded, onExpandToggle }) {
+export function CollapsibleSection({ title, count, defaultOpen, children, fill, expanded, onExpandToggle }) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(defaultOpen ?? true);
 
@@ -113,7 +113,7 @@ function StatusBar({ label, value, segments }) {
   );
 }
 
-function GlobalSearch({ onNavigate }) {
+export function GlobalSearch({ onNavigate }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -275,7 +275,7 @@ const StarIcon = () => (
   </svg>
 );
 
-function TimePeriodCard({ metrics, level, parentId, onMetricClick }) {
+export function TimePeriodCard({ metrics, level, parentId, onMetricClick }) {
   const [activeIdx, setActiveIdx] = useState(2); // default: This Month
   const period = PERIODS[activeIdx].key;
   const { data: topBranch } = useTopBranch(level, parentId);

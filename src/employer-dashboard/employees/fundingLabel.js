@@ -1,7 +1,7 @@
 // Shared helper: a one-line description of the employer's single company-wide
 // funding model (Issue 2). Kept in its own module (not a component file) so
-// fast-refresh stays component-only. Consumed by ViewEmployees / EmployeeDetail
-// / ContributionRuns / OnboardStaffPanel.
+// fast-refresh stays component-only. Consumed by ViewEmployees / MemberDetailBody
+// / ContributionRuns / OnboardStaffPanel / EmployerHealthScore.
 
 import { formatUGX } from '../../utils/currency';
 

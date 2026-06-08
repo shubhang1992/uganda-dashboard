@@ -214,8 +214,9 @@ describe('POST /api/auth/verify-otp', () => {
   });
 
   it('returns 400 invalid_otp when role is missing or out-of-allow-list', async () => {
-    // 'employer' is now a valid role (Phase 0) — only 'admin' stays deferred.
-    for (const role of [undefined, 'admin', 42]) {
+    // All six app roles (incl. 'employer' and 'admin') are now valid — only
+    // unknown roles are rejected.
+    for (const role of [undefined, 'superadmin', 42]) {
       const r = makeRes();
       await call(
         makeReq({

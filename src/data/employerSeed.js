@@ -48,8 +48,14 @@ export const EMPLOYER = Object.freeze({
   district: 'Kampala',
   districtId: 'd-kampala',
   payrollCadence: 'monthly',
-  defaultContributionConfig: { mode: 'co-contribution', matchPct: 50, maxContribution: 200000 },
+  // Co-contribution funding + company-wide group life cover (all-or-nothing: every
+  // member is covered at the same flat amount, or none are).
+  defaultContributionConfig: { mode: 'co-contribution', matchPct: 50, maxContribution: 200000, insuranceEnabled: true, groupCoverAmount: 15000000 },
 });
+
+// Flat group life cover applied uniformly to EVERY member (the all-or-nothing
+// model — there is no per-member insurance). Premium is employer-included (0).
+const GROUP_COVER = 15000000;
 
 // Demo employer login phone — resolves to emp-001 via demo_personas.
 export const EMPLOYER_DEMO_PHONE = '+256700000031';
@@ -83,13 +89,18 @@ function makeMember(p) {
     employerId: EMPLOYER.id,
     gender: 'male',
     status: 'active',
+    // Real sign-up always completes KYC, so members are all 'complete'
+    // ("pending KYC" is tracked via pending invites, not members).
+    kycStatus: 'complete',
     districtId: EMPLOYER.districtId,
     nominees: [],
-    insuranceCover: 0,
-    insurancePremiumMonthly: 0,
-    insuranceStatus: 'inactive',
-    insuranceRenewalDate: null,
     ...p,
+    // Company-wide group cover, uniform across ALL staff — set AFTER ...p so a
+    // per-member value can never diverge (insurance is all-or-nothing).
+    insuranceCover: GROUP_COVER,
+    insurancePremiumMonthly: 0,
+    insuranceStatus: 'active',
+    insuranceRenewalDate: dateDaysAgo(-180),
     dob: p.dob ?? dobForAge(p.age ?? 30),
     contributionSchedule: { ...DEFAULT_SPLIT, amount: monthly },
     ownContributions: own,
@@ -103,23 +114,23 @@ function makeMember(p) {
 }
 
 export const MEMBERS = Object.freeze([
-  makeMember({ id: 'empe-001', name: 'Brian Okello', phone: '+256700100001', email: 'brian.okello@nilebreweries.demo', gender: 'male', age: 38, nin: 'CM38010012345A', occupation: 'Plant Manager', monthlyContribution: 210000, monthsActive: 30, joinedDate: dateDaysAgo(900), insuranceCover: 25000000, insurancePremiumMonthly: 0, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-210) }),
-  makeMember({ id: 'empe-002', name: 'Grace Nakato', phone: '+256700100002', email: 'grace.nakato@nilebreweries.demo', gender: 'female', age: 31, nin: 'CF31050067890B', occupation: 'Accountant', monthlyContribution: 140000, monthsActive: 21, joinedDate: dateDaysAgo(640), insuranceCover: 15000000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-150) }),
+  makeMember({ id: 'empe-001', name: 'Brian Okello', phone: '+256700100001', email: 'brian.okello@nilebreweries.demo', gender: 'male', age: 38, nin: 'CM38010012345A', occupation: 'Plant Manager', monthlyContribution: 210000, monthsActive: 30, joinedDate: dateDaysAgo(900) }),
+  makeMember({ id: 'empe-002', name: 'Grace Nakato', phone: '+256700100002', email: 'grace.nakato@nilebreweries.demo', gender: 'female', age: 31, nin: 'CF31050067890B', occupation: 'Accountant', monthlyContribution: 140000, monthsActive: 21, joinedDate: dateDaysAgo(640) }),
   makeMember({ id: 'empe-003', name: 'Samuel Otim', phone: '+256700100003', email: 'samuel.otim@nilebreweries.demo', gender: 'male', age: 45, nin: 'CM45030011223C', occupation: 'Logistics Lead', monthlyContribution: 100000, monthsActive: 36, joinedDate: dateDaysAgo(1100) }),
   makeMember({ id: 'empe-004', name: 'Esther Aciro', phone: '+256700100004', email: 'esther.aciro@nilebreweries.demo', gender: 'female', age: 27, nin: 'CF27110033445D', occupation: 'QA Technician', monthlyContribution: 80000, monthsActive: 14, joinedDate: dateDaysAgo(420) }),
-  makeMember({ id: 'empe-005', name: 'Joseph Mukasa', phone: '+256700100005', email: 'joseph.mukasa@nilebreweries.demo', gender: 'male', age: 52, nin: 'CM52070055667E', occupation: 'Maintenance Supervisor', monthlyContribution: 120000, monthsActive: 36, joinedDate: dateDaysAgo(1500), insuranceCover: 20000000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-90) }),
+  makeMember({ id: 'empe-005', name: 'Joseph Mukasa', phone: '+256700100005', email: 'joseph.mukasa@nilebreweries.demo', gender: 'male', age: 52, nin: 'CM52070055667E', occupation: 'Maintenance Supervisor', monthlyContribution: 120000, monthsActive: 36, joinedDate: dateDaysAgo(1500) }),
   makeMember({ id: 'empe-006', name: 'Florence Atim', phone: '+256700100006', email: 'florence.atim@nilebreweries.demo', gender: 'female', age: 34, nin: 'CF34020077889F', occupation: 'HR Officer', monthlyContribution: 132000, monthsActive: 24, joinedDate: dateDaysAgo(720) }),
   makeMember({ id: 'empe-007', name: 'David Wanyama', phone: '+256700100007', email: 'david.wanyama@nilebreweries.demo', gender: 'male', age: 29, nin: 'CM29090099001G', occupation: 'Sales Rep', monthlyContribution: 95000, monthsActive: 12, joinedDate: dateDaysAgo(360) }),
-  makeMember({ id: 'empe-008', name: 'Rebecca Namusoke', phone: '+256700100008', email: 'rebecca.namusoke@nilebreweries.demo', gender: 'female', age: 41, nin: 'CF41040022334H', occupation: 'Procurement Officer', monthlyContribution: 160000, monthsActive: 32, joinedDate: dateDaysAgo(980), insuranceCover: 18000000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-30) }),
+  makeMember({ id: 'empe-008', name: 'Rebecca Namusoke', phone: '+256700100008', email: 'rebecca.namusoke@nilebreweries.demo', gender: 'female', age: 41, nin: 'CF41040022334H', occupation: 'Procurement Officer', monthlyContribution: 160000, monthsActive: 32, joinedDate: dateDaysAgo(980) }),
   makeMember({ id: 'empe-009', name: 'Isaac Tumusiime', phone: '+256700100009', email: 'isaac.tumusiime@nilebreweries.demo', gender: 'male', age: 36, nin: 'CM36060044556I', occupation: 'IT Support', monthlyContribution: 105000, monthsActive: 18, joinedDate: dateDaysAgo(560) }),
   makeMember({ id: 'empe-010', name: 'Mary Auma', phone: '+256700100010', email: 'mary.auma@nilebreweries.demo', gender: 'female', age: 24, nin: 'CF24120066778J', occupation: 'Admin Assistant', monthlyContribution: 65000, monthsActive: 6, joinedDate: dateDaysAgo(180) }),
   makeMember({ id: 'empe-011', name: 'Peter Sserwadda', phone: '+256700100011', email: 'peter.sserwadda@nilebreweries.demo', gender: 'male', age: 48, nin: 'CM48080088990K', occupation: 'Security Lead', monthlyContribution: 90000, monthsActive: 36, joinedDate: dateDaysAgo(1320) }),
-  makeMember({ id: 'empe-012', name: 'Sarah Kobusingye', phone: '+256700100012', email: 'sarah.kobusingye@nilebreweries.demo', gender: 'female', age: 33, nin: 'CF33100011002L', occupation: 'Marketing Coordinator', monthlyContribution: 115000, monthsActive: 22, joinedDate: dateDaysAgo(660), insuranceCover: 15000000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-120) }),
+  makeMember({ id: 'empe-012', name: 'Sarah Kobusingye', phone: '+256700100012', email: 'sarah.kobusingye@nilebreweries.demo', gender: 'female', age: 33, nin: 'CF33100011002L', occupation: 'Marketing Coordinator', monthlyContribution: 115000, monthsActive: 22, joinedDate: dateDaysAgo(660) }),
   // Suspended (skipped by runs).
   makeMember({ id: 'empe-013', name: 'Henry Kato', phone: '+256700100013', email: 'henry.kato@nilebreweries.demo', gender: 'male', age: 39, nin: 'CM39050033445M', occupation: 'Driver', monthlyContribution: 55000, monthsActive: 28, status: 'suspended', joinedDate: dateDaysAgo(840) }),
   makeMember({ id: 'empe-014', name: 'Diana Nabirye', phone: '+256700100014', email: 'diana.nabirye@nilebreweries.demo', gender: 'female', age: 28, nin: 'CF28030055667N', occupation: 'Lab Analyst', monthlyContribution: 90000, monthsActive: 10, joinedDate: dateDaysAgo(300) }),
   makeMember({ id: 'empe-015', name: 'Robert Ssempala', phone: '+256700100015', email: 'robert.ssempala@nilebreweries.demo', gender: 'male', age: 55, nin: 'CM55020077889O', occupation: 'Warehouse Hand', monthlyContribution: 60000, monthsActive: 36, status: 'suspended', joinedDate: dateDaysAgo(1700) }),
-  makeMember({ id: 'empe-016', name: 'Juliet Akello', phone: '+256700100016', email: 'juliet.akello@nilebreweries.demo', gender: 'female', age: 30, nin: 'CF30070099001P', occupation: 'Customer Service', monthlyContribution: 70000, monthsActive: 8, joinedDate: dateDaysAgo(240), insuranceCover: 12000000, insuranceStatus: 'active', insuranceRenewalDate: dateDaysAgo(-60) }),
+  makeMember({ id: 'empe-016', name: 'Juliet Akello', phone: '+256700100016', email: 'juliet.akello@nilebreweries.demo', gender: 'female', age: 30, nin: 'CF30070099001P', occupation: 'Customer Service', monthlyContribution: 70000, monthsActive: 8, joinedDate: dateDaysAgo(240) }),
 ]);
 
 const ACTIVE_MEMBERS = MEMBERS.filter((m) => m.status === 'active');

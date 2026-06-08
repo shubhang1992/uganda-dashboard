@@ -192,6 +192,21 @@ export function useCreateInvite(employerId) {
   });
 }
 
+/**
+ * Mutation: bulk-create invites from an uploaded Excel (mass onboarding).
+ * Returns { created, failed, total }; refreshes the pending-invites list once.
+ * @param {string} employerId
+ */
+export function useBulkCreateInvites(employerId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (prefills) => employer.bulkCreateEmployerInvites(prefills),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pendingInvites', employerId] });
+    },
+  });
+}
+
 /** Mutation: cancel (expire) a pending invite. */
 export function useCancelInvite(employerId) {
   const queryClient = useQueryClient();
@@ -217,6 +232,27 @@ export function useApplyGroupInsurance(employerId) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ cover }) => employer.applyGroupInsurance(employerId, { cover }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees', employerId] });
+      queryClient.invalidateQueries({ queryKey: ['employerMetrics', employerId] });
+      queryClient.invalidateQueries({ queryKey: ['employee'] });
+    },
+  });
+}
+
+/**
+ * Mutation: remove a member from the company (un-link `employer_id`). The
+ * subscriber's account stays active — they just leave the roster. On success it
+ * invalidates the roster (`['employees', employerId]`), the hero's headcount /
+ * active / suspended counts (`['employerMetrics', employerId]`), and every cached
+ * single employee (`['employee']`) so an open detail panel refreshes too.
+ * @param {string} employerId
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useRemoveEmployee(employerId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ employeeId }) => employer.removeEmployee(employerId, employeeId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees', employerId] });
       queryClient.invalidateQueries({ queryKey: ['employerMetrics', employerId] });
@@ -256,4 +292,34 @@ export function useRunContribution(employerId) {
 export function invalidateAllEmployer(queryClient) {
   ['employer', 'employees', 'employee', 'employeeContributions', 'contributionRuns', 'contributionRun', 'employerMetrics']
     .forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
+}
+
+// ─── Admin-scoped employer hooks (platform-wide, used by the Admin dashboard) ──
+
+/**
+ * Admin: per-employer roster rollup across EVERY employer (member counts +
+ * balances + contributions). Wraps get_all_employers_metrics (0049, admin-gated).
+ * @returns {import('@tanstack/react-query').UseQueryResult<Array<Object>>}
+ */
+export function useAllEmployersMetrics() {
+  return useQuery({
+    queryKey: ['allEmployersMetrics'],
+    queryFn: employer.getAllEmployersMetrics,
+    staleTime: READ_STALE_TIME,
+  });
+}
+
+/**
+ * Admin: create a new employer. Invalidates the admin roster rollup so the
+ * ViewEmployers list refreshes on success.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useCreateEmployer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: employer.createEmployer,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allEmployersMetrics'] });
+    },
+  });
 }

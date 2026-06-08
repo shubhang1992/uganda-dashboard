@@ -20,7 +20,7 @@
 
 import { api, IS_SUPABASE_ENABLED } from './api';
 import { COUNTRY, REGIONS, AGENTS, BRANCHES } from '../data/mockData';
-import { formatNumber } from '../utils/currency';
+import { formatNumber, formatUGX } from '../utils/currency';
 
 let _responses = null;
 
@@ -88,6 +88,25 @@ async function postChat(message, context, fallback) {
 export async function getChatResponse(message) {
   if (!IS_SUPABASE_ENABLED) return mockChatResponse(message);
   return postChat(message, 'admin', mockChatResponse(message));
+}
+
+/**
+ * Employer "copilot" — keyword-matched answers grounded in the EMPLOYER's own
+ * figures (passed in `ctx`), not the distributor network. A mock (CLAUDE.md
+ * §10a), but truthful: it answers from real, RLS-scoped data the hero already
+ * holds, so "Who is pending KYC?" returns the real pending-invite list rather
+ * than the generic admin/network reply the shared `/api/chat` route gives. No
+ * round-trip — the data is already client-side, and the route has no
+ * employer-invite query to answer these questions anyway.
+ *
+ * @param {string} message
+ * @param {object} ctx - { headcount, active, inactive, participationPct,
+ *   pendingKyc, pendingNames[], fundingLabel, coverLabel, totalContributions,
+ *   lastRunLabel } — all derived in EmployerHealthScore from live hooks.
+ * @returns {Promise<string>}
+ */
+export async function getEmployerChatResponse(message, ctx = {}) {
+  return mockEmployerChatResponse(message, ctx);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -165,6 +184,71 @@ function mockChatResponse(message) {
   if (l.includes('subscriber') || l.includes('active')) return responses.subscriber;
   if (l.includes('gender') || l.includes('split')) return responses.gender;
   return responses.default;
+}
+
+function mockEmployerChatResponse(message, ctx = {}) {
+  const l = (message || '').toLowerCase();
+  const {
+    headcount = 0,
+    active = 0,
+    inactive = 0,
+    participationPct = 0,
+    pendingKyc = 0,
+    pendingNames = [],
+    fundingLabel = 'Company funding: not set',
+    coverLabel = 'no group cover',
+    totalContributions = 0,
+    lastRunLabel = null,
+  } = ctx;
+
+  // Pending KYC = people invited who haven't completed sign-up (the real,
+  // RLS-scoped invite list — not a member status).
+  if (l.includes('kyc') || l.includes('pending') || l.includes('invite') || l.includes('sign-up') || l.includes('sign up')) {
+    if (pendingKyc === 0) return 'Everyone you’ve invited has completed sign-up — no pending KYC right now.';
+    const shown = pendingNames.slice(0, 5).join(', ');
+    const more = pendingNames.length > 5 ? `, +${formatNumber(pendingNames.length - 5)} more` : '';
+    const who = shown ? `: ${shown}${more}` : '';
+    return `${formatNumber(pendingKyc)} ${pendingKyc === 1 ? 'person hasn’t' : 'people haven’t'} finished signing up${who}. Open Pending KYC to resend their invite links.`;
+  }
+
+  // Individual staff balances are private by design — decline honestly.
+  if (l.includes('balance') || l.includes('savings') || l.includes('how much has')) {
+    return 'Individual staff balances are private — you fund contributions, but each member’s personal savings aren’t visible to the employer.';
+  }
+
+  // Contribution runs / total funded.
+  if (l.includes('run') || l.includes('total') || l.includes('funded') || l.includes('paid')) {
+    return `You’ve funded ${formatUGX(totalContributions)} to date${lastRunLabel ? ` — your last run was ${lastRunLabel}` : ' (no runs yet)'}.`;
+  }
+
+  // Inactive staff.
+  if (l.includes('inactive') || l.includes('suspend')) {
+    return inactive > 0
+      ? `${formatNumber(inactive)} of ${formatNumber(headcount)} staff are inactive — contribution runs skip them.`
+      : `All ${formatNumber(headcount)} staff are active.`;
+  }
+
+  // Participation / contributing.
+  if (l.includes('contribut') || l.includes('participat')) {
+    return `${participationPct}% of your ${formatNumber(headcount)} staff are actively contributing.`;
+  }
+
+  // Company funding model.
+  if (l.includes('funding') || l.includes('split') || l.includes('match')) {
+    return `${fundingLabel}. Each member can save their own amount on top of this.`;
+  }
+
+  // Group insurance (company-wide, all-or-nothing).
+  if (l.includes('insurance') || l.includes('cover')) {
+    return `Group life cover: ${coverLabel}. It’s company-wide — the same for every staff member, with no per-member opt-out.`;
+  }
+
+  // Headcount.
+  if (l.includes('staff') || l.includes('employee') || l.includes('headcount') || l.includes('how many') || l.includes('people')) {
+    return `You have ${formatNumber(headcount)} staff — ${formatNumber(active)} active${inactive > 0 ? `, ${formatNumber(inactive)} inactive` : ''}.`;
+  }
+
+  return 'I can answer about your staff, contribution runs, company funding, group insurance, and who’s pending KYC. Try “Who is pending KYC?” or “What’s our funding split?”.';
 }
 
 function mockAgentReply(message, firstName) {

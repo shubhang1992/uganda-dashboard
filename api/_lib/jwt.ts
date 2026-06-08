@@ -22,7 +22,7 @@ import { SignJWT, jwtVerify } from 'jose';
 // any handler can import this module. The deferred check in `getSecretKey()`
 // below is a defensive secondary guard.
 
-export type JwtRole = 'subscriber' | 'agent' | 'branch' | 'distributor' | 'employer';
+export type JwtRole = 'subscriber' | 'agent' | 'branch' | 'distributor' | 'employer' | 'admin';
 
 export type JwtClaims = {
   iss: 'upensions';
@@ -35,6 +35,7 @@ export type JwtClaims = {
   branchId?: string;
   distributorId?: string;
   employerId?: string;
+  adminId?: string;
   aud: 'authenticated';
   exp: number;
   iat: number;
@@ -96,6 +97,7 @@ export async function signJwt(claims: JwtSignInput): Promise<string> {
   if (claims.branchId) fullClaims.branchId = claims.branchId;
   if (claims.distributorId) fullClaims.distributorId = claims.distributorId;
   if (claims.employerId) fullClaims.employerId = claims.employerId;
+  if (claims.adminId) fullClaims.adminId = claims.adminId;
 
   // jose treats `iat`/`exp` as reserved — we set them explicitly via the
   // builder so the value lands at the top level (not in protected header).

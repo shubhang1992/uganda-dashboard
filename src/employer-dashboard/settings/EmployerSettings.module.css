@@ -194,6 +194,68 @@
   outline-offset: 2px;
 }
 
+/* ── Toggle switch (group insurance on/off) ────────────────────────────────────
+   Native checkbox styled as a switch: the real input is visually hidden but
+   stays focusable; the track/thumb render its state, and the focus ring shows on
+   the track via :focus-visible so keyboard users get a visible indicator. */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.switchInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.switchTrack {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: rgba(41, 40, 103, 0.28);
+  border: 1px solid rgba(41, 40, 103, 0.22);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.switchThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-white);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+
+.switchInput:checked + .switchTrack {
+  background: var(--color-indigo);
+  border-color: var(--color-indigo);
+}
+
+.switchInput:checked + .switchTrack .switchThumb {
+  transform: translateX(18px);
+}
+
+.switchInput:focus-visible + .switchTrack {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 2px;
+}
+
+.switchLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-slate);
+}
+
 /* ── Default-config preview ────────────────────────────────────────────────── */
 .preview {
   display: flex;

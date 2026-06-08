@@ -1088,6 +1088,7 @@ async function main() {
         { name: 'age', type: 'int' },
         { name: 'dob', type: 'date' },
         { name: 'nin', type: 'text' },
+        { name: 'kyc_status', type: 'text' },
         { name: 'occupation', type: 'text' },
         { name: 'agent_id', type: 'text' },
         { name: 'employer_id', type: 'text' },
@@ -1104,6 +1105,7 @@ async function main() {
         MEMBERS.map((m) => m.age ?? null),
         MEMBERS.map((m) => toDateStr(m.dob)),
         MEMBERS.map((m) => m.nin ?? null),
+        MEMBERS.map((m) => m.kycStatus ?? 'complete'), // all complete — real "pending KYC" = pending invites, not members
         MEMBERS.map((m) => m.occupation ?? null),
         MEMBERS.map(() => null),                       // agent_id NULL → no commission
         MEMBERS.map((m) => m.employerId),

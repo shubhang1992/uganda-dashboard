@@ -237,12 +237,6 @@
   height: 160px;
 }
 
-.gauge {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
 .scoreCenter {
   position: absolute;
   inset: 0;

@@ -140,8 +140,9 @@ describe('POST /api/auth/send-otp', () => {
   });
 
   it('returns 400 invalid_request when role is not in the allow-list', async () => {
+    // 'admin' is now a valid role (all six ship); use an unknown role here.
     await call(
-      makeReq({ body: { phone: '+256777247884', role: 'admin' } }),
+      makeReq({ body: { phone: '+256777247884', role: 'superadmin' } }),
       res,
     );
     expect(res.__getStatus()).toBe(400);

@@ -17,6 +17,7 @@ import {
   useEmployees,
   useContributionRuns,
   useEmployerLeaderboard,
+  usePendingInvites,
 } from '../../hooks/useEmployer';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import EmployerHealthScore from './EmployerHealthScore';
@@ -29,13 +30,13 @@ import styles from './EmployerOverview.module.css';
 // BranchOverview's PANEL_PADDING; sized for the Phase-2+ panels.)
 const PANEL_PADDING = {
   employees: 640 + 48,
-  employeeDetail: 560 + 48,
   runs: 680 + 48,
   insurance: 600 + 48,
-  reports: 680 + 48,
+  kyc: 580 + 48,
+  reports: 820 + 48,
   support: 560 + 48,
   settings: 480 + 48,
-  onboard: 480 + 48,
+  onboard: 560 + 48,
 };
 
 export default function EmployerOverview() {
@@ -43,9 +44,9 @@ export default function EmployerOverview() {
   const { employerId } = useEmployerScope();
   const {
     employeesOpen,
-    employeeDetailOpen,
     runsOpen,
     insuranceOpen,
+    kycOpen,
     reportsOpen,
     supportOpen,
     settingsOpen,
@@ -77,17 +78,20 @@ export default function EmployerOverview() {
   // on error (the hero renders nothing in its slot) rather than gating the whole
   // dashboard on it, so it's deliberately NOT folded into `hasError`/`retryAll`.
   const { data: leaderboard = [] } = useEmployerLeaderboard(employerId);
+  // Pending invites (people awaiting sign-up) drive the hero's real "Pending KYC"
+  // count + the KYC panel. Non-blocking — degrades to `[]`.
+  const { data: pendingInvites = [] } = usePendingInvites(employerId);
   const isMobile = useIsMobile();
 
   // Which panel (if any) is currently driving split view.
   const activePanel = employeesOpen
     ? 'employees'
-    : employeeDetailOpen
-    ? 'employeeDetail'
     : runsOpen
     ? 'runs'
     : insuranceOpen
     ? 'insurance'
+    : kycOpen
+    ? 'kyc'
     : reportsOpen
     ? 'reports'
     : supportOpen
@@ -152,6 +156,7 @@ export default function EmployerOverview() {
         employees={employees}
         runs={runs}
         leaderboard={leaderboard}
+        pendingInvites={pendingInvites}
         employer={employer}
         user={user}
         split={splitState}

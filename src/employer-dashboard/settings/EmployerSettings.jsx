@@ -409,6 +409,7 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
   // cover) so the inputs render empty rather than "0".
   const initial = useMemo(() => {
     const cfg = employer?.defaultContributionConfig ?? {};
+    const coverRaw = cfg.groupCoverAmount;
     return {
       mode: cfg.mode ?? 'co-contribution',
       matchPct: cfg.matchPct ?? 50,
@@ -416,7 +417,11 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
       // Employer-only is now a FIXED monthly amount per member (members are
       // subscribers with no salary) — Issue 2 / unified model.
       employerAmount: cfg.employerAmount ?? 50000,
-      groupCoverAmount: cfg.groupCoverAmount ?? '',
+      // Group insurance is a company-wide TRUE/FALSE config, independent of
+      // funding mode. Back-compat: an un-migrated config with a positive cover
+      // is treated as enabled so existing employers keep their cover.
+      insuranceEnabled: cfg.insuranceEnabled ?? (Number(coverRaw) > 0),
+      groupCoverAmount: coverRaw ?? '',
     };
   }, [employer]);
 
@@ -449,11 +454,20 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
     e.preventDefault();
     if (updateProfile.isPending) return;
 
-    // Compute the optional UGX fields as number|null up front so the Phase 7
-    // group-insurance activation can drop straight into this handler.
-    const groupCoverAmount =
-      draft.groupCoverAmount === '' ? null : Number(draft.groupCoverAmount);
+    // Group insurance is a company-wide TRUE/FALSE config, independent of the
+    // funding mode: either every member gets the flat group cover or none do.
+    const insuranceEnabled = !!draft.insuranceEnabled;
+    const cover = insuranceEnabled
+      ? (draft.groupCoverAmount === '' ? null : Number(draft.groupCoverAmount))
+      : null;
+    if (insuranceEnabled && !(cover > 0)) {
+      setErr('Enter a cover amount greater than 0, or turn group insurance off.');
+      return;
+    }
 
+    // Build the mode-specific config; the insurance fields ride along on both
+    // modes so the company-wide setting is persisted either way.
+    let defaultContributionConfig;
     if (isCo) {
       const matchPct = Number(draft.matchPct);
       const maxContribution =
@@ -466,62 +480,49 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
         setErr('Maximum contribution must be 0 or more (or blank for no cap).');
         return;
       }
-      setErr('');
-
-      const defaultContributionConfig = {
+      defaultContributionConfig = {
         mode: 'co-contribution',
         matchPct,
         maxContribution,
+        insuranceEnabled,
+        groupCoverAmount: cover,
       };
-      updateProfile.mutate(
-        { defaultContributionConfig },
-        {
-          onSuccess: () => addToast('success', 'Default contribution config updated.'),
-          onError: (e2) => addToast('error', e2?.message || 'Could not update default config.'),
-        },
-      );
-      return;
-    }
-
-    // Employer-only — a fixed monthly amount per member (Issue 2).
-    const employerAmount = Number(draft.employerAmount);
-    if (!(employerAmount >= 0) || !Number.isFinite(employerAmount)) {
-      setErr('Amount per member must be 0 or more.');
-      return;
-    }
-    if (groupCoverAmount != null && !(groupCoverAmount >= 0)) {
-      setErr('Group insurance cover must be 0 or more (or blank for none).');
-      return;
+    } else {
+      const employerAmount = Number(draft.employerAmount);
+      if (!(employerAmount >= 0) || !Number.isFinite(employerAmount)) {
+        setErr('Amount per member must be 0 or more.');
+        return;
+      }
+      defaultContributionConfig = {
+        mode: 'employer-only',
+        employerAmount,
+        insuranceEnabled,
+        groupCoverAmount: cover,
+      };
     }
     setErr('');
 
-    const defaultContributionConfig = {
-      mode: 'employer-only',
-      employerAmount,
-      groupCoverAmount,
-    };
-    // Phase 7: employer-only funding bundles group life cover. Save the profile
-    // first; only if it succeeds AND a positive group cover was entered do we
-    // activate the flat group cover across the whole roster (a null/blank/0
-    // cover leaves per-employee insurance untouched). The roster mutation is
-    // chained inside onSuccess so insurance is never applied against an
-    // un-saved config.
-    const hasGroupCover = groupCoverAmount != null && groupCoverAmount > 0;
+    // Save the profile first; only then sync the roster's group cover so staff
+    // insurance always reflects the saved toggle. cover>0 activates the flat
+    // cover for everyone; cover 0 clears it (apply_group_insurance handles both).
     updateProfile.mutate(
       { defaultContributionConfig },
       {
         onSuccess: () => {
           addToast('success', 'Default contribution config updated.');
-          if (hasGroupCover) {
-            applyGroupInsurance.mutate(
-              { cover: groupCoverAmount },
-              {
-                onSuccess: () => addToast('success', 'Group cover applied to all staff.'),
-                onError: (e3) =>
-                  addToast('error', e3?.message || 'Could not apply group cover to staff.'),
-              },
-            );
-          }
+          applyGroupInsurance.mutate(
+            { cover: cover ?? 0 },
+            {
+              onSuccess: () => addToast(
+                'success',
+                insuranceEnabled
+                  ? 'Group cover applied to all staff.'
+                  : 'Group cover removed for all staff.',
+              ),
+              onError: (e3) =>
+                addToast('error', e3?.message || 'Could not update group cover for staff.'),
+            },
+          );
         },
         onError: (e2) => addToast('error', e2?.message || 'Could not update default config.'),
       },
@@ -600,42 +601,21 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
           </div>
         </div>
       ) : (
-        <div className={styles.fieldRow}>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="emp-default-er">Amount per member / month (UGX)</label>
-            <input
-              id="emp-default-er"
-              className={styles.input}
-              type="number"
-              min="0"
-              step="1000"
-              value={draft.employerAmount}
-              onChange={(e) => {
-                setDraft((d) => ({ ...d, employerAmount: e.target.value }));
-                if (err) setErr('');
-              }}
-            />
-            <span className={styles.hint}>The employer contributes this fixed amount to each member every month.</span>
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="emp-default-cover">Group insurance cover (UGX)</label>
-            <input
-              id="emp-default-cover"
-              className={styles.input}
-              type="number"
-              min="0"
-              step="1000"
-              value={draft.groupCoverAmount}
-              placeholder="No cover"
-              onChange={(e) => {
-                setDraft((d) => ({ ...d, groupCoverAmount: e.target.value }));
-                if (err) setErr('');
-              }}
-            />
-            <span className={styles.coverNote}>
-              Employer-only includes group life cover for all staff.
-            </span>
-          </div>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="emp-default-er">Amount per member / month (UGX)</label>
+          <input
+            id="emp-default-er"
+            className={styles.input}
+            type="number"
+            min="0"
+            step="1000"
+            value={draft.employerAmount}
+            onChange={(e) => {
+              setDraft((d) => ({ ...d, employerAmount: e.target.value }));
+              if (err) setErr('');
+            }}
+          />
+          <span className={styles.hint}>The employer contributes this fixed amount to each member every month.</span>
         </div>
       )}
 
@@ -654,12 +634,54 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
           <span className={styles.previewLabel}>Each member, every month</span>
           <div className={styles.previewRow}>
             <span>You contribute: <strong>{formatUGX(Number(draft.employerAmount) || 0, { compact: false })}</strong></span>
-            <span>
-              Group cover: <strong>{draft.groupCoverAmount === '' ? '—' : formatUGX(Number(draft.groupCoverAmount), { compact: false })}</strong> per member
-            </span>
           </div>
         </div>
       )}
+
+      {/* Group insurance — a company-wide TRUE/FALSE config, independent of the
+          funding mode above. On = the flat cover applies to every staff member;
+          off = no cover for anyone. */}
+      <fieldset className={styles.fieldset}>
+        <legend className={styles.legend}>Group insurance</legend>
+        <label className={styles.switch}>
+          <input
+            type="checkbox"
+            role="switch"
+            className={styles.switchInput}
+            checked={draft.insuranceEnabled}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setDraft((d) => ({ ...d, insuranceEnabled: on }));
+              if (err) setErr('');
+            }}
+          />
+          <span className={styles.switchTrack} aria-hidden="true"><span className={styles.switchThumb} /></span>
+          <span className={styles.switchLabel}>Provide group life cover to all staff</span>
+        </label>
+
+        {draft.insuranceEnabled && (
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="emp-default-cover">Flat cover amount — applies to all staff (UGX)</label>
+            <input
+              id="emp-default-cover"
+              className={styles.input}
+              type="number"
+              min="0"
+              step="1000"
+              value={draft.groupCoverAmount}
+              placeholder="e.g. 15000000"
+              onChange={(e) => {
+                setDraft((d) => ({ ...d, groupCoverAmount: e.target.value }));
+                if (err) setErr('');
+              }}
+            />
+            <span className={styles.coverNote}>
+              Applied to every staff member — insurance is all-or-nothing, with no
+              per-member opt-out.
+            </span>
+          </div>
+        )}
+      </fieldset>
 
       {err && <p className={styles.error} role="alert">{err}</p>}
 
