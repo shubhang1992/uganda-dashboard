@@ -57,6 +57,17 @@ const {
 
 const { Client } = pg;
 
+// Hardcoded demo unit price — UGX 1,000/unit, matching the live
+// `trg_transactions_contribution` constant (CLAUDE.md §10a). Units held are
+// derived from the net balance at this price so `units == total_balance / 1000`
+// holds for every seeded row (audit §1b.9 / §4b.5).
+const UNIT_PRICE = 1000;
+
+/** Derive units from a net balance at the fixed demo unit price (2dp). */
+function unitsFromBalance(netBalance) {
+  return Math.round(((netBalance ?? 0) / UNIT_PRICE) * 100) / 100;
+}
+
 // ─── Connection ─────────────────────────────────────────────────────────────
 const DB_URL = process.env.SUPABASE_DB_URL;
 if (!DB_URL) {
@@ -129,6 +140,43 @@ function toDateStr(v) {
   return null;
 }
 
+// ─── Date re-anchoring (audit §4b.2) ─────────────────────────────────────────
+// mockData.js anchors every relative date to a frozen `MOCK_NOW`. As real time
+// elapses past a seed run, forward-looking dates (notably `next_due_date`) drift
+// into the past relative to wall-clock now → ~40% of schedules render "overdue"
+// and the invariants #5 assertion fails on live. Rather than freezing a new
+// MOCK_NOW in mockData.js, the seed re-anchors the *forward-looking* dates it
+// emits onto today's date while preserving their MOCK_NOW-relative offset, so
+// "due in N days" math stays intact and no schedule is born stale.
+//
+// MOCK_NOW MUST mirror src/data/mockData.js (`new Date(2026, 4, 26)` = 2026-05-26).
+// If that constant moves, update this to match (kept in sync deliberately — the
+// seed can't import a live binding without re-evaluating the whole mock module).
+const MOCK_NOW = new Date(2026, 4, 26); // 2026-05-26 — mirror of mockData.MOCK_NOW
+const SEED_TODAY = new Date();
+SEED_TODAY.setHours(0, 0, 0, 0);
+// Whole-day delta from the frozen anchor to today (≥ 0 once wall-clock passes
+// MOCK_NOW; clamped at 0 so seeding *before* the anchor never shifts backwards).
+const DATE_SHIFT_DAYS = Math.max(
+  0,
+  Math.round((SEED_TODAY.getTime() - MOCK_NOW.getTime()) / 86400000)
+);
+
+/**
+ * Re-anchor a MOCK_NOW-relative YYYY-MM-DD date forward to wall-clock today by
+ * DATE_SHIFT_DAYS, preserving its offset from MOCK_NOW. Used for forward-looking
+ * dates (schedule `next_due_date`) so they are never born in the past. No-op when
+ * DATE_SHIFT_DAYS === 0 or the input is null.
+ */
+function reanchorDateStr(v) {
+  const s = toDateStr(v);
+  if (!s || DATE_SHIFT_DAYS === 0) return s;
+  const [y, m, d] = s.split('-').map(Number);
+  if (!y || !m || !d) return s;
+  const shifted = new Date(y, m - 1, d + DATE_SHIFT_DAYS);
+  return toDateStr(shifted);
+}
+
 /** Coerce a JS Date / string to a TIMESTAMPTZ-compatible ISO string. */
 function toTimestamptz(v) {
   if (!v) return null;
@@ -138,17 +186,17 @@ function toTimestamptz(v) {
 
 /** Approximate a DOB from age — mid-year on the birth-year boundary. */
 function dobFromAge(age) {
-  // MOCK_NOW reference is 2026-05-01 in mockData.
-  const birthYear = 2026 - age;
+  // MOCK_NOW reference is 2026-05-26 in mockData (see MOCK_NOW above).
+  const birthYear = MOCK_NOW.getFullYear() - age;
   return `${birthYear}-06-15`;
 }
 
-/** Compute tenure months from joinedDate (YYYY-MM-DD) at MOCK_NOW = 2026-05-01. */
+/** Compute tenure months from joinedDate (YYYY-MM-DD) at the MOCK_NOW anchor. */
 function tenureMonthsFromJoined(joinedDate, fallback) {
   if (typeof fallback === 'number') return fallback;
   if (!joinedDate) return null;
   const [y, m] = joinedDate.split('-').map(Number);
-  return (2026 - y) * 12 + (5 - m);
+  return (MOCK_NOW.getFullYear() - y) * 12 + (MOCK_NOW.getMonth() + 1 - m);
 }
 
 // ─── Seed ───────────────────────────────────────────────────────────────────
@@ -262,8 +310,13 @@ async function main() {
     //      care about. There is no undo.
     //
     //  Table list is exhaustive: every table this script INSERTs/upserts into,
-    //  PLUS settlement_uploads + contribution_run_uploads (written by the app
-    //  during demos, not by this seed, so they'd otherwise grow unbounded).
+    //  PLUS the app-written-only audit/idempotency tables (settlement_uploads,
+    //  contribution_run_uploads, subscriber_signup_uploads, and employer_invites)
+    //  — none are seeded here, but a demo populates them, so they'd otherwise
+    //  grow unbounded across reseeds. (We deliberately do NOT touch the legacy
+    //  `employees`/`contribution_run_lines` tables: they are retired by 0045 in
+    //  the unified tagged-subscriber model — this seed never writes them, and
+    //  once 0045 is applied they no longer exist.)
     // ═══════════════════════════════════════════════════════════════════════
     console.log('• TRUNCATE (destructive reset)…');
     await client.query(`
@@ -287,10 +340,12 @@ async function main() {
         distributors,
         employers,
         contribution_runs,
+        employer_invites,
         demo_personas,
         users,
         settlement_uploads,
-        contribution_run_uploads
+        contribution_run_uploads,
+        subscriber_signup_uploads
       RESTART IDENTITY CASCADE
     `);
 
@@ -536,7 +591,10 @@ async function main() {
         subscribers.map((s) => s.retirementBalance ?? 0),
         subscribers.map((s) => s.emergencyBalance ?? 0),
         subscribers.map((s) => s.netBalance ?? 0),
-        subscribers.map((s) => s.unitsHeld ?? 0),
+        // Derive units from the net balance at the fixed unit price so
+        // `units == total_balance / 1000` holds (§1b.9) — mockData's
+        // independently-generated `unitsHeld` drifts off this identity.
+        subscribers.map((s) => unitsFromBalance(s.netBalance ?? 0)),
       ],
       'subscriber_id'
     );
@@ -567,7 +625,11 @@ async function main() {
         // (true) so the dashboard doesn't badge every seeded subscriber as
         // "decision pending".
         subscribers.map(() => true),
-        subscribers.map((s) => s.contributionSchedule?.nextDueDate ?? null),
+        // Re-anchor the forward-looking due date onto wall-clock today (§4b.2)
+        // so no schedule is seeded already-overdue when real time has elapsed
+        // past MOCK_NOW. Offset from MOCK_NOW is preserved (no-op at run-time
+        // == MOCK_NOW).
+        subscribers.map((s) => reanchorDateStr(s.contributionSchedule?.nextDueDate ?? null)),
       ],
       'subscriber_id'
     );
@@ -846,8 +908,80 @@ async function main() {
     // and all dispute/hold/confirm columns no longer exist on the table.
     console.log('• commissions…');
     const COMMISSION_PAID_STATUSES = new Set(['released', 'confirmed']);
-    const commissionStatus = (c) =>
+    const baseCommissionStatus = (c) =>
       COMMISSION_PAID_STATUSES.has(c.status) ? 'paid' : 'due';
+
+    // ── Settlement-batch reconciliation (audit §4b.4) ──────────────────────
+    // We seed a couple of historical settlement batches so Supabase-mode demos
+    // show a non-empty settlement feed without anyone running apply_settlement
+    // first. The PREVIOUS seed hardcoded each batch's paid_amount/line_count but
+    // never flipped any commissions to `paid`, so the ledger contradicted itself
+    // (140k "settled" across 14 lines vs 0 paid commissions). Here we instead
+    // FLIP the matching agent's oldest still-`due` commissions to `paid` (up to
+    // a target count), then DERIVE the batch's paid_amount / pending_total /
+    // line_count from the lines we actually flipped — so the batch and the paid
+    // commissions reconcile exactly by construction, whatever the random seed's
+    // per-agent commission distribution turns out to be.
+    const settlementSeeds = [
+      { id: 'sb-seed-0001', agentId: 'a-001', branchId: 'b-kam-015', txnRef: 'MM-SEED-0001', paidDate: '2026-05-15', targetLines: 9 },
+      { id: 'sb-seed-0002', agentId: 'a-042', branchId: 'b-mba-290', txnRef: 'MM-SEED-0002', paidDate: '2026-05-22', targetLines: 5 },
+    ];
+    // Per-commission paid override, keyed by commission id → { paidDate, txnRef }.
+    const settlementFlips = new Map();
+    const seedBatches = [];
+    for (const seed of settlementSeeds) {
+      // Candidate lines: this agent's commissions that map to `due` and aren't
+      // already claimed by another batch. Oldest-first (by due_date) mirrors the
+      // real apply_settlement, which settles the oldest outstanding dues first.
+      const candidates = commissions
+        .filter(
+          (c) =>
+            c.agentId === seed.agentId &&
+            baseCommissionStatus(c) === 'due' &&
+            !settlementFlips.has(c.id)
+        )
+        .sort((a, b) => String(a.dueDate ?? '').localeCompare(String(b.dueDate ?? '')));
+      const chosen = candidates.slice(0, seed.targetLines);
+      // Guard: if this agent has no outstanding `due` lines to settle, skip the
+      // batch entirely rather than seed a self-consistent-but-empty "0 paid for
+      // 0 lines" record. Keeps the ledger non-trivial and the notification sane.
+      if (chosen.length === 0) {
+        console.warn(`  ⚠ ${seed.id}: agent ${seed.agentId} had no due commissions to settle — batch skipped.`);
+        continue;
+      }
+      // Re-anchor the batch paid_date forward like every other demo date so the
+      // settlement history doesn't read as months stale (§4b.2).
+      const paidDate = reanchorDateStr(seed.paidDate);
+      let paidAmount = 0;
+      for (const c of chosen) {
+        settlementFlips.set(c.id, { paidDate, txnRef: seed.txnRef });
+        paidAmount += c.amount ?? 0;
+      }
+      seedBatches.push({
+        id: seed.id,
+        agentId: seed.agentId,
+        branchId: seed.branchId,
+        // pending_total == paid_amount: the batch settles exactly the lines it
+        // flipped (no partial-pay / overpay in the seed).
+        pendingTotal: paidAmount,
+        paidAmount,
+        txnRef: seed.txnRef,
+        paidDate,
+        lineCount: chosen.length,
+      });
+    }
+
+    // Final per-commission status now accounts for the settlement flips.
+    const commissionStatus = (c) =>
+      settlementFlips.has(c.id) ? 'paid' : baseCommissionStatus(c);
+    const commissionPaidDate = (c) => {
+      if (settlementFlips.has(c.id)) return settlementFlips.get(c.id).paidDate;
+      return baseCommissionStatus(c) === 'paid' ? c.paidDate ?? null : null;
+    };
+    const commissionTxnRef = (c) => {
+      if (settlementFlips.has(c.id)) return settlementFlips.get(c.id).txnRef;
+      return baseCommissionStatus(c) === 'paid' ? c.txnRef ?? null : null;
+    };
     await bulkInsert(
       client,
       'commissions',
@@ -876,42 +1010,19 @@ async function main() {
         commissions.map((c) => c.firstContributionDate ?? null),
         commissions.map((c) => c.dueDate ?? null),
         // Paid lines keep their paid_date; due lines have none.
-        commissions.map((c) => (commissionStatus(c) === 'paid' ? c.paidDate ?? null : null)),
-        commissions.map((c) => (commissionStatus(c) === 'paid' ? c.txnRef ?? null : null)),
+        commissions.map(commissionPaidDate),
+        commissions.map(commissionTxnRef),
         commissions.map((c) => (commissionStatus(c) === 'paid' ? c.amount : null)),
       ],
       'id'
     );
 
     // ── settlement_batches + notifications (demo feed) ─────────────────────
-    // Seed a couple of historical settlement batches (and matching
-    // `commission_settled` notifications) so Supabase-mode demos show a
-    // non-empty feed without anyone having to run apply_settlement first. We
-    // target the default agent persona (a-001) and its branch, plus the
-    // northern-region agent (a-042), using a recent paid_date.
+    // The batch rows (totals derived above from the flipped commissions) plus
+    // matching `commission_settled` notifications. Each batch now reconciles
+    // with the agent's paid commissions: paid_amount == Σ(flipped line amounts)
+    // and line_count == COUNT(flipped lines).
     console.log('• settlement_batches + notifications…');
-    const seedBatches = [
-      {
-        id: 'sb-seed-0001',
-        agentId: 'a-001',
-        branchId: 'b-kam-015',
-        pendingTotal: 90000,
-        paidAmount: 90000,
-        txnRef: 'MM-SEED-0001',
-        paidDate: '2026-05-15',
-        lineCount: 9,
-      },
-      {
-        id: 'sb-seed-0002',
-        agentId: 'a-042',
-        branchId: 'b-mba-290',
-        pendingTotal: 50000,
-        paidAmount: 50000,
-        txnRef: 'MM-SEED-0002',
-        paidDate: '2026-05-22',
-        lineCount: 5,
-      },
-    ];
     await bulkInsert(
       client,
       'settlement_batches',
@@ -1131,7 +1242,8 @@ async function main() {
         MEMBERS.map((m) => m.retirementBalance ?? 0),
         MEMBERS.map((m) => m.emergencyBalance ?? 0),
         MEMBERS.map((m) => m.netBalance ?? 0),
-        MEMBERS.map((m) => m.unitsHeld ?? 0),
+        // Same units==balance/1000 identity as the subscriber balances (§1b.9).
+        MEMBERS.map((m) => unitsFromBalance(m.netBalance ?? 0)),
       ],
       'subscriber_id'
     );
@@ -1314,6 +1426,21 @@ async function main() {
       { id: 'subscriber:+256711000004', phone: '+256711000004', role: 'subscriber', name: 'Demo subscriber 4', entity_id: 's-0004' },
       { id: 'subscriber:+256711000005', phone: '+256711000005', role: 'subscriber', name: 'Demo subscriber 5', entity_id: 's-0005' },
     ];
+    // De-duplicate on (phone, role) so the `users_phone_role_unique` constraint
+    // (UNIQUE(phone, role)) can always apply against seeded data (audit §4b.10).
+    // The persona ↔ subscriber lists are distinct today, but this guard keeps
+    // the seed correct if a future phone ever overlaps a role — first wins,
+    // mirroring a deterministic phone→user resolution.
+    const _seenUserKeys = new Set();
+    const dedupedUserRows = userRows.filter((u) => {
+      const key = `${u.phone}|${u.role}`;
+      if (_seenUserKeys.has(key)) {
+        console.warn(`  ⚠ users: dropping duplicate (phone, role) seed row ${u.id} (${key}).`);
+        return false;
+      }
+      _seenUserKeys.add(key);
+      return true;
+    });
     await bulkInsert(
       client,
       'users',
@@ -1326,14 +1453,14 @@ async function main() {
         { name: 'password_hash', type: 'text' },
       ],
       [
-        userRows.map((u) => u.id),
-        userRows.map((u) => u.phone),
-        userRows.map((u) => u.role),
-        userRows.map((u) => u.name),
-        userRows.map((u) => u.entity_id),
+        dedupedUserRows.map((u) => u.id),
+        dedupedUserRows.map((u) => u.phone),
+        dedupedUserRows.map((u) => u.role),
+        dedupedUserRows.map((u) => u.name),
+        dedupedUserRows.map((u) => u.entity_id),
         // NULL hash — verify-otp will stamp a bcrypt digest on first sign-in
         // if/when the user sets a password (the OTP path stays primary).
-        userRows.map(() => null),
+        dedupedUserRows.map(() => null),
       ],
       'id'
     );

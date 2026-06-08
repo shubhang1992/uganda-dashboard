@@ -34,7 +34,6 @@ import {
   useEmployer,
   useEmployees,
   useUpdateEmployerProfile,
-  useApplyGroupInsurance,
 } from '../../hooks/useEmployer';
 import { changePassword, AuthError } from '../../services/auth';
 import { formatUGX, formatNumber } from '../../utils/currency';
@@ -199,7 +198,6 @@ export default function EmployerSettings({ splitMode = false }) {
 
 function SettingsBody({ tab, settingsOpen, employer, employerId, addToast }) {
   const updateProfile = useUpdateEmployerProfile(employerId);
-  const applyGroupInsurance = useApplyGroupInsurance(employerId);
 
   // Dual-read seed: prefer the NEW keys (matchPct / maxContribution /
   // groupCoverAmount) and fall back to the legacy %-pair so an un-migrated
@@ -238,11 +236,13 @@ function SettingsBody({ tab, settingsOpen, employer, employerId, addToast }) {
   }
 
   // === saveConfig — THE config-save seam ===================================
-  // Persists `default_contribution_config` (incl. the insurance keys) then
-  // applies the group cover to every staff member. This is exactly today's
-  // two-RPC behaviour (updateProfile → applyGroupInsurance); C4 will replace
-  // the body with a single atomic RPC. Shared by the Pension AND Insurance
-  // tabs (NOT the profile-tab handleSave) so both save the same draft.
+  // ATOMIC (audit §7d-3, migration 0056): persists `default_contribution_config`
+  // (incl. the insurance keys) AND applies the group cover to every staff member
+  // in ONE `update_employer_profile` transaction — the insurance fields ride
+  // along on the same mutate call (no separate `applyGroupInsurance` step, so a
+  // partial failure can no longer desync the config from `insurance_policies`).
+  // Shared by the Pension AND Insurance tabs (NOT the profile-tab handleSave) so
+  // both save the same draft.
   function saveConfig(e) {
     e.preventDefault();
     if (updateProfile.isPending) return;
@@ -297,28 +297,20 @@ function SettingsBody({ tab, settingsOpen, employer, employerId, addToast }) {
     }
     setErr('');
 
-    // Save the profile first; only then sync the roster's group cover so staff
-    // insurance always reflects the saved toggle. cover>0 activates the flat
-    // cover for everyone; cover 0 clears it (apply_group_insurance handles both).
+    // ONE atomic call: the config patch + the roster-wide group cover commit in
+    // the same `update_employer_profile` transaction. `insuranceEnabled` +
+    // `groupCover` ride along on the patch; the service forwards them as
+    // p_insurance_enabled / p_group_cover. enabled → flat cover for everyone,
+    // disabled → cleared (cover null/0). No second RPC, so no config↔policy desync.
     updateProfile.mutate(
-      { defaultContributionConfig },
+      { defaultContributionConfig, insuranceEnabled, groupCover: cover },
       {
-        onSuccess: () => {
-          addToast('success', 'Settings saved.');
-          applyGroupInsurance.mutate(
-            { cover: cover ?? 0 },
-            {
-              onSuccess: () => addToast(
-                'success',
-                insuranceEnabled
-                  ? 'Group cover applied to all staff.'
-                  : 'Group cover removed for all staff.',
-              ),
-              onError: (e3) =>
-                addToast('error', e3?.message || 'Could not update group cover for staff.'),
-            },
-          );
-        },
+        onSuccess: () => addToast(
+          'success',
+          insuranceEnabled
+            ? 'Settings saved — group cover applied to all staff.'
+            : 'Settings saved — group cover removed for all staff.',
+        ),
         onError: (e2) => addToast('error', e2?.message || 'Could not save settings.'),
       },
     );

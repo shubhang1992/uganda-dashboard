@@ -676,13 +676,52 @@ export async function removeEmployee(employerId, employeeId) {
   return data;
 }
 
-/** Patches the caller's own employer profile row (incl. the company config). */
+/**
+ * Patches the caller's own employer profile row (incl. the company config).
+ *
+ * ATOMIC group-insurance fold (audit §7d-3, migration 0056): when the patch
+ * carries the company-wide insurance toggle (`insuranceEnabled` present), the
+ * group cover is applied in the SAME `update_employer_profile` transaction —
+ * `p_group_cover` + `p_insurance_enabled` are forwarded and stripped out of
+ * `p_patch` (which keeps only the profile/config columns the RPC reads). When
+ * the patch omits `insuranceEnabled` (the profile-tab save), the call is
+ * IDENTICAL to before — a single `{ p_patch }` arg, no insurance leg — so
+ * existing callers/tests are unaffected. Folding insurance in here lets the save
+ * be one atomic call instead of the old non-atomic updateProfile→applyGroupInsurance
+ * chain. (`applyGroupInsurance` below is retained for any other caller.)
+ *
+ * @param {object} patch - camelCase profile/config keys, optionally plus
+ *   `insuranceEnabled` (boolean) and `groupCover` (number|null) to fold the
+ *   roster-wide cover into the same transaction.
+ */
 export async function updateEmployerProfile(patch) {
+  const { insuranceEnabled, groupCover, ...profilePatch } = patch ?? {};
+  const foldInsurance = insuranceEnabled !== undefined;
+  const coverNum = groupCover == null ? null : Number(groupCover);
+
   if (!IS_SUPABASE_ENABLED) {
-    _mockEmployerOverride = { ...(_mockEmployerOverride ?? {}), ...patch };
+    _mockEmployerOverride = { ...(_mockEmployerOverride ?? {}), ...profilePatch };
+    if (foldInsurance) {
+      // Mirror the SQL leg in the mock so the demo roster stays consistent with
+      // the saved config: enabled → flat cover for everyone, disabled → cleared.
+      const active = !!insuranceEnabled && Number(coverNum) > 0;
+      const cover = active ? Number(coverNum) : 0;
+      for (const m of mockMembers()) {
+        readMemberSession(m.id).insuranceOverride = {
+          cover, premium: 0,
+          status: active ? 'active' : 'inactive',
+          renewalDate: m.insuranceRenewalDate,
+        };
+      }
+    }
     return { ...EMPLOYER, ..._mockEmployerOverride };
   }
-  const { data, error } = await supabase.rpc('update_employer_profile', { p_patch: patch ?? {} });
+  const args = { p_patch: profilePatch ?? {} };
+  if (foldInsurance) {
+    args.p_insurance_enabled = !!insuranceEnabled;
+    args.p_group_cover = coverNum;
+  }
+  const { data, error } = await supabase.rpc('update_employer_profile', args);
   if (error) throw error;
   return mapEmployer(data);
 }

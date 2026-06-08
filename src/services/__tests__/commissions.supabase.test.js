@@ -38,6 +38,7 @@ const {
   getAgentCommissionList,
   getPendingDuesByAgent,
   getPendingDuesByBranch,
+  setCommissionRate,
 } = await import('../commissions');
 
 beforeEach(() => {
@@ -160,6 +161,56 @@ describe('commissions service — Supabase branch (0041 aggregate RPCs)', () => 
       expect(await getPendingDuesByAgent()).toEqual([]);
       supabaseMock.__queueRpc('get_pending_dues_by_agent', { data: null, error: { message: 'nope' } });
       await expect(getPendingDuesByAgent()).rejects.toThrow('nope');
+    });
+  });
+
+  // ── F-7: commission-rate write routed through the DEFINER RPC ──────────────
+  // setCommissionRate must call the validated set_commission_rate(p_rate) RPC
+  // (migration 0055) — NOT the prior unvalidated direct commission_config UPDATE.
+  // DORMANT note: live calls 404 (PGRST202) until 0055 is applied at G-DB; these
+  // tests mock supabase.rpc so they exercise the JS call shape + error surfacing.
+  describe('setCommissionRate() — F-7 DEFINER RPC', () => {
+    it('calls set_commission_rate with p_rate (NOT a direct commission_config update)', async () => {
+      supabaseMock.__queueRpc('set_commission_rate', { data: 7500, error: null });
+
+      const result = await setCommissionRate(7500);
+
+      // It returns the persisted rate as a number.
+      expect(result).toBe(7500);
+
+      // It went through the RPC with the exact arg name the migration declares.
+      const calls = supabaseMock.__getRpcCalls('set_commission_rate');
+      expect(calls.length).toBe(1);
+      expect(calls[0].args).toEqual({ p_rate: 7500 });
+
+      // It did NOT fall back to a direct `commission_config` table write — the
+      // whole point of F-7 is to kill the unvalidated direct UPDATE path.
+      expect(supabaseMock.__getFromCalls('commission_config').length).toBe(0);
+    });
+
+    it('coerces a stringified numeric return to a number', async () => {
+      // PostgREST can serialise a numeric scalar return as a string.
+      supabaseMock.__queueRpc('set_commission_rate', { data: '6000', error: null });
+      const result = await setCommissionRate(6000);
+      expect(result).toBe(6000);
+      expect(typeof result).toBe('number');
+    });
+
+    it('surfaces an out-of-range / non-distributor rejection from the RPC', async () => {
+      // The RPC RAISEs (P0001) for app_role != 'distributor' or p_rate out of
+      // [0, 1_000_000]; supabase-js returns that as `{ error }`, which the
+      // service must wrap and throw (not swallow).
+      supabaseMock.__queueRpc('set_commission_rate', {
+        data: null,
+        error: { message: 'commission rate -1 out of range [0, 1000000]', code: 'P0001' },
+      });
+      await expect(setCommissionRate(-1)).rejects.toThrow('out of range');
+
+      supabaseMock.__queueRpc('set_commission_rate', {
+        data: null,
+        error: { message: 'role agent cannot set the commission rate', code: 'P0001' },
+      });
+      await expect(setCommissionRate(5000)).rejects.toThrow('cannot set the commission rate');
     });
   });
 

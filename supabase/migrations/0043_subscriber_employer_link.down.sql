@@ -1,15 +1,24 @@
 -- =============================================================================
 -- DOWN — 0043_subscriber_employer_link.sql
 -- =============================================================================
--- Reverses the additive link/source schema, the employer SELECT policies, and
--- the trigger hardening (restores the 0042 trg_transactions_contribution body
--- without SECURITY DEFINER / search_path).
+-- Reverses the additive link/source schema and the employer SELECT policies.
+--
+-- §1b.6 hardening: this .down re-emits trg_transactions_contribution WITH
+-- SECURITY DEFINER + a pinned search_path (the HARDENED 0043 definition), NOT
+-- the un-hardened 0042 body. The DEFINER/pin is the 0006 baseline that predates
+-- this migration's *additive* schema; rolling 0043 back must not silently
+-- re-open the security regression (a subscriber-role direct contribution would
+-- otherwise fail RLS on subscriber_balances, or run with a caller-controlled
+-- search_path). Body is byte-faithful to the 0043 up re-emit.
 -- =============================================================================
 
--- 5) Restore trg_transactions_contribution to the 0042 (un-hardened) body.
+-- 5) Restore trg_transactions_contribution to its HARDENED 0043 definition
+--    (DEFINER + pinned search_path retained — see header).
 CREATE OR REPLACE FUNCTION public.trg_transactions_contribution()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_unit_price       NUMERIC := 1000;

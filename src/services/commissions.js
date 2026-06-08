@@ -136,19 +136,27 @@ export async function getCommissionRate() {
 }
 
 /**
- * @endpoint PUT commission_config.rate
+ * @endpoint RPC set_commission_rate(p_rate numeric)
  * @scope Distributor only.
+ * @description Routes the commission-rate write through a SECURITY DEFINER RPC
+ *   (migration 0055) that gates app_role='distributor' and range-checks the rate
+ *   (0 ≤ rate ≤ 1,000,000 UGX) server-side. Replaces the prior unvalidated direct
+ *   `commission_config.update({rate})` client write (audit §4a F-7) — a §7.3
+ *   money-config direct-write with no bound check and no audit. The RPC stamps
+ *   last_updated_by/updated_at and returns the persisted rate, so the hook
+ *   contract is unchanged.
+ *
+ *   DORMANT until migration 0055 is applied at the G-DB gate: a live call before
+ *   then returns PGRST202/404 (function-not-found). The mock branch below is
+ *   unaffected.
  */
 export async function setCommissionRate(amount) {
   if (!IS_SUPABASE_ENABLED) return _legacy_mock_setCommissionRate(amount);
-  const { data, error } = await supabase
-    .from('commission_config')
-    .update({ rate: amount, updated_at: new Date().toISOString() })
-    .eq('id', 'default')
-    .select('rate')
-    .maybeSingle();
-  if (error) throw _rpcError(error, 'setCommissionRate');
-  return data?.rate != null ? Number(data.rate) : amount;
+  const { data, error } = await supabase.rpc('set_commission_rate', {
+    p_rate: amount,
+  });
+  if (error) throw _rpcError(error, 'set_commission_rate');
+  return data != null ? Number(data) : amount;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

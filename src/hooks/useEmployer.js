@@ -135,6 +135,15 @@ export function useEmployerLeaderboard(employerId) {
  * Mutation: patch the employer profile. Optimistically patches the cached
  * employer so settings/header chips reflect the change immediately; rolls back
  * on error.
+ *
+ * ATOMIC config save (audit §7d-3, migration 0056): the patch may ALSO carry the
+ * company-wide insurance toggle (`insuranceEnabled` + `groupCover`), which the
+ * service folds into the same `update_employer_profile` transaction (UPSERT/clear
+ * `insurance_policies`). Those two control keys are stripped from the optimistic
+ * cache patch (they aren't `employer` columns), and on settle this also
+ * invalidates the roster (`['employees']`) + every cached single employee
+ * (`['employee']`) — the surfaces the policy write moves — so the save needs no
+ * separate `applyGroupInsurance` call.
  * @param {string} employerId
  * @returns {import('@tanstack/react-query').UseMutationResult}
  */
@@ -145,8 +154,12 @@ export function useUpdateEmployerProfile(employerId) {
     onMutate: async (patch) => {
       await queryClient.cancelQueries({ queryKey: ['employer', employerId] });
       const previous = queryClient.getQueryData(['employer', employerId]);
+      // Strip the insurance-control keys — they drive the policy write, they are
+      // not columns on the `employer` record, so they must not leak into cache.
+      const { insuranceEnabled, groupCover, ...cachePatch } = patch ?? {};
+      void insuranceEnabled; void groupCover;
       queryClient.setQueryData(['employer', employerId], (old) =>
-        old ? { ...old, ...patch } : old,
+        old ? { ...old, ...cachePatch } : old,
       );
       return { previous };
     },
@@ -158,6 +171,9 @@ export function useUpdateEmployerProfile(employerId) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['employer', employerId] });
       queryClient.invalidateQueries({ queryKey: ['employerMetrics', employerId] });
+      // The atomic insurance leg can touch the whole roster + any open detail.
+      queryClient.invalidateQueries({ queryKey: ['employees', employerId] });
+      queryClient.invalidateQueries({ queryKey: ['employee'] });
     },
   });
 }

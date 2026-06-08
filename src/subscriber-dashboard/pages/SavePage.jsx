@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -73,6 +73,13 @@ export default function SavePage() {
   const [submitting, setSubmitting] = useState(false);
   const [resultTx, setResultTx] = useState(null);
 
+  // Stable idempotency nonce for the one-off contribution. Minted ONCE when the
+  // confirm sheet opens (handleContinue) and reused across a double-tap / manual
+  // retry so the server-side make_contribution RPC collapses the duplicate
+  // (audit §4a F-1). Reset to null on success or when the sheet closes so the
+  // next top-up gets a fresh key.
+  const contributionNonce = useRef(null);
+
   const amount = parseAmount(amountStr);
   const emergencyPct = 100 - retirementPct;
   const hasAmount = amount !== null && amount >= MIN_CONTRIBUTION;
@@ -114,18 +121,36 @@ export default function SavePage() {
   }
 
   function handleBack() {
-    if (view === 'confirm') return setView('form');
+    if (view === 'confirm') {
+      // Leaving the confirm sheet without paying — drop the nonce so re-opening
+      // mints a fresh one (the user may change the amount).
+      contributionNonce.current = null;
+      return setView('form');
+    }
     // Outermost step — honour browser back, fall back to home for deep-links.
     goBackOrFallback(navigate, '/dashboard');
   }
 
   function handleContinue() {
     if (!hasAmount) return;
+    // Mint the stable idempotency nonce once, as the confirm sheet opens.
+    contributionNonce.current = crypto.randomUUID();
     setView('confirm');
+  }
+
+  // Close the confirm sheet without paying — drop the nonce so re-opening mints
+  // a fresh one. Guarded against closing mid-submit.
+  function closeConfirm() {
+    if (submitting) return;
+    contributionNonce.current = null;
+    setView('form');
   }
 
   async function handleConfirm() {
     if (!hasAmount || !sub) return;
+    // Early-return guard: a fast second tap must NOT fire a second write —
+    // relying on the disabled attr re-render alone loses the race (§4a F-1).
+    if (submitting) return;
     setSubmitting(true);
     try {
       if (isRecurring) {
@@ -145,14 +170,18 @@ export default function SavePage() {
         setView('success');
         addToast('success', `${mode.cadence} top-up of ${formatUGX(amount, { compact: false })} scheduled.`);
       } else {
-        // One-off: ad-hoc contribution. Payload shape unchanged.
+        // One-off: ad-hoc contribution. The stable nonce makes a double-tap /
+        // retry idempotent on the server (§4a F-1).
         const tx = await makeContribution.mutateAsync({
           amount,
           retirementPct,
           method: methodById(method).full,
+          nonce: contributionNonce.current ?? undefined,
         });
         setResultTx(tx);
         setView('success');
+        // Settled successfully — drop the nonce so a later top-up gets a fresh key.
+        contributionNonce.current = null;
         addToast('success', `${formatUGX(amount, { compact: false })} added to your savings.`);
       }
     } catch (err) {
@@ -392,7 +421,7 @@ export default function SavePage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.2 }}
-            onClick={() => { if (view === 'confirm' && !submitting) setView('form'); }}
+            onClick={() => { if (view === 'confirm') closeConfirm(); }}
           >
             <motion.div
               className={styles.sheet}
@@ -463,7 +492,7 @@ export default function SavePage() {
                     <button
                       type="button"
                       className={styles.secondaryBtn}
-                      onClick={() => setView('form')}
+                      onClick={closeConfirm}
                       disabled={submitting}
                     >
                       Back

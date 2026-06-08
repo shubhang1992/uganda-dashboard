@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -46,6 +46,12 @@ export default function WithdrawPage() {
   const [sheetView, setSheetView] = useState(null); // null | 'confirm' | 'success'
   const [submitting, setSubmitting] = useState(false);
   const [resultWd, setResultWd] = useState(null);
+
+  // Stable idempotency nonce for the withdrawal. Minted ONCE when the confirm
+  // sheet opens (handleReview) and reused across a double-tap / manual retry so
+  // the server-side request_withdrawal RPC collapses the duplicate debit (audit
+  // §4a F-1). Reset to null on success or when the sheet closes.
+  const withdrawalNonce = useRef(null);
 
   const emergencyBalance = sub?.emergencyBalance || 0;
   const retirementBalance = sub?.retirementBalance || 0;
@@ -95,16 +101,24 @@ export default function WithdrawPage() {
 
   function handleReview() {
     if (!hasAmount) return;
+    // Mint the stable idempotency nonce once, as the confirm sheet opens.
+    withdrawalNonce.current = crypto.randomUUID();
     setSheetView('confirm');
   }
 
   function closeSheet() {
     if (submitting) return;
+    // Leaving the sheet without withdrawing — drop the nonce so re-opening mints
+    // a fresh one.
+    withdrawalNonce.current = null;
     setSheetView(null);
   }
 
   async function handleConfirm() {
     if (!hasAmount || !sub) return;
+    // Early-return guard: a fast second tap must NOT fire a second debit —
+    // relying on the disabled attr re-render alone loses the race (§4a F-1).
+    if (submitting) return;
     setSubmitting(true);
     try {
       const wd = await requestWithdrawal.mutateAsync({
@@ -112,9 +126,13 @@ export default function WithdrawPage() {
         bucket,
         reason: reasonLabel,
         method: methodLabel,
+        // Stable nonce → a double-tap / retry is idempotent on the server.
+        nonce: withdrawalNonce.current ?? undefined,
       });
       setResultWd(wd);
       setSheetView('success');
+      // Settled successfully — drop the nonce so a later withdrawal gets a fresh key.
+      withdrawalNonce.current = null;
       addToast('success', `Withdrawal of ${formatUGX(amount, { compact: false })} requested.`);
     } catch (err) {
       addToast('error', err?.message || 'Could not request withdrawal.');
