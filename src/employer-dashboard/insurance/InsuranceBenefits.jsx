@@ -18,6 +18,7 @@ import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import EmployerSlidePanel from '../panels/EmployerSlidePanel';
+import { requestSettingsTab } from '../settings/EmployerSettings';
 import styles from './InsuranceBenefits.module.css';
 
 export default function InsuranceBenefits({ splitMode = false }) {
@@ -51,6 +52,10 @@ export default function InsuranceBenefits({ splitMode = false }) {
 
   const manageCover = useCallback(() => {
     setInsuranceOpen(false);
+    // Deep-link straight to the Insurance tab in Settings (the shared panel
+    // context only carries a single `settingsOpen` flag, so signal the initial
+    // tab through EmployerSettings' module-scoped request channel).
+    requestSettingsTab('insurance');
     setSettingsOpen(true);
   }, [setInsuranceOpen, setSettingsOpen]);
 

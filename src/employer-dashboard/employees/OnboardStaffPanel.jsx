@@ -148,9 +148,16 @@ export default function OnboardStaffPanel({ splitMode = false }) {
 
   // ── Bulk ──────────────────────────────────────────────────────────────────
   async function downloadTemplate() {
+    // Seed the row the employer has already typed into the single-member form so
+    // the downloaded template carries that in-progress member (not just the two
+    // fictional examples). Falls back to the examples when nothing's entered.
+    const typed = form.fullName.trim() || form.phone.trim() || form.email.trim();
+    const seedRows = typed
+      ? [{ fullName: form.fullName.trim(), phone: form.phone.trim(), email: form.email.trim() }]
+      : TEMPLATE_EXAMPLES;
     try {
       await downloadSheet({
-        rows: TEMPLATE_EXAMPLES,
+        rows: seedRows,
         columns: TEMPLATE_COLUMNS,
         filename: 'employee-onboarding-template',
         sheetName: 'Employees',

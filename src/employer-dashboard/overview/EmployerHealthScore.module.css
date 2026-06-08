@@ -510,32 +510,6 @@
   letter-spacing: 0.06em;
 }
 
-.activityLive {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-family: var(--font-body);
-  font-size: 0.5625rem;
-  font-weight: 600;
-  color: rgba(74,222,128,0.7);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.liveDot {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-full);
-  background: var(--color-positive);
-  box-shadow: 0 0 8px rgba(74,222,128,0.6);
-  animation: livePulse 2s ease-in-out infinite;
-}
-
-@keyframes livePulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-
 .activityFeed {
   display: flex;
   flex-direction: column;

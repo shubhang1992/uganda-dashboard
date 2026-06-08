@@ -32,6 +32,10 @@ import { companyFundingLabel } from '../employees/fundingLabel';
 import styles from './ContributionRuns.module.css';
 
 const round = (n) => Math.round(n);
+const mintNonce = () =>
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `nonce-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const METHOD_OPTIONS = ['Bank transfer', 'MTN Mobile Money', 'Airtel Money'];
 const WIZARD_STEPS = [
   { key: 'period', label: 'Period & method' },
@@ -275,6 +279,12 @@ function NewRunWizard({ employerId, addToast, onDone, onCancel }) {
   const [periodLabel, setPeriodLabel] = useState(defaultPeriodLabel);
   const [method, setMethod] = useState(METHOD_OPTIONS[0]);
   const submittingRef = useRef(false);
+  // Nonce minted ONCE per wizard session (this component mounts only while
+  // view==='wizard'). Reusing the same nonce across confirm retries lets the
+  // server-side ledger dedupe a committed-but-timed-out run instead of the
+  // operator's "try again" double-funding every member (audit §4a F-4).
+  const nonceRef = useRef(null);
+  if (nonceRef.current === null) nonceRef.current = mintNonce();
 
   const config = employer?.defaultContributionConfig ?? null;
   const activeEmployees = useMemo(() => employees.filter((e) => e.status === 'active'), [employees]);
@@ -306,10 +316,9 @@ function NewRunWizard({ employerId, addToast, onDone, onCancel }) {
   async function handleConfirm() {
     if (submittingRef.current || isPending) return;
     submittingRef.current = true;
-    const nonce =
-      typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `nonce-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    // Reuse the session nonce so a manual retry after a committed-but-timed-out
+    // run replays the SAME nonce and the server ledger dedupes it (no double-fund).
+    const nonce = nonceRef.current;
     try {
       const result = await runContribution.mutateAsync({ periodLabel, method, nonce });
       const skippedCount = Array.isArray(result?.skipped) ? result.skipped.length : 0;
@@ -318,6 +327,8 @@ function NewRunWizard({ employerId, addToast, onDone, onCancel }) {
         'success',
         `Run recorded — ${formatNumber(result?.linesCreated ?? 0)} funded · ${formatUGX(result?.grandTotal ?? 0)} total${skippedNote}`,
       );
+      // Successful completion: retire this nonce so a future run mints a fresh one.
+      nonceRef.current = mintNonce();
       onDone();
     } catch (err) {
       addToast('error', err?.message || 'Could not record the contribution run.');

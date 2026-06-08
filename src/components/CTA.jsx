@@ -1,9 +1,14 @@
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../utils/motion';
 
+import { useSignIn } from '../contexts/SignInContext';
 import styles from './CTA.module.css';
 
 export default function CTA() {
+  const navigate = useNavigate();
+  const signIn = useSignIn();
+
   return (
     <section className={styles.section} id="start">
       <div className="container">
@@ -34,12 +39,20 @@ export default function CTA() {
               No paperwork, no branch visit. Start from just UGX 5,000 a month.
             </p>
             <div className={styles.actions}>
-              <a href="#open-account" className={styles.primaryBtn}>
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                onClick={() => navigate('/signup')}
+              >
                 Open your account
-              </a>
-              <a href="#learn-more" className={styles.secondaryBtn}>
+              </button>
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                onClick={() => signIn.open()}
+              >
                 Talk to an agent
-              </a>
+              </button>
             </div>
           </div>
 

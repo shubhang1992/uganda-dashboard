@@ -10,6 +10,19 @@ import styles from '../adminPanels.module.css';
 const EMPTY = { name: '', managerName: '', managerPhone: '', managerEmail: '' };
 
 /**
+ * Map a raw Supabase/Postgres error to a friendly local message. Mirrors the
+ * HTTP routes' error vocabulary for the admin write path (audit §5a / §2a.8):
+ *   • P0001 (RAISE) → surface the raised message (the RPC's own validation text)
+ *   • 23505 (unique_violation) → friendly "already exists" message
+ */
+function friendlyCreateError(err) {
+  const code = err?.code;
+  if (code === 'P0001') return err?.message || 'Could not create distributor.';
+  if (code === '23505') return 'A distributor with these details already exists.';
+  return err?.message || 'Could not create distributor.';
+}
+
+/**
  * Admin: create-distributor form. Docks above the Distributors list. Submits
  * via the create_distributor RPC (admin-gated); on success the list refreshes
  * through the mutation's query invalidation.
@@ -45,7 +58,11 @@ export default function CreateDistributor() {
     e.preventDefault();
     setError('');
     if (!form.name.trim()) {
-      setError('Distributor name is required.');
+      // Surface the validation error both inline and via the Toast live region
+      // (§7c.4 — validation errors were previously silent to assistive tech).
+      const msg = 'Distributor name is required.';
+      setError(msg);
+      addToast('error', msg);
       return;
     }
     try {
@@ -58,7 +75,7 @@ export default function CreateDistributor() {
       addToast('success', `Distributor "${form.name.trim()}" created.`);
       setCreateDistributorOpen(false);
     } catch (err) {
-      const msg = err?.message || 'Could not create distributor.';
+      const msg = friendlyCreateError(err);
       setError(msg);
       addToast('error', msg);
     }
@@ -112,7 +129,7 @@ export default function CreateDistributor() {
 
             <div className={styles.body}>
               <form className={styles.form} onSubmit={handleSubmit}>
-                {error && <div className={styles.errorBox}>{error}</div>}
+                {error && <div className={styles.errorBox} role="alert">{error}</div>}
 
                 <div className={styles.field}>
                   <label className={styles.label} htmlFor="cd-name">

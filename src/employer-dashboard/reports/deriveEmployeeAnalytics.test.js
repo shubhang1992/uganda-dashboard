@@ -103,6 +103,19 @@ describe('export builders', () => {
     }
   });
 
+  it('keys every roster row by each column.key so the Excel export is non-empty (audit §7e.1)', () => {
+    // The roster export feeds { key, label } columns straight into downloadSheet.
+    // buildWorkbookBuffer looks up each cell by column.key — so EVERY column key
+    // must resolve to a defined cell on every row, or the .xlsx export goes blank.
+    const { rows, columns } = buildRosterExport(ROSTER);
+    for (const col of columns) {
+      expect(Object.prototype.hasOwnProperty.call(rows[0], col.key)).toBe(true);
+      expect(rows[0][col.key]).not.toBeUndefined();
+    }
+    // At least one human-readable cell carries real content (not '').
+    expect(rows[0].name).toBe('Aml Driver');
+  });
+
   it('buildSummaryExport flattens every distribution with percentages', () => {
     const a = deriveEmployeeAnalytics(ROSTER);
     const { rows, columns } = buildSummaryExport(a);

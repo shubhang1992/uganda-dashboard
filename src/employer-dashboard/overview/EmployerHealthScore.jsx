@@ -7,12 +7,12 @@
 //   * Centrepiece — total contributions to date (a single clean hero figure).
 //   * Monthly standing — col 1 hosts the employer's league rank among peers,
 //     rendered in the Branch dashboard's score-gauge language (shared ScoreGauge).
-//   * Funder tiles — this month's contribution (newest run + delta vs prior),
-//     staff funded, avg contribution / employee, and run cadence.
+//   * Funder tiles — next contribution (newest run amount + due label), staff
+//     funded, avg contribution / employee, and pending KYC.
 //   * Metric tiles / alerts open the employer slide-in panels (employees /
 //     runs / KYC) via `useEmployerPanel`, not the branch report hub.
-//   * Activity feed is built from the contribution-run history + most-recent
-//     enrolments (the employer has no agent leaderboard).
+//   * Recent-activity feed is built from the contribution-run history + most-
+//     recent enrolments (the employer has no agent leaderboard).
 //
 // Data arrives via the employer hooks (employees / runs / metrics) — this
 // component never imports `employerSeed` directly (CLAUDE.md §4.1).
@@ -262,21 +262,16 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
     ? formatDate(oldestRun.runAt, { variant: 'short-month-year' })
     : null;
 
-  // ── This month's contribution ──
+  // ── Next contribution amount ──
   // Key off the NEWEST run, not a calendar-month lookup: the seed runs predate
   // the real clock, so a literal "is this run in the current month?" check would
-  // read zero. The latest run IS "this month's" contribution for the demo.
+  // read zero. The latest run's total is the forward estimate (the next run
+  // re-derives per active member) surfaced as the upcoming contribution.
   const latest = runs[0];
-  const prevRun = runs[1];
   const thisMonth = latest?.grandTotal ?? 0;
-  // Signed delta vs the prior run (period-over-period); omitted when no prior.
-  const monthDelta =
-    latest && prevRun && prevRun.grandTotal
-      ? Math.round(((latest.grandTotal - prevRun.grandTotal) / prevRun.grandTotal) * 100)
-      : null;
 
-  // ── Run cadence ── employer.payrollCadence is 'monthly', so the next run is
-  // one month after the last. Guarded for an employer with no runs yet.
+  // ── Next contribution ── employer.payrollCadence is 'monthly', so the next run
+  // is one month after the last. Guarded for an employer with no runs yet.
   const lastRunAt = latest?.runAt ?? null;
   const nextRunLabel = lastRunAt
     ? formatDate(
@@ -284,6 +279,12 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
         { variant: 'short-month-year' },
       )
     : null;
+  // "Due now" when the latest run isn't in the current calendar month — same
+  // heuristic the alerts row uses (computeAlerts), surfaced for the hero tile.
+  const runDue =
+    !latest ||
+    new Date(latest.runAt).getMonth() !== new Date().getMonth() ||
+    new Date(latest.runAt).getFullYear() !== new Date().getFullYear();
 
   // Copilot answer context — the employer's OWN figures, fed to the local
   // employer responder so every reply is truthful (no distributor-network noise,
@@ -410,16 +411,9 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
           {/* Funder tiles */}
           <div className={styles.tileGrid}>
             <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('runs')}>
-              <span className={styles.metricLabel}>This month&apos;s contribution</span>
-              <div className={styles.metricRow}>
-                <span className={styles.metricValueMd}>{formatUGX(thisMonth)}</span>
-                {monthDelta != null && (
-                  <span className={styles.changeBadge} data-positive={monthDelta >= 0}>
-                    <svg aria-hidden="true" viewBox="0 0 10 10" width="8" height="8"><path d={monthDelta >= 0 ? 'M5 2l3.5 5H1.5z' : 'M5 8L1.5 3h7z'} fill="currentColor" /></svg>
-                    {Math.abs(monthDelta)}%
-                  </span>
-                )}
-              </div>
+              <span className={styles.metricLabel}>Next Contribution</span>
+              <span className={styles.metricValueMd}>{formatUGX(thisMonth)}</span>
+              <span className={styles.metricSub}>{runDue ? 'Due now' : nextRunLabel ? `Due ~${nextRunLabel}` : 'No runs yet'}</span>
             </button>
             <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
               <span className={styles.metricLabel}>Staff</span>
@@ -432,20 +426,10 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
               <span className={styles.metricLabel}>Avg / Employee</span>
               <span className={styles.metricValueMd}>{formatUGX(derived.avgContribution)}</span>
             </button>
-            <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('runs')}>
-              <span className={styles.metricLabel}>Run cadence</span>
-              {latest ? (
-                <>
-                  <span className={styles.metricValueSm}>
-                    Last run {formatDate(latest.runAt)}
-                    <span className={styles.metricInlineDot} aria-hidden="true">·</span>
-                    {formatRelativeTime(latest.runAt)}
-                  </span>
-                  {nextRunLabel && <span className={styles.metricSub}>Next ~{nextRunLabel}</span>}
-                </>
-              ) : (
-                <span className={styles.metricValueSm}>No runs yet</span>
-              )}
+            <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('kyc')}>
+              <span className={styles.metricLabel}>Pending KYC</span>
+              <span className={styles.metricValueMd}>{formatNumber(pendingKyc)}</span>
+              <span className={styles.metricSub}>{pendingKyc > 0 ? 'Awaiting sign-up' : 'All onboarded'}</span>
             </button>
           </div>
         </div>
@@ -453,11 +437,7 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
         {/* Col 3: Activity */}
         <div className={styles.activitySection}>
           <div className={styles.activityHeader}>
-            <span className={styles.activityTitle}>Today&apos;s Snapshot</span>
-            <span className={styles.activityLive} aria-label="Updated just now">
-              <span className={styles.liveDot} aria-hidden="true" />
-              Updated
-            </span>
+            <span className={styles.activityTitle}>Recent Activity</span>
           </div>
           <div className={styles.activityFeed}>
             {events.length === 0 ? (

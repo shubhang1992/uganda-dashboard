@@ -67,14 +67,23 @@ function formatBytes(bytes) {
  * Build an `.xlsx` workbook (as an ArrayBuffer) from row objects.
  *
  * Pure / DOM-free so it can be unit-tested without jsdom. The header row is
- * `columns` (in order); each subsequent row pulls `row[col]` for every column
+ * `columns` (in order); each subsequent row pulls `row[key]` for every column
  * key, coercing `null`/`undefined`/missing keys to an empty string so the
  * worksheet column geometry stays rectangular and predictable.
  *
+ * `columns` accepts BOTH shapes: a plain string (used as both the header label
+ * AND the row-object lookup key — the distributor settlement caller), or a
+ * `{ key, label }` object (label drives the header, key drives the row lookup —
+ * the employer onboarding template + roster export). Mixing the two contracts
+ * silently produced blank workbooks before (a `{key,label}` object stringified
+ * to `[object Object]` in the header and never matched a row key), so we
+ * normalise both to `{ key, label }` up front.
+ *
  * @param {object} args
  * @param {Array<object>} args.rows — Data rows (plain objects).
- * @param {Array<string>} args.columns — Header strings; defines column order
- *   AND which keys are included.
+ * @param {Array<string|{key:string,label:string}>} args.columns — Defines
+ *   column order AND which keys are included. A string is both header + key;
+ *   a `{ key, label }` object separates the header label from the row key.
  * @param {string} [args.sheetName='Sheet1'] — Worksheet name.
  * @returns {Promise<ArrayBuffer>} The serialised `.xlsx` bytes.
  */
@@ -83,14 +92,20 @@ export async function buildWorkbookBuffer({ rows, columns, sheetName = DEFAULT_S
   const safeColumns = Array.isArray(columns) ? columns : [];
   const safeRows = Array.isArray(rows) ? rows : [];
 
+  // Normalise both column contracts to `{ key, label }`: a string column is its
+  // own header AND lookup key; a `{ key, label }` object keeps them distinct.
+  const cols = safeColumns.map((col) =>
+    typeof col === 'string' ? { key: col, label: col } : col,
+  );
+
   // Array-of-arrays (AOA): first row is the header, then one array per data
   // row in column order. Using AOA (rather than json_to_sheet) guarantees the
   // header ordering exactly matches `columns` and that empty cells are filled.
   const aoa = [
-    safeColumns.slice(),
+    cols.map((col) => col.label),
     ...safeRows.map((row) =>
-      safeColumns.map((col) => {
-        const value = row?.[col];
+      cols.map((col) => {
+        const value = row?.[col.key];
         return value === null || value === undefined ? '' : value;
       }),
     ),

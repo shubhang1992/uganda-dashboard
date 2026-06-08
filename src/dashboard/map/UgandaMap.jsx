@@ -160,12 +160,17 @@ function MapController({ bounds, center, zoom, fitOptions }) {
   useEffect(() => {
     const fix = () => map.invalidateSize({ animate: false });
     const raf = requestAnimationFrame(fix);
+    // Deferred second pass — closes the initial-mount window (lazy + Suspense +
+    // animating sibling) where the container width finalises a frame or two late.
+    const t = setTimeout(fix, 250);
+    // Belt-and-suspenders — re-sync once Leaflet itself reports ready.
+    map.whenReady(fix);
     let ro;
     try {
       ro = new ResizeObserver(fix);
       ro.observe(map.getContainer());
-    } catch { /* ResizeObserver unsupported — the rAF pass still corrects mount-time sizing */ }
-    return () => { cancelAnimationFrame(raf); ro?.disconnect(); };
+    } catch { /* ResizeObserver unsupported — the rAF + timeout passes still correct mount-time sizing */ }
+    return () => { cancelAnimationFrame(raf); clearTimeout(t); ro?.disconnect(); };
   }, [map]);
 
   return null;
@@ -366,14 +371,12 @@ function UgandaMap() {
   const onRegionClick = useCallback((e) => {
     const name = e.target.feature.properties.name;
     const regionId = REGION_NAME_TO_ID[name];
-    console.log('[DIAG region-click]', JSON.stringify({ name, regionId }));
     if (regionId) drillDown('region', regionId);
   }, [drillDown, REGION_NAME_TO_ID]);
 
   const onDistrictClick = useCallback((e) => {
     const name = e.target.feature.properties.name;
     const districtId = DISTRICT_NAME_TO_ID[name];
-    console.log('[DIAG district-click]', JSON.stringify({ name, districtId }));
     if (districtId) drillDown('district', districtId);
   }, [drillDown, DISTRICT_NAME_TO_ID]);
 

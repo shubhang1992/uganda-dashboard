@@ -1,4 +1,4 @@
-// Employer dashboard shell — Phase 1. Cloned from BranchDashboardShell
+// Employer dashboard shell. Cloned from BranchDashboardShell
 // (branch → employer): same CSS grid + mobile hamburger/drawer, the same route
 // guard, an employerId read with a missing-id fallback, and the provider nest
 //   <EmployerDashboardProvider> → <EmployerScopeProvider> → <ShellInner/>.
@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../utils/motion';
-import { EmployerDashboardProvider } from '../contexts/EmployerPanelContext';
+import { EmployerDashboardProvider, useEmployerPanel } from '../contexts/EmployerPanelContext';
 import { EmployerScopeProvider } from '../contexts/EmployerScopeContext';
 import { useAuth } from '../contexts/AuthContext';
 import logo from '../assets/logo.png';
@@ -107,6 +107,20 @@ function MobileDrawer({ open, onClose }) {
 }
 
 function DashboardContent({ menuOpen, onMenuToggle, onMenuClose }) {
+  // Gate each panel on its open flag so its data hooks don't fire on shell cold
+  // load. Mounting all panels unconditionally fired ~12-15 Supabase requests at
+  // first paint for panels the user hadn't opened (5b.10) — mirrors the gated
+  // distributor (DashboardShell) and admin (AdminDashboardShell) shells.
+  const {
+    employeesOpen,
+    runsOpen,
+    insuranceOpen,
+    kycOpen,
+    reportsOpen,
+    settingsOpen,
+    supportOpen,
+    onboardOpen,
+  } = useEmployerPanel();
   return (
     <>
       <MobileHeader onMenuToggle={onMenuToggle} menuOpen={menuOpen} />
@@ -114,14 +128,14 @@ function DashboardContent({ menuOpen, onMenuToggle, onMenuClose }) {
       <main className={styles.main} id="main">
         <EmployerOverview />
       </main>
-      <ViewEmployees splitMode />
-      <ContributionRuns splitMode />
-      <InsuranceBenefits splitMode />
-      <PendingKyc splitMode />
-      <EmployerReports splitMode />
-      <EmployerSettings splitMode />
-      <EmployerTickets splitMode />
-      <OnboardStaffPanel splitMode />
+      {employeesOpen && <ViewEmployees splitMode />}
+      {runsOpen && <ContributionRuns splitMode />}
+      {insuranceOpen && <InsuranceBenefits splitMode />}
+      {kycOpen && <PendingKyc splitMode />}
+      {reportsOpen && <EmployerReports splitMode />}
+      {settingsOpen && <EmployerSettings splitMode />}
+      {supportOpen && <EmployerTickets splitMode />}
+      {onboardOpen && <OnboardStaffPanel splitMode />}
     </>
   );
 }

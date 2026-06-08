@@ -101,6 +101,44 @@ describe('xlsx utils', () => {
       expect(readBufferHeader(buffer)).toEqual(['A', 'B']);
       expect(readBufferToRows(buffer)).toEqual([]);
     });
+
+    // Regression (audit §7e.1): the employer onboarding template + reports
+    // roster export pass `{ key, label }` column objects. Before normalisation,
+    // the header stringified to "[object Object]" and EVERY data cell was
+    // `row[{key,label}]` → undefined → '' → a blank workbook. Assert the LABEL
+    // drives the header, the KEY drives the lookup, and cells are NON-EMPTY.
+    it('accepts { key, label } columns — label is the header, key looks up the cell', async () => {
+      const columns = [
+        { key: 'fullName', label: 'Full name' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'email', label: 'Email' },
+      ];
+      const rows = [
+        { fullName: 'Jane Akello', phone: '+256700000001', email: 'jane.akello@example.com' },
+      ];
+      const buffer = await buildWorkbookBuffer({ rows, columns });
+
+      // Header uses the human labels, not "[object Object]" or the raw keys.
+      expect(readBufferHeader(buffer)).toEqual(['Full name', 'Phone', 'Email']);
+
+      // The single data cell is the real value — not undefined / '' / [object Object].
+      const parsed = readBufferToRows(buffer);
+      expect(parsed).toEqual([
+        { 'Full name': 'Jane Akello', Phone: '+256700000001', Email: 'jane.akello@example.com' },
+      ]);
+      const firstCell = parsed[0]['Full name'];
+      expect(firstCell).toBe('Jane Akello');
+      expect(firstCell).not.toBe('');
+      expect(firstCell).not.toBeUndefined();
+    });
+
+    it('supports columns mixing string and { key, label } shapes in one workbook', async () => {
+      const columns = ['Plain', { key: 'k', label: 'Labelled' }];
+      const rows = [{ Plain: 'p-value', k: 'k-value' }];
+      const buffer = await buildWorkbookBuffer({ rows, columns });
+      expect(readBufferHeader(buffer)).toEqual(['Plain', 'Labelled']);
+      expect(readBufferToRows(buffer)).toEqual([{ Plain: 'p-value', Labelled: 'k-value' }]);
+    });
   });
 
   describe('parseSheet()', () => {
