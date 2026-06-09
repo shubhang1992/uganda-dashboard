@@ -313,10 +313,8 @@ describe('POST /api/auth/verify-password', () => {
       res,
     );
     expect(res.__getStatus()).toBe(500);
-    expect(res.__getPayload()).toEqual({
-      code: 'db_error',
-      message: '42501',
-    });
+    // §11-M1: opaque payload — the raw supabase code/message must NOT leak.
+    expect(res.__getPayload()).toEqual({ code: 'db_error' });
   });
 
   // -------------------------------------------------------------------------

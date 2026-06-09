@@ -108,10 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // `db_error` so ops can distinguish infrastructure issues from the
       // auth-failure UX code.
       if (userLookupError.code !== 'PGRST116') {
-        res.status(500).json({
-          code: 'db_error',
-          message: userLookupError.code ?? userLookupError.message,
-        });
+        res.status(500).json({ code: 'db_error' });
         return;
       }
     }

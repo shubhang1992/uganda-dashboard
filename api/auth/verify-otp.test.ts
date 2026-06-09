@@ -560,7 +560,7 @@ describe('POST /api/auth/verify-otp', () => {
   });
 
   // -------------------------------------------------------------------------
-  // DB error on the users upsert → 500 db_error with supabase code.
+  // DB error on the users upsert → 500 db_error (opaque; no leaked DB detail).
   // -------------------------------------------------------------------------
 
   it('returns 500 db_error when the users upsert returns a non-PGRST116 error', async () => {
@@ -585,10 +585,8 @@ describe('POST /api/auth/verify-otp', () => {
     );
 
     expect(res.__getStatus()).toBe(500);
-    expect(res.__getPayload()).toEqual({
-      code: 'db_error',
-      message: '23505',
-    });
+    // §11-M1: opaque payload — the raw supabase code/message must NOT leak.
+    expect(res.__getPayload()).toEqual({ code: 'db_error' });
   });
 
   it('treats PGRST116 on upsert as non-fatal (200, hasPassword reflects request)', async () => {

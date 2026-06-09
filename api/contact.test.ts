@@ -202,21 +202,22 @@ describe('POST /api/contact', () => {
   });
 
   // -------------------------------------------------------------------------
-  // DB error → 500 db_error surfacing the supabase error code.
+  // DB error → 500 db_error. §11-M1: opaque payload on this public route — the
+  // raw supabase code/message must NOT leak to unauthenticated callers.
   // -------------------------------------------------------------------------
 
-  it('returns 500 db_error with the supabase code when the insert fails', async () => {
+  it('returns an opaque 500 db_error when the insert fails', async () => {
     insertQueue.push({ error: { code: '23505', message: 'duplicate key' } });
     await call(makeReq({ body: VALID }), res);
     expect(res.__getStatus()).toBe(500);
-    expect(res.__getPayload()).toEqual({ code: 'db_error', message: '23505' });
+    expect(res.__getPayload()).toEqual({ code: 'db_error' });
     expect(res.__headers['Cache-Control']).toBe('no-store');
   });
 
-  it('falls back to error.message when the supabase error has no code', async () => {
+  it('stays opaque even when the supabase error has no code', async () => {
     insertQueue.push({ error: { message: 'connection refused' } });
     await call(makeReq({ body: VALID }), res);
     expect(res.__getStatus()).toBe(500);
-    expect(res.__getPayload()).toEqual({ code: 'db_error', message: 'connection refused' });
+    expect(res.__getPayload()).toEqual({ code: 'db_error' });
   });
 });

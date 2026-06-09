@@ -240,10 +240,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // reserved for shape-validation failures earlier in the handler.
     if (err instanceof DbError) {
       console.error('[verify-otp] db error', err);
-      res.status(500).json({
-        code: 'db_error',
-        message: err.code ?? err.dbMessage,
-      });
+      res.status(500).json({ code: 'db_error' });
       return;
     }
     console.error('[verify-otp] unexpected error', err);

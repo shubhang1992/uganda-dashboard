@@ -101,10 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // 500 `db_error` so ops can distinguish infrastructure issues from
       // the legitimate user_not_found case.
       if (lookupError.code !== 'PGRST116') {
-        res.status(500).json({
-          code: 'db_error',
-          message: lookupError.code ?? lookupError.message,
-        });
+        res.status(500).json({ code: 'db_error' });
         return;
       }
     }
@@ -140,10 +137,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // and the write (vanishingly unlikely in this codebase but possible
       // under load). Either way it's a true DB failure — surface as
       // `db_error` rather than masking with a generic `unexpected_error`.
-      res.status(500).json({
-        code: 'db_error',
-        message: updateError.code ?? updateError.message,
-      });
+      res.status(500).json({ code: 'db_error' });
       return;
     }
 
