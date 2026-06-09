@@ -34,7 +34,7 @@
     "smol-toml": "^1.6.1"
   },
   "dependencies": {
-    "@sentry/node": "^8.50.0",
+    "@sentry/node": "^10.57.0",
     "@supabase/postgrest-js": "^2.105.4",
     "@supabase/supabase-js": "^2.105.4",
     "@tanstack/react-query": "^5.96.2",
