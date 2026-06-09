@@ -38,6 +38,17 @@ export default defineConfig({
       reporter: ['text', 'html'],
       include: ['src/**/*.{js,jsx,ts,tsx}', 'api/**/*.ts'],
       exclude: ['**/*.test.*', '**/__tests__/**', 'src/test/**', 'src/data/**', 'node_modules/**', 'dist/**', 'coverage/**'],
+      // CI-enforced floor (audit §7b.16). MEASURED actual statements coverage is
+      // ~23.22% (2026-06-09) — the bulk of `src/**` is UI components whose only
+      // coverage is the browser-level Playwright E2E suite (§7b.15), not Vitest.
+      // The audit's aspirational 60% is therefore unmeetable at the unit/RTL
+      // layer today; setting it would red-line CI. We pin the threshold at the
+      // measured floor (rounded DOWN to 23) so the gate is a RATCHET — it locks
+      // in the current coverage and any regression below it fails CI. Raise this
+      // as RTL/unit coverage grows; never set it above the measured actual.
+      thresholds: {
+        statements: 23,
+      },
     },
   },
   resolve: {

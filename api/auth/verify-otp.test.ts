@@ -504,6 +504,9 @@ describe('POST /api/auth/verify-otp', () => {
     // Employer falls back to emp-001 (Phase 0) just like the other
     // non-subscriber roles when demo_personas misses.
     ['employer', 'emp-001', 'employerId'],
+    // Admin falls back to admin-001 (0049) — the fallback + the `adminId` claim
+    // were never asserted before (audit §7b.4); pin both here.
+    ['admin', 'admin-001', 'adminId'],
   ] as const)(
     'returns the role-scoped %s claim with fallback id %s when demo_personas misses',
     async (role, fallbackId, claimKey) => {
