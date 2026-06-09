@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # NPM dependencies — weekly, with minor + patch updates grouped into a
+  # single PR to cut review noise. Major bumps still open individually so
+  # breaking changes get scrutinised on their own.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions used by the CI workflows — weekly, grouped together.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"

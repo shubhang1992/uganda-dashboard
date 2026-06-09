@@ -19,7 +19,7 @@
 // multi-byte UTF-8 (emoji, accented characters) can blow past 72 bytes well
 // before 72 characters, so the byte length is what we check.
 
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 
 // Work factor. 10 is the bcrypt default and gives ~80ms per hash on a
 // modern Vercel serverless instance — comfortably above the brute-force
