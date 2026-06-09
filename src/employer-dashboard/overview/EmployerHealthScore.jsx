@@ -48,11 +48,14 @@ function deriveMetrics(metrics, employees) {
 
   // "Participating" = active staff whose contribution config funds a non-zero
   // amount (an active employer-only or co-contribution member). Suspended staff
-  // and zero-config rows don't count. Consumed only by the Copilot strip.
+  // and zero-config rows don't count. Consumed only by the Copilot strip. The
+  // rate is taken against the ACTIVE staff base (not total headcount) — an
+  // inactive roster shouldn't read as "low participation". Guarded against a
+  // divide-by-zero when there are 0 active staff.
   const contributing = employees.filter(
     (e) => e.status === 'active' && contributesSomething(e),
   ).length;
-  const participationRate = headcount > 0 ? (contributing / headcount) * 100 : 0;
+  const participationRate = active > 0 ? (contributing / active) * 100 : 0;
 
   return {
     headcount,
@@ -72,9 +75,9 @@ function generateInsights(metrics, derived, runs, pendingKyc) {
   const insights = [];
 
   const part = Math.round(derived.participationRate);
-  if (part >= 90) insights.push({ type: 'positive', text: `${part}% of staff contributing`, query: 'How many staff are contributing?' });
-  else if (part >= 70) insights.push({ type: 'warning', text: `${part}% participation — room to grow`, query: 'How many staff are contributing?' });
-  else insights.push({ type: 'negative', text: `${part}% participation — low`, query: 'How many staff are contributing?' });
+  if (part >= 90) insights.push({ type: 'positive', text: `${part}% of active staff contributing`, query: 'How many staff are contributing?' });
+  else if (part >= 70) insights.push({ type: 'warning', text: `${part}% of active staff contributing — room to grow`, query: 'How many staff are contributing?' });
+  else insights.push({ type: 'negative', text: `${part}% of active staff contributing — low`, query: 'How many staff are contributing?' });
 
   if (pendingKyc > 0) insights.push({ type: 'warning', text: `${pendingKyc} awaiting sign-up`, query: 'Who is pending KYC?' });
 

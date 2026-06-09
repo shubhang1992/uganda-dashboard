@@ -257,6 +257,15 @@ describe('getEmployerChatResponse — local, truthful employer copilot', () => {
     expect(reply.toLowerCase()).toContain('company-wide');
   });
 
+  it('measures participation against ACTIVE staff, not total headcount', async () => {
+    const reply = await mod.getEmployerChatResponse('how many staff are contributing?', CTX);
+    // Mirrors the hero's "% of active staff contributing" definition: the base
+    // is the active count (15), not the total headcount (16).
+    expect(reply).toContain('94%');
+    expect(reply).toContain('15 active staff');
+    expect(reply).not.toContain('16 staff');
+  });
+
   it('falls back to a helpful prompt for unknown questions', async () => {
     const reply = await mod.getEmployerChatResponse('quantum tunnelling', CTX);
     expect(reply.toLowerCase()).toMatch(/pending kyc|funding|staff/);

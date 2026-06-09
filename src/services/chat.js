@@ -228,9 +228,11 @@ function mockEmployerChatResponse(message, ctx = {}) {
       : `All ${formatNumber(headcount)} staff are active.`;
   }
 
-  // Participation / contributing.
+  // Participation / contributing — measured against ACTIVE staff (matches the
+  // hero's "% of active staff contributing" insight), so an inactive roster
+  // doesn't read as low participation.
   if (l.includes('contribut') || l.includes('participat')) {
-    return `${participationPct}% of your ${formatNumber(headcount)} staff are actively contributing.`;
+    return `${participationPct}% of your ${formatNumber(active)} active staff are contributing.`;
   }
 
   // Company funding model.
