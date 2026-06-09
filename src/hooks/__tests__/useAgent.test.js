@@ -180,7 +180,7 @@ describe('useUpdateSubscriberSchedule — optimistic update + rollback', () => {
     expect(queryClient.getQueryData(['agentSubscribers', 'a-001'])).toBeUndefined();
   });
 
-  it('settles by invalidating agent portfolio + subscriber transactions on success', async () => {
+  it('settles by invalidating agent portfolio + contributions + subscriber transactions on success', async () => {
     subscriberService.updateContributionSchedule.mockResolvedValue({ ok: true });
     const { queryClient, Wrapper } = makeWrapper();
     queryClient.setQueryData(['agentSubscribers', 'a-001'], [
@@ -197,6 +197,7 @@ describe('useUpdateSubscriberSchedule — optimistic update + rollback', () => {
     });
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['agentSubscribers', 'a-001'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['agentContributions', 'a-001'] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['subscriberTransactions', 'sub-2'] });
   });
 

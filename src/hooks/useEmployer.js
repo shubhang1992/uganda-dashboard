@@ -336,6 +336,7 @@ export function useCreateEmployer() {
     mutationFn: employer.createEmployer,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['allEmployersMetrics'] });
+      queryClient.invalidateQueries({ queryKey: ['platformOverview'] });
     },
   });
 }

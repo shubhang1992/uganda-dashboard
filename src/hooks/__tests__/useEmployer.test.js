@@ -215,6 +215,8 @@ describe('useEmployer hooks — mutations + invalidation', () => {
     // it as (variables, context) — assert on the first positional arg only.
     expect(employer.createEmployer.mock.calls[0][0]).toEqual({ name: 'New Co' });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['allEmployersMetrics'] });
+    // Symmetric with useCreateDistributor — the platform overview counts employers.
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['platformOverview'] });
   });
 });
 
