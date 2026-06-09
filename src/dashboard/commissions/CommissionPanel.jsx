@@ -6,7 +6,8 @@ import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { SUPPORT_EMAIL } from '../../config/env';
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
@@ -124,6 +125,13 @@ export default function CommissionPanel({ splitMode = false }) {
   // until a settlement has been applied this session.
   const [settlementResult, setSettlementResult] = useState(null);
   const fileInputRef = useRef(null);
+  // Focus target for the single-panel-replace swap (§7c.3). Only one view's
+  // motion.div is mounted at a time (AnimatePresence mode="wait"), so a single
+  // ref reassigned per render points at the active view container.
+  const viewRef = useRef(null);
+  // Skip the first focus pass — the initial panel render shouldn't yank focus;
+  // only an actual view swap should steer it.
+  const didMountView = useRef(false);
 
   // Data hooks
   const { data: rate } = useCommissionRate();
@@ -208,6 +216,26 @@ export default function CommissionPanel({ splitMode = false }) {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [commissionsOpen, setCommissionsOpen]);
+
+  // Move focus to the newly shown view on a drill-down / back swap (§7c.3) so a
+  // keyboard/SR user lands on the new content instead of <body> after the
+  // triggering button unmounts. Mirrors SignupShell's focus-on-transition. The
+  // first pass is skipped (panel-open render) and the ref is re-armed each time
+  // the panel closes so a reopen doesn't yank focus on its first view.
+  useEffect(() => {
+    if (!commissionsOpen) {
+      didMountView.current = false;
+      return undefined;
+    }
+    if (!didMountView.current) {
+      didMountView.current = true;
+      return undefined;
+    }
+    const frame = requestAnimationFrame(() => {
+      viewRef.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [view, commissionsOpen]);
 
   // Debounce the agent-search input (the filter memo runs a lowercase pass over
   // the full agent list on every keystroke). 200ms matches the OverlayPanel.
@@ -549,7 +577,7 @@ export default function CommissionPanel({ splitMode = false }) {
               <AnimatePresence mode="wait">
                 {/* ─── HOME VIEW ─────────────────────────────────────── */}
                 {view === 'home' && (
-                  <motion.div key="home" {...viewAnim}>
+                  <motion.div key="home" ref={viewRef} tabIndex={-1} {...viewAnim}>
                     {/* ── Rate per subscriber (distributor only) ── */}
                     {isDistributor && (
                       <div className={styles.cadenceCard} style={{ marginBottom: 'var(--space-4)' }}>
@@ -748,7 +776,7 @@ export default function CommissionPanel({ splitMode = false }) {
 
                 {/* ─── AGENTS VIEW ───────────────────────────────────── */}
                 {view === 'agents' && (
-                  <motion.div key="agents" {...viewAnim}>
+                  <motion.div key="agents" ref={viewRef} tabIndex={-1} {...viewAnim}>
                     <div className={styles.toolbar}>
                       <div className={styles.searchWrap}>
                         <span className={styles.searchIcon}>{Icons.search}</span>
@@ -820,7 +848,7 @@ export default function CommissionPanel({ splitMode = false }) {
 
                 {/* ─── AGENT DETAIL VIEW ─────────────────────────────── */}
                 {view === 'agent-detail' && agentDetail && (
-                  <motion.div key="agent-detail" {...viewAnim}>
+                  <motion.div key="agent-detail" ref={viewRef} tabIndex={-1} {...viewAnim}>
                     <div className={styles.detailHeader}>
                       <div className={styles.detailAvatar}>{getInitials(agentDetail.agentName)}</div>
                       <div className={styles.detailInfo}>
@@ -908,7 +936,7 @@ export default function CommissionPanel({ splitMode = false }) {
 
                 {/* ─── SUBSCRIBERS VIEW ──────────────────────────────── */}
                 {view === 'subscribers' && (
-                  <motion.div key="subscribers" {...viewAnim}>
+                  <motion.div key="subscribers" ref={viewRef} tabIndex={-1} {...viewAnim}>
                     <div className={styles.filterPills}>
                       <button className={styles.filterPill} data-active={!subFilter} onClick={() => setSubFilter(null)}>All</button>
                       <button className={styles.filterPill} data-active={subFilter === 'active'} onClick={() => setSubFilter('active')}>Active</button>

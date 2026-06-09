@@ -8,18 +8,23 @@ Operational runbook for the `uganda-dashboard-api` service on Render (free tier,
 
 - **Frontend:** Vercel (Vite + React SPA) — `uganda-dashboard-*.vercel.app`.
 - **Backend:** Render web service (Node 22, Express 5) — `uganda-dashboard-api.onrender.com` (hostname confirmed after service creation).
-- **Database:** Supabase (`ap-northeast-1`, Tokyo) — keep the Render region in Singapore to minimise the Render→Supabase RTT.
+- **Database:** Supabase (`ap-southeast-1`, **Singapore** — new project, cutover **2026-06-05**; was `ap-northeast-1` Tokyo before). Render is also in Singapore, so backend and Postgres are now **co-located in the same region** (intra-region RTT, ~1–5ms).
 - **Wake:** GHA cron (14 min) + cron-job.org/UptimeRobot (5 min backup) + frontend `useWarmup()` ping.
 
 ---
 
 ## Manual Deploy Procedure (G63)
 
-Auto-deploy is **off** by design (mirrors CLAUDE.md §1 guardrail). Every deploy is manual:
+Auto-deploy is **off** by design (`autoDeployTrigger: off` on `uganda-dashboard-api`, branch `main`, region Singapore, plan free; mirrors CLAUDE.md §1 guardrail). Every deploy is manual. Two supported paths:
 
-1. **From the Render dashboard:** `uganda-dashboard-api` → **Manual Deploy** → **Deploy latest commit**.
-2. **From CI / scripts:** `curl -X POST $RENDER_DEPLOY_HOOK_URL`.
-   - The deploy hook lives at: Render dashboard → service → **Settings** → **Deploy Hook**. Toggle it on, copy the URL, store in 1Password under the project entry. Treat the URL as a secret (anyone with it can trigger a deploy).
+1. **`npm run deploy:api`** (preferred for agents / CI). Wraps `scripts/render-deploy.mjs`, which POSTs the `RENDER_DEPLOY_HOOK` value from `.env.local`. The hook deploys whatever commit is at the tip of the service's tracked branch (`main`). Setup is one-time:
+   - Render dashboard → service → **Settings** → **Deploy Hook** → copy the URL.
+   - Add to `.env.local` (gitignored): `RENDER_DEPLOY_HOOK=https://api.render.com/deploy/srv-...?key=...`.
+   - Treat the URL as a deploy-only secret (it can only kick a deploy of this one service — smallest blast radius). The script validates the URL shape and prints the returned deploy id; track it via Render → Events or the Render MCP `list_deploys`/`get_deploy`.
+   - Equivalent raw call if you don't want the script: `curl -X POST "$RENDER_DEPLOY_HOOK"`.
+2. **From the Render dashboard:** `uganda-dashboard-api` → **Manual Deploy** → **Deploy latest commit**.
+
+The frontend (Vercel) is the opposite posture — it **auto-deploys** on merge to `main` via the GitHub App; only the Render backend is manual.
 
 ### Cutover pre-deploy checklist (`feat/simplify-commissions` → `main`)
 
@@ -110,11 +115,11 @@ These are the 3 documented failure modes where Render keeps running but the symp
 Follow this when ready to create the Render service. **Do not run the MCP calls until each step's question is answered.**
 
 1. **Select Render workspace** — assistant will guide via `mcp__render__list_workspaces` then `mcp__render__select_workspace`. Confirm which workspace the service should live in (personal vs team).
-2. **Confirm region** — Singapore. **This is IMMUTABLE after service creation.** If Supabase ever moves to a different region, the service must be recreated.
+2. **Confirm region** — Singapore. **This is IMMUTABLE after service creation.** If Supabase ever moves to a different region, the service must be recreated. (The 2026-06-05 Supabase move from Tokyo → Singapore happened to land in Render's existing region, so no recreation was needed — backend and DB are now co-located.)
 3. **Have `SUPABASE_JWT_SECRET` on hand** — copy verbatim from the existing Vercel project's env settings (or from Supabase dashboard → API → JWT Settings). **Do NOT regenerate** during migration (audit B21) — rotating it silently fails-open under `withOptionalAuth`.
 4. **Approve `mcp__render__create_web_service`** — the call uses the `render.yaml` blueprint as input; the user confirms before execution.
 5. **Inject secrets via `mcp__render__update_environment_variables`** — set the 4 sync-false vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `SENTRY_DSN` (SENTRY_DSN may be left empty for the first deploy; wire it in Phase 5).
-6. **First manual deploy** — Render dashboard → service → **Manual Deploy** → **Deploy latest commit**, or `curl -X POST $RENDER_DEPLOY_HOOK_URL`.
+6. **First manual deploy** — Render dashboard → service → **Manual Deploy** → **Deploy latest commit**, or `npm run deploy:api` (POSTs `RENDER_DEPLOY_HOOK` from `.env.local`; see §Manual Deploy Procedure).
 
 After step 6, confirm:
 - Deploy logs show `[boot] env ok: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET` (audit G5).
@@ -154,7 +159,7 @@ Procedure:
 
 1. **Supabase Dashboard** → Project Settings → API → JWT Settings → Rotate.
 2. **Render Dashboard** → `uganda-dashboard-api` → Environment → update `SUPABASE_JWT_SECRET` to the new value (paste verbatim).
-3. **Trigger a restart** — Manual Deploy → "Deploy latest commit", or `curl -X POST $RENDER_DEPLOY_HOOK_URL`. (Saving an env var alone does NOT redeploy the service.)
+3. **Trigger a restart** — Manual Deploy → "Deploy latest commit", or `npm run deploy:api` (POSTs `RENDER_DEPLOY_HOOK`). (Saving an env var alone does NOT redeploy the service.)
 4. **Accept the user impact** — every existing 24h-TTL token becomes invalid immediately. All sessions are forced to re-login. Plan rotations for off-hours.
 
 The Vercel project no longer holds this secret post-migration; nothing to update there.

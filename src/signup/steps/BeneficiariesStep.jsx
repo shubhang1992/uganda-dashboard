@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { isValidUGPhone } from '../../utils/phone';
 import { useSignup } from '../SignupContext';
 import styles from './Step.module.css';

@@ -37,17 +37,18 @@ import {
 } from './_lib/password.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // B13: every response path on this auth route must be uncacheable. Set the
+  // header BEFORE the method check so even the 405 carries no-store (2a.2);
+  // it also covers success + all 4xx/5xx paths (unauthorized,
+  // current_password_*, password_*, user_not_found, db_error,
+  // unexpected_error).
+  res.setHeader('Cache-Control', 'no-store');
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     res.status(405).json({ code: 'method_not_allowed' });
     return;
   }
-
-  // B13: every response path on this auth route must be uncacheable. Setting
-  // the header once at the top of the handler covers success + all 4xx/5xx
-  // paths (unauthorized, current_password_*, password_*, user_not_found,
-  // db_error, unexpected_error).
-  res.setHeader('Cache-Control', 'no-store');
 
   const token = extractBearer(req);
   if (!token) {

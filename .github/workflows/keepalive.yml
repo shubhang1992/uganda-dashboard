@@ -1,20 +1,15 @@
 # Wake-pinger for the Render free-tier backend (audit B7).
 #
-# GitHub Actions' cron has 5–15 min real-world jitter; running every 14 min
-# gives a ~750 instance-hour/mo footprint (audit N27 — under the free cap).
-# cron-job.org or UptimeRobot is configured separately as a 5-min backup.
-# Both should be set to email the team on failure (audit G59).
-#
-# NOTE: the hostname below is a placeholder derived from `name:` in render.yaml.
-# Render generates URLs as `<name>.onrender.com` but may append a hash suffix
-# if the name is taken. Update this URL in a follow-up commit once the actual
-# service hostname is confirmed in the Render dashboard.
+# GitHub Actions' cron has 5–15 min real-world jitter; running every 10 min
+# widens the margin against Render's 15-min spin-down so two jittered fires
+# stay <15 min apart. cron-job.org or UptimeRobot is configured separately as
+# a 5-min backup. Both should be set to email the team on failure (audit G59).
 
 name: Render keepalive
 
 on:
   schedule:
-    - cron: '*/14 * * * *'   # every 14 min
+    - cron: '*/10 * * * *'   # every 10 min
   workflow_dispatch: {}
 
 jobs:

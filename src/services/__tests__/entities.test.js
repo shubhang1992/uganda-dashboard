@@ -35,6 +35,8 @@ const {
   getAllAtLevel,
   createBranch,
   getEntityMetricsRollup,
+  createDistributor,
+  getPlatformOverview,
 } = await import('../entities');
 
 beforeEach(() => {
@@ -342,6 +344,95 @@ describe('entities service', () => {
       expect(call.chain.insert).toHaveBeenCalledWith(
         expect.objectContaining({ manager_email: 'jane@example.com' })
       );
+    });
+  });
+
+  // ─── Admin-gated RPCs (0049/0050) — audit §7b.5 ───────────────────────────
+  describe('createDistributor() — admin create_distributor RPC', () => {
+    it('calls the RPC with snake_case p_* args and returns the mapped distributor', async () => {
+      supabaseMock.__queueRpc('create_distributor', {
+        data: {
+          id: 'd-new-1', name: 'Western Region Distributor', parent_id: 'ug',
+          manager_name: 'Jane Mgr', manager_phone: '+256770000000', manager_email: 'jane@x.com',
+          status: 'active', created_at: '2026-06-08T00:00:00Z',
+        },
+        error: null,
+      });
+      const dist = await createDistributor({
+        name: 'Western Region Distributor',
+        managerName: 'Jane Mgr',
+        managerPhone: '+256770000000',
+        managerEmail: 'jane@x.com',
+      });
+      // Mapped (camelCase) shape with the EMPTY_METRICS placeholder.
+      expect(dist).toMatchObject({
+        id: 'd-new-1', name: 'Western Region Distributor', parentId: 'ug',
+        managerName: 'Jane Mgr', managerPhone: '+256770000000', managerEmail: 'jane@x.com',
+        status: 'active',
+      });
+      expect(dist.metrics).toMatchObject({ totalSubscribers: 0, totalAgents: 0, aum: 0 });
+      const call = supabaseMock.__getRpcCalls('create_distributor').at(-1);
+      expect(call.args).toEqual({
+        p_name: 'Western Region Distributor',
+        p_manager_name: 'Jane Mgr',
+        p_manager_phone: '+256770000000',
+        p_manager_email: 'jane@x.com',
+        p_parent_id: 'ug',
+      });
+    });
+
+    it('defaults optional manager fields to null and parent to "ug"', async () => {
+      supabaseMock.__queueRpc('create_distributor', {
+        data: { id: 'd-new-2', name: 'Minimal Dist', parent_id: 'ug', status: 'active' },
+        error: null,
+      });
+      await createDistributor({ name: 'Minimal Dist' });
+      const call = supabaseMock.__getRpcCalls('create_distributor').at(-1);
+      expect(call.args).toEqual({
+        p_name: 'Minimal Dist',
+        p_manager_name: null,
+        p_manager_phone: null,
+        p_manager_email: null,
+        p_parent_id: 'ug',
+      });
+    });
+
+    it('throws when the RPC returns an error (e.g. non-admin caller)', async () => {
+      supabaseMock.__queueRpc('create_distributor', {
+        data: null, error: { code: 'P0001', message: 'admin only' },
+      });
+      await expect(createDistributor({ name: 'X' })).rejects.toMatchObject({ code: 'P0001' });
+    });
+  });
+
+  describe('getPlatformOverview() — admin get_platform_overview RPC', () => {
+    it('calls the RPC with no args and returns the payload as-is', async () => {
+      const payload = {
+        totalSubscribers: 31000, subscribersViaDistributor: 29000,
+        subscribersViaEmployer: 1500, subscribersDirect: 500,
+        activeSubscribers: 25000, inactiveSubscribers: 6000,
+        distributors: 1, employers: 1, branches: 314, agents: 2049,
+        aum: 2421263298, totalContributions: 2084652550, totalWithdrawals: 70551422,
+      };
+      supabaseMock.__queueRpc('get_platform_overview', { data: payload, error: null });
+      const overview = await getPlatformOverview();
+      expect(overview).toEqual(payload);
+      const calls = supabaseMock.__getRpcCalls('get_platform_overview');
+      expect(calls).toHaveLength(1);
+      // No-arg RPC.
+      expect(calls[0].args).toBeUndefined();
+    });
+
+    it('returns an empty object when the RPC data is null', async () => {
+      supabaseMock.__queueRpc('get_platform_overview', { data: null, error: null });
+      expect(await getPlatformOverview()).toEqual({});
+    });
+
+    it('throws when the RPC returns an error', async () => {
+      supabaseMock.__queueRpc('get_platform_overview', {
+        data: null, error: { code: 'P0001', message: 'admin only' },
+      });
+      await expect(getPlatformOverview()).rejects.toMatchObject({ code: 'P0001' });
     });
   });
 });

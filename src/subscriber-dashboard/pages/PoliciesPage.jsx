@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGXExact } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatUGX } from '../../utils/currency';
+
 import { formatDate } from '../../utils/date';
 import { formatMemberId } from '../../utils/memberId';
 import { useCurrentSubscriber, useSubscriberNominees, useRenewPolicy } from '../../hooks/useSubscriber';
@@ -59,7 +61,7 @@ function PolicyCard({ policy, onRenew, onCertificate }) {
         </span>
         <div className={styles.policyHead}>
           <h3 className={styles.policyName}>{policy.name}</h3>
-          <span className={styles.policyCover}>{formatUGXExact(policy.cover)} cover</span>
+          <span className={styles.policyCover}>{formatUGX(policy.cover, { compact: false })} cover</span>
         </div>
         <StatusPill status={policy.status} />
       </div>
@@ -67,7 +69,7 @@ function PolicyCard({ policy, onRenew, onCertificate }) {
       <dl className={styles.policyMeta}>
         <div>
           <dt>Premium</dt>
-          <dd>{formatUGXExact(policy.premiumMonthly)} / mo</dd>
+          <dd>{formatUGX(policy.premiumMonthly, { compact: false })} / mo</dd>
         </div>
         <div>
           <dt>{expired ? 'Expired' : 'Renews'}</dt>
@@ -77,7 +79,7 @@ function PolicyCard({ policy, onRenew, onCertificate }) {
 
       {expired ? (
         <button type="button" className={styles.renewBtn} onClick={() => onRenew(policy)}>
-          Renew · {formatUGXExact(policy.renewalAmount)}
+          Renew · {formatUGX(policy.renewalAmount, { compact: false })}
         </button>
       ) : (
         <button type="button" className={styles.ghostBtn} onClick={() => onCertificate(policy)}>
@@ -134,7 +136,7 @@ export default function PoliciesPage() {
       });
       setResult({ reference, renewalDate: policy?.renewalDate });
       setView('success');
-      addToast('success', `${renewing.name} renewed — ${formatUGXExact(renewing.renewalAmount)} paid.`);
+      addToast('success', `${renewing.name} renewed — ${formatUGX(renewing.renewalAmount, { compact: false })} paid.`);
     } catch (err) {
       addToast('error', err?.message || 'Could not complete the renewal.');
     } finally {
@@ -254,9 +256,9 @@ export default function PoliciesPage() {
                 {view === 'confirm' && (
                   <div className={styles.sheetBody}>
                     <span className={styles.confirmEyebrow}>You&apos;re paying to renew</span>
-                    <div className={styles.confirmBig}>{formatUGXExact(renewing.renewalAmount)}</div>
+                    <div className={styles.confirmBig}>{formatUGX(renewing.renewalAmount, { compact: false })}</div>
                     <p className={styles.confirmSub}>
-                      One year of {renewing.name.toLowerCase()} · {formatUGXExact(renewing.cover)} benefit
+                      One year of {renewing.name.toLowerCase()} · {formatUGX(renewing.cover, { compact: false })} benefit
                     </p>
 
                     <ul className={styles.confirmList}>
@@ -266,11 +268,11 @@ export default function PoliciesPage() {
                       </li>
                       <li className={styles.confirmRow}>
                         <span>Cover</span>
-                        <strong>{formatUGXExact(renewing.cover)}</strong>
+                        <strong>{formatUGX(renewing.cover, { compact: false })}</strong>
                       </li>
                       <li className={styles.confirmRow}>
                         <span>Premium</span>
-                        <strong>{formatUGXExact(renewing.premiumMonthly)} / mo</strong>
+                        <strong>{formatUGX(renewing.premiumMonthly, { compact: false })} / mo</strong>
                       </li>
                     </ul>
 
@@ -295,7 +297,7 @@ export default function PoliciesPage() {
                         Cancel
                       </button>
                       <button type="button" className={styles.primaryBtn} onClick={handlePay} disabled={submitting}>
-                        {submitting ? 'Processing…' : `Pay ${formatUGXExact(renewing.renewalAmount)}`}
+                        {submitting ? 'Processing…' : `Pay ${formatUGX(renewing.renewalAmount, { compact: false })}`}
                       </button>
                     </div>
                   </div>

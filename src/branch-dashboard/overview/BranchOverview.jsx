@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import ErrorCard from '../../components/feedback/ErrorCard';
 import BranchHealthScore from './BranchHealthScore';
 import OperationsSection from './OperationsSection';
 import NotificationCenterCard from '../../components/notifications/NotificationCenterCard';
@@ -31,13 +32,27 @@ export default function BranchOverview() {
     viewReportsOpen,
     settingsOpen,
   } = useDashboard();
-  const { data: branch } = useEntity('branch', branchId);
-  const { data: agentsRaw = [] } = useChildren('branch', branchId);
+  const {
+    data: branch,
+    isLoading: branchLoading,
+    isError: branchError,
+    error: branchErr,
+    refetch: refetchBranch,
+  } = useEntity('branch', branchId);
+  const {
+    data: agentsRaw = [],
+    isError: agentsError,
+    refetch: refetchAgents,
+  } = useChildren('branch', branchId);
   const { data: commissionSummary } = useEntityCommissionSummary('branch', branchId);
   // Live rollup overlays — branch.metrics from the entity mapper is EMPTY_METRICS
   // under Supabase, and each agent.metrics is similarly zero. Without these
   // merges the gauge, KPIs, leaderboard, demographics and alerts all read 0.
-  const { data: branchMetrics } = useEntityMetrics('branch', branchId);
+  const {
+    data: branchMetrics,
+    isError: metricsError,
+    refetch: refetchMetrics,
+  } = useEntityMetrics('branch', branchId);
   const { data: agentMetricsMap = {} } = useChildrenMetrics('branch', branchId);
   const agents = useMemo(
     () => agentsRaw.map(a => ({ ...a, metrics: agentMetricsMap[a.id] ?? a.metrics })),
@@ -64,7 +79,36 @@ export default function BranchOverview() {
 
   const metrics = branchMetrics ?? branch?.metrics ?? {};
 
-  if (!branch) {
+  // Cold-load guard — spinner only on a genuine first fetch.
+  const isCold = branchLoading && !branch;
+  // Any errored query (or a branch query that settled with no data and is no
+  // longer loading) means we can't render a trustworthy dashboard. The branch +
+  // its metrics drive the gauge/KPIs and the agents feed the leaderboard/alerts,
+  // so surface ONE actionable ErrorCard with a combined retry rather than an
+  // infinite spinner or a silently-zeroed "healthy" dashboard.
+  const hasError =
+    branchError ||
+    metricsError ||
+    agentsError ||
+    (!branch && !branchLoading);
+
+  function retryAll() {
+    refetchBranch();
+    refetchMetrics();
+    refetchAgents();
+  }
+
+  if (hasError) {
+    return (
+      <ErrorCard
+        title="We couldn't load your dashboard"
+        message={branchErr}
+        onRetry={retryAll}
+      />
+    );
+  }
+
+  if (isCold) {
     return (
       <div className={styles.loading}>
         <div className={styles.spinner} />

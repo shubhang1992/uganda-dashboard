@@ -108,9 +108,21 @@ export async function getAgentSubscriberList(agentId) {
   }
 
   if (!agentId) return [];
+  // Explicit columns only — `mapAgentSubscriberRow` is the sole consumer of this
+  // row, so we fetch exactly the scalar columns + embed fields it reads (no `*`).
+  // Dropped from the old wide pull: subscribers.{dob, nin, occupation, agent_id,
+  // district_id, is_demo_signup, insurance_same_as_pension, consent_at,
+  // current_unit_value, unit_value_as_of, created_at} and subscriber_balances.units
+  // — none are referenced by the mapper or any list-page consumer.
   const { data, error } = await supabase
     .from('subscribers')
-    .select('*, contribution_schedules(*), subscriber_balances(*)')
+    .select(
+      'id, name, phone, email, gender, age, kyc_status, is_active, ' +
+        'registered_date, last_contribution_date, products_held, contribution_history, ' +
+        'contribution_schedules(frequency, amount, retirement_pct, emergency_pct, ' +
+        'include_insurance, insurance_choice_made, next_due_date), ' +
+        'subscriber_balances(total_balance, retirement_balance, emergency_balance)',
+    )
     .eq('agent_id', agentId);
   if (error) throw error;
   return (data ?? []).map(mapAgentSubscriberRow);

@@ -14,7 +14,7 @@
 | distributor | Distributor → Distributor Admin | DashboardShell | **Built** |
 | branch | Distributor → Branch Admin | BranchDashboardShell | **Built** |
 | agent | Distributor → Agent | AgentDashboardShell | **Built** |
-| admin | Admin | Coming Soon | **Planned** |
+| admin | Admin | AdminDashboardShell | **Built** |
 
 Sign-in flow: Role Select → (Distributor Sub-select if applicable) → Phone Entry → OTP Verify
 
@@ -33,10 +33,10 @@ Sign-in flow: Role Select → (Distributor Sub-select if applicable) → Phone E
 | Map Overview | Full | Interactive Leaflet map with drill-down |
 | Overlay Panel | Full | KPIs, entity lists, commission summary at every hierarchy level |
 | Breadcrumb Navigation | Full | Country → Region → District → Branch → Agent |
-| View Branches | Full | All ~314 branches, list + detail slide-in |
+| View Branches | Full | All ~316 branches, list + detail slide-in |
 | Create Branch | Full | Multi-step form: Branch Details → Admin Details → Review |
-| View Agents | Full | All ~500+ agents, list + detail slide-in |
-| View Subscribers | Full | All ~30,000 subscribers, list + detail slide-in |
+| View Agents | Full | All ~2,049 agents, list + detail slide-in |
+| View Subscribers | Full | All ~5,000 subscribers, list + detail slide-in |
 | Commission Panel | Full | Home (rate card + Total/Settled/Outstanding summary + pending dues with Branch⇄Agent toggle + Download template + Upload settlement + settlement history), agents list, agent detail, subscribers |
 | Reports Panel | Full | All 11 reports |
 | Settings Panel | Full | Profile + password |
@@ -275,43 +275,36 @@ The agent is now a pure observer of commissions. Lines auto-generate as `due` on
 
 ---
 
-## Role 6: Platform Admin (`admin`) — PLANNED
+## Role 6: Platform Admin (`admin`) — BUILT
 
-> System administrator with full platform control. Inferred from the role's existence in the sign-in flow and typical platform admin patterns.
+> Head-office platform admin with global rights. Reuses the distributor's map-theme so the admin sees the whole network, and adds platform-wide Distributors & Employers managers. Demo login: Role Select → **Admin** → any phone → any 6-digit code (fallback persona `admin-001`).
 
 ### Dashboard Access
-- **Has dashboard:** No (planned)
-- **Dashboard shell:** TBD
-- **Expected focus:** Platform-wide management, system configuration, user administration
+- **Dashboard shell:** `AdminDashboardShell` (`src/admin-dashboard/`) — clones the distributor map shell (Leaflet drill-down + overlay chrome) with `AdminSidebar`, wrapped in `DashboardProvider` → `AdminPanelProvider`.
+- **Reused verbatim from `src/dashboard/`:** `UgandaMap`, `MetricsRow`, `OverlayPanel`/`Breadcrumb`/`TopBar`, and the `ViewBranches` / `ViewAgents` / `ViewSubscribers` / `ViewReports` / `CommissionPanel` / `Settings` / `ViewTickets` / `CreateBranch` panels — they are role-blind (RLS scopes data) and admin holds the SELECT grants.
 
-### Planned Pages/Views
-| View | Priority | Description |
-|------|----------|-------------|
-| Platform Overview | High | System-wide KPIs, user counts, revenue metrics |
-| User Management | High | CRUD for all user accounts across all roles |
-| Entity Management | High | Create/edit/deactivate regions, districts, branches |
-| Commission Configuration | High | Set/modify commission rates, approve rate changes |
-| Audit Log | Medium | Track all mutations (settlements, user changes) |
-| System Settings | Medium | Platform configuration, feature flags |
-| All Reports | Medium | Access to all 11 reports with no scope restrictions |
-| KYC Verification Queue | Medium | Review and approve KYC submissions |
-| Withdrawal Approval | Low | Approve/deny subscriber withdrawal requests |
+### Pages/Views Accessible
+| View | Access | Notes |
+|------|--------|-------|
+| National Overview (map) | Full | Country→region→district→branch→agent drill-down + platform KPIs (AUM, subscribers, agents, branches) |
+| Distributors | Full | Slide-in list of all distributors + platform KPI strip; **+ New Distributor** create form (`ViewDistributors` / `CreateDistributor`) |
+| Employers | Full | Slide-in list of all employers with per-employer rollup (members/active/AUM/contributed/insured); **+ New Employer** create form (`ViewEmployers` / `CreateEmployer`) |
+| Branches / Agents / Subscribers / Reports / Commissions / Support / Settings | Full | Reused distributor panels, unscoped (platform-wide) |
 
-### Planned Data Scope
-- **Visibility:** All data across the entire platform
-- **No restrictions:** Can view and modify any entity at any level
+### Data Scope
+- **Visibility:** All data across the entire platform — `*_select_admin` RLS policies (migration `0049`) clone the distributor "see-everything" grants (`USING (auth.jwt() ->> 'app_role' = 'admin')`) on the subscriber/commission tables, plus admin SELECT on the employer family (`employers`, `contribution_runs`, `contribution_run_lines`, `employer_invites`). Reference tables (`regions`/`districts`/`branches`/`agents`) and `distributors` were already authenticated/public-readable.
+- **No scope claim:** there is no `adminId` filter in any read policy — admin sees all rows.
 
-### Planned Actions
+### Actions (CRUD)
 | Action | Permission | Scope |
 |--------|-----------|-------|
-| All distributor actions | Full CRUD | All |
-| Create/edit/deactivate any entity | Full CRUD | All levels |
-| Manage user accounts | Full CRUD | All roles |
-| Configure commission rates | Update | Global |
-| Approve KYC submissions | Update | All subscribers |
-| Approve withdrawal requests | Update | All subscribers |
-| View audit log | Read | All |
-| System configuration | Update | Platform settings |
+| View all platform data | Read | Everything (map, branches, agents, subscribers, commissions, reports) |
+| Create distributor | Create | `create_distributor` RPC (admin-gated SECURITY DEFINER, `0049`) |
+| Create employer | Create | `create_employer` RPC (admin-gated SECURITY DEFINER, `0049`) |
+| View all-employers rollup | Read | `get_all_employers_metrics` RPC (admin-gated, `0049`) |
+| Reused distributor actions (create branch, settle commissions, etc.) | As distributor | Inherited from the reused panels |
+
+> **Demo scope:** no audit-log / compliance / KYC-queue / user-management features (intentional — see `CLAUDE.md §10a`). Admin is **view + create** for distributors/employers; edit/suspend can be added later (`updateDistributor` / `updateEmployerProfile` already exist).
 
 ---
 
@@ -324,7 +317,7 @@ The agent is now a pure observer of commissions. Lines auto-generate as `due` on
 | agent | Own record + own subscribers (+ read-only of the singleton `distributors` row) | Own commissions (read-only — Earned / Owed) | Client-side analytics over own portfolio |
 | subscriber | Own record only (+ read-only of the singleton `distributors` row) | None | 5 own-account reports (transactions, contributions, withdrawals, insurance, annual) |
 | employer | Own employer + own standalone staff roster + own contribution runs (no access to subscribers/agents/branches) | None (employees generate no commissions) | 4 own-org reports (staff roster, runs summary, funding breakdown, balance growth) |
-| admin (planned) | All entities, all levels | All commissions | All reports, all scopes |
+| admin | All entities, all levels (incl. all distributors + all employers) | All commissions | All reports, all scopes |
 
 ### Scoping Implementation
 - **Distributor:** No scoping applied — all data visible. The `distributors` table is the one exception: `distributors_update_self` restricts UPDATE to `auth.jwt() ->> 'distributorId' = id` (today's singleton seed means this is "distributor edits its own row" — the policy is shaped for the multi-distributor future).
@@ -333,7 +326,7 @@ The agent is now a pure observer of commissions. Lines auto-generate as `due` on
 - **Agent:** `AgentScopeProvider` injects `agentId`. `useAgentSubscribers(agentId)` and commission hooks scope automatically. The auth `user.agentId` comes from the backend's `verifyOtp` response — the client no longer injects it.
 - **Subscriber:** `useCurrentSubscriber()` resolves from authenticated phone (server-side); subscriber is the implicit "self" in every endpoint under `/api/subscribers/me/*`.
 - **Employer:** `EmployerScopeProvider` injects `employerId` from the auth session (the `employerId` JWT claim). The 5 `0034` tables auto-scope every read via one SELECT policy keyed on `auth.jwt() ->> 'employerId'`; writes go through the `0035` RPCs, which re-check ownership.
-- **Admin (planned):** No scoping — full access like distributor but with additional admin capabilities
+- **Admin:** No scoping — `*_select_admin` RLS policies (migration `0049`) mirror the distributor "see-everything" grants plus admin SELECT on the employer family. Writes (create distributor/employer) go through admin-gated SECURITY DEFINER RPCs. No scope provider — the admin shell reuses the distributor map/panels directly.
 
 ### Backend Enforcement
 The frontend applies scoping via:

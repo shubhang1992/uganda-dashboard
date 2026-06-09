@@ -277,7 +277,10 @@ export function useChildrenMetrics(parentLevel, parentId) {
     queryKey: ['childrenMetrics', parentLevel, parentId, ids],
     queryFn: () => entities.getEntityMetricsRollup(childLevel, ids),
     enabled: !!childLevel && ids.length > 0,
-    staleTime: 5 * 60 * 1000,
+    // 15-min staleTime: the entity-metrics rollup is the #1 live hot path
+    // (audit §5b.1) and country/region aggregates change slowly — avoid
+    // refetching it aggressively on remount/refocus.
+    staleTime: 15 * 60 * 1000,
   });
 }
 
@@ -298,7 +301,9 @@ export function useEntityMetrics(level, id) {
       return result[id] ?? null;
     },
     enabled: !!id && !!level,
-    staleTime: 5 * 60 * 1000,
+    // 15-min staleTime: same #1-hot-path rollup (audit §5b.1); country/region
+    // metrics are slow-changing so a longer stale window cuts refetches.
+    staleTime: 15 * 60 * 1000,
   });
 }
 
@@ -318,7 +323,9 @@ export function useAllEntitiesMetrics(level) {
     queryKey: ['allEntitiesMetrics', level, ids],
     queryFn: () => entities.getEntityMetricsRollup(level, ids),
     enabled: !!level && ids.length > 0,
-    staleTime: 5 * 60 * 1000,
+    // 15-min staleTime: same #1-hot-path rollup (audit §5b.1); report views over
+    // country/region/branch aggregates are slow-changing — fewer refetches.
+    staleTime: 15 * 60 * 1000,
   });
 }
 
@@ -349,6 +356,37 @@ export function useUpdateDistributor() {
     onSettled: (_data, _err, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['entity', 'distributor', id] });
     },
+  });
+}
+
+/**
+ * Mutation to create a new distributor (admin only — RLS/RPC gated). Invalidates
+ * the flat distributor collection so the admin ViewDistributors list refreshes.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useCreateDistributor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: entities.createDistributor,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entities', 'distributor'] });
+      queryClient.invalidateQueries({ queryKey: ['entitiesMap', 'distributor'] });
+      queryClient.invalidateQueries({ queryKey: ['platformOverview'] });
+    },
+  });
+}
+
+/**
+ * Admin: TRUE platform-wide overview (all subscribers incl. employer-onboarded +
+ * channel breakdown + distributor/employer counts). Wraps get_platform_overview
+ * (0050, admin-gated). Powers the admin country Summary card. 5-min staleTime.
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object>}
+ */
+export function usePlatformOverview() {
+  return useQuery({
+    queryKey: ['platformOverview'],
+    queryFn: entities.getPlatformOverview,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useReducedMotion } from 'framer-motion';
-import { formatUGX } from '../../../utils/finance';
+import { formatUGX } from '../../../utils/currency';
+
 import { useCountUp } from '../../../hooks/useCountUp';
 import HeroCapsule from '../../../components/HeroCapsule';
 import styles from './PulseCard.module.css';

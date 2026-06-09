@@ -34,6 +34,7 @@ export const ROLE_DEFAULTS: Record<JwtRole, string> = {
   branch: 'b-kam-015',
   distributor: 'd-001',
   employer: 'emp-001',
+  admin: 'admin-001',
 };
 
 export type ResolvedIdentity = {

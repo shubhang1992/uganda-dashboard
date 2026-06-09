@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { formatUGX } from '../../../utils/finance';
+import { formatUGX } from '../../../utils/currency';
+
 import styles from './IfYouNeedItWidget.module.css';
 
 export default function IfYouNeedItWidget({ subscriber }) {

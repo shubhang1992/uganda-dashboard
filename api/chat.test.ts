@@ -206,4 +206,35 @@ describe('POST /api/chat', () => {
     await call(makeReq({ body: { message: 'hello' } }), res);
     expect(res.__headers['Cache-Control']).toBe('no-store');
   });
+
+  // -------------------------------------------------------------------------
+  // Employer flavor dispatch (audit §7b.3).
+  //
+  // IMPORTANT — pins the ACTUAL route contract, which differs from the audit's
+  // one-line suggestion ("context:'employer' → admin flavor"):
+  //   • An EMPLOYER JWT maps through flavorForRole('employer'), which is NOT in
+  //     {distributor,branch,admin} → it falls through to the subscriber flavor.
+  //   • An unauthenticated body context of 'employer' is NOT one of the three
+  //     honored literals ('admin'|'agent'|'subscriber') in resolveFlavor, so it
+  //     also falls back to the subscriber default.
+  // These two assertions lock that behaviour so a future flavor change (e.g.
+  // adding an employer-specific reply) is a deliberate, test-visible decision.
+  // -------------------------------------------------------------------------
+
+  it('employer JWT → subscriber flavor (employer is not an admin-flavor role)', async () => {
+    await call(withBearer(makeReq({ body: { message: 'hello' } }), 'token:employer'), res);
+    expect(res.__getStatus()).toBe(200);
+    expect(res.__getPayload().reply).toContain(SUBSCRIBER_DEFAULT);
+    expect(res.__getPayload().reply).not.toContain(ADMIN_DEFAULT);
+  });
+
+  it('unauthenticated + context:"employer" → subscriber default (employer is not an honored body context)', async () => {
+    await call(makeReq({ body: { message: 'hello', context: 'employer' } }), res);
+    expect(res.__getStatus()).toBe(200);
+    expect(res.__getPayload().reply).toContain(SUBSCRIBER_DEFAULT);
+    expect(verifyJwtMock).not.toHaveBeenCalled();
+  });
+
+  // Body-size / rate-limit gates live in the server (Express) layer, not this
+  // serverless handler — see audit §7b.3 (deferred to server-integration).
 });

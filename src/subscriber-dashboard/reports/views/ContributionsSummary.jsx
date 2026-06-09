@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useCurrentSubscriber } from '../../../hooks/useSubscriber';
-import { formatUGX, formatUGXExact } from '../../../utils/finance';
+import { formatUGX } from '../../../utils/currency';
+
 import { formatDate } from '../../../utils/date';
 import { downloadCSV } from '../../../utils/csv';
 import ErrorCard from '../../../components/feedback/ErrorCard';
@@ -116,10 +117,10 @@ export default function ContributionsSummary() {
             {monthly.map((m) => (
               <div key={m.id} className={frameStyles.monthCard}>
                 <span className={frameStyles.monthLabel}>{m.monthLabel}</span>
-                <span className={frameStyles.monthValue}>{formatUGXExact(m.total)}</span>
+                <span className={frameStyles.monthValue}>{formatUGX(m.total, { compact: false })}</span>
                 <span className={frameStyles.monthMeta}>
-                  <span aria-label={`Retirement ${formatUGXExact(m.retirement)}`}>R {formatUGX(m.retirement)}</span>
-                  <span aria-label={`Emergency ${formatUGXExact(m.emergency)}`}>E {formatUGX(m.emergency)}</span>
+                  <span aria-label={`Retirement ${formatUGX(m.retirement, { compact: false })}`}>R {formatUGX(m.retirement)}</span>
+                  <span aria-label={`Emergency ${formatUGX(m.emergency, { compact: false })}`}>E {formatUGX(m.emergency)}</span>
                 </span>
               </div>
             ))}

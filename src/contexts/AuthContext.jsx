@@ -15,6 +15,7 @@ import { setToken, clearToken } from '../services/supabaseClient';
  * @property {string} [branchId] - Set when role === 'branch'
  * @property {string} [distributorId] - Set when role === 'distributor'
  * @property {string} [employerId] - Set when role === 'employer'
+ * @property {string} [adminId] - Set when role === 'admin'
  * @property {{frequency:'weekly'|'monthly'|'quarterly'|'half-yearly'|'annually', amount:number, retirementPct:number, emergencyPct:number}|null} [contributionSchedule]
  */
 

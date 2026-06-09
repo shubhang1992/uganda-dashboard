@@ -4,7 +4,8 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useChildren, useTopBranch, useSearch, useEntityMetrics, useChildrenMetrics } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { CHILD_LEVEL } from '../../constants/levels';
-import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { EASE_OUT_EXPO as EASE } from '../../utils/motion';
+
 import { formatUGX, formatNumber } from '../../utils/currency';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -44,7 +45,7 @@ function ExpandIcon({ expanded }) {
   );
 }
 
-function CollapsibleSection({ title, count, defaultOpen, children, fill, expanded, onExpandToggle }) {
+export function CollapsibleSection({ title, count, defaultOpen, children, fill, expanded, onExpandToggle }) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(defaultOpen ?? true);
 
@@ -112,7 +113,7 @@ function StatusBar({ label, value, segments }) {
   );
 }
 
-function GlobalSearch({ onNavigate }) {
+export function GlobalSearch({ onNavigate }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -274,7 +275,7 @@ const StarIcon = () => (
   </svg>
 );
 
-function TimePeriodCard({ metrics, level, parentId, onMetricClick }) {
+export function TimePeriodCard({ metrics, level, parentId, onMetricClick }) {
   const [activeIdx, setActiveIdx] = useState(2); // default: This Month
   const period = PERIODS[activeIdx].key;
   const { data: topBranch } = useTopBranch(level, parentId);

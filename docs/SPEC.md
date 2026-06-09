@@ -32,8 +32,8 @@ Universal Pensions is a digital long-term savings and pension platform designed 
 ### Geography
 - Single-country deployment: Uganda
 - 4 regions: Central, Eastern, Northern, Western
-- 135 districts (real GADM boundaries, GeoJSON in `/public/`)
-- ~314 branches distributed across districts
+- 136 districts (real GADM boundaries, GeoJSON in `/public/`)
+- ~316 branches distributed across districts
 - Map coordinates: longitude, latitude pairs
 
 ---
@@ -50,7 +50,7 @@ Universal Pensions is a digital long-term savings and pension platform designed 
 - **Real-world role:** Organization managing employee pension contributions
 - **Why they use the platform:** Bulk contribution uploads, employee enrollment, compliance reporting
 - **Key needs:** Employee management, CSV upload, clean reporting
-- **Status:** Dashboard planned (shows "Coming Soon")
+- **Status:** **Built / shipped to production** (2026-06-03) — desktop-first dashboard with a standalone staff roster (`employees`, outside the agent→subscriber tree), contribution runs, co-contribution/employer-only funding modes, group life insurance, and a monthly-contributions leaderboard. DB stack = migrations `0034`–`0039` (now on the new Singapore DB). Only employee **onboarding** remains a deferred placeholder (Phase 9).
 
 ### Distributor Admin
 - **Real-world role:** Network-level operations manager overseeing all branches and agents
@@ -83,10 +83,10 @@ Universal Pensions is a digital long-term savings and pension platform designed 
 ```
 Country (Uganda)
 └── Region (4) — Central, Eastern, Northern, Western
-    └── District (135) — real GADM administrative districts
-        └── Branch (~314) — physical branch offices
-            └── Agent (~500+) — field workers
-                └── Subscriber (~30,000) — individual savers
+    └── District (136) — real GADM administrative districts
+        └── Branch (~316) — physical branch offices
+            └── Agent (~2,049) — field workers
+                └── Subscriber (~5,000) — individual savers
 ```
 
 ### How the Hierarchy Works
@@ -101,10 +101,10 @@ Country (Uganda)
 |-------|-----------|-------|-------|
 | Country | Uganda | 1 | Root entity |
 | Region | Statistical region | 4 | Aligned to Uganda Bureau of Statistics regions |
-| District | Administrative district | 135 | Real GADM names, used for GeoJSON map |
-| Branch | Physical branch office | ~314 | 2-8 per district, more in urban areas |
-| Agent | Field enrollment worker | ~500+ | 5-8 per branch |
-| Subscriber | Individual pension saver | ~30,000 | ~60 per agent |
+| District | Administrative district | 136 | Real GADM names, used for GeoJSON map |
+| Branch | Physical branch office | ~316 | 2-8 per district, more in urban areas |
+| Agent | Field enrollment worker | ~2,049 | 5-8 per branch |
+| Subscriber | Individual pension saver | ~5,000 | ~2-3 per agent (reseeded smaller on the new DB; was ~30,000 / ~60 per agent) |
 
 ---
 
@@ -289,9 +289,9 @@ There are only two statuses: `due` and `paid` (the `commission_status` ENUM is n
 
 **Sorting:** All reports support column-based sorting (client-side). ReportTable component handles ascending/descending toggle.
 
-**Pagination:** Client-side with page sizes 25, 50, 100. For subscribers (~30K), server-side pagination is required in production.
+**Pagination:** Client-side with page sizes 25, 50, 100. For subscribers (~5K on the new DB; ~30K on the old prod), server-side pagination is required at production scale.
 
-**Export:** CSV export is **wired client-side** via `src/utils/csv.js` (`downloadCSV(filename, headers, rows)` — RFC 4180 escaping + formula-injection defence + UTF-8 BOM for Excel). Distributor TopBar exports the current entity's children (filter-aware filename); each subscriber report view exports its own filtered rows. Backend may still need to provide server-side CSV generation for very large datasets (e.g. all 30K subscribers), but the client-side pipeline already covers every active report.
+**Export:** CSV export is **wired client-side** via `src/utils/csv.js` (`downloadCSV(filename, headers, rows)` — RFC 4180 escaping + formula-injection defence + UTF-8 BOM for Excel). Distributor TopBar exports the current entity's children (filter-aware filename); each subscriber report view exports its own filtered rows. Backend may still need to provide server-side CSV generation for very large datasets (e.g. all subscribers at production scale), but the client-side pipeline already covers every active report.
 
 ---
 
@@ -360,10 +360,10 @@ There are only two statuses: `due` and `paid` (the `commission_status` ENUM is n
 |------|---------|------------|
 | Distributor Admin | All entities at all levels | Create branches, set the flat commission rate, settle commissions via the per-agent Excel upload (`apply_settlement`), own profile |
 | Branch Admin | Own branch, own agents, own subscribers | Create agents, view own branch's commissions, receive settlement notifications, own profile |
-| Agent (planned) | Own record, own subscribers, own commissions | Register subscribers, record collections, view own `due`/`paid` commissions, receive settlement notifications |
-| Subscriber (planned) | Own record only | Own profile, withdrawal requests |
-| Employer (planned) | Own organization's employees | Employee management, bulk contributions |
-| Admin (planned) | Everything | Everything (system configuration, user management) |
+| Agent | Own record, own subscribers, own commissions | Register subscribers, record collections, view own `due`/`paid` commissions, receive settlement notifications |
+| Subscriber | Own record only | Own profile, top-up (Save), withdrawal requests |
+| Employer | Own organization's tagged-subscriber roster | Invite-based member onboarding (KYC), company-wide contribution runs + group insurance, remove-from-company |
+| Admin (shipped) | Everything (platform-wide reads via `*_select_admin` RLS) | Create distributors + employers, apply commission settlements, view platform overview — via the `0049`–`0051` SECURITY DEFINER RPCs. (No general "system configuration / user management" UI today — the scope is view + create-distributor/employer + settle.) |
 
 ### Backend Enforcement
 The frontend applies scoping via:
@@ -385,9 +385,9 @@ The frontend applies scoping via:
 | Commission Settlement | **Built** — `due → paid` via offline pay + per-agent Excel download/re-upload → `apply_settlement` RPC (records a `settlement_batches` row + notifies agent + branch). React Query invalidation in place. | Real payment integration (the actual payout is offline today) |
 | AI Chat Assistant | Mock (keyword matching) — six chat surfaces: distributor copilot, branch copilot, agent copilot, subscriber copilot, subscriber Help, subscriber↔agent DM | LLM integration (e.g., Claude API) with DB access, scoped to user's data visibility |
 | Search | Mock (client-side filter) | Server-side full-text search (Elasticsearch or PostgreSQL tsvector) |
-| Report Export (CSV) | **Wired** — `utils/csv.js` produces RFC 4180 + formula-injection-safe CSVs. Distributor TopBar + subscriber report views all export. | Server-side CSV generation needed for very large datasets (e.g. all 30K subscribers) but client pipeline is complete. |
+| Report Export (CSV) | **Wired** — `utils/csv.js` produces RFC 4180 + formula-injection-safe CSVs. Distributor TopBar + subscriber report views all export. | Server-side CSV generation needed for very large datasets (all subscribers at production scale) but client pipeline is complete. |
 | Filter Dropdowns | Client-side filtering | Server-side filtering for reports with >500 rows |
-| Subscriber Pagination | All 30K loaded in memory | Server-side pagination (page, pageSize, sort, filter params) |
+| Subscriber Pagination | All ~5K loaded in memory (was ~30K pre-cutover) | Server-side pagination (page, pageSize, sort, filter params) |
 | Map GeoJSON | Static files in /public/ | Could remain static or be served from API |
 | Profile Update | **Wired** to `services/subscriber.js#updateProfile` and `AuthContext.updateUser`; React Query optimistic-update with rollback. | `PUT /api/subscribers/:id/profile` |
 | Password Change | Stubbed UI (Settings/distributor + agent SettingsPage); shows "activates with backend" toast | `PUT /api/profile/password` |
@@ -419,7 +419,7 @@ The frontend applies scoping via:
 - Display: `toLocaleDateString('en-UG', { weekday, day, month, year })`
 
 ### GeoJSON
-- District boundaries: `/public/uganda-districts.geojson` (135 districts, GADM source)
+- District boundaries: `/public/uganda-districts.geojson` (136 districts, GADM source)
 - Region boundaries: `/public/uganda-regions.geojson` (4 regions)
 - Coordinates: longitude, latitude pairs
 - Used for: Leaflet map rendering, choropleth coloring

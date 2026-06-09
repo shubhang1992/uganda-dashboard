@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useCurrentSubscriber } from '../../../hooks/useSubscriber';
-import { formatUGX, formatUGXExact } from '../../../utils/finance';
+import { formatUGX } from '../../../utils/currency';
+
 import { downloadCSV } from '../../../utils/csv';
 import ErrorCard from '../../../components/feedback/ErrorCard';
 import ExportButton from '../../../components/reports/ExportButton';
@@ -145,23 +146,23 @@ export default function AnnualStatement() {
             <ul className={frameStyles.summaryList}>
               <li className={frameStyles.summaryRow}>
                 <span>Total saved ({totals.contributions ? 'gross' : 'none'})</span>
-                <strong>{formatUGXExact(totals.contributions)}</strong>
+                <strong>{formatUGX(totals.contributions, { compact: false })}</strong>
               </li>
               <li className={frameStyles.summaryRow}>
                 <span>Insurance premiums paid</span>
-                <strong>{formatUGXExact(totals.premiums)}</strong>
+                <strong>{formatUGX(totals.premiums, { compact: false })}</strong>
               </li>
               <li className={frameStyles.summaryRow}>
                 <span>Withdrawals made</span>
-                <strong>{formatUGXExact(totals.withdrawals)}</strong>
+                <strong>{formatUGX(totals.withdrawals, { compact: false })}</strong>
               </li>
               <li className={frameStyles.summaryRow}>
                 <span>Insurance claim payouts</span>
-                <strong>{formatUGXExact(totals.claimsInflow)}</strong>
+                <strong>{formatUGX(totals.claimsInflow, { compact: false })}</strong>
               </li>
               <li className={`${frameStyles.summaryRow} ${frameStyles.summaryTotal}`}>
                 <span>Net inflow to your account</span>
-                <strong>{formatUGXExact(Math.max(0, totals.netInflow))}</strong>
+                <strong>{formatUGX(Math.max(0, totals.netInflow), { compact: false })}</strong>
               </li>
             </ul>
             <p className={frameStyles.summaryNote}>

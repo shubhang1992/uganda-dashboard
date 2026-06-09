@@ -37,6 +37,15 @@ export function useSubscriberTransactions(id, filters) {
   });
 }
 
+/** Total / own / employer contribution breakdown (for employer-tagged members). */
+export function useContributionBreakdown(id) {
+  return useQuery({
+    queryKey: ['contributionBreakdown', id],
+    queryFn: () => subscriberService.getContributionBreakdown(id),
+    enabled: !!id,
+  });
+}
+
 export function useSubscriberClaims(id) {
   return useQuery({
     queryKey: ['subscriberClaims', id],

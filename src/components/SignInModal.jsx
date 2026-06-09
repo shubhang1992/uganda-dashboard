@@ -11,7 +11,8 @@ import PhoneEntry from './signin/PhoneEntry';
 import OtpVerify from './signin/OtpVerify';
 import PasswordEntry from './signin/PasswordEntry';
 import logo from '../assets/logo-white.png';
-import { EASE_OUT_EXPO as EASE } from '../utils/finance';
+import { EASE_OUT_EXPO as EASE } from '../utils/motion';
+
 import styles from './SignInModal.module.css';
 
 export default function SignInModal() {

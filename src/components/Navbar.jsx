@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, useScroll, useMotionValueEvent, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../utils/finance';
+import { EASE_OUT_EXPO } from '../utils/motion';
+
 import { useSignIn } from '../contexts/SignInContext';
 import logo from '../assets/logo.png';
 import styles from './Navbar.module.css';

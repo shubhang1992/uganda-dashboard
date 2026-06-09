@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO, formatUGXExact, formatUGX, parseAmount } from '../../utils/finance';
-import { formatNumber } from '../../utils/currency';
+import { parseAmount } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatNumber, formatUGX } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 import { useCurrentSubscriber, useSubmitClaim, useSubscriberClaims } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
@@ -131,7 +132,7 @@ export default function ClaimPage() {
         }
         eyebrow={showCoverHero ? 'ACTIVE COVER' : undefined}
         prefix={showCoverHero ? 'UGX' : undefined}
-        amount={showCoverHero ? formatUGXExact(insurance.cover || 0).replace('UGX ', '') : undefined}
+        amount={showCoverHero ? formatUGX(insurance.cover || 0, { compact: false }).replace('UGX ', '') : undefined}
         subtitle={
           showCoverHero ? undefined
           : view === 'list' && insurance ? `Cover: ${formatUGX(insurance.cover || 0)}`
@@ -140,7 +141,7 @@ export default function ClaimPage() {
         }
         statRow={showCoverHero ? (
           <>
-            <span><strong>{formatUGXExact(insurance.premiumMonthly)}</strong> / mo</span>
+            <span><strong>{formatUGX(insurance.premiumMonthly, { compact: false })}</strong> / mo</span>
             <span>Renews <strong>{formatDate(insurance.renewalDate)}</strong></span>
           </>
         ) : undefined}
@@ -209,7 +210,7 @@ export default function ClaimPage() {
                               <span className={styles.claimDot}>·</span>
                               <span>Incident {formatDate(c.incidentDate)}</span>
                             </div>
-                            <div className={styles.claimAmount}>{formatUGXExact(c.amount)}</div>
+                            <div className={styles.claimAmount}>{formatUGX(c.amount, { compact: false })}</div>
                             {c.description && <p className={styles.claimDesc}>{c.description}</p>}
                           </li>
                         );
@@ -356,7 +357,7 @@ export default function ClaimPage() {
             >
               <section className={styles.reviewCard}>
                 <span className={styles.confirmEyebrow}>Claiming</span>
-                <div className={styles.confirmBig}>{formatUGXExact(claimAmtNum)}</div>
+                <div className={styles.confirmBig}>{formatUGX(claimAmtNum, { compact: false })}</div>
                 <ul className={styles.summaryList}>
                   <li className={styles.summaryRow}>
                     <span>Type</span>

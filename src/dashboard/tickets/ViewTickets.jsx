@@ -1,7 +1,15 @@
+// Distributor tickets panel — full thread view with composer.
+//
+// INTENTIONAL DUPLICATION with `src/branch-dashboard/tickets/ViewTickets.jsx`
+// (the branch version). The two share the slide-in chrome but diverge in their
+// data wiring (network-wide here vs branch-scoped, read-only there), so they are
+// kept as separate files rather than a shared component.
+
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useAllEntities } from '../../hooks/useEntity';

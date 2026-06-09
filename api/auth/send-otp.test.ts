@@ -140,8 +140,9 @@ describe('POST /api/auth/send-otp', () => {
   });
 
   it('returns 400 invalid_request when role is not in the allow-list', async () => {
+    // 'admin' is now a valid role (all six ship); use an unknown role here.
     await call(
-      makeReq({ body: { phone: '+256777247884', role: 'admin' } }),
+      makeReq({ body: { phone: '+256777247884', role: 'superadmin' } }),
       res,
     );
     expect(res.__getStatus()).toBe(400);
@@ -159,6 +160,13 @@ describe('POST /api/auth/send-otp', () => {
     expect(res.__getStatus()).toBe(405);
     expect(res.__getPayload()).toEqual({ code: 'method_not_allowed' });
     expect(res.__headers['Allow']).toBe('POST');
+  });
+
+  it('sets Cache-Control: no-store on the 405 path (2a.2)', async () => {
+    // no-store is set BEFORE the method check, so even a 405 carries it.
+    await call(makeReq({ method: 'GET' }), res);
+    expect(res.__getStatus()).toBe(405);
+    expect(res.__headers['Cache-Control']).toBe('no-store');
   });
 
   it.each(['PUT', 'DELETE', 'PATCH', 'OPTIONS'])(

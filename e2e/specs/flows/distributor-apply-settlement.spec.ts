@@ -17,27 +17,20 @@
 // means the bearer token carries `app_role='distributor'` and the RPC runs for
 // real. DB-side assertions then use the service-role read helpers.
 //
-// >>> CUTOVER GATE — APPLY MIGRATION 0032 TO LIVE FIRST <<<
+// >>> CUTOVER GATE — MIGRATION 0032 NOW APPLIED TO LIVE (gate MET) <<<
 // The committed frontend (src/services/commissions.js) calls
 // `apply_settlement(p_rows, p_nonce)` — the TWO-arg form added by migration
-// 0032 (BL-1/BL-2/BL-8/BL-13 fixes). The LIVE DB still has only the single-arg
-// 0031 form `apply_settlement(p_rows jsonb)` until 0032 is applied at cutover.
-// PostgREST resolves RPC overloads by the named-arg set, so the UI's
-// {p_rows, p_nonce} call returns PGRST202 ("no function matching") against the
-// pre-0032 live DB. THEREFORE THIS WHOLE SPEC IS GATED ON 0032 — it is the
-// correct end-state coverage and runs green once 0032 is live; it is NOT
-// runnable against the current live function (the FE no longer calls the
-// single-arg form). The agent does not run it; it is a cutover-time gate.
+// 0032 (BL-1/BL-2/BL-8/BL-13 fixes). Migration 0032 is now LIVE on the
+// Singapore project (ilkhfnoyxlxwqadebnkp, cutover 2026-06-05), so the UI's
+// {p_rows, p_nonce} call resolves to the real two-arg function and the whole
+// spec runs end-to-end. This file is therefore ENABLED (the outer
+// `test.describe.fixme` gate has been removed); it is the canonical live E2E
+// coverage for the money-moving settlement path.
 //
-// The WHOLE describe block is `test.describe.fixme`'d (see the gate comment on
-// it below): even the happy-path (full payment) + NotificationBell tests drive
-// the two-arg RPC, so they cannot run against the pre-0032 live DB. They are the
-// canonical coverage that runs green once 0032 is live. The differentiating
-// behaviours that ONLY 0032 introduces — partial-payment FIFO, per-line
-// paid_amount reconciliation, and idempotency — are ADDITIONALLY `test.fixme`'d
-// individually with a clear "enable after 0032 is applied to live at cutover"
-// marker, because they assert outcomes the pre-0032 single-arg RPC cannot
-// produce even if it were callable.
+// The differentiating behaviours that ONLY 0032 introduces — partial-payment
+// FIFO, per-line paid_amount reconciliation, and idempotency — are likewise
+// enabled now that the two-arg apply_settlement(p_rows, p_nonce) is live; they
+// assert outcomes only 0032 can produce.
 
 import { test, expect } from '@playwright/test';
 import { storageStatePathFor, PERSONA_FOR } from '../../fixtures/auth';
@@ -77,15 +70,12 @@ async function readDueSlice(agentId: string): Promise<DueRow[]> {
   return (data || []).map((r) => ({ id: (r as DueRow).id, amount: Number((r as DueRow).amount) }));
 }
 
-// Enable at cutover after migration 0032_fix_settlement_apply.sql is applied to
-// live (FE sends two-arg apply_settlement(p_rows,p_nonce); live has single-arg
-// 0031 until then). Until 0032 is live, PostgREST resolves the UI's
-// {p_rows, p_nonce} call to PGRST202 ("no function matching"), so EVERYTHING in
-// this spec — including the full-payment + NotificationBell tests below — would
-// fail on both the PR e2e job and the main full matrix. describe.fixme gates the
-// entire file so nothing runs; the per-line 0032-only cases stay individually
-// fixme'd inside (belt-and-braces for the cutover author).
-test.describe.fixme('distributor → apply settlement (UI → RPC → DB → notifications)', () => {
+// Migration 0032_fix_settlement_apply.sql is applied to live (FE sends two-arg
+// apply_settlement(p_rows,p_nonce); the live Singapore DB carries the matching
+// two-arg overload), so PostgREST resolves the UI's {p_rows, p_nonce} call to
+// the real function and every test below runs end-to-end. The file is enabled
+// (no describe.fixme); the per-line 0032 behaviours are enabled inline too.
+test.describe('distributor → apply settlement (UI → RPC → DB → notifications)', () => {
   test.use({ storageState: storageStatePathFor('distributor') });
   test.setTimeout(60_000);
 
@@ -287,16 +277,15 @@ test.describe.fixme('distributor → apply settlement (UI → RPC → DB → not
   });
 
   // ───────────────────────────────────────────────────────────────────────
-  // 0032-only behaviours — enable after 0032 is applied to live at cutover.
-  // These assert outcomes the single-arg 0031 RPC cannot produce (FIFO partial
-  // allocation, per-line paid_amount, nonce idempotency), so they stay fixme'd
-  // until the two-arg apply_settlement(p_rows, p_nonce) is live.
+  // 0032-only behaviours — ENABLED now that 0032 is applied to live. These
+  // assert outcomes the single-arg 0031 RPC could not produce (FIFO partial
+  // allocation, per-line paid_amount, nonce idempotency); the two-arg
+  // apply_settlement(p_rows, p_nonce) is live, so they run for real.
   // ───────────────────────────────────────────────────────────────────────
 
-  test.fixme(
+  test(
     'partial payment settles only the lines the amount covers; the rest stay due (0032)',
     async ({ page }) => {
-      // enable after 0032 is applied to live at cutover.
       // Enter LESS than the agent's due total: 0032's FIFO loop should settle
       // the oldest line(s) the budget fully covers and leave the remainder
       // genuinely `due` (INFORM-NOT-BLOCK). Against the pre-0032 single-arg RPC
@@ -363,10 +352,9 @@ test.describe.fixme('distributor → apply settlement (UI → RPC → DB → not
     },
   );
 
-  test.fixme(
+  test(
     'per-line paid_amount reconciles with the batch total (0032)',
     async ({ page }) => {
-      // enable after 0032 is applied to live at cutover.
       // 0032 stamps each settled line with its OWN amount (BL-2), so
       // SUM(paid_amount) over the settled lines equals settlement_batches
       // .paid_amount. The pre-0032 RPC stamps the whole batch total on EVERY
@@ -412,22 +400,20 @@ test.describe.fixme('distributor → apply settlement (UI → RPC → DB → not
     },
   );
 
+  // STILL fixme'd — NOT because of the migration gate (0032 is live), but
+  // because the concrete UI replay vehicle is unimplemented: the body below is
+  // a placeholder (`expect(true).toBe(true)`), so enabling it would assert
+  // nothing and report a misleading green. Enable it once a real replay is
+  // wired (a second confirm against a reopened modal carrying the SAME nonce,
+  // or a service-level replay with the captured nonce), asserting
+  // settlement_batches gains exactly ONE row across the two submits.
   test.fixme(
     'idempotency: re-submitting the same upload nonce records no second batch (0032)',
     async ({ page }) => {
-      // enable after 0032 is applied to live at cutover.
       // 0032 accepts a per-upload nonce persisted in settlement_uploads with a
       // PK on the nonce; a replay returns the prior result without recording a
-      // second batch or re-notifying (BL-13). The pre-0032 RPC has no nonce
-      // arg and no idempotency guard, so this is fixme'd.
-      //
-      // Exercising this through the UI requires replaying the SAME staged
-      // pendingUpload (same nonce) — e.g. confirm, then a reload mid-flight or
-      // a forced second mutate of the identical payload. The assertion is that
-      // settlement_batches gains exactly ONE row across the two submits. The
-      // concrete UI replay vehicle is left to the cutover author (a second
-      // confirm against a reopened modal carrying the same nonce, or a
-      // service-level replay with the captured nonce).
+      // second batch or re-notifying (BL-13). The two-arg RPC is live, so the
+      // only thing missing is the UI replay vehicle described above.
       expect(true).toBe(true);
     },
   );

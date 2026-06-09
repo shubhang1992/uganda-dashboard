@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  formatUGX,
-  fmtShort,
   parseAmount,
   normalizeFrequency,
   periodsPerYear,
@@ -11,6 +9,10 @@ import {
   amtToSlider,
   FREQUENCY,
 } from '../finance';
+
+// NOTE: currency formatting (formatUGX compact/exact, formatUGXShort — formerly
+// the finance shims formatUGX / formatUGXExact / fmtShort) is now owned by
+// src/utils/currency.js and covered exhaustively in currency.test.js.
 
 describe('finance utils', () => {
   describe('parseAmount()', () => {
@@ -56,73 +58,44 @@ describe('finance utils', () => {
     });
   });
 
-  describe('formatUGX()', () => {
-    it('returns dash for 0', () => {
-      expect(formatUGX(0)).toBe('—');
-    });
-
-    it('returns dash for negative amounts', () => {
-      expect(formatUGX(-500)).toBe('—');
-    });
-
-    it('formats 1000 as UGX 1K', () => {
-      expect(formatUGX(1000)).toBe('UGX 1K');
-    });
-
-    it('formats 50000 as UGX 50K', () => {
-      expect(formatUGX(50000)).toBe('UGX 50K');
-    });
-
-    it('formats 1000000 as UGX 1.0M', () => {
-      expect(formatUGX(1000000)).toBe('UGX 1.0M');
-    });
-
-    it('formats 2500000 as UGX 2.5M', () => {
-      expect(formatUGX(2500000)).toBe('UGX 2.5M');
-    });
-
-    it('formats 1000000000 as UGX 1.00B', () => {
-      expect(formatUGX(1000000000)).toBe('UGX 1.00B');
-    });
-
-    it('formats 1500000000 as UGX 1.50B', () => {
-      expect(formatUGX(1500000000)).toBe('UGX 1.50B');
-    });
-  });
-
-  describe('fmtShort()', () => {
-    it('formats 1000 as 1K', () => {
-      expect(fmtShort(1000)).toBe('1K');
-    });
-
-    it('formats 50000 as 50K', () => {
-      expect(fmtShort(50000)).toBe('50K');
-    });
-
-    it('formats 1000000 as 1M', () => {
-      expect(fmtShort(1000000)).toBe('1M');
-    });
-
-    it('formats 2500000 as 3M (rounds to nearest integer)', () => {
-      expect(fmtShort(2500000)).toBe('3M');
-    });
-
-    it('formats 1000000000 as 1.0B', () => {
-      expect(fmtShort(1000000000)).toBe('1.0B');
-    });
-
-    it('formats 1500000000 as 1.5B', () => {
-      expect(fmtShort(1500000000)).toBe('1.5B');
-    });
-  });
-
   describe('normalizeFrequency()', () => {
+    // Pin the canonical contract so the constants can't silently drift either —
+    // a schedule normalises to one of exactly these five string ids.
+    it('exposes the canonical frequency ids', () => {
+      expect(FREQUENCY).toEqual({
+        WEEKLY: 'weekly',
+        MONTHLY: 'monthly',
+        QUARTERLY: 'quarterly',
+        HALF_YEARLY: 'half-yearly',
+        ANNUALLY: 'annually',
+      });
+    });
+
     it('passes canonical ids through unchanged', () => {
       expect(normalizeFrequency('weekly')).toBe(FREQUENCY.WEEKLY);
       expect(normalizeFrequency('monthly')).toBe(FREQUENCY.MONTHLY);
       expect(normalizeFrequency('quarterly')).toBe(FREQUENCY.QUARTERLY);
       expect(normalizeFrequency('half-yearly')).toBe(FREQUENCY.HALF_YEARLY);
       expect(normalizeFrequency('annually')).toBe(FREQUENCY.ANNUALLY);
+    });
+
+    // Exhaustive alias map enumerated from src/utils/finance.js. A normalization
+    // regression here can silently drift every contribution schedule, so each
+    // legacy/alternate spelling is asserted explicitly against its canonical id.
+    // The half-yearly cluster is the dangerous one: four historical spellings
+    // (kebab, lowercase camel, "semi-annually", "semiannually") all converge.
+    it.each([
+      // half-yearly cluster
+      ['half-yearly', FREQUENCY.HALF_YEARLY],
+      ['halfYearly', FREQUENCY.HALF_YEARLY],
+      ['halfyearly', FREQUENCY.HALF_YEARLY],
+      ['semi-annually', FREQUENCY.HALF_YEARLY],
+      ['semiannually', FREQUENCY.HALF_YEARLY],
+      // annually cluster
+      ['annually', FREQUENCY.ANNUALLY],
+      ['yearly', FREQUENCY.ANNUALLY],
+    ])('normalizes alias %s -> %s', (alias, canonical) => {
+      expect(normalizeFrequency(alias)).toBe(canonical);
     });
 
     it('resolves every half-yearly alias to the canonical id', () => {
@@ -136,16 +109,25 @@ describe('finance utils', () => {
       expect(normalizeFrequency('yearly')).toBe(FREQUENCY.ANNUALLY);
     });
 
-    it('is case-insensitive', () => {
+    it('is case-insensitive across canonical ids and aliases', () => {
       expect(normalizeFrequency('WEEKLY')).toBe(FREQUENCY.WEEKLY);
+      expect(normalizeFrequency('Monthly')).toBe(FREQUENCY.MONTHLY);
+      expect(normalizeFrequency('QUARTERLY')).toBe(FREQUENCY.QUARTERLY);
       expect(normalizeFrequency('Half-Yearly')).toBe(FREQUENCY.HALF_YEARLY);
+      expect(normalizeFrequency('HALFYEARLY')).toBe(FREQUENCY.HALF_YEARLY);
+      expect(normalizeFrequency('Semi-Annually')).toBe(FREQUENCY.HALF_YEARLY);
+      expect(normalizeFrequency('Annually')).toBe(FREQUENCY.ANNUALLY);
+      expect(normalizeFrequency('Yearly')).toBe(FREQUENCY.ANNUALLY);
     });
 
     it('falls back to monthly for empty / unknown input', () => {
       expect(normalizeFrequency('')).toBe(FREQUENCY.MONTHLY);
       expect(normalizeFrequency(null)).toBe(FREQUENCY.MONTHLY);
       expect(normalizeFrequency(undefined)).toBe(FREQUENCY.MONTHLY);
+      expect(normalizeFrequency(0)).toBe(FREQUENCY.MONTHLY);
       expect(normalizeFrequency('fortnightly')).toBe(FREQUENCY.MONTHLY);
+      expect(normalizeFrequency('biweekly')).toBe(FREQUENCY.MONTHLY);
+      expect(normalizeFrequency('daily')).toBe(FREQUENCY.MONTHLY);
     });
   });
 

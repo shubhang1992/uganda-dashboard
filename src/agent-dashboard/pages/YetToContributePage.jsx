@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO, monthlyEquivalent } from '../../utils/finance';
+import { monthlyEquivalent } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
 import { formatUGX } from '../../utils/currency';
 import { formatUGPhone } from '../../utils/phone';
 import { useAgentScope } from '../../contexts/AgentScopeContext';

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO } from '../utils/finance';
+import { EASE_OUT_EXPO } from '../utils/motion';
+
 import { DashboardProvider, useDashboard } from '../contexts/DashboardContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrentEntity } from '../hooks/useEntity';
@@ -63,6 +64,7 @@ function MobileHeader({ onMenuToggle, menuOpen }) {
         onClick={onMenuToggle}
         aria-label={menuOpen ? 'Close menu' : 'Open menu'}
         aria-expanded={menuOpen}
+        aria-controls="distributor-mobile-drawer"
       >
         <span className={styles.hamburgerLine} data-open={menuOpen} />
         <span className={styles.hamburgerLine} data-open={menuOpen} />
@@ -154,8 +156,13 @@ function MobileDrawer({ open, onClose }) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
             onClick={onClose}
+            aria-hidden="true"
           />
           <motion.div
+            id="distributor-mobile-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Distributor dashboard menu"
             className={styles.drawer}
             initial={{ x: '100%' }}
             animate={{ x: 0 }}

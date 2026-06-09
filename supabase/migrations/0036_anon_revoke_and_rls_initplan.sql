@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Universal Pensions Uganda — 0036: anon EXECUTE revoke + RLS initplan wrap
 -- =============================================================================
--- Apply at cutover AFTER 0032 (and 0033); NOT yet applied to live.
+-- Apply at cutover AFTER 0032 (and 0033). Applied to live (employer ship 2026-06-03).
 --
 -- Forward-only, additive hardening. Creates no tables and changes no RPC body.
 -- It (a) tightens which Postgres role may EXECUTE the write/admin RPCs, and
@@ -36,7 +36,7 @@
 -- CONVENTIONS (CLAUDE.md §5.7 / BACKEND.md):
 --   * Policies read `auth.jwt() ->> 'app_role'/'employerId'`, never auth.uid().
 --   * Idempotent DDL; forward-only; reversible via the .down.sql partner.
---   * NOT YET APPLIED TO LIVE — a gated cutover step after a verified backup.
+--   * Applied to live (employer ship 2026-06-03); part of the 0001→0042 restore baseline.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------

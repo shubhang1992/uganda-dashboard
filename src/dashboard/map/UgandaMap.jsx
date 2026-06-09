@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useCallback, useMemo } from 'react';
+import { memo, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, GeoJSON, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -151,6 +151,28 @@ function MapController({ bounds, center, zoom, fitOptions }) {
       map.flyTo(center, zoom, { duration: 0.8 });
     }
   }, [map, bounds, center, zoom, fitOptions]);
+
+  // Keep Leaflet's pixel projection in sync with the real container size. If the
+  // map mounts (or the layout shifts) while the container is mis-sized, Leaflet's
+  // cached origin goes stale and click hit-testing (mouseEventToLayerPoint +
+  // _containsPoint) lands OFF the region/district polygons — so hover still works
+  // (DOM-based) but a click "does nothing". invalidateSize() recomputes it.
+  useEffect(() => {
+    const fix = () => map.invalidateSize({ animate: false });
+    const raf = requestAnimationFrame(fix);
+    // Deferred second pass — closes the initial-mount window (lazy + Suspense +
+    // animating sibling) where the container width finalises a frame or two late.
+    const t = setTimeout(fix, 250);
+    // Belt-and-suspenders — re-sync once Leaflet itself reports ready.
+    map.whenReady(fix);
+    let ro;
+    try {
+      ro = new ResizeObserver(fix);
+      ro.observe(map.getContainer());
+    } catch { /* ResizeObserver unsupported — the rAF + timeout passes still correct mount-time sizing */ }
+    return () => { cancelAnimationFrame(raf); clearTimeout(t); ro?.disconnect(); };
+  }, [map]);
+
   return null;
 }
 
@@ -170,6 +192,20 @@ function UgandaMap() {
   const BRANCHES_MAP = useMemo(() => Object.fromEntries(branchesArr.map((b) => [b.id, b])), [branchesArr]);
   const REGION_NAME_TO_ID = useMemo(() => Object.fromEntries(regionsArr.map((r) => [r.name, r.id])), [regionsArr]);
   const DISTRICT_NAME_TO_ID = useMemo(() => Object.fromEntries(districtsArr.map((d) => [d.name, d.id])), [districtsArr]);
+
+  // react-leaflet binds each <GeoJSON> onEachFeature click handler ONCE per layer, so a
+  // handler can capture an EMPTY name→id map when the geojson paints before the entity
+  // hooks (useAllEntities) resolve — the geojson fetch and the data queries race. That is
+  // the real §7f drill-down regression (NOT the pixel-projection/invalidateSize theory):
+  // hover still works because it never reads the map, but the click resolves an undefined
+  // id → drillDown never fires. Reading the map through an always-current ref resolves the
+  // id at CLICK time, so mount/load order no longer matters at any drill level.
+  const regionNameToIdRef = useRef(REGION_NAME_TO_ID);
+  const districtNameToIdRef = useRef(DISTRICT_NAME_TO_ID);
+  useEffect(() => {
+    regionNameToIdRef.current = REGION_NAME_TO_ID;
+    districtNameToIdRef.current = DISTRICT_NAME_TO_ID;
+  }, [REGION_NAME_TO_ID, DISTRICT_NAME_TO_ID]);
 
   // Regions GeoJSON is small + always required at every drill level — fetch
   // immediately on mount so the base country fill paints right away.
@@ -348,15 +384,15 @@ function UgandaMap() {
   // ─── Event handlers ──────────────────────────────────────────────────────────
   const onRegionClick = useCallback((e) => {
     const name = e.target.feature.properties.name;
-    const regionId = REGION_NAME_TO_ID[name];
+    const regionId = regionNameToIdRef.current[name];
     if (regionId) drillDown('region', regionId);
-  }, [drillDown, REGION_NAME_TO_ID]);
+  }, [drillDown]);
 
   const onDistrictClick = useCallback((e) => {
     const name = e.target.feature.properties.name;
-    const districtId = DISTRICT_NAME_TO_ID[name];
+    const districtId = districtNameToIdRef.current[name];
     if (districtId) drillDown('district', districtId);
-  }, [drillDown, DISTRICT_NAME_TO_ID]);
+  }, [drillDown]);
 
   const onEachRegion = useCallback((feature, layer) => {
     layer.on({

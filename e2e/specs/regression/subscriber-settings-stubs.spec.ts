@@ -1,15 +1,16 @@
-// Regression spec (BL-39 / R9): pin two known StubPage routes + nominee-sum.
+// Regression spec (BL-39 / R9): pin two settings redirect routes + nominee-sum.
 //
 // Why:
-//   1. StubPages — CLAUDE.md §10b / FRONTEND.md §16b document that the
-//      subscriber Settings → Notifications and Settings → Security pages are
-//      intentional `StubPage` placeholders (SubscriberDashboardShell.jsx:68-69
-//      route them to `<StubPage title="Notifications" />` /
-//      `<StubPage title="Security" />`). They are NOT bugs — but nothing
-//      pinned them, so a future contributor could wire a half-finished page,
-//      change the route, or accidentally surface a broken screen and no test
-//      would notice. This spec asserts each renders its stub state
-//      (the "Coming up next" / "migrating … to the new dashboard" copy).
+//   1. Settings redirects — CLAUDE.md §10b / FRONTEND.md §16b document that the
+//      subscriber Settings → Notifications and Settings → Security routes are
+//      deliberate redirects back to /dashboard/settings
+//      (SubscriberDashboardShell.jsx routes both to
+//      `<Navigate replace to="/dashboard/settings" />`). The old `StubPage`
+//      placeholders were removed in the audit-remediation cleanup. These
+//      routes are NOT bugs — but nothing pinned them, so a future contributor
+//      could re-wire a half-finished page, change the redirect target, or
+//      accidentally surface a broken screen and no test would notice. This
+//      spec asserts each one settles on /dashboard/settings.
 //
 //   2. Nominee-sum validation — FRONTEND.md / NomineesPage.jsx:206-207 gate
 //      the Save CTA on `totalShare === 100`. Adding a nominee while the list
@@ -29,38 +30,30 @@ import { disableAnimations } from '../../fixtures/motion';
 
 test.use({ storageState: storageStatePathFor('subscriber') });
 
-test.describe('subscriber settings → StubPage routes', () => {
+test.describe('subscriber settings → redirect routes', () => {
   test.beforeEach(async ({ page }) => {
     await disableAnimations(page);
   });
 
-  // Both StubPage routes share the same body; titled by the route element.
-  const STUBS = [
+  // Both routes redirect back to the Settings page; titled by their source path.
+  const REDIRECTS = [
     { path: '/dashboard/settings/notifications', title: 'Notifications' },
     { path: '/dashboard/settings/security', title: 'Security' },
   ];
 
-  for (const { path, title } of STUBS) {
-    test(`${title} settings renders the StubPage placeholder`, async ({ page }) => {
+  for (const { path, title } of REDIRECTS) {
+    test(`${title} settings redirects to /dashboard/settings`, async ({ page }) => {
       await page.goto(path);
 
-      // StubPage renders the route title via the hero PageHeader <h1>.
+      // The route element is `<Navigate replace to="/dashboard/settings" />`,
+      // so the final URL settles on the Settings page (no trailing segment).
+      await expect(page).toHaveURL(/\/dashboard\/settings$/, { timeout: 15_000 });
+
+      // And the Settings page actually mounts. Its hero PageHeader <h1> reads
+      // "Profile" (the /dashboard/settings route renders the Profile tab).
       await expect(
-        page.getByRole('heading', { level: 1, name: new RegExp(`^${title}$`, 'i') }),
+        page.getByRole('heading', { level: 1, name: /^profile$/i }),
       ).toBeVisible({ timeout: 15_000 });
-
-      // The stub body — the load-bearing "this is a placeholder" signal.
-      await expect(
-        page.getByRole('heading', { level: 2, name: /coming up next/i }),
-      ).toBeVisible();
-      await expect(
-        page.getByText(/migrating .* to the new dashboard/i),
-      ).toBeVisible();
-
-      // And the back-to-home affordance the stub always offers.
-      await expect(
-        page.getByRole('button', { name: /back to home/i }),
-      ).toBeVisible();
     });
   }
 });

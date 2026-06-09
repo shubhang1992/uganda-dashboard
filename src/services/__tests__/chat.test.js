@@ -210,3 +210,55 @@ describe('chat service — real/mock branch parity (X11)', () => {
     expect(mock.length).toBeGreaterThan(0);
   });
 });
+
+describe('getEmployerChatResponse — local, truthful employer copilot', () => {
+  let mod;
+  beforeEach(async () => {
+    mod = await import('../chat');
+  });
+
+  const CTX = {
+    headcount: 16, active: 15, inactive: 1, participationPct: 94,
+    pendingKyc: 2, pendingNames: ['Achint Rao', 'Bea Okello'],
+    fundingLabel: 'Co-contribution — matches 50% of each member’s saving',
+    coverLabel: 'UGX 15,000,000', totalContributions: 8000000, lastRunLabel: 'May 2026',
+  };
+
+  it('never calls the network (employer data is already client-side)', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    await mod.getEmployerChatResponse('Who is pending KYC?', CTX);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('answers "Who is pending KYC?" with the real pending-invite names', async () => {
+    const reply = await mod.getEmployerChatResponse('Who is pending KYC?', CTX);
+    expect(reply).toContain('Achint Rao');
+    expect(reply).toContain('2');
+  });
+
+  it('reports no pending KYC when the invite list is empty', async () => {
+    const reply = await mod.getEmployerChatResponse('any pending kyc?', { ...CTX, pendingKyc: 0, pendingNames: [] });
+    expect(reply.toLowerCase()).toContain('no pending kyc');
+  });
+
+  it('declines individual staff balances (private by design)', async () => {
+    const reply = await mod.getEmployerChatResponse('what is a staff balance?', CTX);
+    expect(reply.toLowerCase()).toContain('private');
+  });
+
+  it('answers the funding split from the company model', async () => {
+    const reply = await mod.getEmployerChatResponse('what is our funding split?', CTX);
+    expect(reply).toContain('Co-contribution');
+  });
+
+  it('answers group insurance as company-wide cover', async () => {
+    const reply = await mod.getEmployerChatResponse('group insurance?', CTX);
+    expect(reply).toContain('UGX 15,000,000');
+    expect(reply.toLowerCase()).toContain('company-wide');
+  });
+
+  it('falls back to a helpful prompt for unknown questions', async () => {
+    const reply = await mod.getEmployerChatResponse('quantum tunnelling', CTX);
+    expect(reply.toLowerCase()).toMatch(/pending kyc|funding|staff/);
+  });
+});

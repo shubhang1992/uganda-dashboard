@@ -13,6 +13,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import supabaseAdmin from '../_lib/supabase-admin.js';
 import { toCanonicalUGPhone } from '../_lib/phone.js';
+import { checkLen } from '../_lib/assertLen.js';
 
 const SIMULATED_LATENCY_MS = 600;
 const TICKET_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -68,6 +69,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!reason) {
     return res.status(400).json({ code: 'reason_required' });
   }
+
+  // §2a.5: cap `reason` before the service-role insert — it persists verbatim
+  // via the RLS-bypassing admin client on this public, pre-JWT route, so an
+  // over-length value is a storage-spam vector. (Verdict envelope unchanged.)
+  const tooLong = checkLen(reason, 1000, 'reason_too_long');
+  if (tooLong) return res.status(400).json(tooLong);
 
   const eta = 'within 24 hours';
   const ticketId = generateTicketId();

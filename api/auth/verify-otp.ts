@@ -42,6 +42,7 @@ const VALID_ROLES = new Set<JwtRole>([
   'branch',
   'distributor',
   'employer',
+  'admin',
 ]);
 
 // Sentinel thrown by `upsertUser` when the upsert query itself fails (as
@@ -106,16 +107,17 @@ async function upsertUser(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // B13: every response path on this auth route must be uncacheable. Set the
+  // header BEFORE the method check so even the 405 carries no-store (2a.2);
+  // it also covers success + all 4xx/5xx paths (including the DbError +
+  // generic-error branches in the catch).
+  res.setHeader('Cache-Control', 'no-store');
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     res.status(405).json({ code: 'method_not_allowed' });
     return;
   }
-
-  // B13: every response path on this auth route must be uncacheable. Setting
-  // the header once at the top of the handler covers success + all 4xx/5xx
-  // paths (including the DbError + generic-error branches in the catch).
-  res.setHeader('Cache-Control', 'no-store');
 
   const body = (req.body ?? {}) as {
     phone?: unknown;
@@ -164,37 +166,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // mobile and we treat that the same as a missing subscriber row.
   const canonicalPhone = toCanonicalUGPhone(phone) || phone;
 
-  try {
-    let entityId: string;
-    let name: string | undefined;
-
+  // Resolve the role-scoped identity. Wrapped in a local async fn so it can
+  // be kicked off concurrently with bcrypt below — the two are independent
+  // (the lookup hits Supabase; the hash is CPU-bound), so running them in
+  // parallel hides the ~80ms bcrypt cost behind the network round-trip.
+  const lookupIdentity = async (): Promise<{
+    entityId: string;
+    name?: string;
+  }> => {
     if (typedRole === 'subscriber') {
       const resolved = await resolveSubscriber(supabaseAdmin, canonicalPhone);
       if (resolved) {
-        entityId = resolved.entityId;
-        name = resolved.name;
-      } else {
-        // Per CLAUDE.md §8: every demo login succeeds. Fall back to the
-        // seeded `s-0001` row so a sales rep using any phone still lands on
-        // a working subscriber dashboard. Same intent as the agent/branch/
-        // distributor fallback below.
-        entityId = ROLE_DEFAULTS.subscriber;
+        return { entityId: resolved.entityId, name: resolved.name };
       }
-    } else {
-      const resolved = await resolveDemoPersona(
-        supabaseAdmin,
-        canonicalPhone,
-        typedRole
-      );
-      entityId = resolved.entityId;
-      name = resolved.name;
+      // Per CLAUDE.md §8: every demo login succeeds. Fall back to the
+      // seeded `s-0001` row so a sales rep using any phone still lands on
+      // a working subscriber dashboard. Same intent as the agent/branch/
+      // distributor fallback below.
+      return { entityId: ROLE_DEFAULTS.subscriber };
     }
+    const resolved = await resolveDemoPersona(
+      supabaseAdmin,
+      canonicalPhone,
+      typedRole
+    );
+    return { entityId: resolved.entityId, name: resolved.name };
+  };
 
-    // Hash AFTER the role lookup so a malformed phone/role still short-
-    // circuits before we pay the ~80ms bcrypt cost.
-    const passwordHash = passwordProvided
-      ? await hashPassword(password as string)
-      : null;
+  try {
+    // Run the identity lookup and the (optional) password hash concurrently.
+    // The bcrypt cost is only paid when `passwordProvided` is true — the
+    // request-shape + shape-validation guards above already short-circuited
+    // every other path before reaching here, so a password-less login never
+    // starts bcrypt (it resolves to `null` instead). Errors from either arm
+    // reject the Promise.all and land in the catch below, exactly as the
+    // previous sequential `await`s did.
+    const [{ entityId, name }, passwordHash] = await Promise.all([
+      lookupIdentity(),
+      passwordProvided ? hashPassword(password as string) : Promise.resolve(null),
+    ]);
 
     const { hasPassword } = await upsertUser(
       canonicalPhone,

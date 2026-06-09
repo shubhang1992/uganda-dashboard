@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, useScroll, useMotionValueEvent, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../utils/finance';
+import { EASE_OUT_EXPO } from '../utils/motion';
+
 import styles from './StickyMobileCTA.module.css';
 
 export default function StickyMobileCTA() {

@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGX, formatUGXExact } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatUGX } from '../../utils/currency';
+
 import { formatDate } from '../../utils/date';
 import { getInitials } from '../../utils/dashboard';
 import { useCurrentSubscriber, useUpdateInsuranceCover } from '../../hooks/useSubscriber';
@@ -89,11 +91,11 @@ export default function InsurancePage() {
         title="Insurance cover"
         eyebrow={noPolicy ? undefined : 'CURRENT COVER'}
         prefix={noPolicy ? undefined : 'UGX'}
-        amount={noPolicy ? undefined : formatUGXExact(insurance.cover || 0).replace('UGX ', '')}
+        amount={noPolicy ? undefined : formatUGX(insurance.cover || 0, { compact: false }).replace('UGX ', '')}
         subtitle={noPolicy ? 'Premium and policy level' : undefined}
         statRow={noPolicy ? undefined : (
           <>
-            <span><strong>{formatUGXExact(insurance.premiumMonthly)}</strong> / mo</span>
+            <span><strong>{formatUGX(insurance.premiumMonthly, { compact: false })}</strong> / mo</span>
             <span>Started <strong>{formatDate(insurance.policyStart)}</strong></span>
             <span>Renews <strong>{formatDate(lifePolicy?.renewalDate ?? insurance.renewalDate)}</strong></span>
           </>
@@ -138,7 +140,7 @@ export default function InsurancePage() {
               </div>
               <div className={styles.tierPremium}>
                 <span className={styles.tierEyebrow}>Premium</span>
-                <span className={styles.tierValue}>{formatUGXExact(selectedTier.premium)} / mo</span>
+                <span className={styles.tierValue}>{formatUGX(selectedTier.premium, { compact: false })} / mo</span>
               </div>
             </div>
 
@@ -152,7 +154,7 @@ export default function InsurancePage() {
               className={styles.slider}
               style={{ '--pct': `${(coverIdx / (COVER_TIERS.length - 1)) * 100}%` }}
               aria-label="Cover tier"
-              aria-valuetext={`${formatUGX(selectedTier.cover)} cover, ${formatUGXExact(selectedTier.premium)} per month`}
+              aria-valuetext={`${formatUGX(selectedTier.cover)} cover, ${formatUGX(selectedTier.premium, { compact: false })} per month`}
             />
 
             <div className={styles.tierMarks}>

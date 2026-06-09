@@ -205,13 +205,18 @@ describe('subscriber service — real (Supabase) branch', () => {
       expect(await svc.getSubscriberAgent('s-1')).toBeNull();
     });
 
-    it('fetches agent + branch name via two-step lookup', async () => {
-      supabaseMock.__queueFrom('subscribers', { data: { agent_id: 'a-001' }, error: null });
-      supabaseMock.__queueFrom('agents', {
+    it('fetches agent + branch name via a single embedded query', async () => {
+      // getSubscriberAgent now collapses the old two-step lookup into one
+      // PostgREST embed: subscribers → agents(*, branches(name)). The embedded
+      // agent arrives nested on the subscriber row.
+      supabaseMock.__queueFrom('subscribers', {
         data: {
-          id: 'a-001', name: 'Daniel', branch_id: 'b-kam-015',
-          rating: 4.5, performance: 'excellent', status: 'active',
-          branches: { name: 'Kampala Central' },
+          agent_id: 'a-001',
+          agents: {
+            id: 'a-001', name: 'Daniel', branch_id: 'b-kam-015',
+            rating: 4.5, performance: 'excellent', status: 'active',
+            branches: { name: 'Kampala Central' },
+          },
         },
         error: null,
       });
@@ -221,6 +226,11 @@ describe('subscriber service — real (Supabase) branch', () => {
     });
   });
 
+  // makeAdHocContribution + requestWithdrawal now route through the 0054
+  // SECURITY DEFINER RPCs (make_contribution / request_withdrawal) for
+  // idempotency + atomicity (audit §4a F-1/F-2). The thorough nonce/idempotency
+  // coverage lives in subscriber-money.test.js; these keep the validation guards
+  // + the basic RPC-routing assertion green.
   describe('makeAdHocContribution', () => {
     it('rejects negative or zero amount', async () => {
       await expect(svc.makeAdHocContribution('s-1', { amount: 0 })).rejects.toThrow(/positive/);
@@ -231,31 +241,29 @@ describe('subscriber service — real (Supabase) branch', () => {
       await expect(svc.makeAdHocContribution(null, { amount: 100 })).rejects.toThrow(/id required/i);
     });
 
-    it('inserts a contribution transaction with computed splits', async () => {
-      supabaseMock.__queueFrom('transactions', {
-        data: { id: 't-x', subscriber_id: 's-1', type: 'contribution', amount: 10000, date: '2026-05-26', status: 'settled' },
+    it('calls make_contribution RPC with the amount + retirementPct (no direct insert)', async () => {
+      supabaseMock.__queueRpc('make_contribution', {
+        data: { id: 't-x', subscriberId: 's-1', type: 'contribution', amount: 10000, status: 'settled' },
         error: null,
       });
-      const tx = await svc.makeAdHocContribution('s-1', { amount: 10000 });
+      const tx = await svc.makeAdHocContribution('s-1', { amount: 10000, nonce: 'nonce-1' });
       expect(tx.amount).toBe(10000);
-      const call = supabaseMock.__getFromCalls('transactions').at(-1);
-      const insertArgs = call.chain.insert.mock.calls[0][0];
-      expect(insertArgs.subscriber_id).toBe('s-1');
-      expect(insertArgs.type).toBe('contribution');
-      expect(insertArgs.amount).toBe(10000);
-      expect(insertArgs.split_retirement).toBe(8000);
-      expect(insertArgs.split_emergency).toBe(2000);
+      const call = supabaseMock.__getRpcCalls('make_contribution').at(-1);
+      expect(call.args.p_amount).toBe(10000);
+      expect(call.args.p_retirement_pct).toBe(80);
+      expect(call.args.p_nonce).toBe('nonce-1');
+      // No direct transactions write remains in the live path.
+      expect(supabaseMock.__getFromCalls('transactions')).toHaveLength(0);
     });
 
     it('honours custom retirementPct', async () => {
-      supabaseMock.__queueFrom('transactions', {
-        data: { id: 't-x', subscriber_id: 's-1', type: 'contribution', amount: 10000, date: '2026-05-26', status: 'settled' },
+      supabaseMock.__queueRpc('make_contribution', {
+        data: { id: 't-x', subscriberId: 's-1', type: 'contribution', amount: 10000 },
         error: null,
       });
-      await svc.makeAdHocContribution('s-1', { amount: 10000, retirementPct: 50 });
-      const insertArgs = supabaseMock.__getFromCalls('transactions').at(-1).chain.insert.mock.calls[0][0];
-      expect(insertArgs.split_retirement).toBe(5000);
-      expect(insertArgs.split_emergency).toBe(5000);
+      await svc.makeAdHocContribution('s-1', { amount: 10000, retirementPct: 50, nonce: 'nonce-2' });
+      const call = supabaseMock.__getRpcCalls('make_contribution').at(-1);
+      expect(call.args.p_retirement_pct).toBe(50);
     });
   });
 
@@ -265,39 +273,34 @@ describe('subscriber service — real (Supabase) branch', () => {
       await expect(svc.requestWithdrawal(null, { amount: 100 })).rejects.toThrow(/id required/i);
     });
 
-    it('writes BOTH transactions + withdrawals rows', async () => {
-      supabaseMock.__queueFrom('transactions', {
-        data: { id: 't-w', subscriber_id: 's-1', type: 'withdrawal', amount: 50000, status: 'processing', date: '2026-05-26' },
-        error: null,
-      });
-      supabaseMock.__queueFrom('withdrawals', {
-        data: { id: 'w-1', subscriber_id: 's-1', amount: 50000, bucket: 'emergency', reason: 'medical', method: 'MTN Mobile Money', status: 'processing', date: '2026-05-26', reference: 'WD-1' },
+    it('calls request_withdrawal RPC (single atomic write — no direct inserts)', async () => {
+      supabaseMock.__queueRpc('request_withdrawal', {
+        data: { id: 'w-1', amount: 50000, bucket: 'emergency', reason: 'medical', method: 'MTN Mobile Money', status: 'processing', date: '2026-05-26', reference: 'WD-1' },
         error: null,
       });
       const wd = await svc.requestWithdrawal('s-1', {
-        amount: 50000, bucket: 'emergency', reason: 'medical',
+        amount: 50000, bucket: 'emergency', reason: 'medical', nonce: 'wd-nonce-1',
       });
       expect(wd.id).toBe('w-1');
       expect(wd.amount).toBe(50000);
       expect(wd.bucket).toBe('emergency');
-      // Both tables were written.
-      expect(supabaseMock.__getFromCalls('transactions')).toHaveLength(1);
-      expect(supabaseMock.__getFromCalls('withdrawals')).toHaveLength(1);
+      const call = supabaseMock.__getRpcCalls('request_withdrawal').at(-1);
+      expect(call.args.p_amount).toBe(50000);
+      expect(call.args.p_bucket).toBe('emergency');
+      expect(call.args.p_nonce).toBe('wd-nonce-1');
+      // No direct table writes remain — the RPC does both inserts atomically.
+      expect(supabaseMock.__getFromCalls('transactions')).toHaveLength(0);
+      expect(supabaseMock.__getFromCalls('withdrawals')).toHaveLength(0);
     });
 
-    it('routes splits to retirement bucket when specified', async () => {
-      supabaseMock.__queueFrom('transactions', {
-        data: { id: 't-w', subscriber_id: 's-1', type: 'withdrawal', amount: 30000, status: 'processing', date: '2026-05-26' },
+    it('passes the bucket through to the RPC when specified', async () => {
+      supabaseMock.__queueRpc('request_withdrawal', {
+        data: { id: 'w-1', amount: 30000, bucket: 'retirement', method: 'X', status: 'processing', date: '2026-05-26', reference: 'WD-1' },
         error: null,
       });
-      supabaseMock.__queueFrom('withdrawals', {
-        data: { id: 'w-1', subscriber_id: 's-1', amount: 30000, bucket: 'retirement', method: 'X', status: 'processing', date: '2026-05-26', reference: 'WD-1' },
-        error: null,
-      });
-      await svc.requestWithdrawal('s-1', { amount: 30000, bucket: 'retirement' });
-      const insertArgs = supabaseMock.__getFromCalls('transactions').at(-1).chain.insert.mock.calls[0][0];
-      expect(insertArgs.split_retirement).toBe(30000);
-      expect(insertArgs.split_emergency).toBe(0);
+      await svc.requestWithdrawal('s-1', { amount: 30000, bucket: 'retirement', nonce: 'wd-nonce-2' });
+      const call = supabaseMock.__getRpcCalls('request_withdrawal').at(-1);
+      expect(call.args.p_bucket).toBe('retirement');
     });
   });
 
@@ -458,6 +461,16 @@ describe('subscriber service — real (Supabase) branch', () => {
       expect(result).toEqual({ subscriberId: 's-new-123' });
       const call = supabaseMock.__getRpcCalls('create_subscriber_from_signup').at(-1);
       expect(call.args.payload).toEqual({ phone: '+25671...' });
+      // No nonce passed → p_nonce defaults to null (0042 treats null as "no
+      // idempotency key", same as the pre-nonce behaviour).
+      expect(call.args.p_nonce).toBeNull();
+    });
+
+    it('threads the idempotency nonce through as p_nonce (0042)', async () => {
+      supabaseMock.__queueRpc('create_subscriber_from_signup', { data: 's-9', error: null });
+      await svc.createFromSignup({ phone: 'x' }, 'signup-nonce-abc');
+      const call = supabaseMock.__getRpcCalls('create_subscriber_from_signup').at(-1);
+      expect(call.args.p_nonce).toBe('signup-nonce-abc');
     });
 
     it('throws on RPC error', async () => {
@@ -480,6 +493,15 @@ describe('subscriber service — real (Supabase) branch', () => {
       const result = await svc.createFromAgentOnboard({ phone: 'x' }, 'a-001');
       expect(result.subscriberId).toBe('s-new-456');
       const call = supabaseMock.__getRpcCalls('create_subscriber_from_agent_onboard').at(-1);
+      expect(call.args.calling_agent_id).toBe('a-001');
+      expect(call.args.p_nonce).toBeNull();
+    });
+
+    it('threads the idempotency nonce through as p_nonce (0042)', async () => {
+      supabaseMock.__queueRpc('create_subscriber_from_agent_onboard', { data: 's-7', error: null });
+      await svc.createFromAgentOnboard({ phone: 'x' }, 'a-001', 'onboard-nonce-xyz');
+      const call = supabaseMock.__getRpcCalls('create_subscriber_from_agent_onboard').at(-1);
+      expect(call.args.p_nonce).toBe('onboard-nonce-xyz');
       expect(call.args.calling_agent_id).toBe('a-001');
     });
   });

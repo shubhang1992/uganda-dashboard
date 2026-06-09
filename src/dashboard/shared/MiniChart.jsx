@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { formatUGX } from '../../utils/finance';
+import { formatUGX } from '../../utils/currency';
+
 import styles from './MiniChart.module.css';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

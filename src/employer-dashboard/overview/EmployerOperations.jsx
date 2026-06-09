@@ -6,8 +6,10 @@
 //     with an animated bar (relative to the largest grand total) opening the
 //     runs panel; an EmptyState CTA when there are none.
 //   * Right — roster snapshot: a CSS/SVG funding-mode donut (co-contribution vs
-//     employer-only) + a status breakdown (active / suspended / insured) with
-//     animated fills. Opens the employees panel.
+//     employer-only) + a status breakdown (active / inactive) with animated
+//     fills. Opens the employees panel. Insurance is company-wide (all-or-nothing)
+//     so there is no per-member "insured" count here — it lives in the hero
+//     Insurance tile + the Insurance & benefits panel.
 //
 // All figures come in as props (the parent reads the employer hooks) — this
 // component never touches the data layer directly. Charts are pure SVG/CSS to
@@ -15,7 +17,8 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { formatUGX, formatNumber } from '../../utils/currency';
 import { formatRelativeTime } from '../../utils/date';
 import { useEmployerPanel } from '../../contexts/EmployerPanelContext';
@@ -87,7 +90,6 @@ export default function EmployerOperations({ runs = [], metrics = {} }) {
   const headcount = metrics.headcount || 0;
   const active = metrics.active || 0;
   const suspended = metrics.suspended || 0;
-  const insured = metrics.insuredCount || 0;
   const co = metrics.modeSplit?.coContribution || 0;
   const employerOnly = metrics.modeSplit?.employerOnly || 0;
 
@@ -198,8 +200,7 @@ export default function EmployerOperations({ runs = [], metrics = {} }) {
 
           <div className={styles.statusList}>
             <StatusBar label="Active" value={active} total={headcount} variant="active" />
-            <StatusBar label="Suspended" value={suspended} total={headcount} variant="suspended" />
-            <StatusBar label="Insured" value={insured} total={headcount} variant="insured" />
+            <StatusBar label="Inactive" value={suspended} total={headcount} variant="suspended" />
           </div>
         </div>
       </div>

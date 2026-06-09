@@ -1,7 +1,9 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import styles from './TimeJourney.module.css';
-import { calcFV, formatUGX, EASE_OUT_EXPO as EASE } from '../utils/finance';
+import { calcFV } from '../utils/finance';
+import { EASE_OUT_EXPO as EASE } from '../utils/motion';
+import { formatUGX } from '../utils/currency';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 

@@ -1,442 +1,486 @@
-// Employer service tests — focused on the contribution-run write path
-// (`submitContributionRun`), the core flow of the Employer dashboard.
+// Employer service tests — UNIFIED MODEL (0043–0045). The employer's staff are
+// tagged subscribers; funding is a single company-wide config (Issue 2) applied
+// by submit_employer_contribution_run (employer-source transactions).
 //
-// Two branches, mirroring `subscriber.test.js`:
-//   * real (Supabase) branch — asserts the `submit_contribution_run` RPC call
-//     SHAPE (param names `p_rows` / `p_period_label` / `p_method` / `p_nonce`),
-//     like the existing rpc-shape tests.
-//   * mock-fallback branch (`VITE_USE_SUPABASE=false`) — exercises the math
-//     matrix the RPC re-derives server-side: employer-only vs co-contribution,
-//     pct-based vs fixed-amount config, the retirement/emergency split (default
-//     80/20, `emergency = gross - retirement`), per-employee + grand totals,
-//     skip reasons (suspended / not-owned / not-found), nonce idempotency, and
-//     — critically — that the result carries NO commission side-effect (the
-//     mock produces only the run summary; no `commissions`/`transactions`/
-//     `subscriber_balances` artifact is exposed or touched).
-//
-// The seed roster (`src/data/employerSeed.js`) is the source of truth for the
-// expected figures; we recompute the same way the RPC / `lineFor` does so the
-// assertions stay aligned with the seed if salaries/config drift.
+// Two branches, mirroring subscriber.test.js:
+//   * real (Supabase) branch — asserts the RPC/select call SHAPE.
+//   * mock-fallback branch (VITE_USE_SUPABASE=false) — exercises the roster +
+//     the employer-run math (match % of each member's own saving, capped),
+//     suspended skips, and nonce idempotency. NO commission side-effects.
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { makeSupabaseMock } from '../../test/supabaseMock';
-import {
-  EMPLOYER,
-  EMPLOYEES,
-  EMPLOYER_UNIT_PRICE,
-} from '../../data/employerSeed';
+import { EMPLOYER, MEMBERS } from '../../data/employerSeed';
 
 const supabaseMock = makeSupabaseMock();
 
 vi.mock('@/services/supabaseClient', () => ({
-  supabase: supabaseMock,
-  default: supabaseMock,
-  getToken: vi.fn(),
-  setToken: vi.fn(),
-  clearToken: vi.fn(),
+  supabase: supabaseMock, default: supabaseMock,
+  getToken: vi.fn(), setToken: vi.fn(), clearToken: vi.fn(),
 }));
 vi.mock('../supabaseClient', () => ({
-  supabase: supabaseMock,
-  default: supabaseMock,
-  getToken: vi.fn(),
-  setToken: vi.fn(),
-  clearToken: vi.fn(),
+  supabase: supabaseMock, default: supabaseMock,
+  getToken: vi.fn(), setToken: vi.fn(), clearToken: vi.fn(),
 }));
 
-beforeEach(() => {
-  supabaseMock.__reset();
-});
+beforeEach(() => supabaseMock.__reset());
 
 const round = (n) => Math.round(n);
-const empById = (id) => EMPLOYEES.find((e) => e.id === id);
+const CFG = EMPLOYER.defaultContributionConfig;
+const ACTIVE = MEMBERS.filter((m) => m.status === 'active');
 
-/** Re-derive one active employee's expected line the same way the RPC does. */
-function expectedLine(emp) {
-  const cfg = emp.contributionConfig ?? {};
-  const employerHalf =
-    cfg.employerAmount != null
-      ? round(cfg.employerAmount)
-      : round((emp.salary ?? 0) * (cfg.employerPct ?? 0) / 100);
-  const employeeHalf =
-    cfg.mode === 'co-contribution'
-      ? cfg.employeeAmount != null
-        ? round(cfg.employeeAmount)
-        : round((emp.salary ?? 0) * (cfg.employeePct ?? 0) / 100)
-      : 0;
-  const gross = employerHalf + employeeHalf;
-  const retPct = emp.contributionSchedule?.retirementPct ?? 80;
-  const retirement = round(gross * retPct / 100);
-  const emergency = gross - retirement;
-  return { employerHalf, employeeHalf, gross, retirement, emergency };
+/** Expected employer match for one member under the company config. */
+function expectedMatch(m) {
+  let amt = round(Number(m.monthlyContribution) * (CFG.matchPct ?? 0) / 100);
+  if (CFG.maxContribution != null) amt = Math.min(amt, round(CFG.maxContribution));
+  return amt;
 }
+const EXPECTED_EMPLOYER_TOTAL = ACTIVE.reduce((s, m) => s + expectedMatch(m), 0);
 
 // =============================================================================
-// Real (Supabase) branch — RPC call shape
+// Real (Supabase) branch — call shape
 // =============================================================================
-
 describe('employer service — real (Supabase) branch', () => {
   let svc;
-  beforeEach(async () => {
-    svc = await import('../employer');
-  });
+  beforeEach(async () => { svc = await import('../employer'); });
 
-  describe('submitContributionRun', () => {
-    it('calls submit_contribution_run with p_rows / p_period_label / p_method / p_nonce', async () => {
-      supabaseMock.__queueRpc('submit_contribution_run', {
-        data: {
-          runId: 'run-x',
-          linesCreated: 2,
-          employerTotal: 700000,
-          employeeTotal: 350000,
-          grandTotal: 1050000,
-          skipped: [],
-        },
+  describe('submitContributionRun → submit_employer_contribution_run', () => {
+    it('passes p_period_label / p_method / p_nonce (no rows) and returns data', async () => {
+      supabaseMock.__queueRpc('submit_employer_contribution_run', {
+        data: { runId: 'run-x', linesCreated: 14, employerTotal: 700000, employeeTotal: 0, grandTotal: 700000, skipped: [] },
         error: null,
       });
-      const rows = [{ employeeId: 'empe-001' }, { employeeId: 'empe-002' }];
-      const result = await svc.submitContributionRun('emp-001', {
-        rows,
-        periodLabel: 'May 2026',
-        method: 'Bank transfer',
-        nonce: 'nonce-abc',
-      });
+      const result = await svc.submitContributionRun('emp-001', { periodLabel: 'May 2026', method: 'Bank transfer', nonce: 'n-1' });
       expect(result.runId).toBe('run-x');
-      expect(result.linesCreated).toBe(2);
-      const call = supabaseMock.__getRpcCalls('submit_contribution_run').at(-1);
-      expect(call.args.p_rows).toEqual(rows);
+      const call = supabaseMock.__getRpcCalls('submit_employer_contribution_run').at(-1);
       expect(call.args.p_period_label).toBe('May 2026');
       expect(call.args.p_method).toBe('Bank transfer');
-      expect(call.args.p_nonce).toBe('nonce-abc');
-    });
-
-    it('passes nulls for omitted period/method/nonce', async () => {
-      supabaseMock.__queueRpc('submit_contribution_run', {
-        data: { runId: 'run-y', linesCreated: 0, employerTotal: 0, employeeTotal: 0, grandTotal: 0, skipped: [] },
-        error: null,
-      });
-      await svc.submitContributionRun('emp-001', { rows: [{ employeeId: 'empe-001' }] });
-      const call = supabaseMock.__getRpcCalls('submit_contribution_run').at(-1);
-      expect(call.args.p_period_label).toBeNull();
-      expect(call.args.p_method).toBeNull();
-      expect(call.args.p_nonce).toBeNull();
+      expect(call.args.p_nonce).toBe('n-1');
     });
 
     it('throws on RPC error', async () => {
-      supabaseMock.__queueRpc('submit_contribution_run', {
-        data: null,
-        error: { message: 'permission denied', code: 'PGRST301' },
-      });
-      await expect(
-        svc.submitContributionRun('emp-001', { rows: [{ employeeId: 'empe-001' }], nonce: 'n' }),
-      ).rejects.toMatchObject({ message: 'permission denied' });
+      supabaseMock.__queueRpc('submit_employer_contribution_run', { data: null, error: { message: 'permission denied' } });
+      await expect(svc.submitContributionRun('emp-001', { nonce: 'n' })).rejects.toMatchObject({ message: 'permission denied' });
     });
   });
 
-  describe('getContributionRuns', () => {
-    it('selects from contribution_runs filtered by employer_id, newest-first', async () => {
-      supabaseMock.__queueFrom('contribution_runs', { data: [], error: null });
-      await svc.getContributionRuns('emp-001');
-      const call = supabaseMock.__getFromCalls('contribution_runs').at(-1);
-      expect(call.chain.eq).toHaveBeenCalledWith('employer_id', 'emp-001');
-      expect(call.chain.order).toHaveBeenCalledWith('run_at', { ascending: false });
+  describe('createSubscriberFromEmployerOnboard → create_subscriber_from_employer_onboard', () => {
+    it('passes payload / calling_employer_id / p_nonce and wraps the id', async () => {
+      supabaseMock.__queueRpc('create_subscriber_from_employer_onboard', { data: 's-999', error: null });
+      const res = await svc.createSubscriberFromEmployerOnboard('emp-001', { fullName: 'Jane Akello', phone: '700100099' }, 'n-2');
+      expect(res).toEqual({ subscriberId: 's-999' });
+      const call = supabaseMock.__getRpcCalls('create_subscriber_from_employer_onboard').at(-1);
+      expect(call.args.calling_employer_id).toBe('emp-001');
+      expect(call.args.p_nonce).toBe('n-2');
+      expect(call.args.payload.fullName).toBe('Jane Akello');
+    });
+  });
+
+  describe('applyGroupInsurance', () => {
+    it('calls apply_group_insurance with p_cover', async () => {
+      supabaseMock.__queueRpc('apply_group_insurance', { data: { updated: 16, cover: 5000000 }, error: null });
+      const summary = await svc.applyGroupInsurance('emp-001', { cover: 5000000 });
+      expect(summary).toEqual({ updated: 16, cover: 5000000 });
+      expect(supabaseMock.__getRpcCalls('apply_group_insurance').at(-1).args.p_cover).toBe(5000000);
+    });
+  });
+
+  describe('getEmployees → subscribers WHERE employer_id', () => {
+    it('selects subscribers filtered by employer_id and maps the member shape', async () => {
+      supabaseMock.__queueFrom('subscribers', {
+        data: [{ id: 's-1', employer_id: 'emp-001', name: 'Jane', phone: '700100099', is_active: true, kyc_status: 'pending',
+          subscriber_balances: { total_balance: 300000, retirement_balance: 240000, emergency_balance: 60000, units: 300 },
+          contribution_schedules: { amount: 100000, retirement_pct: 80, emergency_pct: 20, frequency: 'monthly' } }],
+        error: null,
+      });
+      const members = await svc.getEmployees('emp-001');
+      expect(supabaseMock.__getFromCalls('subscribers').at(-1).chain.eq).toHaveBeenCalledWith('employer_id', 'emp-001');
+      expect(members[0]).toMatchObject({ id: 's-1', status: 'active', netBalance: 300000, monthlyContribution: 100000, kycStatus: 'pending' });
+    });
+
+    it('maps a missing kyc_status to "complete" (legacy rows are not "pending")', async () => {
+      supabaseMock.__queueFrom('subscribers', {
+        data: [{ id: 's-2', employer_id: 'emp-001', name: 'Sam', is_active: true }],
+        error: null,
+      });
+      const members = await svc.getEmployees('emp-001');
+      expect(members[0].kycStatus).toBe('complete');
+    });
+  });
+
+  describe('getEmployerMetrics', () => {
+    it('calls the get_employer_metrics RPC', async () => {
+      supabaseMock.__queueRpc('get_employer_metrics', { data: { headcount: 16, active: 14 }, error: null });
+      const m = await svc.getEmployerMetrics();
+      expect(m.headcount).toBe(16);
+      expect(supabaseMock.__getRpcCalls('get_employer_metrics').length).toBe(1);
+    });
+  });
+
+  describe('removeEmployee', () => {
+    it('calls the remove_employer_member RPC (un-link, not suspend)', async () => {
+      supabaseMock.__queueRpc('remove_employer_member', { data: { id: 's-1', removed: true }, error: null });
+      const res = await svc.removeEmployee('emp-001', 's-1');
+      expect(res).toMatchObject({ id: 's-1', removed: true });
+      expect(supabaseMock.__getRpcCalls('remove_employer_member').length).toBe(1);
+    });
+  });
+
+  // ─── Seven previously-untested reads/writes (audit §7b.6) ─────────────────
+
+  describe('getEmployer', () => {
+    it('selects the employer by id and maps the row', async () => {
+      supabaseMock.__queueFrom('employers', {
+        data: { id: 'emp-001', name: 'Acme Ltd', sector: 'Manufacturing', registration_no: 'RN-1', district: 'Kampala' },
+        error: null,
+      });
+      const emp = await svc.getEmployer('emp-001');
+      expect(supabaseMock.__getFromCalls('employers').at(-1).chain.eq).toHaveBeenCalledWith('id', 'emp-001');
+      expect(emp).toMatchObject({ id: 'emp-001', name: 'Acme Ltd', sector: 'Manufacturing', registrationNo: 'RN-1', district: 'Kampala' });
+    });
+
+    it('returns null when the row is missing (PGRST116)', async () => {
+      supabaseMock.__queueFrom('employers', { data: null, error: { code: 'PGRST116', message: 'no row' } });
+      expect(await svc.getEmployer('emp-999')).toBeNull();
+    });
+  });
+
+  describe('getEmployee', () => {
+    it('selects one member, fetches their txn breakdown, and folds own/employer totals', async () => {
+      supabaseMock.__queueFrom('subscribers', {
+        data: { id: 's-1', employer_id: 'emp-001', name: 'Jane', is_active: true,
+          subscriber_balances: { total_balance: 300000 } },
+        error: null,
+      });
+      // fetchMemberBreakdown reads transactions (type=contribution) split by source.
+      supabaseMock.__queueFrom('transactions', {
+        data: [
+          { amount: 100000, source: 'own', type: 'contribution' },
+          { amount: 40000, source: 'employer', type: 'contribution' },
+        ],
+        error: null,
+      });
+      const member = await svc.getEmployee('s-1');
+      expect(supabaseMock.__getFromCalls('subscribers').at(-1).chain.eq).toHaveBeenCalledWith('id', 's-1');
+      expect(member).toMatchObject({
+        id: 's-1', name: 'Jane', netBalance: 300000,
+        ownContributions: 100000, employerContributions: 40000, totalContributions: 140000,
+      });
+    });
+
+    it('returns null when the member is missing (PGRST116)', async () => {
+      supabaseMock.__queueFrom('subscribers', { data: null, error: { code: 'PGRST116', message: 'no row' } });
+      expect(await svc.getEmployee('s-999')).toBeNull();
+    });
+
+    it('short-circuits with null for a falsy id (no network)', async () => {
+      expect(await svc.getEmployee('')).toBeNull();
+      expect(supabaseMock.__getFromCalls('subscribers')).toHaveLength(0);
     });
   });
 
   describe('getContributionRun', () => {
-    it('fetches the run header then its lines', async () => {
+    it('fetches the run header + its lines, attaching the member name to each line', async () => {
       supabaseMock.__queueFrom('contribution_runs', {
-        data: {
-          id: 'run-1', employer_id: 'emp-001', period_label: 'March 2026', status: 'completed',
-          employer_total: 700000, employee_total: 350000, grand_total: 1050000, run_at: '2026-03-01',
-        },
+        data: { id: 'run-1', employer_id: 'emp-001', period_label: 'May 2026', status: 'completed', grand_total: 700000 },
         error: null,
       });
-      supabaseMock.__queueFrom('contribution_run_lines', {
-        data: [
-          { id: 'crl-1', run_id: 'run-1', employee_id: 'empe-001', employer_amount: 420000, employee_amount: 210000, retirement_amount: 504000, emergency_amount: 126000, method: 'Bank transfer' },
-        ],
+      supabaseMock.__queueFrom('transactions', {
+        data: [{ id: 't-1', subscriber_id: 's-1', amount: 50000, type: 'contribution', source: 'employer',
+          contribution_run_id: 'run-1', subscribers: { name: 'Jane' } }],
         error: null,
       });
-      const result = await svc.getContributionRun('run-1');
-      expect(result.run.id).toBe('run-1');
-      expect(result.run.grandTotal).toBe(1050000);
-      expect(result.lines).toHaveLength(1);
-      expect(result.lines[0].employeeId).toBe('empe-001');
-      const lineCall = supabaseMock.__getFromCalls('contribution_run_lines').at(-1);
-      expect(lineCall.chain.eq).toHaveBeenCalledWith('run_id', 'run-1');
+      const { run, lines } = await svc.getContributionRun('run-1');
+      expect(supabaseMock.__getFromCalls('contribution_runs').at(-1).chain.eq).toHaveBeenCalledWith('id', 'run-1');
+      expect(supabaseMock.__getFromCalls('transactions').at(-1).chain.eq).toHaveBeenCalledWith('contribution_run_id', 'run-1');
+      expect(run).toMatchObject({ id: 'run-1', periodLabel: 'May 2026', grandTotal: 700000 });
+      expect(lines[0]).toMatchObject({ id: 't-1', amount: 50000, memberName: 'Jane' });
+    });
+
+    it('returns null when the run is missing (PGRST116)', async () => {
+      supabaseMock.__queueFrom('contribution_runs', { data: null, error: { code: 'PGRST116', message: 'no row' } });
+      expect(await svc.getContributionRun('run-999')).toBeNull();
+    });
+  });
+
+  describe('getEmployeeContributions', () => {
+    it('selects contribution txns for one member newest-first and maps them', async () => {
+      supabaseMock.__queueFrom('transactions', {
+        data: [{ id: 't-1', subscriber_id: 's-1', amount: 50000, type: 'contribution', source: 'employer', date: '2026-05-01' }],
+        error: null,
+      });
+      const rows = await svc.getEmployeeContributions('s-1');
+      const call = supabaseMock.__getFromCalls('transactions').at(-1);
+      expect(call.chain.eq).toHaveBeenCalledWith('subscriber_id', 's-1');
+      expect(call.chain.eq).toHaveBeenCalledWith('type', 'contribution');
+      expect(call.chain.order).toHaveBeenCalledWith('date', { ascending: false });
+      expect(rows[0]).toMatchObject({ id: 't-1', amount: 50000, source: 'employer' });
+    });
+
+    it('short-circuits with [] for a falsy id (no network)', async () => {
+      expect(await svc.getEmployeeContributions('')).toEqual([]);
+      expect(supabaseMock.__getFromCalls('transactions')).toHaveLength(0);
+    });
+  });
+
+  describe('getEmployerLeaderboard', () => {
+    it('ranks the employer against the seeded competitor field, flagging "you"', async () => {
+      // getContributionRuns → newest run's grandTotal is the employer's monthly total.
+      supabaseMock.__queueFrom('contribution_runs', {
+        data: [{ id: 'run-1', employer_id: 'emp-001', grand_total: 9_000_000_000, run_at: '2026-05-01' }],
+        error: null,
+      });
+      // getEmployer → company name.
+      supabaseMock.__queueFrom('employers', { data: { id: 'emp-001', name: 'Acme Ltd' }, error: null });
+      const board = await svc.getEmployerLeaderboard('emp-001');
+      expect(Array.isArray(board)).toBe(true);
+      // Best-first ranking with consecutive ranks.
+      expect(board.map((e) => e.rank)).toEqual(board.map((_, i) => i + 1));
+      // A huge grandTotal puts "you" at rank 1.
+      const you = board.find((e) => e.isYou);
+      expect(you).toBeDefined();
+      expect(you.name).toBe('Acme Ltd');
+      expect(you.rank).toBe(1);
+    });
+
+    it('returns [] for a falsy employerId (no network)', async () => {
+      expect(await svc.getEmployerLeaderboard('')).toEqual([]);
+    });
+  });
+
+  describe('updateEmployerProfile', () => {
+    it('passes a profile-only patch (no insurance leg) and maps the returned employer', async () => {
+      supabaseMock.__queueRpc('update_employer_profile', {
+        data: { id: 'emp-001', name: 'Acme Renamed', sector: 'Tech' }, error: null,
+      });
+      const emp = await svc.updateEmployerProfile({ name: 'Acme Renamed', sector: 'Tech' });
+      expect(emp).toMatchObject({ id: 'emp-001', name: 'Acme Renamed', sector: 'Tech' });
+      const call = supabaseMock.__getRpcCalls('update_employer_profile').at(-1);
+      expect(call.args.p_patch).toEqual({ name: 'Acme Renamed', sector: 'Tech' });
+      // No insurance leg when insuranceEnabled is absent.
+      expect('p_insurance_enabled' in call.args).toBe(false);
+      expect('p_group_cover' in call.args).toBe(false);
+    });
+
+    it('folds the company-wide insurance leg into the same RPC call when insuranceEnabled is present', async () => {
+      supabaseMock.__queueRpc('update_employer_profile', { data: { id: 'emp-001', name: 'Acme' }, error: null });
+      await svc.updateEmployerProfile({ contactName: 'Sam', insuranceEnabled: true, groupCover: 5000000 });
+      const call = supabaseMock.__getRpcCalls('update_employer_profile').at(-1);
+      // Insurance control keys are stripped from p_patch and become their own RPC args.
+      expect(call.args.p_patch).toEqual({ contactName: 'Sam' });
+      expect(call.args.p_insurance_enabled).toBe(true);
+      expect(call.args.p_group_cover).toBe(5000000);
+    });
+
+    it('throws on RPC error', async () => {
+      supabaseMock.__queueRpc('update_employer_profile', { data: null, error: { message: 'permission denied' } });
+      await expect(svc.updateEmployerProfile({ name: 'X' })).rejects.toMatchObject({ message: 'permission denied' });
+    });
+  });
+
+  describe('cancelEmployerInvite', () => {
+    it('calls the cancel_employer_invite RPC with p_token', async () => {
+      supabaseMock.__queueRpc('cancel_employer_invite', { data: null, error: null });
+      await svc.cancelEmployerInvite('inv-1');
+      const call = supabaseMock.__getRpcCalls('cancel_employer_invite').at(-1);
+      expect(call.args.p_token).toBe('inv-1');
+    });
+
+    it('throws on RPC error', async () => {
+      supabaseMock.__queueRpc('cancel_employer_invite', { data: null, error: { message: 'not found' } });
+      await expect(svc.cancelEmployerInvite('inv-x')).rejects.toMatchObject({ message: 'not found' });
+    });
+  });
+
+  // ─── Admin-gated employer RPCs (0049) — audit §7b.5 ───────────────────────
+
+  describe('createEmployer (admin) → create_employer RPC', () => {
+    it('passes snake_case p_* args and maps the returned employer', async () => {
+      supabaseMock.__queueRpc('create_employer', {
+        data: { id: 'emp-new-1', name: 'New Co', sector: 'Retail', registration_no: 'RN-9',
+          contact_name: 'Pat', contact_phone: '+256700000000', contact_email: 'pat@x.com', district: 'Jinja' },
+        error: null,
+      });
+      const emp = await svc.createEmployer({
+        name: 'New Co', sector: 'Retail', registrationNo: 'RN-9',
+        contactName: 'Pat', contactPhone: '+256700000000', contactEmail: 'pat@x.com', district: 'Jinja',
+      });
+      expect(emp).toMatchObject({ id: 'emp-new-1', name: 'New Co', sector: 'Retail', registrationNo: 'RN-9', district: 'Jinja' });
+      const call = supabaseMock.__getRpcCalls('create_employer').at(-1);
+      expect(call.args).toMatchObject({
+        p_name: 'New Co', p_sector: 'Retail', p_registration_no: 'RN-9',
+        p_contact_name: 'Pat', p_contact_phone: '+256700000000', p_contact_email: 'pat@x.com',
+        p_district: 'Jinja',
+      });
+    });
+
+    it('defaults optional fields to null / {} when omitted', async () => {
+      supabaseMock.__queueRpc('create_employer', { data: { id: 'emp-new-2', name: 'Minimal Co' }, error: null });
+      await svc.createEmployer({ name: 'Minimal Co' });
+      const call = supabaseMock.__getRpcCalls('create_employer').at(-1);
+      expect(call.args.p_sector).toBeNull();
+      expect(call.args.p_registration_no).toBeNull();
+      expect(call.args.p_payroll_cadence).toBeNull();
+      expect(call.args.p_default_contribution_config).toEqual({});
+    });
+
+    it('throws when the RPC returns an error (non-admin caller)', async () => {
+      supabaseMock.__queueRpc('create_employer', { data: null, error: { code: 'P0001', message: 'admin only' } });
+      await expect(svc.createEmployer({ name: 'X' })).rejects.toMatchObject({ code: 'P0001' });
+    });
+  });
+
+  describe('getAllEmployersMetrics (admin) → get_all_employers_metrics RPC', () => {
+    it('calls the no-arg RPC and returns the rows array', async () => {
+      const rows = [{ id: 'emp-001', name: 'Acme', headcount: 16, activeCount: 14 }];
+      supabaseMock.__queueRpc('get_all_employers_metrics', { data: rows, error: null });
+      const result = await svc.getAllEmployersMetrics();
+      expect(result).toEqual(rows);
+      const calls = supabaseMock.__getRpcCalls('get_all_employers_metrics');
+      expect(calls).toHaveLength(1);
+      expect(calls[0].args).toBeUndefined();
+    });
+
+    it('returns [] when the RPC data is null', async () => {
+      supabaseMock.__queueRpc('get_all_employers_metrics', { data: null, error: null });
+      expect(await svc.getAllEmployersMetrics()).toEqual([]);
+    });
+
+    it('throws on RPC error', async () => {
+      supabaseMock.__queueRpc('get_all_employers_metrics', { data: null, error: { code: 'P0001', message: 'admin only' } });
+      await expect(svc.getAllEmployersMetrics()).rejects.toMatchObject({ code: 'P0001' });
     });
   });
 });
 
 // =============================================================================
-// Mock-fallback branch — the math matrix + idempotency + no-commission proof
+// Mock-fallback branch — roster + employer-run math + idempotency
 // =============================================================================
-
 describe('employer service — mock-fallback branch (IS_SUPABASE_ENABLED=false)', () => {
   let svc;
-
   beforeEach(async () => {
     vi.stubEnv('VITE_USE_SUPABASE', 'false');
     vi.resetModules();
     vi.doMock('../supabaseClient', () => ({
-      supabase: supabaseMock,
-      default: supabaseMock,
-      getToken: vi.fn(),
-      setToken: vi.fn(),
-      clearToken: vi.fn(),
+      supabase: supabaseMock, default: supabaseMock,
+      getToken: vi.fn(), setToken: vi.fn(), clearToken: vi.fn(),
     }));
     svc = await import('../employer');
   });
+  afterEach(() => { vi.unstubAllEnvs(); vi.resetModules(); });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.resetModules();
+  it('getEmployees returns the seeded members (member shape)', async () => {
+    const members = await svc.getEmployees('emp-001');
+    expect(members).toHaveLength(MEMBERS.length);
+    expect(members[0]).toMatchObject({ id: MEMBERS[0].id, status: 'active' });
+    expect(members[0].netBalance).toBeGreaterThan(0);
   });
 
-  // ── pct-based co-contribution + 80/20 split ────────────────────────────────
-  it('co-contribution (pct): employer/employee halves + 80/20 retirement split', async () => {
-    // empe-001: salary 4,200,000, co(10,5) → employer 420k, employee 210k, gross 630k.
-    const emp = empById('empe-001');
-    const e = expectedLine(emp);
-    expect(e.employerHalf).toBe(420000);
-    expect(e.employeeHalf).toBe(210000);
-    expect(e.gross).toBe(630000);
-    expect(e.retirement).toBe(504000); // 80% of 630k
-    expect(e.emergency).toBe(126000); // gross - retirement
-    expect(e.retirement + e.emergency).toBe(e.gross);
-
-    const result = await svc.submitContributionRun('emp-001', {
-      rows: [{ employeeId: 'empe-001' }],
-      periodLabel: 'May 2026',
-      method: 'Bank transfer',
-      nonce: 'n-co-1',
-    });
-    expect(result.linesCreated).toBe(1);
-    expect(result.employerTotal).toBe(420000);
-    expect(result.employeeTotal).toBe(210000);
-    expect(result.grandTotal).toBe(630000);
-    expect(result.skipped).toEqual([]);
-
-    // The run is now readable from history with matching per-line amounts.
-    const detail = await svc.getContributionRun(result.runId);
-    expect(detail.lines).toHaveLength(1);
-    expect(detail.lines[0]).toMatchObject({
-      employeeId: 'empe-001',
-      employerAmount: 420000,
-      employeeAmount: 210000,
-      retirementAmount: 504000,
-      emergencyAmount: 126000,
-      method: 'Bank transfer',
-    });
+  it('seeded members are all KYC-complete (pending KYC = pending invites, not members)', async () => {
+    const members = await svc.getEmployees('emp-001');
+    // Real signup always completes KYC; no employer member is ever pending.
+    const pending = members.filter((m) => m.kycStatus === 'pending' || m.kycStatus === 'incomplete');
+    expect(pending).toHaveLength(0);
+    expect(members.every((m) => typeof m.kycStatus === 'string')).toBe(true);
   });
 
-  // ── employer-only mode → employee half is 0 ────────────────────────────────
-  it('employer-only: employee half is 0; gross = employer half', async () => {
-    // empe-003: salary 3,100,000, employerOnly(8) → employer 248k, employee 0.
-    const emp = empById('empe-003');
-    const e = expectedLine(emp);
-    expect(e.employerHalf).toBe(248000);
-    expect(e.employeeHalf).toBe(0);
-    expect(e.gross).toBe(248000);
+  it('removeEmployee un-links a member from the roster (mock) — it does not suspend', async () => {
+    const before = await svc.getEmployees('emp-001');
+    const target = before.find((m) => m.status === 'active');
+    const res = await svc.removeEmployee('emp-001', target.id);
+    expect(res).toMatchObject({ id: target.id, removed: true });
 
-    const result = await svc.submitContributionRun('emp-001', {
-      rows: [{ employeeId: 'empe-003' }],
-      nonce: 'n-eo-1',
-    });
-    expect(result.employerTotal).toBe(248000);
-    expect(result.employeeTotal).toBe(0);
-    expect(result.grandTotal).toBe(248000);
-    expect(result.linesCreated).toBe(1);
-  });
-
-  // ── fixed-amount config overrides pct ──────────────────────────────────────
-  it('fixed-amount config: employerAmount/employeeAmount override the pct math', async () => {
-    // Patch empe-002 to a fixed-amount co-contribution config via the session
-    // override, then run — the run must use the fixed amounts, not the pct.
-    await svc.updateEmployeeContributionConfig('empe-002', {
-      mode: 'co-contribution',
-      employerPct: 10,
-      employeePct: 5,
-      employerAmount: 300000,
-      employeeAmount: 100000,
-    });
-    const result = await svc.submitContributionRun('emp-001', {
-      rows: [{ employeeId: 'empe-002' }],
-      nonce: 'n-fixed-1',
-    });
-    expect(result.employerTotal).toBe(300000);
-    expect(result.employeeTotal).toBe(100000);
-    expect(result.grandTotal).toBe(400000);
-    const detail = await svc.getContributionRun(result.runId);
-    // 80/20 split of the 400k gross.
-    expect(detail.lines[0].retirementAmount).toBe(320000);
-    expect(detail.lines[0].emergencyAmount).toBe(80000);
-  });
-
-  // ── grand totals across a multi-employee run ───────────────────────────────
-  it('sums per-employee halves into grand totals across multiple employees', async () => {
-    const ids = ['empe-001', 'empe-003', 'empe-004'];
-    const expected = ids.map((id) => expectedLine(empById(id)));
-    const employerTotal = expected.reduce((s, e) => s + e.employerHalf, 0);
-    const employeeTotal = expected.reduce((s, e) => s + e.employeeHalf, 0);
-    const grandTotal = expected.reduce((s, e) => s + e.gross, 0);
-
-    const result = await svc.submitContributionRun('emp-001', {
-      rows: ids.map((id) => ({ employeeId: id })),
-      nonce: 'n-multi-1',
-    });
-    expect(result.linesCreated).toBe(3);
-    expect(result.employerTotal).toBe(employerTotal);
-    expect(result.employeeTotal).toBe(employeeTotal);
-    expect(result.grandTotal).toBe(grandTotal);
-    expect(result.grandTotal).toBe(result.employerTotal + result.employeeTotal);
-  });
-
-  // ── balances move by the gross; net = retirement + emergency ───────────────
-  it('applies the run to the employee balance (net += gross, units += gross/1000)', async () => {
-    const before = await svc.getEmployee('empe-004');
-    const e = expectedLine(empById('empe-004'));
-    await svc.submitContributionRun('emp-001', {
-      rows: [{ employeeId: 'empe-004' }],
-      nonce: 'n-bal-1',
-    });
-    const after = await svc.getEmployee('empe-004');
-    expect(after.netBalance).toBe(before.netBalance + e.gross);
-    expect(after.retirementBalance).toBe(before.retirementBalance + e.retirement);
-    expect(after.emergencyBalance).toBe(before.emergencyBalance + e.emergency);
-    expect(after.unitsHeld).toBeCloseTo(before.unitsHeld + e.gross / EMPLOYER_UNIT_PRICE, 6);
-    expect(after.totalContributions).toBe(before.totalContributions + e.gross);
-  });
-
-  // ── skip reasons ───────────────────────────────────────────────────────────
-  it('skips a suspended employee with reason "suspended"', async () => {
-    // empe-013 is suspended in the seed.
-    const result = await svc.submitContributionRun('emp-001', {
-      rows: [{ employeeId: 'empe-013' }],
-      nonce: 'n-susp-1',
-    });
-    expect(result.linesCreated).toBe(0);
-    expect(result.runId).toBeNull();
-    expect(result.skipped).toContainEqual({ employeeId: 'empe-013', reason: 'suspended' });
-  });
-
-  it('skips an unknown employee with reason "not_found"', async () => {
-    const result = await svc.submitContributionRun('emp-001', {
-      rows: [{ employeeId: 'empe-does-not-exist' }],
-      nonce: 'n-nf-1',
-    });
-    expect(result.linesCreated).toBe(0);
-    expect(result.skipped).toContainEqual({ employeeId: 'empe-does-not-exist', reason: 'not_found' });
-  });
-
-  it('skips an employee owned by another employer with reason "not_owned"', async () => {
-    // Call with a different employerId than the roster's owner (emp-001).
-    const result = await svc.submitContributionRun('emp-999', {
-      rows: [{ employeeId: 'empe-001' }],
-      nonce: 'n-owned-1',
-    });
-    expect(result.linesCreated).toBe(0);
-    expect(result.skipped).toContainEqual({ employeeId: 'empe-001', reason: 'not_owned' });
-  });
-
-  it('mixes valid + skipped rows in one run', async () => {
-    const result = await svc.submitContributionRun('emp-001', {
-      rows: [
-        { employeeId: 'empe-001' }, // active → line
-        { employeeId: 'empe-013' }, // suspended → skip
-        { employeeId: 'empe-nope' }, // unknown → skip
-      ],
-      nonce: 'n-mixed-1',
-    });
-    expect(result.linesCreated).toBe(1);
-    expect(result.skipped).toHaveLength(2);
-    const e = expectedLine(empById('empe-001'));
-    expect(result.grandTotal).toBe(e.gross);
-  });
-
-  // ── nonce idempotency ──────────────────────────────────────────────────────
-  it('is idempotent on a repeated nonce: same result, balances NOT double-applied', async () => {
-    const before = await svc.getEmployee('empe-005');
-    const payload = {
-      rows: [{ employeeId: 'empe-005' }],
-      periodLabel: 'May 2026',
-      method: 'Bank transfer',
-      nonce: 'n-idem-1',
-    };
-    const first = await svc.submitContributionRun('emp-001', payload);
-    const second = await svc.submitContributionRun('emp-001', payload);
-
-    // Second call returns the prior result object (reference-identical).
-    expect(second).toBe(first);
-    expect(second.runId).toBe(first.runId);
-    expect(second.grandTotal).toBe(first.grandTotal);
-
-    // Balance moved exactly once.
-    const after = await svc.getEmployee('empe-005');
-    const e = expectedLine(empById('empe-005'));
-    expect(after.netBalance).toBe(before.netBalance + e.gross);
-
-    // History has exactly one new run for this nonce, not two.
-    const runs = await svc.getContributionRuns('emp-001');
-    const matching = runs.filter((r) => r.id === first.runId);
-    expect(matching).toHaveLength(1);
-  });
-
-  // ── NO commission / transactions / subscriber_balances side-effect ─────────
-  it('produces NO commission side-effect: result shape is exactly the run summary', async () => {
-    const result = await svc.submitContributionRun('emp-001', {
-      rows: [{ employeeId: 'empe-001' }],
-      nonce: 'n-nocomm-1',
-    });
-    // The result is ONLY the run summary — no commission field of any kind.
-    expect(Object.keys(result).sort()).toEqual(
-      ['employeeTotal', 'employerTotal', 'grandTotal', 'linesCreated', 'runId', 'skipped'].sort(),
+    const after = await svc.getEmployees('emp-001');
+    expect(after).toHaveLength(before.length - 1);
+    expect(after.find((m) => m.id === target.id)).toBeUndefined();
+    // Other members are untouched (no status change anywhere).
+    expect(after.filter((m) => m.status === 'suspended')).toHaveLength(
+      before.filter((m) => m.status === 'suspended').length,
     );
-    expect(result).not.toHaveProperty('commission');
-    expect(result).not.toHaveProperty('commissions');
-    expect(result).not.toHaveProperty('commissionId');
-    expect(result).not.toHaveProperty('transactions');
-    expect(result).not.toHaveProperty('subscriberBalances');
-
-    // Per-line shape is also commission-free (just the run-ledger fields).
-    const detail = await svc.getContributionRun(result.runId);
-    for (const line of detail.lines) {
-      expect(Object.keys(line).sort()).toEqual(
-        ['emergencyAmount', 'employeeAmount', 'employeeId', 'employerAmount', 'id', 'method', 'retirementAmount', 'runId'].sort(),
-      );
-    }
-
-    // No supabase `commissions`/`transactions` table or RPC was touched on the
-    // mock path (the only side-effect lives in the in-memory employee store).
-    expect(supabaseMock.__getFromCalls('commissions')).toHaveLength(0);
-    expect(supabaseMock.__getFromCalls('transactions')).toHaveLength(0);
-    expect(supabaseMock.__getFromCalls('subscriber_balances')).toHaveLength(0);
-    expect(supabaseMock.__getRpcCalls('apply_settlement')).toHaveLength(0);
   });
 
-  // ── empty / malformed input ────────────────────────────────────────────────
-  it('returns a zero-line summary (runId null) when no rows resolve to a line', async () => {
-    const result = await svc.submitContributionRun('emp-001', {
-      rows: [],
-      nonce: 'n-empty-1',
+  it('bulkCreateEmployerInvites creates one pending invite per row (mock)', async () => {
+    const res = await svc.bulkCreateEmployerInvites([
+      { fullName: 'Bulk One', phone: '700000001', email: 'one@example.com' },
+      { fullName: 'Bulk Two', phone: '700000002', email: 'two@example.com' },
+    ]);
+    expect(res).toMatchObject({ created: 2, failed: 0, total: 2 });
+    const pending = await svc.listPendingInvites('emp-001');
+    expect(pending.length).toBe(2);
+  });
+
+  it('submitContributionRun posts the employer match to every active member', async () => {
+    const result = await svc.submitContributionRun('emp-001', { periodLabel: 'May 2026', method: 'Bank transfer', nonce: 'run-1' });
+    expect(result.linesCreated).toBe(ACTIVE.length);
+    expect(result.employerTotal).toBe(EXPECTED_EMPLOYER_TOTAL);
+    expect(result.grandTotal).toBe(EXPECTED_EMPLOYER_TOTAL);
+    expect(result.employeeTotal).toBe(0);
+    // Suspended members are skipped.
+    const suspended = MEMBERS.filter((m) => m.status === 'suspended');
+    expect(result.skipped.filter((s) => s.reason === 'suspended')).toHaveLength(suspended.length);
+  });
+
+  it('is idempotent — replaying the same nonce returns the prior result', async () => {
+    const a = await svc.submitContributionRun('emp-001', { periodLabel: 'May', method: 'Bank transfer', nonce: 'dup' });
+    const b = await svc.submitContributionRun('emp-001', { periodLabel: 'May', method: 'Bank transfer', nonce: 'dup' });
+    expect(b.employerTotal).toBe(a.employerTotal);
+    expect(b.linesCreated).toBe(a.linesCreated);
+  });
+
+  it('getEmployerMetrics reports the single company mode + own/employer totals', async () => {
+    const m = await svc.getEmployerMetrics();
+    expect(m.headcount).toBe(MEMBERS.length);
+    expect(m.active).toBe(ACTIVE.length);
+    expect(m.suspended).toBe(MEMBERS.length - ACTIVE.length);
+    expect(m.modeSplit).toEqual({ coContribution: MEMBERS.length, employerOnly: 0 });
+    expect(m.employerContributions).toBeGreaterThan(0);
+    expect(m.ownContributions).toBeGreaterThan(0);
+  });
+});
+
+// =============================================================================
+// Employer invites (KYC onboarding) — 0047 RPC call shapes
+// =============================================================================
+describe('employer service — invites (real Supabase branch)', () => {
+  let svc; let subSvc;
+  beforeEach(async () => {
+    svc = await import('../employer');
+    subSvc = await import('../subscriber');
+  });
+
+  it('createEmployerInvite passes p_prefill and returns { token, collectSchedule }', async () => {
+    supabaseMock.__queueRpc('create_employer_invite', { data: { token: 'inv-1', collectSchedule: false }, error: null });
+    const res = await svc.createEmployerInvite({ fullName: 'Jane Akello', phone: '700100099' });
+    expect(res).toEqual({ token: 'inv-1', collectSchedule: false });
+    expect(supabaseMock.__getRpcCalls('create_employer_invite').at(-1).args.p_prefill.fullName).toBe('Jane Akello');
+  });
+
+  it('listPendingInvites filters employer_invites by employer + pending and maps', async () => {
+    supabaseMock.__queueFrom('employer_invites', {
+      data: [{ token: 'inv-1', employer_id: 'emp-001', prefill: { fullName: 'Jane' }, collect_schedule: false, status: 'pending' }],
+      error: null,
     });
-    expect(result.linesCreated).toBe(0);
-    expect(result.runId).toBeNull();
-    expect(result.grandTotal).toBe(0);
+    const rows = await svc.listPendingInvites('emp-001');
+    const call = supabaseMock.__getFromCalls('employer_invites').at(-1);
+    expect(call.chain.eq).toHaveBeenCalledWith('employer_id', 'emp-001');
+    expect(call.chain.eq).toHaveBeenCalledWith('status', 'pending');
+    expect(rows[0]).toMatchObject({ token: 'inv-1', collectSchedule: false, prefill: { fullName: 'Jane' } });
   });
 
-  it('throws when rows is not an array', async () => {
-    await expect(
-      svc.submitContributionRun('emp-001', { rows: null, nonce: 'n-bad-1' }),
-    ).rejects.toThrow(/array/i);
+  it('getEmployerInvite passes p_token', async () => {
+    supabaseMock.__queueRpc('get_employer_invite', { data: { employerId: 'emp-001', employerName: 'X', prefill: {}, collectSchedule: true }, error: null });
+    const inv = await subSvc.getEmployerInvite('inv-1');
+    expect(inv.collectSchedule).toBe(true);
+    expect(supabaseMock.__getRpcCalls('get_employer_invite').at(-1).args.p_token).toBe('inv-1');
   });
 
-  it('getContributionRuns(mock) returns the seed runs newest-first for the employer', async () => {
-    const runs = await svc.getContributionRuns(EMPLOYER.id);
-    expect(runs.length).toBeGreaterThanOrEqual(3);
-    for (let i = 1; i < runs.length; i += 1) {
-      expect(String(runs[i - 1].runAt) >= String(runs[i].runAt)).toBe(true);
-    }
-    expect(runs.every((r) => r.employerId === EMPLOYER.id)).toBe(true);
+  it('createFromEmployerInvite passes payload / p_token / p_nonce and wraps the id', async () => {
+    supabaseMock.__queueRpc('create_subscriber_from_employer_invite', { data: 's-777', error: null });
+    const res = await subSvc.createFromEmployerInvite({ fullName: 'Jane' }, 'inv-1', 'n-1');
+    expect(res).toEqual({ subscriberId: 's-777' });
+    const call = supabaseMock.__getRpcCalls('create_subscriber_from_employer_invite').at(-1);
+    expect(call.args.p_token).toBe('inv-1');
+    expect(call.args.p_nonce).toBe('n-1');
+    expect(call.args.payload.fullName).toBe('Jane');
   });
 });

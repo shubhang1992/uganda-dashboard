@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { calcFV, formatUGX, EASE_OUT_EXPO } from '../utils/finance';
+import { calcFV } from '../utils/finance';
+import { EASE_OUT_EXPO } from '../utils/motion';
+import { formatUGX } from '../utils/currency';
 import styles from './SavingsCalculator.module.css';
 
 const MIN_PMT = 5_000;

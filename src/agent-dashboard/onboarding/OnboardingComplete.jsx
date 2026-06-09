@@ -1,51 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGXExact, normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
+import { normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatUGX } from '../../utils/currency';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSignup } from '../../signup/SignupContext';
 import * as subscriberService from '../../services/subscriber';
-import { toCanonicalUGPhone } from '../../utils/phone';
+import { buildPayload } from './onboardPayload';
 import styles from './OnboardingComplete.module.css';
 
 function formatSchedule(schedule) {
   if (!schedule || !schedule.amount) return null;
   const freq = FREQUENCY_LABEL[normalizeFrequency(schedule.frequency)] || 'Monthly';
   const split = `${schedule.retirementPct ?? 80}% retirement / ${100 - (schedule.retirementPct ?? 80)}% emergency`;
-  return `${freq} · ${formatUGXExact(schedule.amount)} · ${split}`;
-}
-
-/**
- * Build the payload `create_subscriber_from_agent_onboard` expects from the
- * SignupContext snapshot + the locally-collected contribution schedule. Same
- * shape as the subscriber path — the RPC distinguishes by validating
- * `calling_agent_id` against the auth JWT.
- */
-function buildPayload(signup) {
-  const schedule = signup.contributionSchedule || {};
-  return {
-    phone: toCanonicalUGPhone(signup.phone) || signup.phone,
-    fullName: signup.fullName,
-    dob: signup.dob,
-    gender: signup.gender,
-    nin: signup.nin,
-    email: signup.email?.trim() ? signup.email.trim() : null,
-    occupation: signup.occupation || null,
-    districtId: signup.districtId,
-    consent: !!signup.consent,
-    consentTimestamp: signup.consentTimestamp,
-    contributionSchedule: {
-      frequency: schedule.frequency,
-      amount: schedule.amount,
-      retirementPct: schedule.retirementPct,
-      emergencyPct: schedule.emergencyPct,
-      includeInsurance: schedule.includeInsurance ?? false,
-    },
-    pensionBeneficiaries: signup.pensionBeneficiaries ?? [],
-    insuranceBeneficiaries: signup.insuranceBeneficiaries ?? [],
-    insuranceSameAsPension: !!signup.insuranceSameAsPension,
-    insuranceChoiceMade: !!signup.insuranceChoiceMade,
-    paymentMethod: schedule.paymentMethod,
-  };
+  return `${freq} · ${formatUGX(schedule.amount, { compact: false })} · ${split}`;
 }
 
 export default function OnboardingComplete({ subscriberName, awareness, schedule, onAnother, onClose }) {
@@ -71,7 +39,16 @@ export default function OnboardingComplete({ subscriberName, awareness, schedule
     setErrorMessage('');
     try {
       const payload = buildPayload(signup);
-      await subscriberService.createFromAgentOnboard(payload, agentId);
+      // Stable per-subscriber nonce: the "Try again" retry below reuses it (so a
+      // transient failure can't double-create), while "Onboard another" resets
+      // signup → a fresh nonce for the next subscriber (0042 idempotency).
+      await subscriberService.createFromAgentOnboard(payload, agentId, signup.signupNonce);
+      // Create succeeded → spend the nonce. Rotating now means even if the agent
+      // clicks Close (no reset) and later re-enters onboarding, the rehydrated
+      // state can't replay this nonce for the NEXT subscriber (which would
+      // idempotently return THIS subscriber's id and insert nothing). The retry
+      // button only shows on 'error' (nonce NOT rotated), so retries stay stable.
+      signup.rotateSignupNonce();
       setStatus('success');
     } catch (err) {
       setStatus('error');

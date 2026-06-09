@@ -28,6 +28,12 @@ function createOnboardingSessionId() {
  * @property {string} onboardingSessionId  — passed to every KYC API call so
  *   the backend can link OCR → NIRA → OTP → face-match → AML stages.
  *   Generated on first signup-context mount; persists across refresh.
+ * @property {string} signupNonce          — per-attempt idempotency key passed
+ *   to create_subscriber_from_signup / _agent_onboard (0042 p_nonce). Stable
+ *   across retries + reloads of the SAME signup (persisted to localStorage), so
+ *   a double-submit / network-retry returns the original subscriber id instead
+ *   of minting a duplicate chain. A fresh nonce is minted on reset() (i.e. the
+ *   next subscriber the agent onboards gets a distinct nonce).
  *
  * Step 1 — ID upload (front + back)
  * @property {File|Blob|null}          idFrontFile
@@ -99,6 +105,7 @@ function createOnboardingSessionId() {
 
 const INITIAL_STATE = {
   onboardingSessionId: '',
+  signupNonce: '',
 
   stepId: 'id-upload',
 
@@ -146,6 +153,12 @@ const INITIAL_STATE = {
 
   contributionSchedule: null,
 
+  // Set when the flow is entered via an employer invite (/invite/:token). Drives
+  // the employer-tagged completion + the split-only (employer-only) variant.
+  // { token, employerId, employerName, collectSchedule } | null. Persisted
+  // (non-ephemeral) so it survives the consent→/signup/contribution remount.
+  employerInvite: null,
+
   failureReason: null,
   failureStage: null,
 };
@@ -155,7 +168,11 @@ function reducer(state, action) {
     case 'patch':
       return { ...state, ...action.payload };
     case 'reset':
-      return { ...INITIAL_STATE, onboardingSessionId: createOnboardingSessionId() };
+      return {
+        ...INITIAL_STATE,
+        onboardingSessionId: createOnboardingSessionId(),
+        signupNonce: createOnboardingSessionId(),
+      };
     default:
       return state;
   }
@@ -169,9 +186,13 @@ function reducer(state, action) {
 const EPHEMERAL_KEYS = ['idFrontFile', 'idBackFile', 'selfieFile', 'idFrontPreviewUrl', 'idBackPreviewUrl', 'password'];
 
 function loadPersisted() {
-  // Always create a fresh session ID by default; if persisted state has one,
-  // the spread below overwrites it so refresh keeps the same correlation key.
-  const fresh = { ...INITIAL_STATE, onboardingSessionId: createOnboardingSessionId() };
+  // Always create a fresh session ID + signup nonce by default; if persisted
+  // state has them, the spread below overwrites so refresh keeps the same keys.
+  const fresh = {
+    ...INITIAL_STATE,
+    onboardingSessionId: createOnboardingSessionId(),
+    signupNonce: createOnboardingSessionId(),
+  };
   if (typeof window === 'undefined') return fresh;
   try {
     const raw = window.localStorage.getItem(SIGNUP_STORAGE_KEY);
@@ -186,8 +207,10 @@ function loadPersisted() {
     return {
       ...fresh,
       ...parsed,
-      // Preserve persisted session id; if absent (legacy persist), keep the fresh one.
+      // Preserve persisted session id + signup nonce; if absent (legacy
+      // persist), keep the fresh ones so a reload reuses the same idempotency key.
       onboardingSessionId: parsed.onboardingSessionId || fresh.onboardingSessionId,
+      signupNonce: parsed.signupNonce || fresh.signupNonce,
       ...ephemeral,
     };
   } catch {
@@ -235,6 +258,36 @@ export function SignupProvider({ children }) {
   }, [state]);
 
   const patch = useCallback((payload) => dispatch({ type: 'patch', payload }), []);
+
+  // Rotate the idempotency nonce to a fresh value. Call AFTER a subscriber is
+  // successfully created so the spent nonce can never be replayed for a
+  // DIFFERENT subscriber (e.g. agent clicks Close — which does NOT reset — then
+  // re-enters onboarding: loadPersisted would otherwise rehydrate the spent
+  // nonce and the next create would idempotently return the PRIOR subscriber's
+  // id without inserting anything). Must NOT be called on failure — a retry of
+  // the same attempt relies on the nonce staying stable.
+  const rotateSignupNonce = useCallback(() => {
+    const fresh = createOnboardingSessionId();
+    dispatch({ type: 'patch', payload: { signupNonce: fresh } });
+    // Persist the rotation SYNCHRONOUSLY. The 300ms debounce below won't flush if
+    // the provider unmounts first — e.g. the agent clicks Close (React-Router
+    // nav, not a tab close, so `beforeunload` doesn't fire either) right after a
+    // successful create. That would leave the OLD, spent nonce in localStorage
+    // and let a later signup replay it (returning the prior subscriber's id).
+    // Merge the fresh nonce into the stored blob now so durability of the spent-
+    // nonce rotation never depends on the debounce.
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = window.localStorage.getItem(SIGNUP_STORAGE_KEY);
+        const stored = raw ? JSON.parse(raw) : {};
+        window.localStorage.setItem(
+          SIGNUP_STORAGE_KEY,
+          JSON.stringify({ ...stored, signupNonce: fresh }),
+        );
+      } catch { /* quota / private-browsing — the debounce remains as fallback */ }
+    }
+  }, []);
+
   const reset = useCallback(() => {
     if (typeof window !== 'undefined') {
       try { window.localStorage.removeItem(SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
@@ -243,7 +296,10 @@ export function SignupProvider({ children }) {
     dispatch({ type: 'reset' });
   }, []);
 
-  const value = useMemo(() => ({ ...state, patch, reset }), [state, patch, reset]);
+  const value = useMemo(
+    () => ({ ...state, patch, reset, rotateSignupNonce }),
+    [state, patch, reset, rotateSignupNonce],
+  );
   return <SignupContext value={value}>{children}</SignupContext>;
 }
 

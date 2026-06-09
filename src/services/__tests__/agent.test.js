@@ -54,7 +54,11 @@ describe('agent service — real (Supabase) branch', () => {
     await getAgentSubscriberList('a-001');
     const call = supabaseMock.__getFromCalls('subscribers').at(-1);
     expect(call.chain.select).toHaveBeenCalledWith(
-      '*, contribution_schedules(*), subscriber_balances(*)',
+      'id, name, phone, email, gender, age, kyc_status, is_active, ' +
+        'registered_date, last_contribution_date, products_held, contribution_history, ' +
+        'contribution_schedules(frequency, amount, retirement_pct, emergency_pct, ' +
+        'include_insurance, insurance_choice_made, next_due_date), ' +
+        'subscriber_balances(total_balance, retirement_balance, emergency_balance)',
     );
     expect(call.chain.eq).toHaveBeenCalledWith('agent_id', 'a-001');
   });

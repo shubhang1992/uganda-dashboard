@@ -12,8 +12,8 @@ The codebase covers four surfaces:
 
 1. **Public landing page** (`/`) — scrollytelling marketing site that demos 40 years of compounded savings via scroll-linked animation.
 2. **Signup / KYC flow** (`/signup/*`) — 9-step subscriber onboarding (phone OTP, NIRA ID OCR, NIRA verify, face match, AML screen, agent fallback).
-3. **Role dashboards** (`/dashboard/...`) — currently live for Subscriber, Agent, Branch, Distributor. Employer + Admin roles are deferred.
-4. **Express backend on Render** (`server/index.ts` mounts `api/*.ts`) — 14 routes covering auth, KYC mocks, contact, chat. Singapore region, Node 22, free tier. Database is Supabase (Postgres + RLS + custom HS256 JWT via `jose`).
+3. **Role dashboards** (`/dashboard/...`) — 5 of 6 roles built: Subscriber, Agent, Branch, Distributor, and Employer (the Employer role shipped to production 2026-06-03). Admin is deferred (no shell, no RLS policies yet).
+4. **Express backend on Render** (`server/index.ts` mounts `api/*.ts`) — 14 routes covering auth, KYC mocks, contact, chat. Singapore region, Node 22, free tier. Database is Supabase (Postgres + RLS + custom HS256 JWT via `jose`) — a **new Singapore `ap-southeast-1` project, cutover 2026-06-05** (replaced the old Tokyo `ap-northeast-1` project; reseeded to ~5,000 subscribers).
 
 ## Tech stack
 
@@ -25,7 +25,7 @@ The codebase covers four surfaces:
 - **CSS Modules** (no Tailwind, no component library) — design tokens in `src/index.css`
 - **Leaflet 1.9** + **Recharts 3** for the distributor map and charts
 - **Express 5** TypeScript handlers in `api/` mounted by `server/index.ts`; hosted on **Render** (Singapore, free tier, Node 22). Frontend hosted on **Vercel** (Vite preset, no functions).
-- **Supabase** (Postgres + RLS + PostgREST). 28 migrations under `supabase/migrations/`.
+- **Supabase** (Postgres + RLS + PostgREST). 42 migrations under `supabase/migrations/` (`0001`–`0042`).
 - **jose** for custom HS256 JWT signing/verification
 - **Playwright 1.60** for E2E (browser-driven full-app suite under `e2e/`)
 - **Vitest 4** for unit tests
@@ -76,7 +76,7 @@ npm run dev:all      # spawns both servers, colour-prefixed output
 | `npm run test:e2e:flows` | Flow specs only (`e2e/specs/flows`) |
 | `npm run test:e2e:headed` | Headed Playwright run |
 | `npm run test:e2e:ui` | Playwright UI mode |
-| `npm run seed` | Seed Supabase via `scripts/seed-supabase.mjs` (~30K subscribers, 314 branches, 2K agents) |
+| `npm run seed` | Seed Supabase via `scripts/seed-supabase.mjs` (~5K subscribers, ~316 branches, ~2K agents; `TARGET_SUBS` in `src/data/mockData.js`) |
 
 Playwright additionally:
 
@@ -87,7 +87,7 @@ npx playwright test path/to/spec.ts --project chromium
 
 ## Database
 
-Schema lives in `supabase/migrations/*.sql` (28 numbered migrations as of 2026-05-26). State-machine writes flow through `SECURITY DEFINER` RPCs invoked with `supabase.rpc(name, args)`; direct table writes are blocked by RLS. RLS policies read `auth.jwt() ->> 'app_role'` (NOT `'role'`, which is the Postgres `authenticated` role — see CLAUDE.md §5 anti-pattern 7).
+Schema lives in `supabase/migrations/*.sql` (42 numbered migrations, `0001`–`0042`). State-machine writes flow through `SECURITY DEFINER` RPCs invoked with `supabase.rpc(name, args)`; direct table writes are blocked by RLS. RLS policies read `auth.jwt() ->> 'app_role'` (NOT `'role'`, which is the Postgres `authenticated` role — see CLAUDE.md §5 anti-pattern 7).
 
 Apply migrations with the Supabase CLI:
 
@@ -118,4 +118,4 @@ The deployment topology splits along the frontend/backend boundary:
 - **Backend (Render)** — Express 5 on Node 22, Singapore region, free tier. Blueprint at `render.yaml`; **manual deploys only** (`autoDeployTrigger: off`). Env vars (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `SENTRY_DSN`) live in the Render dashboard. See `docs/render-operational.md` for the full runbook — manual deploy procedure, log retention, deploy outage window, silent-failure recovery.
 - **CI (GitHub Actions)** — `.github/workflows/test.yml` runs lint + Vitest + `npm run build:api` (tsc gate) + Playwright (dual-server). `.github/workflows/keepalive.yml` pings `/healthz` every 14 min to keep the Render free-tier service warm.
 
-Do not push to `main` without explicit approval — production shares the same Supabase project as local dev.
+Do not push to `main` without explicit approval — production shares the same Supabase project as local dev (the new Singapore project as of the 2026-06-05 cutover).

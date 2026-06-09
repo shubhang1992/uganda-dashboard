@@ -209,6 +209,109 @@ describe('api service', () => {
     });
   });
 
+  describe('apiFetch — idempotent retry gating (Task 2.1)', () => {
+    it('(a) retries a GET once on a transient 5xx, then succeeds', async () => {
+      // First attempt 500 (transient cold-start), retry resolves 200 → success.
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(jsonResponse({}, { status: 500 }))
+        .mockResolvedValueOnce(jsonResponse({ ok: true }));
+      const result = await apiFetch('/things'); // default method GET
+      expect(result).toEqual({ ok: true });
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('(b) does NOT retry a POST on a 5xx — single attempt, surfaces error', async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(jsonResponse({}, { status: 500 }));
+      await expect(
+        apiFetch('/things', { method: 'POST', body: JSON.stringify({ a: 1 }) }),
+      ).rejects.toMatchObject({ code: 'server_unavailable', status: 500 });
+      // Write must fast-fail: exactly one fetch call, no replay.
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('(b) does NOT retry a PUT on a 5xx — single attempt, surfaces error', async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(jsonResponse({}, { status: 500 }));
+      await expect(
+        apiFetch('/things/1', { method: 'PUT', body: JSON.stringify({ a: 1 }) }),
+      ).rejects.toMatchObject({ code: 'server_unavailable' });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('(b) does NOT retry a DELETE on a 5xx — single attempt, surfaces error', async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(jsonResponse({}, { status: 500 }));
+      await expect(
+        apiFetch('/things/1', { method: 'DELETE' }),
+      ).rejects.toMatchObject({ code: 'server_unavailable' });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('(b) does NOT retry a POST on a transient timeout (AbortError) — surfaces error', async () => {
+      const abortErr = Object.assign(new Error('aborted'), { name: 'AbortError' });
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(abortErr);
+      await expect(
+        apiFetch('/things', { method: 'POST', body: JSON.stringify({ a: 1 }) }),
+      ).rejects.toMatchObject({ code: 'timeout' });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries a GET once on a transient timeout (AbortError), then succeeds', async () => {
+      const abortErr = Object.assign(new Error('aborted'), { name: 'AbortError' });
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockRejectedValueOnce(abortErr)
+        .mockResolvedValueOnce(jsonResponse({ ok: true }));
+      const result = await apiFetch('/things'); // GET
+      expect(result).toEqual({ ok: true });
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('(c) does NOT retry a non-JSON 4xx write (POST) — single attempt, surfaces server_unavailable', async () => {
+      // 4xx with an HTML (non-JSON) body, e.g. a CDN/LB page in front of the
+      // Express server. After the fold, this branch is gated on the idempotent
+      // method check, so a write (POST) never retries — exactly one fetch call.
+      const htmlResponse = {
+        ok: false,
+        status: 400,
+        headers: { get: () => 'text/html' },
+        text: vi.fn(() => Promise.resolve('<html>nope</html>')),
+        json: vi.fn(() => Promise.resolve({})),
+      };
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(htmlResponse);
+      await expect(
+        apiFetch('/things', { method: 'POST', body: JSON.stringify({ a: 1 }) }),
+      ).rejects.toMatchObject({
+        code: 'server_unavailable',
+        status: 400,
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('a non-JSON 4xx GET stays inside the idempotent gate (retries once, still surfaces error)', async () => {
+      // GET is idempotent, so the folded branch still permits the single G49
+      // retry. Both attempts return the same HTML 4xx, so it ultimately throws.
+      const htmlResponse = {
+        ok: false,
+        status: 400,
+        headers: { get: () => 'text/html' },
+        text: vi.fn(() => Promise.resolve('<html>nope</html>')),
+        json: vi.fn(() => Promise.resolve({})),
+      };
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(htmlResponse);
+      await expect(apiFetch('/things')).rejects.toMatchObject({
+        code: 'server_unavailable',
+        status: 400,
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('apiFetch — 401 handling', () => {
     it('fires onAuthExpired listeners on bare 401 (no code)', async () => {
       const handler = vi.fn();

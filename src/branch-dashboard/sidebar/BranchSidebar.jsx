@@ -1,7 +1,8 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useOutsideClick } from '../../hooks/useOutsideClick';

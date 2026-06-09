@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentEntity, useEntityMetrics } from '../../hooks/useEntity';
 import { getChatResponse } from '../../services/chat';
-import { EASE_OUT_EXPO as EASE } from '../../utils/finance';
+import { EASE_OUT_EXPO as EASE } from '../../utils/motion';
+
 import { formatNumber } from '../../utils/currency';
 import styles from './MetricsRow.module.css';
 

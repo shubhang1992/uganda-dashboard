@@ -12,10 +12,39 @@
 // the docked panel (kept in sync with EmployerOverview's PANEL_PADDING so the
 // overview reflows exactly enough to clear it).
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 import styles from './EmployerSlidePanel.module.css';
+
+// Focusable-elements selector + filter — mirrors the canonical implementation in
+// src/components/Modal.jsx so this panel's focus trap behaves identically to the
+// shared Modal primitive (no second, divergent mechanism).
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'area[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+  'audio[controls]',
+  'video[controls]',
+  '[contenteditable]:not([contenteditable="false"])',
+].join(',');
+
+function getFocusableElements(root) {
+  if (!root) return [];
+  return Array.from(root.querySelectorAll(FOCUSABLE_SELECTOR)).filter((el) => {
+    if (el.getAttribute('aria-hidden') === 'true') return false;
+    if (el.hasAttribute('hidden')) return false;
+    const style = el.style;
+    if (style && (style.display === 'none' || style.visibility === 'hidden')) {
+      return false;
+    }
+    return true;
+  });
+}
 
 /**
  * @param {object} props
@@ -40,6 +69,13 @@ export default function EmployerSlidePanel({
 }) {
   const handleClose = useCallback(() => onClose?.(), [onClose]);
 
+  // Panel surface ref (focus target + Tab-trap root) and the element to restore
+  // focus to on close. Only engaged in modal mode (`!splitMode`); in splitMode
+  // the panel is a non-modal docked region and must not steal/trap focus.
+  const panelRef = useRef(null);
+  const previousFocusRef = useRef(null);
+  const isModal = !splitMode;
+
   // Escape closes the panel (matches the branch panels' idiom).
   useEffect(() => {
     if (!open) return undefined;
@@ -49,6 +85,70 @@ export default function EmployerSlidePanel({
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open, handleClose]);
+
+  // -- Focus management (modal mode only) -----------------------------------
+  // On open: remember the trigger, move focus into the panel. On close: restore
+  // focus to the trigger. Mirrors src/components/Modal.jsx's focus lifecycle.
+  useEffect(() => {
+    if (!open || !isModal) return undefined;
+
+    previousFocusRef.current =
+      typeof document !== 'undefined' ? document.activeElement : null;
+
+    // Defer until after the slide-in panel mounts.
+    const focusTimer = window.setTimeout(() => {
+      const root = panelRef.current;
+      if (!root) return;
+      const focusables = getFocusableElements(root);
+      const target = focusables[0] || root;
+      try {
+        target.focus({ preventScroll: true });
+      } catch {
+        target.focus?.();
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      const prev = previousFocusRef.current;
+      if (prev && typeof prev.focus === 'function') {
+        try {
+          prev.focus({ preventScroll: true });
+        } catch {
+          prev.focus();
+        }
+      }
+      previousFocusRef.current = null;
+    };
+  }, [open, isModal]);
+
+  // -- Tab trap (modal mode only) -------------------------------------------
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (!isModal || e.key !== 'Tab') return;
+      const root = panelRef.current;
+      if (!root) return;
+      const focusables = getFocusableElements(root);
+      if (focusables.length === 0) {
+        e.preventDefault();
+        root.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey) {
+        if (active === first || !root.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !root.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      }
+    },
+    [isModal],
+  );
 
   return (
     <>
@@ -71,12 +171,17 @@ export default function EmployerSlidePanel({
         {open && (
           <motion.div
             key="emp-panel"
+            ref={panelRef}
             className={styles.panel}
             data-split-mode={splitMode || undefined}
             style={{ '--panel-width': `${width}px` }}
             role="dialog"
             aria-modal={splitMode ? undefined : true}
             aria-label={title}
+            // tabIndex -1 so the panel surface can receive focus on open (and as
+            // the Tab-trap fallback) without entering the normal tab order.
+            tabIndex={-1}
+            onKeyDown={handleKeyDown}
             initial={{ x: '100%' }}
             animate={{ x: 0, transition: { duration: 0.55, ease: EASE_OUT_EXPO } }}
             exit={{ x: '100%', transition: { duration: 0.55, ease: EASE_OUT_EXPO } }}

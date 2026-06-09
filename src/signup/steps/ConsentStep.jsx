@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { useSignup } from '../SignupContext';
 import { LEGAL_TERMS_URL, LEGAL_PRIVACY_URL } from '../../config/env';
 import styles from './Step.module.css';

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { isValidUGPhone } from '../../utils/phone';
 import { getInitials } from '../../utils/dashboard';
 import { useAuth } from '../../contexts/AuthContext';
@@ -26,6 +27,11 @@ export default function Settings({ splitMode = false }) {
   const isSubscriber = user?.role === 'subscriber';
   const isBranch = user?.role === 'branch';
   const isDistributor = user?.role === 'distributor';
+  // Admin has no profile entity / no editable profile row — the shared panel
+  // only persists to subscriber/branch/distributor backings. For admin we hide
+  // the profile-edit card entirely (§7d-4) and keep just the password card so
+  // there's no fake "Profile updated." toast against a row that doesn't exist.
+  const isAdmin = user?.role === 'admin';
   const { data: branch } = useEntity('branch', isBranch ? user?.branchId : null);
   const distributorId = isDistributor ? (user?.distributorId ?? 'd-001') : null;
   const { data: distributor } = useEntity('distributor', distributorId);
@@ -64,13 +70,21 @@ export default function Settings({ splitMode = false }) {
         title: 'Distributor Admin',
       };
     }
+    if (isAdmin) {
+      return {
+        name: user?.name || '',
+        phone: user?.phone || '',
+        email: user?.email || '',
+        title: 'Platform Admin',
+      };
+    }
     return {
       name: user?.name || '',
       phone: user?.phone || '',
       email: user?.email || '',
       title: '',
     };
-  }, [isBranch, isDistributor, branch, distributor, user?.name, user?.phone, user?.email]);
+  }, [isBranch, isDistributor, isAdmin, branch, distributor, user?.name, user?.phone, user?.email]);
 
   useEffect(() => {
     setName(identity.name);
@@ -117,6 +131,10 @@ export default function Settings({ splitMode = false }) {
   /* ── Submit ─────────────────────────────────────────────────────────────── */
   async function handleSave(e) {
     e.preventDefault();
+    // Admin has no editable profile entity — the profile card is hidden, so
+    // there's nothing to save (and no "Profile updated." toast that wouldn't
+    // persist anywhere). Bail before validating the hidden fields.
+    if (isAdmin) return;
     if (!validate()) return;
 
     // Profile changes flow through updateUser so the avatar / phone shown in
@@ -294,7 +312,39 @@ export default function Settings({ splitMode = false }) {
 
               {/* Scrollable body */}
               <div className={styles.body}>
-                {/* ── Profile card ──────────────────────────────────────── */}
+                {/* Admin has no profile entity — show an honest, non-editable
+                    note in place of the fake editable profile (§7d-4). The
+                    password card below uses the role-agnostic route and works
+                    for admin exactly as for the other roles. */}
+                {isAdmin && (
+                  <motion.div
+                    className={styles.profileCard}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
+                  >
+                    <div className={styles.avatar}>
+                      <span className={styles.avatarInitials}>{getInitials(user?.name || 'Admin')}</span>
+                    </div>
+                    <div className={styles.profileInfo}>
+                      <span className={styles.profileName}>{user?.name || 'Platform Admin'}</span>
+                      <span className={styles.profilePhone}>
+                        Head-office account — profile managed centrally.
+                      </span>
+                      <span className={styles.roleBadge}>
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="12" height="12">
+                          <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+                          <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        Platform Admin
+                      </span>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* ── Profile card (non-admin: editable profile entity) ─── */}
+                {!isAdmin && (
+                <>
                 <motion.div
                   className={styles.profileCard}
                   initial={{ opacity: 0, y: 12 }}
@@ -395,6 +445,8 @@ export default function Settings({ splitMode = false }) {
                 </motion.div>
 
                 <div className={styles.sectionDivider} />
+                </>
+                )}
 
                 {/* ── Change / Set password ─────────────────────────────────
                    Conditional title + field set based on whether the user
@@ -605,13 +657,17 @@ export default function Settings({ splitMode = false }) {
                   Cancel
                 </button>
                 <span className={styles.footerSpacer} />
-                <button
-                  type="submit"
-                  className={styles.saveBtn}
-                  disabled={!isDirty}
-                >
-                  Save Changes
-                </button>
+                {/* No editable profile entity for admin — the password card
+                    has its own Save, so the profile submit is omitted (§7d-4). */}
+                {!isAdmin && (
+                  <button
+                    type="submit"
+                    className={styles.saveBtn}
+                    disabled={!isDirty}
+                  >
+                    Save Changes
+                  </button>
+                )}
               </div>
             </form>
           </motion.div>

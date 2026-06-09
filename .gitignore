@@ -54,6 +54,12 @@ coverage/
 # Cleanup-branch baseline traces — captured locally for before/after diff
 scripts/.baseline/
 
+# One-off cleanup follow-up notes + pre-cleanup DB count snapshots. Historical
+# artifacts archived under docs/audits/2026-05-26/; keep these dirs out of the
+# tree so future local runs don't re-commit scratch files.
+scripts/.followup/
+scripts/backups/
+
 # Claude agent isolation worktrees — created automatically by the Agent tool
 # when isolation:"worktree" is used. They're not source we want to commit.
 .claude/worktrees/
@@ -61,4 +67,4 @@ scripts/.baseline/
 # Phase-0 audit baseline traces — useful locally for before/after comparison
 # but ~10 MB of Playwright trace zips that would bloat the repo. Re-capture
 # locally via Phase 0 protocol when needed (docs/audit/00-baseline.md §2).
-docs/audit/baseline-traces/
+docs/audits/**/baseline-traces/

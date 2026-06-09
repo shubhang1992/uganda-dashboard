@@ -56,6 +56,9 @@ export default function ContributionRoute() {
    * the required fields must be present.
    */
   function buildPayload(schedule, phone) {
+    const includeInsurance = schedule.includeInsurance ?? false;
+    const insuranceCover = schedule.insuranceCover ?? 0;
+    const insurancePremium = schedule.insurancePremium ?? 0;
     return {
       phone,
       fullName: signup.fullName,
@@ -72,15 +75,22 @@ export default function ContributionRoute() {
         amount: schedule.amount,
         retirementPct: schedule.retirementPct,
         emergencyPct: schedule.emergencyPct,
-        includeInsurance: schedule.includeInsurance ?? false,
-        insurancePremium: schedule.insurancePremium ?? 0,
-        insuranceCover:   schedule.insuranceCover   ?? 0,
+        includeInsurance,
+        insurancePremium,
+        insuranceCover,
       },
       pensionBeneficiaries: signup.pensionBeneficiaries ?? [],
       insuranceBeneficiaries: signup.insuranceBeneficiaries ?? [],
       insuranceSameAsPension: !!signup.insuranceSameAsPension,
       insuranceChoiceMade: !!signup.insuranceChoiceMade,
       paymentMethod: schedule.paymentMethod,
+      // Persist the insurance policy at signup when the subscriber opted in.
+      // create_subscriber_from_signup (0042 _insert_subscriber_chain) reads
+      // payload.insurancePolicy → insurance_policies; omitting it (no opt-in)
+      // means no policy row is created. Without this, insurance never persisted.
+      ...(includeInsurance && insuranceCover > 0
+        ? { insurancePolicy: { cover: insuranceCover, premiumMonthly: insurancePremium } }
+        : {}),
     };
   }
 
@@ -96,7 +106,15 @@ export default function ContributionRoute() {
     //    orphan rows are possible.
     let subscriberId = null;
     try {
-      const result = await subscriberService.createFromSignup(payload);
+      // Pass the stable per-attempt nonce so a double-submit / reload / retry
+      // replays idempotently (0042) rather than minting a duplicate subscriber.
+      // Employer invites complete via a DIFFERENT RPC that tags the employer and
+      // passes agent_id NULL (no commission) — never createFromSignup (which
+      // tags a-001 and fires a commission).
+      const invite = signup.employerInvite;
+      const result = invite?.token
+        ? await subscriberService.createFromEmployerInvite(payload, invite.token, signup.signupNonce)
+        : await subscriberService.createFromSignup(payload, signup.signupNonce);
       subscriberId = result?.subscriberId;
     } catch (err) {
       // Log so the actual RPC error is visible during demos — Supabase RPC
@@ -127,6 +145,13 @@ export default function ContributionRoute() {
         signup.password,
       );
       await login({ token, user });
+      // Create + verify both succeeded → the nonce is spent. Rotate it now (not
+      // only on the Finish→reset path) so that if the user closes the tab before
+      // clicking Continue, a later signup on the same browser can't replay this
+      // nonce and idempotently return THIS subscriber's id. Safe here because no
+      // further createFromSignup runs in this flow; a verify-only retry never
+      // reaches this line.
+      signup.rotateSignupNonce();
     } catch (err) {
       console.error('[signup] verifyOtp / login failed', err);
       addToast(
@@ -153,7 +178,9 @@ export default function ContributionRoute() {
   }
 
   function handleCancel() {
-    navigate('/signup');
+    // Return to the invite flow (not a fresh signup) when in invite mode.
+    const inviteToken = signup.employerInvite?.token;
+    navigate(inviteToken ? `/invite/${inviteToken}` : '/signup');
   }
 
   function handleContinue() {
@@ -166,6 +193,8 @@ export default function ContributionRoute() {
       initial={signup.contributionSchedule}
       dob={signup.dob}
       phone={signup.phone}
+      // Employer-only invites collect ONLY the split (no schedule/payment).
+      collectSchedule={signup.employerInvite ? signup.employerInvite.collectSchedule : true}
       onClose={handleCancel}
       onConfirm={handleConfirm}
     />

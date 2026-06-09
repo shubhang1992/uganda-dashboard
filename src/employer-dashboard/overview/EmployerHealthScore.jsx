@@ -1,108 +1,74 @@
-// Employer hero banner — the Overview centerpiece. Cloned from
-// `branch-dashboard/overview/BranchHealthScore.jsx` (same indigo dome, gauge,
-// 3-column topGrid, alerts row + Copilot strip + split-mode reflow), recoloured
-// and relabelled for the employer role.
+// Employer hero banner — the Overview centerpiece. Originally cloned from
+// `branch-dashboard/overview/BranchHealthScore.jsx` (indigo dome, alerts row +
+// Copilot strip + split-mode reflow), then reframed for the employer role.
 //
-// What changed vs the branch hero:
-//   * Gauge is driven by a PARTICIPATION score (active staff actively
-//     contributing vs headcount) instead of the branch composite.
-//   * Metric cards / alerts open the employer slide-in panels (employees /
-//     runs / insurance) via `useEmployerPanel`, not the branch report hub.
-//   * Activity feed is built from the contribution-run history + most-recent
-//     enrolments (the employer has no agent leaderboard).
+// An employer is a FUNDER, not a saver, so the hero leads with money put in +
+// people covered rather than a subscriber-style health gauge:
+//   * Centrepiece — total contributions to date (a single clean hero figure).
+//   * Monthly standing — col 1 hosts the employer's league rank among peers,
+//     rendered in the Branch dashboard's score-gauge language (shared ScoreGauge).
+//   * Funder tiles — next contribution (newest run amount + due label), staff
+//     funded, avg contribution / employee, and pending KYC.
+//   * Metric tiles / alerts open the employer slide-in panels (employees /
+//     runs / KYC) via `useEmployerPanel`, not the branch report hub.
+//   * Recent-activity feed is built from the contribution-run history + most-
+//     recent enrolments (the employer has no agent leaderboard).
 //
 // Data arrives via the employer hooks (employees / runs / metrics) — this
 // component never imports `employerSeed` directly (CLAUDE.md §4.1).
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { formatUGX, formatNumber } from '../../utils/currency';
 import { formatDate, formatRelativeTime } from '../../utils/date';
-import { getChatResponse } from '../../services/chat';
+import { getEmployerChatResponse } from '../../services/chat';
 import { useToast } from '../../contexts/ToastContext';
 import { useEmployerScope } from '../../contexts/EmployerScopeContext';
 import { useEmployerPanel } from '../../contexts/EmployerPanelContext';
+import { companyFundingLabel } from '../employees/fundingLabel';
 import NotificationBell from '../../components/notifications/NotificationBell';
+import ScoreGauge from '../../components/ScoreGauge';
 import styles from './EmployerHealthScore.module.css';
 
 /* ── Derived metrics ─────────────────────────────────────────────────────────
-   Everything the hero needs that isn't already in `metrics`: participation,
-   averages, the employer-share split and a contributing-staff count. */
+   The funder hero leads with money + people, so the only derivations it needs
+   are the staff-funded counts and the average contribution per head. The one
+   subscriber-style figure still computed here is `participationRate`, used
+   solely by the Copilot strip's insight (a deliberate carry-over — the strip is
+   kept verbatim); none of the hero tiles surface it any longer. */
 function deriveMetrics(metrics, employees) {
   const headcount = metrics.headcount || employees.length || 0;
   const active = metrics.active || 0;
+  const totalContributions = metrics.totalContributions || 0;
+  // Average contribution per head across the whole roster (funder lens), guarded
+  // against a divide-by-zero on an empty company.
+  const avgContribution = headcount > 0 ? totalContributions / headcount : 0;
+
   // "Participating" = active staff whose contribution config funds a non-zero
   // amount (an active employer-only or co-contribution member). Suspended staff
-  // and zero-config rows don't count toward participation.
+  // and zero-config rows don't count. Consumed only by the Copilot strip.
   const contributing = employees.filter(
     (e) => e.status === 'active' && contributesSomething(e),
   ).length;
   const participationRate = headcount > 0 ? (contributing / headcount) * 100 : 0;
-  const activeRate = headcount > 0 ? (active / headcount) * 100 : 0;
-
-  const totalBalance = metrics.totalBalance || 0;
-  const avgBalance = headcount > 0 ? totalBalance / headcount : 0;
-
-  const employerYtd = metrics.employerYtd || 0;
-  const employeeYtd = metrics.employeeYtd || 0;
-  const ytdTotal = employerYtd + employeeYtd;
-  const employerShare = ytdTotal > 0 ? (employerYtd / ytdTotal) * 100 : 0;
-
-  const insuredCount = metrics.insuredCount || 0;
-  const insuredRate = headcount > 0 ? (insuredCount / headcount) * 100 : 0;
 
   return {
     headcount,
     active,
-    contributing,
+    avgContribution,
     participationRate,
-    activeRate,
-    avgBalance,
-    employerShare,
-    insuredRate,
-    ytdTotal,
   };
 }
 
-/** A member contributes if their config yields a non-zero employer/employee half. */
+/** A member "contributes" if they have a non-zero own monthly saving. */
 function contributesSomething(emp) {
-  const cfg = emp.contributionConfig ?? {};
-  const employerHalf =
-    cfg.employerAmount != null
-      ? Number(cfg.employerAmount)
-      : (emp.salary ?? 0) * Number(cfg.employerPct ?? 0) / 100;
-  const employeeHalf =
-    cfg.mode === 'co-contribution'
-      ? cfg.employeeAmount != null
-        ? Number(cfg.employeeAmount)
-        : (emp.salary ?? 0) * Number(cfg.employeePct ?? 0) / 100
-      : 0;
-  return employerHalf + employeeHalf > 0;
-}
-
-/* ── Score ───────────────────────────────────────────────────────────────────
-   A scheme-health score weighted toward participation — the single number the
-   gauge shows. Composite: participation (50%), insured coverage (25%),
-   active-staff rate (25%). Bounded 0-100. */
-function calcScore(derived) {
-  const total = Math.round(
-    derived.participationRate * 0.5 +
-      derived.insuredRate * 0.25 +
-      derived.activeRate * 0.25,
-  );
-  return Math.min(100, Math.max(0, total));
-}
-
-function scoreLabel(s) {
-  if (s >= 85) return 'Excellent';
-  if (s >= 70) return 'Healthy';
-  if (s >= 50) return 'Fair';
-  return 'Needs Attention';
+  return Number(emp.monthlyContribution ?? 0) > 0;
 }
 
 /* ── Insights (Copilot strip) ───────────────────────────────────────────────── */
-function generateInsights(metrics, derived, runs) {
+function generateInsights(metrics, derived, runs, pendingKyc) {
   const insights = [];
 
   const part = Math.round(derived.participationRate);
@@ -110,10 +76,9 @@ function generateInsights(metrics, derived, runs) {
   else if (part >= 70) insights.push({ type: 'warning', text: `${part}% participation — room to grow`, query: 'How many staff are contributing?' });
   else insights.push({ type: 'negative', text: `${part}% participation — low`, query: 'How many staff are contributing?' });
 
-  const uninsured = (metrics.headcount || 0) - (metrics.insuredCount || 0);
-  if (uninsured > 0) insights.push({ type: 'warning', text: `${uninsured} staff without insurance`, query: 'Who is uninsured?' });
+  if (pendingKyc > 0) insights.push({ type: 'warning', text: `${pendingKyc} awaiting sign-up`, query: 'Who is pending KYC?' });
 
-  if (metrics.suspended > 0) insights.push({ type: 'warning', text: `${metrics.suspended} suspended`, query: 'Show suspended staff' });
+  if (metrics.suspended > 0) insights.push({ type: 'warning', text: `${metrics.suspended} inactive`, query: 'Show inactive staff' });
 
   const latest = runs[0];
   if (latest) insights.push({ type: 'positive', text: `Last run: ${formatUGX(latest.grandTotal)} (${latest.periodLabel})`, query: 'Show the last contribution run' });
@@ -121,38 +86,63 @@ function generateInsights(metrics, derived, runs) {
   return insights.slice(0, 4);
 }
 
-/* ── Gauge (cloned verbatim from BranchHealthScore) ─────────────────────────── */
-function ScoreGauge({ score }) {
-  const size = 160, cx = 80, cy = 80, r = 62, strokeW = 13;
-  const startAngle = 135, sweepAngle = 270;
-  const p2c = (a) => { const rad = (a * Math.PI) / 180; return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }; };
-  const s = p2c(startAngle), e = p2c(startAngle + sweepAngle);
-  const arcPath = `M ${s.x} ${s.y} A ${r} ${r} 0 1 1 ${e.x} ${e.y}`;
-  const totalArc = 2 * Math.PI * r * (sweepAngle / 360);
-  const gap = totalArc - (score / 100) * totalArc;
-  const ticks = [0, 25, 50, 75, 100].map((pct) => {
-    const angle = startAngle + (pct / 100) * sweepAngle;
-    const inner = p2c(angle);
-    const outerR = r + strokeW / 2 + 4;
-    const rad = (angle * Math.PI) / 180;
-    return { inner, outer: { x: cx + outerR * Math.cos(rad), y: cy + outerR * Math.sin(rad) }, pct };
-  });
+/* ── Monthly standing (col 1) ─────────────────────────────────────────────────
+   Replaces the peer leaderboard list. A funder cares where their monthly
+   contribution ranks against peers — but the raw competitor amounts were noise.
+   This mirrors the Branch dashboard's score gauge: the shared radial arc fills to
+   the employer's standing (percentile) among peers, the centre shows their rank,
+   and a badge below shows this month's movement. Fed by `getEmployerLeaderboard`
+   — already sorted best-first with 1-based ranks; pure presentation. Empty
+   leaderboard → renders nothing so the slot stays clean. */
+function MonthlyStanding({ leaderboard }) {
+  // The employer's own row carries the rank + this-month delta. Bail cleanly if
+  // the data isn't ready or "you" is missing.
+  const you = useMemo(() => leaderboard.find((e) => e.isYou), [leaderboard]);
+  if (!you) return null;
+
+  const total = leaderboard.length;
+  const delta = you.deltaRanks || 0;
+  // Standing percentile drives the arc fill: rank 1 of N → 100%, rank N of N →
+  // ~1/N. A higher rank visibly fills more of the gauge.
+  const standing = total > 0 ? ((total - you.rank + 1) / total) * 100 : 0;
+  const dir = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+  const moved = Math.abs(delta);
+  const deltaText = dir === 'up'
+    ? `Up ${moved} this month`
+    : dir === 'down'
+      ? `Down ${moved} this month`
+      : 'Holding steady';
+
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={styles.gauge}>
-      <defs>
-        <linearGradient id="empScoreGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="var(--color-alert)" /><stop offset="35%" stopColor="var(--color-amber)" />
-          <stop offset="65%" stopColor="var(--color-accent-mint)" /><stop offset="100%" stopColor="var(--color-positive)" />
-        </linearGradient>
-        <filter id="empGlow"><feGaussianBlur stdDeviation="6" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-      </defs>
-      <path d={arcPath} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={strokeW + 6} strokeLinecap="round" />
-      <path d={arcPath} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={strokeW} strokeLinecap="round" />
-      {ticks.map((t) => <line key={t.pct} x1={t.inner.x} y1={t.inner.y} x2={t.outer.x} y2={t.outer.y} stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" strokeLinecap="round" />)}
-      <motion.path d={arcPath} fill="none" stroke="url(#empScoreGrad)" strokeWidth={strokeW} strokeLinecap="round" filter="url(#empGlow)"
-        strokeDasharray={totalArc} initial={{ strokeDashoffset: totalArc }} animate={{ strokeDashoffset: gap }}
-        transition={{ duration: 1.4, delay: 0.3, ease: EASE_OUT_EXPO }} />
-    </svg>
+    <motion.div
+      className={styles.standing}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: 0.2, ease: EASE_OUT_EXPO }}
+      aria-label={`Ranked number ${you.rank} of ${formatNumber(total)} employers by this month's contribution — ${deltaText.toLowerCase()}`}
+    >
+      <div className={styles.standingGaugeWrap}>
+        <ScoreGauge value={standing} size={148} />
+        <div className={styles.standingCenter}>
+          <motion.span
+            className={styles.standingRank}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.8, ease: EASE_OUT_EXPO }}
+          >
+            #{you.rank}
+          </motion.span>
+          <span className={styles.standingOf}>of {formatNumber(total)}</span>
+        </div>
+      </div>
+      <span className={styles.standingLabel}>Monthly standing</span>
+      <div className={styles.standingDelta} data-dir={dir}>
+        {dir !== 'flat' && (
+          <span className={styles.standingDeltaIcon} aria-hidden="true">{dir === 'up' ? '▲' : '▼'}</span>
+        )}
+        <span className={styles.standingDeltaText}>{deltaText}</span>
+      </div>
+    </motion.div>
   );
 }
 
@@ -180,7 +170,7 @@ function generateActivity(runs, employees) {
     events.push({
       id: `join-${emp.id}`,
       type: 'registration',
-      text: `${emp.name.split(' ')[0]} enrolled · ${emp.jobTitle}`,
+      text: `${emp.name.split(' ')[0]} enrolled as a member`,
       time: emp.joinedDate,
     });
   });
@@ -192,11 +182,7 @@ function generateActivity(runs, employees) {
 
 /* ── Alerts row ──────────────────────────────────────────────────────────────
    Up to 3 equal buttons; each opens the relevant employer panel. */
-function computeAlerts(metrics, runs) {
-  const headcount = metrics.headcount || 0;
-  const uninsured = Math.max(0, headcount - (metrics.insuredCount || 0));
-  const suspended = metrics.suspended || 0;
-
+function computeAlerts(metrics, runs, pendingKyc, insCfg) {
   // A run is "due" when the latest run isn't in the current calendar month
   // (demo heuristic — the employer funds monthly). Anchored to the real clock.
   const latest = runs[0];
@@ -207,6 +193,12 @@ function computeAlerts(metrics, runs) {
     new Date(latest.runAt).getFullYear() === now.getFullYear();
   const runDue = !runThisMonth;
 
+  // Insurance is company-wide (all-or-nothing): the 3rd tile surfaces the group
+  // cover and opens the Insurance panel — there is no per-member "suspended"
+  // control for an employer (the member owns their dormant account, not us).
+  const cover = Number(insCfg?.groupCoverAmount) || 0;
+  const insEnabled = insCfg?.insuranceEnabled ?? cover > 0;
+
   return [
     {
       value: runDue ? 'Due' : 'On track',
@@ -216,27 +208,28 @@ function computeAlerts(metrics, runs) {
       action: 'runs',
     },
     {
-      value: uninsured,
-      label: 'Without insurance',
-      sub: 'No active cover',
-      severity: uninsured > 0 ? 'alert' : 'ok',
-      action: 'insurance',
+      value: pendingKyc,
+      label: 'Pending KYC',
+      sub: pendingKyc > 0 ? 'Awaiting sign-up' : 'No pending invites',
+      severity: pendingKyc > 0 ? 'warning' : 'ok',
+      action: 'kyc',
     },
     {
-      value: suspended,
-      label: 'Suspended',
-      sub: 'Not contributing',
-      severity: suspended > 0 ? 'warning' : 'ok',
-      action: 'employees',
+      value: insEnabled ? formatUGX(cover, { compact: true }) : 'Off',
+      label: 'Insurance',
+      sub: insEnabled ? 'Cover per member' : 'Not set up',
+      severity: 'neutral',
+      action: 'insurance',
     },
   ];
 }
 
-export default function EmployerHealthScore({ metrics = {}, employees = [], runs = [], employer, user, split = false }) {
+export default function EmployerHealthScore({ metrics = {}, employees = [], runs = [], leaderboard = [], pendingInvites = [], employer, user, split = false }) {
   const { employerId } = useEmployerScope();
   const {
     setEmployeesOpen,
     setRunsOpen,
+    setKycOpen,
     setInsuranceOpen,
     closeAllPanels,
   } = useEmployerPanel();
@@ -246,24 +239,73 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
     closeAllPanels();
     if (action === 'employees') setEmployeesOpen(true);
     else if (action === 'runs') setRunsOpen(true);
+    else if (action === 'kyc') setKycOpen(true);
     else if (action === 'insurance') setInsuranceOpen(true);
   }
 
-  const derived = useMemo(() => deriveMetrics(metrics, employees), [metrics, employees]);
-  const score = useMemo(() => calcScore(derived), [derived]);
-  const events = useMemo(() => generateActivity(runs, employees), [runs, employees]);
-  const insights = useMemo(() => generateInsights(metrics, derived, runs), [metrics, derived, runs]);
-  const alerts = useMemo(() => computeAlerts(metrics, runs), [metrics, runs]);
+  // Pending KYC = people the employer invited who haven't completed sign-up yet
+  // (the only real "awaiting verification" data — members who finished signup are
+  // always KYC-complete). Drives the hero tile, the Copilot insight, and the panel.
+  const pendingKyc = pendingInvites.length;
 
-  // "This period contributed" — the latest run's grand total + its split.
+  const derived = useMemo(() => deriveMetrics(metrics, employees), [metrics, employees]);
+  const events = useMemo(() => generateActivity(runs, employees), [runs, employees]);
+  const insights = useMemo(() => generateInsights(metrics, derived, runs, pendingKyc), [metrics, derived, runs, pendingKyc]);
+  const alerts = useMemo(() => computeAlerts(metrics, runs, pendingKyc, employer?.defaultContributionConfig), [metrics, runs, pendingKyc, employer]);
+
+  // ── Centrepiece: total contributions to date + the run window it spans ──
+  const totalContributions = metrics.totalContributions || 0;
+  // Oldest run = last element (runs arrive newest-first); its month anchors the
+  // "since …" sublabel. Guarded against empty runs.
+  const oldestRun = runs.length ? runs[runs.length - 1] : null;
+  const sinceLabel = oldestRun
+    ? formatDate(oldestRun.runAt, { variant: 'short-month-year' })
+    : null;
+
+  // ── Next contribution amount ──
+  // Key off the NEWEST run, not a calendar-month lookup: the seed runs predate
+  // the real clock, so a literal "is this run in the current month?" check would
+  // read zero. The latest run's total is the forward estimate (the next run
+  // re-derives per active member) surfaced as the upcoming contribution.
   const latest = runs[0];
-  const thisPeriod = latest?.grandTotal ?? derived.ytdTotal;
-  // Change vs the previous run (so the badge reflects period-over-period).
-  const prevRun = runs[1];
-  const periodChange =
-    latest && prevRun && prevRun.grandTotal
-      ? Math.round(((latest.grandTotal - prevRun.grandTotal) / prevRun.grandTotal) * 100)
-      : 0;
+  const thisMonth = latest?.grandTotal ?? 0;
+
+  // ── Next contribution ── employer.payrollCadence is 'monthly', so the next run
+  // is one month after the last. Guarded for an employer with no runs yet.
+  const lastRunAt = latest?.runAt ?? null;
+  const nextRunLabel = lastRunAt
+    ? formatDate(
+        new Date(new Date(lastRunAt).getFullYear(), new Date(lastRunAt).getMonth() + 1, 1),
+        { variant: 'short-month-year' },
+      )
+    : null;
+  // "Due now" when the latest run isn't in the current calendar month — same
+  // heuristic the alerts row uses (computeAlerts), surfaced for the hero tile.
+  const runDue =
+    !latest ||
+    new Date(latest.runAt).getMonth() !== new Date().getMonth() ||
+    new Date(latest.runAt).getFullYear() !== new Date().getFullYear();
+
+  // Copilot answer context — the employer's OWN figures, fed to the local
+  // employer responder so every reply is truthful (no distributor-network noise,
+  // and "Who is pending KYC?" resolves against the real pending-invite list).
+  const copilotAnswerCtx = useMemo(() => {
+    const cfg = employer?.defaultContributionConfig;
+    const cover = Number(cfg?.groupCoverAmount) || 0;
+    const insOn = cfg?.insuranceEnabled ?? cover > 0;
+    return {
+      headcount: derived.headcount,
+      active: derived.active,
+      inactive: metrics.suspended || 0,
+      participationPct: Math.round(derived.participationRate),
+      pendingKyc,
+      pendingNames: pendingInvites.map((inv) => inv.prefill?.fullName).filter(Boolean),
+      fundingLabel: companyFundingLabel(cfg),
+      coverLabel: insOn && cover > 0 ? formatUGX(cover, { compact: false }) : 'no group cover',
+      totalContributions: metrics.totalContributions || 0,
+      lastRunLabel: runs[0]?.periodLabel || null,
+    };
+  }, [employer, derived, metrics, pendingKyc, pendingInvites, runs]);
 
   /* ── Copilot strip (wired to the chat mock, like the branch hero) ── */
   const [copilotOpen, setCopilotOpen] = useState(false);
@@ -293,7 +335,7 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
     setMessages((prev) => [...prev, { role: 'user', text: msg }]);
     setChatInput('');
     setIsTyping(true);
-    getChatResponse(msg)
+    getEmployerChatResponse(msg, copilotAnswerCtx)
       .then((response) => {
         setTimeout(() => { setIsTyping(false); setMessages((prev) => [...prev, { role: 'assistant', text: response }]); }, 900);
       })
@@ -338,73 +380,56 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
         </div>
       </div>
 
-      {/* ── Top section: Score + Metrics + Activity ── */}
+      {/* ── Top section: Leaderboard slot + Funding centrepiece + Activity ── */}
       <div className={styles.topGrid}>
-        {/* Col 1: Participation score */}
-        <div className={styles.scoreSection}>
-          <div className={styles.gaugeWrap}>
-            <ScoreGauge score={score} />
-            <div className={styles.scoreCenter}>
-              <motion.span className={styles.scoreNumber}
-                initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 0.8, ease: EASE_OUT_EXPO }}>
-                {score}
-              </motion.span>
-              <span className={styles.scoreQuality}>{scoreLabel(score)}</span>
-            </div>
-          </div>
-          <span className={styles.scoreLabel}>Scheme Health</span>
-          <div className={styles.rankBadge}>
-            <span className={styles.rankNumber}>{Math.round(derived.participationRate)}%</span>
-            <span className={styles.rankOf}>staff enrolled</span>
-          </div>
+        {/* Col 1: monthly standing gauge — the employer's rank among peers shown
+            in the Branch dashboard's score-gauge language (a funder cares where
+            their contribution ranks, not the raw competitor amounts). Renders
+            nothing when the leaderboard hasn't loaded, keeping the slot clean
+            while preserving the three-column rhythm. */}
+        <div className={styles.leaderSlot}>
+          {leaderboard.length > 0 && <MonthlyStanding leaderboard={leaderboard} />}
         </div>
 
-        {/* Col 2: Metrics (clickable cards open the matching panel) */}
+        {/* Col 2: Funding centrepiece + funder tiles (cards open the matching panel) */}
         <div className={styles.metricsSection}>
-          <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
-            <span className={styles.metricLabel}>Total Staff Balance</span>
-            <span className={styles.metricValue}>{formatUGX(metrics.totalBalance || 0)}</span>
+          {/* Centrepiece — total contributions to date */}
+          <button type="button" className={`${styles.centrepiece} ${styles.metricCard}`} onClick={() => openPanel('runs')}>
+            <span className={styles.metricLabel}>Total contributions to date</span>
+            <motion.span className={styles.centreValue}
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3, ease: EASE_OUT_EXPO }}>
+              {formatUGX(totalContributions)}
+            </motion.span>
+            <span className={styles.centreSub}>
+              {runs.length > 0
+                ? `across ${formatNumber(runs.length)} run${runs.length === 1 ? '' : 's'}${sinceLabel ? ` since ${sinceLabel}` : ''}`
+                : 'No contribution runs yet'}
+            </span>
           </button>
-          <div className={styles.metricPair}>
-            <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
-              <span className={styles.metricLabel}>Employees</span>
-              <div className={styles.metricRow}>
-                <span className={styles.metricValueMd}>{formatNumber(metrics.headcount || 0)}</span>
-                <span className={styles.metricSub}>{metrics.active || 0} active</span>
-              </div>
-            </button>
+
+          {/* Funder tiles */}
+          <div className={styles.tileGrid}>
             <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('runs')}>
-              <span className={styles.metricLabel}>This Period</span>
+              <span className={styles.metricLabel}>Next Contribution</span>
+              <span className={styles.metricValueMd}>{formatUGX(thisMonth)}</span>
+              <span className={styles.metricSub}>{runDue ? 'Due now' : nextRunLabel ? `Due ~${nextRunLabel}` : 'No runs yet'}</span>
+            </button>
+            <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
+              <span className={styles.metricLabel}>Staff</span>
               <div className={styles.metricRow}>
-                <span className={styles.metricValueMd}>{formatUGX(thisPeriod)}</span>
-                {prevRun && (
-                  <span className={styles.changeBadge} data-positive={periodChange >= 0}>
-                    <svg aria-hidden="true" viewBox="0 0 10 10" width="8" height="8"><path d={periodChange >= 0 ? 'M5 2l3.5 5H1.5z' : 'M5 8L1.5 3h7z'} fill="currentColor" /></svg>
-                    {Math.abs(periodChange)}%
-                  </span>
-                )}
+                <span className={styles.metricValueMd}>{formatNumber(derived.active)}</span>
+                <span className={styles.metricSub}>of {formatNumber(derived.headcount)}</span>
               </div>
             </button>
-          </div>
-          <div className={styles.kpiGrid}>
-            <button type="button" className={`${styles.kpiItem} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
-              <span className={styles.kpiLabel}>Participation</span>
-              <div className={styles.kpiRow}>
-                <span className={styles.kpiValue}>{Math.round(derived.participationRate)}%</span>
-                <div className={styles.kpiBar}><motion.div className={styles.kpiFill} data-variant="teal" initial={{ width: 0 }} animate={{ width: `${derived.participationRate}%` }} transition={{ duration: 0.8, delay: 0.4, ease: EASE_OUT_EXPO }} /></div>
-              </div>
+            <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
+              <span className={styles.metricLabel}>Avg / Employee</span>
+              <span className={styles.metricValueMd}>{formatUGX(derived.avgContribution)}</span>
             </button>
-            <button type="button" className={`${styles.kpiItem} ${styles.metricCard}`} onClick={() => openPanel('employees')}>
-              <span className={styles.kpiLabel}>Avg / Employee</span>
-              <span className={styles.kpiValue}>{formatUGX(derived.avgBalance)}</span>
-            </button>
-            <button type="button" className={`${styles.kpiItem} ${styles.metricCard}`} onClick={() => openPanel('runs')}>
-              <span className={styles.kpiLabel}>Employer Share</span>
-              <div className={styles.kpiRow}>
-                <span className={styles.kpiValue}>{Math.round(derived.employerShare)}%</span>
-                <div className={styles.kpiBar}><motion.div className={styles.kpiFill} data-variant="indigo" initial={{ width: 0 }} animate={{ width: `${derived.employerShare}%` }} transition={{ duration: 0.8, delay: 0.5, ease: EASE_OUT_EXPO }} /></div>
-              </div>
+            <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={() => openPanel('kyc')}>
+              <span className={styles.metricLabel}>Pending KYC</span>
+              <span className={styles.metricValueMd}>{formatNumber(pendingKyc)}</span>
+              <span className={styles.metricSub}>{pendingKyc > 0 ? 'Awaiting sign-up' : 'All onboarded'}</span>
             </button>
           </div>
         </div>
@@ -412,11 +437,7 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
         {/* Col 3: Activity */}
         <div className={styles.activitySection}>
           <div className={styles.activityHeader}>
-            <span className={styles.activityTitle}>Today&apos;s Snapshot</span>
-            <span className={styles.activityLive} aria-label="Updated just now">
-              <span className={styles.liveDot} aria-hidden="true" />
-              Updated
-            </span>
+            <span className={styles.activityTitle}>Recent Activity</span>
           </div>
           <div className={styles.activityFeed}>
             {events.length === 0 ? (
@@ -531,7 +552,7 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
                     </button>
                   ))}
                   <div className={styles.quickRow}>
-                    {['Staff balance?', 'Funding split?', 'Who is uninsured?'].map((q) => (
+                    {['Who is pending KYC?', 'Funding split?', 'Group insurance?'].map((q) => (
                       <button key={q} className={styles.quickPill} onClick={() => handleSend(q)}>{q}</button>
                     ))}
                   </div>

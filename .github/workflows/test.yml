@@ -18,7 +18,7 @@
 # Backend deploys to Render via Render's own GitHub integration / Deploy Hook.
 #
 # Note on shared DB: e2e flow specs write to the shared Supabase project
-# (zengmiugieqjqzaccbqe) and clean up in `afterEach`. We run with --workers=1
+# (ilkhfnoyxlxwqadebnkp) and clean up in `afterEach`. We run with --workers=1
 # below so concurrent runs in the same job don't race on the same rows; the
 # `concurrency` block at workflow level cancels in-flight runs on the same ref
 # so a follow-up push pre-empts the previous one.
@@ -62,7 +62,14 @@ jobs:
         run: npm run lint
 
       - name: Unit tests
-        run: npm test
+        # --coverage so Phase-6 F3 can enforce a coverage threshold on CI.
+        run: npm test -- --coverage
+
+      - name: Build (Vite frontend)
+        # Gates the Vite frontend build (~5s) so a bad import / Vite-incompatible
+        # syntax fails the PR here rather than surfacing only at Vercel deploy
+        # post-merge. CI otherwise runs only build:api (the e2e job). (F-G17)
+        run: npm run build
 
   e2e:
     name: Playwright E2E
@@ -128,7 +135,7 @@ jobs:
       - name: Run Playwright full matrix (main post-merge — chromium + webkit, smoke + flow + regression + db)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         # Full matrix: every project × every spec. The DB invariants run
-        # against the live `zengmiugieqjqzaccbqe` project (service-role
+        # against the live `ilkhfnoyxlxwqadebnkp` project (service-role
         # query), so this also guarantees the schema state is intact after
         # each merge to main.
         run: |

@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { useSignup } from '../SignupContext';
 import styles from './Step.module.css';
 import own from './PendingReviewStep.module.css';

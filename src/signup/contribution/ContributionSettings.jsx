@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { calcFV, EASE_OUT_EXPO, parseAmount, FREQUENCY, periodsPerYear } from '../../utils/finance';
+import { calcFV, parseAmount, FREQUENCY, periodsPerYear } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
 import { formatUGX, formatNumber } from '../../utils/currency';
 import {
   RETIREMENT_AGE,
@@ -10,6 +11,7 @@ import {
 } from '../../constants/savings';
 import logo from '../../assets/logo.png';
 import PaymentStep from './PaymentStep';
+import { PillChip, PillChipGroup } from '../../components/PillChip';
 import styles from './ContributionSettings.module.css';
 
 export { MIN_CONTRIBUTION };
@@ -65,7 +67,7 @@ function yearsToRetirement(dob) {
  * Full page for /signup/contribution — renders a single indigo-hero card
  * over a white canvas. Everything fits without scrolling the card.
  */
-export default function ContributionSettings({ initial, dob, phone, onClose, onConfirm }) {
+export default function ContributionSettings({ initial, dob, phone, collectSchedule = true, onClose, onConfirm }) {
   const [frequency, setFrequency] = useState(initial?.frequency ?? 'monthly');
   const [amountStr, setAmountStr] = useState(initial?.amount ? String(initial.amount) : '');
   const [retirementPct, setRetirementPct] = useState(initial?.retirementPct ?? 80);
@@ -160,6 +162,20 @@ export default function ContributionSettings({ initial, dob, phone, onClose, onC
     });
   }
 
+  // Employer-only invite: collect ONLY the retirement/emergency split — no
+  // frequency, amount, insurance, or payment. Renders a compact card.
+  if (!collectSchedule) {
+    return (
+      <SplitOnlyView
+        retirementPct={retirementPct}
+        emergencyPct={emergencyPct}
+        setRetirementPct={setRetirementPct}
+        onClose={onClose}
+        onConfirm={() => onConfirm({ retirementPct, emergencyPct })}
+      />
+    );
+  }
+
   return (
     <main className={styles.page} aria-labelledby="contrib-title">
       {/* Landing-page-style backdrop: subtle indigo grid + two radial orbs */}
@@ -216,7 +232,18 @@ export default function ContributionSettings({ initial, dob, phone, onClose, onC
             <span className={styles.sectionIndex}>01</span>
             <h2 id="freq-heading" className={styles.sectionTitle}>How often?</h2>
           </div>
-          <div className={styles.freqGrid} role="radiogroup" aria-label="Contribution frequency">
+          {/* Rich frequency cards keep their bespoke `.freqCard` styling (column
+              layout + helper + check badge), so they stay native role="radio"
+              buttons rather than the capsule <PillChip>. Wrapping them in
+              <PillChipGroup> still gives the WAI-ARIA radiogroup behaviour
+              (roving tabindex + arrow-key navigation), since the group queries
+              its `[role="radio"]` descendants regardless of element type. */}
+          <PillChipGroup
+            label="Contribution frequency"
+            layout="grid"
+            columns={FREQUENCIES.length}
+            className={styles.freqGrid}
+          >
             {FREQUENCIES.map((f) => {
               const active = frequency === f.id;
               return (
@@ -239,7 +266,7 @@ export default function ContributionSettings({ initial, dob, phone, onClose, onC
                 </button>
               );
             })}
-          </div>
+          </PillChipGroup>
         </section>
 
         {/* ── Section 2 — Amount ────────────────────────────────── */}
@@ -563,6 +590,109 @@ export default function ContributionSettings({ initial, dob, phone, onClose, onC
           )}
         </AnimatePresence>
       </motion.aside>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * Employer-only invite completion — collects ONLY the retirement/emergency split
+ * and a "Finish enrolment" action (no frequency/amount/insurance/payment). The
+ * employer funds the member via contribution runs; the member starts at 0.
+ */
+function SplitOnlyView({ retirementPct, emergencyPct, setRetirementPct, onClose, onConfirm }) {
+  const [processing, setProcessing] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function finish() {
+    if (processing) return;
+    setProcessing(true);
+    setErr('');
+    try {
+      await onConfirm();
+    } catch (e) {
+      setErr(e?.message || 'Could not complete enrolment. Please try again.');
+      setProcessing(false);
+    }
+  }
+
+  return (
+    <main className={styles.page} aria-labelledby="contrib-title">
+      <div className={styles.pageBg} aria-hidden="true">
+        <span className={styles.pageOrb1} /><span className={styles.pageOrb2} /><span className={styles.pageGrid} />
+      </div>
+      <div className={styles.pageHeader}>
+        <img src={logo} alt="Universal Pensions" className={styles.logo} width={160} height={34} />
+      </div>
+      <div className={styles.shell}>
+        <motion.div
+          className={styles.card}
+          initial={{ opacity: 0, y: 14, scale: 0.99 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
+        >
+          <span className={styles.cardMesh} aria-hidden="true" />
+          <span className={styles.cardGrain} aria-hidden="true" />
+          <header className={styles.header}>
+            <div className={styles.headerText}>
+              <span className={styles.eyebrow}>Almost done</span>
+              <h1 id="contrib-title" className={styles.title}>
+                <span className={styles.shimmerText}>Split your savings</span>
+              </h1>
+            </div>
+            <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+              </svg>
+            </button>
+          </header>
+
+          <p style={{ margin: '0 0 1.25rem', color: 'var(--color-gray)', lineHeight: 1.6 }}>
+            Your employer funds your pension. Choose how your savings are split between long-term
+            retirement and accessible emergency funds.
+          </p>
+
+          <section className={styles.section} aria-labelledby="alloc-heading">
+            <div className={styles.sectionHead}>
+              <span className={styles.sectionIndex}>01</span>
+              <h2 id="alloc-heading" className={styles.sectionTitle}>Retirement vs emergency</h2>
+            </div>
+            <div className={styles.splitHead}>
+              <div className={styles.splitSide}>
+                <span className={styles.splitLabel}>Retirement</span>
+                <span className={styles.splitPct}>{retirementPct}<em>%</em></span>
+              </div>
+              <div className={styles.splitSide} data-align="right">
+                <span className={styles.splitLabel} data-tone="teal">Emergency</span>
+                <span className={styles.splitPct} data-tone="teal">{emergencyPct}<em>%</em></span>
+              </div>
+            </div>
+            <input
+              type="range" min={0} max={100} step={5} value={retirementPct}
+              onChange={(e) => setRetirementPct(Number.parseInt(e.target.value, 10))}
+              aria-label="Retirement savings percentage"
+              className={styles.slider}
+              style={{ '--pct': `${retirementPct}%` }}
+            />
+            <div className={styles.allocBar} role="img" aria-label={`${retirementPct}% retirement, ${emergencyPct}% emergency`}>
+              <span className={styles.allocFillRetirement} style={{ flexBasis: `${retirementPct}%` }} />
+              <span className={styles.allocFillEmergency} style={{ flexBasis: `${emergencyPct}%` }} />
+            </div>
+            <p className={styles.bucketHelp}>
+              <span className={styles.bucketDot} data-tone="retirement" aria-hidden="true" />
+              <strong>Retirement</strong> is locked until retirement age
+              <span className={styles.bucketSep} aria-hidden="true">·</span>
+              <span className={styles.bucketDot} data-tone="emergency" aria-hidden="true" />
+              <strong>Emergency</strong> is accessible in hardship
+            </p>
+          </section>
+
+          {err && <p style={{ color: '#b42318', margin: '0 0 0.75rem' }} role="alert">{err}</p>}
+
+          <button type="button" className={styles.payNow} onClick={finish} disabled={processing} aria-busy={processing || undefined}>
+            <span>{processing ? 'Finishing…' : 'Finish enrolment'}</span>
+          </button>
+        </motion.div>
       </div>
     </main>
   );

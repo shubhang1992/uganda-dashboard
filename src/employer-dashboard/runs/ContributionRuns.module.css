@@ -141,6 +141,10 @@
   gap: var(--space-3);
 }
 
+.runItem {
+  list-style: none;
+}
+
 .runCard {
   display: flex;
   flex-direction: column;

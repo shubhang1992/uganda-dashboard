@@ -1,7 +1,8 @@
 import { useMemo, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';

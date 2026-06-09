@@ -1,30 +1,30 @@
-// Employer dashboard shell — Phase 1. Cloned from BranchDashboardShell
+// Employer dashboard shell. Cloned from BranchDashboardShell
 // (branch → employer): same CSS grid + mobile hamburger/drawer, the same route
 // guard, an employerId read with a missing-id fallback, and the provider nest
 //   <EmployerDashboardProvider> → <EmployerScopeProvider> → <ShellInner/>.
 //
 // Panels mount as SIBLINGS of <main> (not nested), each with `splitMode`, so a
-// panel can reflow main content beside an open panel. The panels are built out
-// (Phases 3-8): ViewEmployees, EmployeeDetail, ContributionRuns,
-// InsuranceBenefits, EmployerReports, EmployerSettings, EmployerTickets. Only
-// employee onboarding remains deferred — OnboardStaffPanel is still a Phase-9
-// stub (renders StubPanel, a titled "coming soon" placeholder).
+// panel can reflow main content beside an open panel: ViewEmployees (which hosts
+// its own member list↔detail view in-place), ContributionRuns, InsuranceBenefits,
+// PendingKyc, EmployerReports, EmployerSettings, EmployerTickets, and
+// OnboardStaffPanel (the invite-a-member flow — creates a tokenized KYC invite
+// that onboards an employer-tagged subscriber).
 
 import { useState, useEffect, useCallback } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../utils/motion';
-import { EmployerDashboardProvider } from '../contexts/EmployerPanelContext';
+import { EmployerDashboardProvider, useEmployerPanel } from '../contexts/EmployerPanelContext';
 import { EmployerScopeProvider } from '../contexts/EmployerScopeContext';
 import { useAuth } from '../contexts/AuthContext';
 import logo from '../assets/logo.png';
 import EmployerSidebar from './sidebar/EmployerSidebar';
 import EmployerOverview from './overview/EmployerOverview';
 import ViewEmployees from './employees/ViewEmployees';
-import EmployeeDetail from './employees/EmployeeDetail';
 import OnboardStaffPanel from './employees/OnboardStaffPanel';
 import ContributionRuns from './runs/ContributionRuns';
 import InsuranceBenefits from './insurance/InsuranceBenefits';
+import PendingKyc from './kyc/PendingKyc';
 import EmployerReports from './reports/EmployerReports';
 import EmployerTickets from './tickets/EmployerTickets';
 import EmployerSettings from './settings/EmployerSettings';
@@ -107,6 +107,20 @@ function MobileDrawer({ open, onClose }) {
 }
 
 function DashboardContent({ menuOpen, onMenuToggle, onMenuClose }) {
+  // Gate each panel on its open flag so its data hooks don't fire on shell cold
+  // load. Mounting all panels unconditionally fired ~12-15 Supabase requests at
+  // first paint for panels the user hadn't opened (5b.10) — mirrors the gated
+  // distributor (DashboardShell) and admin (AdminDashboardShell) shells.
+  const {
+    employeesOpen,
+    runsOpen,
+    insuranceOpen,
+    kycOpen,
+    reportsOpen,
+    settingsOpen,
+    supportOpen,
+    onboardOpen,
+  } = useEmployerPanel();
   return (
     <>
       <MobileHeader onMenuToggle={onMenuToggle} menuOpen={menuOpen} />
@@ -114,14 +128,14 @@ function DashboardContent({ menuOpen, onMenuToggle, onMenuClose }) {
       <main className={styles.main} id="main">
         <EmployerOverview />
       </main>
-      <ViewEmployees splitMode />
-      <EmployeeDetail splitMode />
-      <ContributionRuns splitMode />
-      <InsuranceBenefits splitMode />
-      <EmployerReports splitMode />
-      <EmployerSettings splitMode />
-      <EmployerTickets splitMode />
-      <OnboardStaffPanel splitMode />
+      {employeesOpen && <ViewEmployees splitMode />}
+      {runsOpen && <ContributionRuns splitMode />}
+      {insuranceOpen && <InsuranceBenefits splitMode />}
+      {kycOpen && <PendingKyc splitMode />}
+      {reportsOpen && <EmployerReports splitMode />}
+      {settingsOpen && <EmployerSettings splitMode />}
+      {supportOpen && <EmployerTickets splitMode />}
+      {onboardOpen && <OnboardStaffPanel splitMode />}
     </>
   );
 }

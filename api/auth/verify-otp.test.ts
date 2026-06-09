@@ -72,6 +72,28 @@ vi.mock('../_lib/jwt.js', () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Password helper — keep the REAL bcrypt behaviour (so the happy path stays
+// byte-faithful) but wrap `hashPassword` in a spy so we can assert it is NOT
+// invoked on the password-less branch (preserving the short-circuit that
+// avoids paying the ~80ms bcrypt cost on OTP-only logins). `importActual`
+// preserves `validatePasswordShape`/`verifyPassword` unchanged.
+// ---------------------------------------------------------------------------
+
+// `vi.hoisted` so the spy exists before the hoisted `vi.mock` factory below
+// runs (the factory references it during module init, not lazily).
+const { hashPasswordSpy } = vi.hoisted(() => ({
+  hashPasswordSpy: vi.fn<(plain: string) => Promise<string>>(),
+}));
+vi.mock('./_lib/password.js', async (importActual) => {
+  const actual = await importActual<typeof import('./_lib/password.js')>();
+  hashPasswordSpy.mockImplementation((plain: string) => actual.hashPassword(plain));
+  return {
+    ...actual,
+    hashPassword: (plain: string) => hashPasswordSpy(plain),
+  };
+});
+
+// ---------------------------------------------------------------------------
 // Import the handler AFTER mocks are registered so the bindings resolve to
 // the stubs above.
 // ---------------------------------------------------------------------------
@@ -130,6 +152,7 @@ describe('POST /api/auth/verify-otp', () => {
     fromCalls.length = 0;
     signJwtMock.mockClear();
     signJwtMock.mockImplementation(async () => 'signed-token-fake');
+    hashPasswordSpy.mockClear();
     res = makeRes();
   });
 
@@ -142,6 +165,14 @@ describe('POST /api/auth/verify-otp', () => {
     expect(res.__getStatus()).toBe(405);
     expect(res.__getPayload()).toEqual({ code: 'method_not_allowed' });
     expect(res.__headers['Allow']).toBe('POST');
+  });
+
+  it('sets Cache-Control: no-store on the 405 path (2a.2)', async () => {
+    // The no-store header must be set BEFORE the method check so even a 405
+    // carries it — a 405 from the auth family must not be cacheable.
+    await call(makeReq({ method: 'GET' }), res);
+    expect(res.__getStatus()).toBe(405);
+    expect(res.__headers['Cache-Control']).toBe('no-store');
   });
 
   it('returns 405 method_not_allowed for PUT/DELETE/PATCH', async () => {
@@ -191,8 +222,9 @@ describe('POST /api/auth/verify-otp', () => {
   });
 
   it('returns 400 invalid_otp when role is missing or out-of-allow-list', async () => {
-    // 'employer' is now a valid role (Phase 0) — only 'admin' stays deferred.
-    for (const role of [undefined, 'admin', 42]) {
+    // All six app roles (incl. 'employer' and 'admin') are now valid — only
+    // unknown roles are rejected.
+    for (const role of [undefined, 'superadmin', 42]) {
       const r = makeRes();
       await call(
         makeReq({
@@ -332,6 +364,103 @@ describe('POST /api/auth/verify-otp', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Concurrent persona-lookup + password-hash, preserving the bcrypt short-
+  // circuit. The lookup and hash run inside a single Promise.all, but the
+  // hash arm is only entered when a password was actually supplied — an
+  // OTP-only login must never start bcrypt.
+  // -------------------------------------------------------------------------
+
+  it('does NOT invoke hashPassword when no password is supplied (short-circuit preserved)', async () => {
+    queueFrom('subscribers', {
+      data: { id: 's-0001', name: 'Brian' },
+      error: null,
+    });
+    queueFrom('users', { data: { password_hash: null }, error: null });
+
+    await call(
+      makeReq({
+        body: {
+          phone: '+256777247884',
+          otp: '123456',
+          role: 'subscriber',
+          // No `password` key at all — the OTP-only happy path.
+        },
+      }),
+      res,
+    );
+
+    expect(res.__getStatus()).toBe(200);
+    // The whole point of the short-circuit: bcrypt is never started.
+    expect(hashPasswordSpy).not.toHaveBeenCalled();
+    expect(
+      (res.__getPayload() as { user: { hasPassword: boolean } }).user.hasPassword,
+    ).toBe(false);
+  });
+
+  it('does NOT invoke hashPassword when password is an empty string (treated as not provided)', async () => {
+    queueFrom('subscribers', {
+      data: { id: 's-0001', name: 'Brian' },
+      error: null,
+    });
+    queueFrom('users', { data: { password_hash: null }, error: null });
+
+    await call(
+      makeReq({
+        body: {
+          phone: '+256777247884',
+          otp: '123456',
+          role: 'subscriber',
+          password: '',
+        },
+      }),
+      res,
+    );
+
+    expect(res.__getStatus()).toBe(200);
+    expect(hashPasswordSpy).not.toHaveBeenCalled();
+  });
+
+  it('invokes hashPassword once and stamps the hash when a valid password is supplied', async () => {
+    queueFrom('subscribers', {
+      data: { id: 's-0001', name: 'Brian' },
+      error: null,
+    });
+    // The upsert reads back the freshly-stamped hash, so hasPassword: true.
+    queueFrom('users', { data: { password_hash: 'bcrypted' }, error: null });
+
+    await call(
+      makeReq({
+        body: {
+          phone: '+256777247884',
+          otp: '123456',
+          role: 'subscriber',
+          password: 'Demo1234',
+        },
+      }),
+      res,
+    );
+
+    expect(res.__getStatus()).toBe(200);
+    // Hash arm was entered exactly once, with the supplied plaintext.
+    expect(hashPasswordSpy).toHaveBeenCalledTimes(1);
+    expect(hashPasswordSpy).toHaveBeenCalledWith('Demo1234');
+
+    // The upsert patch carried a real bcrypt hash (not the plaintext) —
+    // proves the parallel hash result flowed through to the write unchanged.
+    const usersUpsert = fromCalls.find(
+      (c) => c.table === 'users' && c.upsertArg,
+    );
+    const patch = usersUpsert?.upsertArg as { password_hash?: string };
+    expect(typeof patch.password_hash).toBe('string');
+    expect(patch.password_hash).not.toBe('Demo1234');
+    expect(patch.password_hash?.startsWith('$2')).toBe(true);
+
+    expect(
+      (res.__getPayload() as { user: { hasPassword: boolean } }).user.hasPassword,
+    ).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
   // Subscriber demo persona fallback (no row → s-0001).
   // -------------------------------------------------------------------------
 
@@ -375,6 +504,9 @@ describe('POST /api/auth/verify-otp', () => {
     // Employer falls back to emp-001 (Phase 0) just like the other
     // non-subscriber roles when demo_personas misses.
     ['employer', 'emp-001', 'employerId'],
+    // Admin falls back to admin-001 (0049) — the fallback + the `adminId` claim
+    // were never asserted before (audit §7b.4); pin both here.
+    ['admin', 'admin-001', 'adminId'],
   ] as const)(
     'returns the role-scoped %s claim with fallback id %s when demo_personas misses',
     async (role, fallbackId, claimKey) => {

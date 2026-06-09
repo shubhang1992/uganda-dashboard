@@ -38,7 +38,9 @@ JWT is HS256, custom-signed (not Supabase Auth — see `BACKEND.md §6`). Claims
 
 ### 1.3 Cache headers
 
-Every auth handler and the chat/contact handlers set `Cache-Control: no-store` on **every** response path (B13 in the audit). KYC routes don't currently set this; they hit no DB so caching by accident is harmless, but the convention is to add it on any route that touches user-scoped state.
+Every auth handler and the chat/contact handlers set `Cache-Control: no-store` on **every** response path (B13 in the audit). This now holds for the **405 method-not-allowed path too** — the 2026-06-08 audit (§2a.2) found the four auth handlers (`send-otp`, `verify-otp`, `verify-password`, `change-password`) had `return`ed the 405 *before* their `res.setHeader('Cache-Control','no-store')` line, leaving auth-family 405s cacheable; the campaign **lifted the header above the method check** in all four, so a GET-against-auth 405 now carries `Cache-Control: no-store` like every other family. (Verify by reading the first lines of each `api/auth/*.ts` handler — the `setHeader` precedes the method gate.) KYC routes still don't set this; they hit no DB so caching by accident is harmless, but the convention is to add it on any route that touches user-scoped state.
+
+**Malformed / oversized request bodies** are now mapped explicitly (audit §2a.3): a body-parser-aware error handler in `server/index.ts` turns a `SyntaxError` (`entity.parse.failed`) into `400 { code: 'invalid_json' }` and a `>200kb` body (`entity.too.large`) into `413 { code: 'payload_too_large' }`, both with `Cache-Control: no-store` — previously both surfaced as `500 { code: 'unexpected_error' }`, which `apiFetch` mis-read as a server outage and auto-retried.
 
 ### 1.4 Demo scope (do not propose fixes)
 
@@ -106,6 +108,19 @@ All KYC routes are stateless Smile-ID-v2-shaped mocks with simulated latency. Th
 
 Sources: `api/kyc/*.ts`. Each route also returns `400 invalid_request` for missing/malformed fields and `405 method_not_allowed` for non-POST.
 
+#### KYC verdict-envelope matrix — 4xx vs 200 (intentional demo behavior)
+
+A KYC step **failing its check is a business verdict, not an HTTP error** — these routes return **HTTP 200 with the verdict in the body** (`{ verified:false }`, `{ result:'no-match' }`, `{ outcome:'flagged' }`, …), and reserve the **4xx envelope** strictly for *shape*/transport faults (missing field, wrong method). This is by design (audit §2a, C1's 4xx-vs-200 matrix): a "no-match" NIRA result is a normal signup branch the client renders into a retry/agent-referral flow, so it must not look like a network failure. Forcing a verdict via the `x-qa-force` header still returns 200 — the header only changes the *verdict in the body*, never the status. The deliberate split:
+
+| Outcome class | HTTP | Body | Example |
+| --- | --- | --- | --- |
+| **Success / positive verdict** | **200** | route success shape | `{ verified: true }`, `{ result: 'match' }`, `{ outcome: 'clear', trackingId }` |
+| **Negative / "failed-check" verdict** (incl. `x-qa-force`-forced) | **200** | same success shape, verdict field flipped | `{ verified: false }`, `{ result: 'no-match', mismatchedFields, reason }`, `{ outcome: 'flagged' }`, `{ outcome: 'liveness-fail' }` |
+| **Bad request shape** (missing/malformed field, bad file) | **400** | `{ code: 'invalid_request' }` | `nira-verify` with no `nin` |
+| **Wrong method** (GET/PUT/…) | **405** | `{ code: 'method_not_allowed' }` + `Allow: POST` | `GET /api/kyc/aml-screen` |
+
+Consequence for the client: KYC service callers branch on the **body verdict** (`result`/`outcome`/`verified`), and only treat a thrown `err.code` (the 4xx/`apiFetch` path) as a true error. Do not "fix" the 200-on-failed-verdict by promoting it to a 4xx — it would break the signup branch logic and is explicitly out of scope (demo behavior, CLAUDE.md §10a).
+
 ### 2.3 Misc (2 routes)
 
 #### `POST /api/contact`
@@ -142,8 +157,11 @@ The frontend authenticates to Supabase as `authenticated` and calls `SECURITY DE
 | `get_commission_summary` | `p_branch_id text \| null` | `{ totalCommissions, totalPaid, totalDue, countTotal, countPaid, countDue }` | Commission KPI cards. |
 | `get_entity_commission_summary` | `p_level text, p_entity_id text` | `{ totalPaid, totalDue, countPaid, countDue, total, countTotal, settlementRate }` | Per-entity commission breakdown (drill-down overlays). |
 | `get_agent_commission_detail` | `p_agent_id text` | Agent-level detail object (`{ …, totalPaid, totalDue, paidTransactions[], dueTransactions[] }`; paid lines expose `paidAmount`) | Agent drawer in commission panel. |
+| `get_agent_commission_list` *(0041)* | `p_status_focus text \| null` | `TABLE(agent_id, agent_name, employee_id, branch_id, branch_name, total_commissions, total_paid, total_due, subscribers_onboarded, active_subscribers, filtered_amount, filtered_count)` | Per-agent commission roll-up for the distributor list (STABLE). |
+| `get_pending_dues_by_agent` *(0041)* | _(none)_ | `TABLE(agent_id, agent_name, employee_id, branch_id, branch_name, pending_amount, pending_count)` | Settlement-template prefill (pending dues per agent). |
+| `get_pending_dues_by_branch` *(0041)* | _(none)_ | `TABLE(branch_id, branch_name, pending_amount, pending_count, agent_count)` | Pending dues rolled up per branch. |
 
-> These three read RPCs were re-emitted in `0029_commission_simplify.sql` in slimmed paid/due-only form — the disputed/run buckets were dropped.
+> The first three commission read RPCs were re-emitted in `0029_commission_simplify.sql` in slimmed paid/due-only form (disputed/run buckets dropped). The last three were added in `0041_commission_aggregate_rpcs.sql` — they move what were client-side JS folds into Postgres so the aggregate isn't truncated at PostgREST's 1000-row page cap.
 
 ### 3.2 Write RPCs (settlement + notifications)
 
@@ -164,7 +182,22 @@ The dropped RPCs (`open_run`, `cancel_run`, `release_run`, `release_branch`, `br
 | `create_subscriber_from_agent_onboard` | (named args) | Same shape as above but invoked from the agent's onboard flow; differs in audit trail. |
 | `upsert_nominees` | `(p_subscriber_id text, p_pension jsonb, p_insurance jsonb)` | Replaces pension / insurance nominee lists; atomically validates share-sum invariants. |
 
-See `supabase/migrations/0002_rpc_functions.sql`, `0024_upsert_nominees.sql`, `0029_commission_simplify.sql` (slimmed commission reads), and `0031_notifications.sql` (`apply_settlement`, `mark_notifications_read`) for the canonical PL/pgSQL.
+Both signup RPCs gained an optional trailing `p_nonce text` parameter in `0042_signup_writeflow_hardening.sql` — a replayed submit with the same nonce returns the prior subscriber id (via the `subscriber_signup_uploads` ledger) instead of minting a duplicate chain.
+
+See `supabase/migrations/0002_rpc_functions.sql`, `0024_upsert_nominees.sql`, `0029_commission_simplify.sql` (slimmed commission reads), `0031_notifications.sql` (`apply_settlement`, `mark_notifications_read`), `0041_commission_aggregate_rpcs.sql`, and `0042_signup_writeflow_hardening.sql` for the canonical PL/pgSQL.
+
+### 3.4 Employer RPCs (`0035` + `apply_group_insurance` from `0039`)
+
+All `SECURITY DEFINER`, gated on `app_role = 'employer'`, scoped to the `employerId` JWT claim. Called from `src/services/employer.js`. See `BACKEND.md §10.1` for full semantics.
+
+| RPC | Args | Effect |
+| --- | --- | --- |
+| `submit_contribution_run` | `p_rows jsonb, p_period_label text, p_method text, p_nonce text` | The core write. Re-derives every amount server-side (client amounts are advisory), splits the gross by each employee's schedule, writes `contribution_run_lines`, bumps `employees` balances inline (UGX 1,000/unit), nonce-idempotent. The `co-contribution` branch uses the `0038` match model (employer matches `matchPct`% of the employee's `monthly_contribution`, capped). **Never writes `transactions`/`subscriber_balances`/`commissions`.** |
+| `update_employee_contribution_config` | `p_employee_id text, p_config jsonb` | Ownership-checked replace of one employee's `contribution_config`. |
+| `update_employee_insurance` | `p_employee_id text, p_cover numeric, p_premium numeric` | Ownership-checked per-employee insurance cover + premium. |
+| `update_employer_profile` | `p_patch jsonb` | Patches the caller's own `employers` row (profile/config keys only). |
+| `get_employer_metrics` | _(none)_ | STABLE hero/overview aggregates scoped to the caller's employer. |
+| `apply_group_insurance` *(0039)* | `p_cover numeric` | Roster-wide flat group life cover on every owned employee (premium zeroed, status derived from cover). Returns `{ updated, cover }`. |
 
 ---
 
@@ -194,10 +227,12 @@ Supabase realtime is **off for all `public.*` tables**. `0025_drop_realtime_publ
 | Surface | Count | Where defined |
 | --- | --- | --- |
 | API routes | 14 | `api/**/*.ts` (excl. `_lib/`, `*.test.ts`) |
-| Migrations | 0001–0031 | `supabase/migrations/*.sql` |
-| RPCs (read) | 7 | `0002_rpc_functions.sql`, `0020_entity_metrics_rollup_v3.sql`, slimmed commission reads in `0029_commission_simplify.sql` |
+| Migrations | 0001–0042 | `supabase/migrations/*.sql` (42 files incl. backfilled `0019`; all applied to the new Singapore DB, cutover 2026-06-05) |
+| RPCs (read) | 10 | `0002`, `0020_entity_metrics_rollup_v3.sql`, slimmed commission reads in `0029`, + 3 commission aggregates in `0041` |
 | RPCs (settlement / notification) | 2 | `0031_notifications.sql` (`apply_settlement`, `mark_notifications_read`) — replaced the 14 commission state-machine RPCs dropped in `0029` |
 | RPCs (other write) | 3 | `0002_rpc_functions.sql`, `0024_upsert_nominees.sql` |
+| RPCs (employer) | 6 | `0035_employer_rpcs.sql` (5) + `apply_group_insurance` (`0039`) |
+| Tables | 28 | core + settlement stack + 5 employer tables + idempotency ledgers (incl. `subscriber_signup_uploads`, `0042`) |
 | Tables with realtime | 0 | publication empty post-`0025`; `settlement_batches` / `notifications` not published |
 
 For runtime detail (env vars, auth flow, JWT shape, trigger logic, the `app_role` vs `role` trap), open `BACKEND.md`. For role × capability questions, open `docs/role-permissions.md`. For the legacy aspirational REST design, open `docs/archive/api-contracts-2024-original.md`.

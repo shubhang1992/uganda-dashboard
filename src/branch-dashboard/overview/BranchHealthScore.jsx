@@ -1,12 +1,15 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { formatUGX, formatNumber } from '../../utils/currency';
+import { formatDate, formatRelativeTime } from '../../utils/date';
 import { getChatResponse } from '../../services/chat';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
 import NotificationBell from '../../components/notifications/NotificationBell';
+import ScoreGauge from '../../components/ScoreGauge';
 import styles from './BranchHealthScore.module.css';
 
 /* ── Derived metrics ── */
@@ -80,40 +83,6 @@ function generateInsights(metrics, agents) {
   return insights.slice(0, 4);
 }
 
-/* ── Gauge ── */
-function ScoreGauge({ score }) {
-  const size = 160, cx = 80, cy = 80, r = 62, strokeW = 13;
-  const startAngle = 135, sweepAngle = 270;
-  const p2c = (a) => { const rad = (a * Math.PI) / 180; return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }; };
-  const s = p2c(startAngle), e = p2c(startAngle + sweepAngle);
-  const arcPath = `M ${s.x} ${s.y} A ${r} ${r} 0 1 1 ${e.x} ${e.y}`;
-  const totalArc = 2 * Math.PI * r * (sweepAngle / 360);
-  const gap = totalArc - (score / 100) * totalArc;
-  const ticks = [0, 25, 50, 75, 100].map((pct) => {
-    const angle = startAngle + (pct / 100) * sweepAngle;
-    const inner = p2c(angle);
-    const outerR = r + strokeW / 2 + 4;
-    const rad = (angle * Math.PI) / 180;
-    return { inner, outer: { x: cx + outerR * Math.cos(rad), y: cy + outerR * Math.sin(rad) }, pct };
-  });
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={styles.gauge}>
-      <defs>
-        <linearGradient id="scoreGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="var(--color-alert)" /><stop offset="35%" stopColor="var(--color-amber)" />
-          <stop offset="65%" stopColor="var(--color-accent-mint)" /><stop offset="100%" stopColor="var(--color-positive)" />
-        </linearGradient>
-        <filter id="glow"><feGaussianBlur stdDeviation="6" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-      </defs>
-      <path d={arcPath} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={strokeW + 6} strokeLinecap="round" />
-      <path d={arcPath} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={strokeW} strokeLinecap="round" />
-      {ticks.map((t) => <line key={t.pct} x1={t.inner.x} y1={t.inner.y} x2={t.outer.x} y2={t.outer.y} stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" strokeLinecap="round" />)}
-      <motion.path d={arcPath} fill="none" stroke="url(#scoreGrad)" strokeWidth={strokeW} strokeLinecap="round" filter="url(#glow)"
-        strokeDasharray={totalArc} initial={{ strokeDashoffset: totalArc }} animate={{ strokeDashoffset: gap }}
-        transition={{ duration: 1.4, delay: 0.3, ease: EASE_OUT_EXPO }} />
-    </svg>
-  );
-}
 
 function BreakdownBar({ label, value, color }) {
   return (
@@ -143,22 +112,6 @@ function generateActivity(agents) {
       events.push({ id: `contrib-${agent.id}`, type: 'contribution', text: `${agent.name.split(' ')[0]} collected ${formatUGX(m.dailyContributions)}`, time: now - Math.random() * 10 * 3600_000 });
   });
   return events.sort((a, b) => b.time - a.time).slice(0, 8);
-}
-
-function timeAgo(ts) {
-  const mins = Math.floor((Date.now() - ts) / 60_000);
-  if (mins < 1) return 'now'; if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60); if (hrs < 24) return `${hrs}h`;
-  return `${Math.floor(hrs / 24)}d`;
-}
-
-function formatBranchDate() {
-  return new Date().toLocaleDateString('en-UG', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
 }
 
 function computeAlerts(metrics, commissionSummary) {
@@ -276,7 +229,7 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
           <span className={styles.heroWelcome}>
             Welcome back, {user?.name || 'Branch Admin'}
             <span className={styles.heroDot} aria-hidden="true">·</span>
-            {formatBranchDate()}
+            {formatDate(new Date(), { variant: 'long' })}
           </span>
         </div>
         <div className={styles.heroActions}>
@@ -293,14 +246,20 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
         {/* Col 1: Score */}
         <div className={styles.scoreSection}>
           <div className={styles.gaugeWrap}>
-            <ScoreGauge score={branch?.score ?? score.total} />
+            {/* Single source of truth: the gauge, its centre number, and the
+                quality label all read the locally-derived `score.total` — the
+                same computation that feeds the breakdown bars + KPI cards below.
+                Previously the gauge preferred a server-supplied `branch.score`
+                while the breakdown stayed local, so the headline number could
+                visibly disagree with its own breakdown (audit §3a-5). */}
+            <ScoreGauge value={score.total} />
             <div className={styles.scoreCenter}>
               <motion.span className={styles.scoreNumber}
                 initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 0.8, ease: EASE_OUT_EXPO }}>
-                {branch?.score ?? score.total}
+                {score.total}
               </motion.span>
-              <span className={styles.scoreQuality}>{scoreLabel(branch?.score ?? score.total)}</span>
+              <span className={styles.scoreQuality}>{scoreLabel(score.total)}</span>
             </div>
           </div>
           <span className={styles.scoreLabel}>Branch Score</span>
@@ -411,7 +370,7 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
                   <span className={styles.activityDot} data-type={event.type} />
                   <div className={styles.activityContent}>
                     <span className={styles.activityText}>{event.text}</span>
-                    <span className={styles.activityTime}>{timeAgo(event.time)}</span>
+                    <span className={styles.activityTime}>{formatRelativeTime(event.time)}</span>
                   </div>
                 </motion.div>
               ))

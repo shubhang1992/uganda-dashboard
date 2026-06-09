@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGXExact } from '../../../utils/finance';
+import { EASE_OUT_EXPO } from '../../../utils/motion';
+import { formatUGX } from '../../../utils/currency';
+
 import styles from './TopUpWidget.module.css';
 
 export default function TopUpWidget({ subscriber }) {
@@ -35,7 +37,7 @@ export default function TopUpWidget({ subscriber }) {
             <rect x="2.5" y="5" width="15" height="10.5" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
             <path d="M2.5 8.5h15" stroke="currentColor" strokeWidth="1.6" />
           </svg>
-          Pay {formatUGXExact(schedule.amount)}
+          Pay {formatUGX(schedule.amount, { compact: false })}
         </motion.button>
       ) : (
         <motion.button

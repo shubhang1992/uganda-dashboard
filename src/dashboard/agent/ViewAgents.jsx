@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAllEntities, useAllEntitiesMetrics } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
@@ -18,7 +19,6 @@ import Demographics from '../shared/Demographics';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
 import styles from './ViewAgents.module.css';
-
 
 function branchName(agent, branchesMap) {
   return branchesMap[agent.parentId]?.name || '';
@@ -35,7 +35,6 @@ function regionOfAgent(agent, branchesMap, districtsMap, regionsMap) {
   const d = districtsMap[b.parentId];
   return d ? (regionsMap[d.parentId]?.name || '') : '';
 }
-
 
 const SORT_OPTIONS = [
   { key: 'subscribers', label: 'Subscribers', fn: (a, b) => b.metrics.totalSubscribers - a.metrics.totalSubscribers },

@@ -32,7 +32,9 @@ function sectionLabelFor(pathname) {
  *
  * Left:  a small uppercase section/route eyebrow (NOT an <h1> — each page body
  *        owns the single page <h1> per rule G4).
- * Right: an inert search-slot placeholder + the signed-in agent's identity.
+ * Right: the signed-in agent's identity. (A search affordance previously lived
+ *        here as an inert placeholder; it is not rendered until a real search is
+ *        wired so we never show a dead, non-functional control.)
  *
  * The NotificationBell + inbox entry point live in the desktop sidebar
  * (AgentSideNavDesktop / SideNav) — they are deliberately NOT duplicated here.
@@ -51,23 +53,9 @@ export default function AgentTopBar() {
       <p className={styles.eyebrow}>{section}</p>
 
       <div className={styles.right}>
-        {/* Inert search-slot placeholder. A real search lands in a later phase;
-            this reserves the affordance + footprint without a live handler. */}
-        <div className={styles.searchSlot}>
-          <button
-            type="button"
-            className={styles.searchTrigger}
-            aria-label="Search"
-            aria-disabled="true"
-          >
-            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" width="16" height="16">
-              <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M14 14l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-            <span className={styles.searchText}>Search</span>
-          </button>
-        </div>
-
+        {/* The inert search-slot placeholder was removed: it rendered a dead,
+            non-functional control. Re-add a real <Search> here when search is
+            wired (a later phase). The agent identity stays on the right. */}
         <div className={styles.identity}>
           <span className={styles.identityName}>{displayName}</span>
           {/* "Field agent" (not a bare "Agent") on purpose: the Settings page

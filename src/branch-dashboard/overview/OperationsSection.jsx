@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { getInitials } from '../../utils/dashboard';
 import { useDashboard } from '../../contexts/DashboardContext';

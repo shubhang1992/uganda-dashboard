@@ -1,6 +1,6 @@
 # CLAUDE.md — Universal Pensions Uganda
 
-Slim entry index for this repo. Two deep specialist docs sit alongside this file: **`FRONTEND.md`** (React/Vite/CSS Modules) and **`BACKEND.md`** (Express on Render + Supabase + RLS). Detail lives in those two files and in `docs/*`; this file is for orientation only.
+Slim entry index for this repo. Two deep specialist docs live under `docs/`: **`docs/FRONTEND.md`** (React/Vite/CSS Modules) and **`docs/BACKEND.md`** (Express on Render + Supabase + RLS). Detail lives in those two files and the rest of `docs/`; this file (at the repo root) is for orientation only.
 
 ---
 
@@ -9,8 +9,8 @@ Slim entry index for this repo. Two deep specialist docs sit alongside this file
 **Universal Pensions Uganda** is a digital long-term savings + pension platform aimed at everyday Ugandans (informal workers, gig workers, farmers, self-employed). The app in this repo is a **demo / sales-presentation tool** that sales reps walk prospects through — it is **NOT** a production fintech. Mocked OTP, mocked KYC, `demo_personas` fallback IDs, a hardcoded UGX 1,000 unit price, and a 24-hour fixed JWT are **intentional demo scope** and must not be treated as production-prep TODOs.
 
 - **Live URL:** `uganda-dashboard.vercel.app` (auto-deploy on push to `main` — do not push without explicit approval). **Applies to both:** Vercel (frontend, automatic via the GitHub App integration) and Render (backend at `uganda-dashboard-api.onrender.com`, **manual** deploys only — `autoDeployTrigger: off` in `render.yaml`).
-- **Stack:** React 19 · Vite 6 · CSS Modules (no Tailwind) · Framer Motion 12 · React Router 7 · TanStack Query 5 / Virtual 3 · Leaflet 1.9 · Recharts 3 · Express 5 on Render (Node 22, Singapore region) · Supabase Postgres · custom HS256 JWT via `jose`.
-- **Role build status (5 of 6 built):** subscriber, agent, branch, distributor, and employer are live. Admin is deferred (no shell, no RLS policies yet — see `BACKEND.md §8`). Employer shipped on `feat/employer-dashboard` (migrations `0034`/`0035`, desktop-first shell mirroring branch admin — see `FRONTEND.md` + `BACKEND.md §8`). Next when resumed: **Admin** (central admin with global rights).
+- **Stack:** React 19 · Vite 6 · CSS Modules (no Tailwind) · Framer Motion 12 · React Router 7 · TanStack Query 5 / Virtual 3 · Leaflet 1.9 · Recharts 3 · Express 5 on Render (Node 22, Singapore region) · Supabase Postgres (Singapore `ap-southeast-1` — **new project, cutover 2026-06-05**; replaced the old Tokyo `ap-northeast-1` project) · custom HS256 JWT via `jose`.
+- **Role build status (6 of 6 built):** subscriber, agent, branch, distributor, employer, and admin are live. **Admin** (central head-office role with global rights) ships a map-theme shell at `src/admin-dashboard/` that reuses the distributor map/overlay/view panels and adds platform-wide **Distributors** and **Employers** managers (list + metrics + create). Its backend is migration `0049_admin_role` (admin `*_select_admin` RLS clones of the distributor grants + employer-family SELECT; `create_distributor` / `create_employer` / `get_all_employers_metrics` SECURITY DEFINER RPCs) — applied to the Singapore DB 2026-06-08. Admin demo login: pick **Admin** → any phone → any 6-digit code (fallback persona `admin-001`). Employer **shipped to production 2026-06-03** (merged to `main` via PR #8; Vercel frontend + Render backend deployed; desktop-first shell mirroring branch admin — see `docs/FRONTEND.md` + `docs/BACKEND.md §8`); its DB stack (migrations `0032`–`0036`) is part of the full chain on the new Singapore DB.
 
 ---
 
@@ -18,14 +18,14 @@ Slim entry index for this repo. Two deep specialist docs sit alongside this file
 
 If you're working on… | Open this
 --- | ---
-A React component, hook, service, dashboard variant, signup step, commission UI, design token, accessibility rule | `FRONTEND.md`
-An API route, SQL schema, RLS policy, RPC, migration, trigger, seed script, JWT/auth flow, commission settlement flow | `BACKEND.md`
-System architecture, layered patterns, role boundaries, auth model, write/realtime patterns | `ARCHITECTURE.md`
+A React component, hook, service, dashboard variant, signup step, commission UI, design token, accessibility rule | `docs/FRONTEND.md`
+An API route, SQL schema, RLS policy, RPC, migration, trigger, seed script, JWT/auth flow, commission settlement flow | `docs/BACKEND.md`
+System architecture, layered patterns, role boundaries, auth model, write/realtime patterns | `docs/ARCHITECTURE.md`
 Role × capability matrix (who can see/do what) | `docs/role-permissions.md`
 Field-level entity model / aggregation rules / health-score formula | `docs/data-model.md`
 HTTP request/response shapes + cache keys / invalidation table | `docs/api-contracts.md`
 Product spec, personas, workflows, business rules | `docs/SPEC.md`
-QA audit findings & fix log | `docs/DASHBOARD_AUDIT.md`, `docs/DASHBOARD_AUDIT_FIXES.md`
+QA audit findings & fix log; prior full audits | `docs/audits/` (e.g. `dashboard/DASHBOARD_AUDIT.md` + `…_FIXES.md`, `2026-05-31/`, `2026-04-distributor/`)
 Browser-level E2E suite (`/qa`) + Playwright config | `.claude/skills/qa.md`
 Design artifacts (Figma exports etc.) | `docs/design/`
 
@@ -53,7 +53,8 @@ Script | Purpose
 `npm test` | Vitest one-shot
 `npm run test:watch` | Vitest watch
 `npm run test:e2e` | Playwright E2E suite (full). Subcommands: `:smoke`, `:flows`, `:headed`, `:ui`. See `.claude/skills/qa.md`.
-`npm run seed` | Seed Supabase via `scripts/seed-supabase.mjs` (see `BACKEND.md §12`)
+`npm run seed` | Seed Supabase via `scripts/seed-supabase.mjs` (see `docs/BACKEND.md §12`)
+`npm run deploy:api` | Trigger a manual Render backend deploy via the deploy hook (`scripts/render-deploy.mjs`; POSTs `RENDER_DEPLOY_HOOK` from `.env.local`). Render is `autoDeployTrigger: off` — see `docs/render-operational.md`
 
 **Env vars** (full table in `BACKEND.md §2`; template in `.env.local.example`):
 
@@ -134,12 +135,12 @@ The seeded demo data is generated via `npm run seed` (`scripts/seed-supabase.mjs
 
 Role | Quick login | Seeded count
 --- | --- | ---
-Subscriber | 5 seeded phones, e.g. `+25671 100 0001`, `…0002`, `…0003`, `…0004`, `…0005` | ~30,000
+Subscriber | 5 seeded phones, e.g. `+25671 100 0001`, `…0002`, `…0003`, `…0004`, `…0005` | ~5,000
 Agent | Any `agent` role login; `demo_personas` falls back to `a-001` if no phone match | ~2,049
-Branch | Any `branch` role login; fallback to `b-kam-015` (Kampala branch) | ~314
+Branch | Any `branch` role login; fallback to `b-kam-015` (Kampala branch) | ~316
 Distributor | Any `distributor` role login; fallback to `d-001` | 1 (singleton)
 Employer | `EMPLOYER_DEMO_PHONE` = `+25670 000 0031` (`src/data/employerSeed.js`); `demo_personas` falls back to `emp-001` if no phone match | 1 employer / 16 employees
-Admin | (deferred — no dashboard) | —
+Admin | Any `admin` role login; `demo_personas` falls back to `admin-001` | 1 (head-office, global)
 
 **Fallback rule.** `demo_personas` maps a phone → role-scoped ID. When no row matches, `verifyOtp` returns the hardcoded fallback IDs above so every demo login succeeds. Intentional. See `BACKEND.md §5` for the lookup chain and `BACKEND.md §12` for seed mechanics.
 
@@ -154,7 +155,7 @@ Agent | Field agent who onboards and supports subscribers (mobile-first, routed 
 Branch | Sub-distributor entity that supervises agents in a district.
 Distributor | Top-of-tree network operator (one in the demo seed: `d-001`).
 Employer | B2B account managing a **standalone** staff roster (`employees`, outside the agent→subscriber tree — no agent commissions). Funds staff pension via "contribution runs"; desktop-first dashboard mirroring branch admin. Scoped by the `employerId` JWT claim. See `BACKEND.md §8`/§12 + `docs/data-model.md`.
-Admin | (Deferred) Head-office platform admin with global rights — no dashboard built.
+Admin | Head-office platform admin with global rights. Map-theme dashboard (`src/admin-dashboard/`) reusing the distributor map/panels (platform-wide reads via `*_select_admin` RLS) plus Distributors & Employers managers (list/metrics/create via `0049` RPCs). No scope claim — sees everything.
 Commission settlement | Two-state flow `due → paid`. Commissions auto-generate as `due` at the configured flat rate-per-subscriber on a subscriber's first contribution. The distributor pays offline, then downloads a per-agent Excel template (prefilled with pending dues), fills Amount Paid + payment reference/date, and re-uploads; the matching agent's `due` lines flip to `paid` via the `apply_settlement` RPC, which also records a `settlement_batches` row and notifies the agent + branch. No maker-checker, runs, branch review, holds, disputes, or cadence. See `BACKEND.md §11`.
 RPC | Remote procedure call — a Postgres function (typically `SECURITY DEFINER`) invoked via `supabase.rpc('name', args)`. Atomic writes only.
 RLS | Row-Level Security — Postgres policies that scope SELECT/INSERT/UPDATE/DELETE per JWT claim.
@@ -188,9 +189,8 @@ See `FRONTEND.md §16a` and `BACKEND.md §14a` for the role-specific demo-scope 
 ### 10b. Awareness items (worth knowing, not urgent)
 
 - **`MOCK_NOW = new Date(2026, 4, 26)`** (2026-05-26) in `src/data/mockData.js` anchors "due in N days" demos. Slide it forward (or flip to `new Date()`) when the demo's relative dates start looking stale.
-- **README.md is stale** — currently 87 lines, only documents the landing page, claims "Vite 8" (actually Vite 6.3), no mention of dashboards or backend. Flagged here; a ~30-min refresh is a separate follow-up.
 - **NPM deps inventory (verified 2026-05-22 in audit Phase 6):** every direct dep in `package.json` is actually used. `dotenv` is used by `e2e/fixtures/db.ts:13` + `playwright.config.ts:16` (NOT unused). `react-is` is required transitively by `recharts` (build fails without it). `jose` is used in `api/_lib/jwt.ts`; `pg` is used in `scripts/seed-supabase.mjs`. None should be removed.
-- **Real bugs in the demo experience** (not demo-scope) are catalogued in `FRONTEND.md §16b` (subscriber Settings/notifications + Settings/security are `StubPage` placeholders) and `BACKEND.md §14b` (nominee shares can sum >100%, admin role unbuilt). The employer role is now built (migrations `0034`/`0035`); only employee **onboarding** remains a deferred placeholder (Phase 9). The commission dispute/maker-checker flow was removed in the 0029–0031 simplification, so the old `agent_dispute_line` / `disputeCommission` items no longer apply.
+- **Real bugs in the demo experience** (not demo-scope) are catalogued in `docs/FRONTEND.md §16b` (subscriber Settings/notifications + Settings/security now redirect to `/dashboard/settings` — the `StubPage` component was removed in the audit-remediation cleanup) and `docs/BACKEND.md §14b` (nominee shares can sum >100%). The employer role is **shipped to production** (migrations `0032`–`0036`, part of the full `0001`–`0042` chain now on the new Singapore DB); only employee **onboarding** remains a deferred placeholder (Phase 9). The commission dispute/maker-checker flow was removed in the 0029–0031 simplification, so the old `agent_dispute_line` / `disputeCommission` items no longer apply.
 
 ---
 
@@ -202,9 +202,9 @@ See `FRONTEND.md §16a` and `BACKEND.md §14a` for the role-specific demo-scope 
 
 ## See also
 
-- [`FRONTEND.md`](./FRONTEND.md) — services, hooks, contexts, dashboard variants, signup flow, design tokens, accessibility, frontend findings
-- [`BACKEND.md`](./BACKEND.md) — env vars, API routes, `_lib/` helpers, auth flow, schema, migrations, RLS, RPCs, commission settlement flow, triggers, seeding, runbook
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system architecture: layered patterns, role boundaries, auth model, write/realtime patterns
+- [`FRONTEND.md`](./docs/FRONTEND.md) — services, hooks, contexts, dashboard variants, signup flow, design tokens, accessibility, frontend findings
+- [`BACKEND.md`](./docs/BACKEND.md) — env vars, API routes, `_lib/` helpers, auth flow, schema, migrations, RLS, RPCs, commission settlement flow, triggers, seeding, runbook
+- [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — system architecture: layered patterns, role boundaries, auth model, write/realtime patterns
 - [`docs/role-permissions.md`](./docs/role-permissions.md) — role × capability matrix
 - [`docs/data-model.md`](./docs/data-model.md) — field-level entity model + aggregation rules
 - [`docs/api-contracts.md`](./docs/api-contracts.md) — HTTP shapes + cache keys + invalidation

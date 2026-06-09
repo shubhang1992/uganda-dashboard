@@ -1,12 +1,11 @@
 // React Query hooks for employer data — components import these, never
 // `employerSeed` directly. Mirrors `src/hooks/useEntity.js`.
 //
-// Reads carry queryKey/enabled/staleTime. The config + insurance mutations
-// follow the optimistic onMutate/onError/onSettled pattern (see
-// useUpdateEmployeeContributionConfig). The contribution-run mutation is
-// deliberately NON-optimistic — a run touches many rows and the server (RPC)
-// re-derives every figure, so we let the server be the truth and only
-// invalidate on success.
+// UNIFIED MODEL (0043–0045): the employer's "staff" are tagged subscribers. The
+// onboard + group-insurance + run mutations are NON-optimistic — the server
+// (SECURITY DEFINER RPC) is the source of truth (it re-derives every figure and
+// can touch many rows), so we let it win and only invalidate on success. The
+// funding model is company-wide (Issue 2) — there is no per-member config edit.
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as employer from '../services/employer';
@@ -116,9 +115,35 @@ export function useEmployerMetrics(employerId) {
 }
 
 /**
+ * Monthly-contributions leaderboard for the Overview hero — the employer's own
+ * "this month" total ranked against a field of seeded peers (newest run's
+ * grandTotal vs `LEADERBOARD_COMPETITORS`). Returns `[{ rank, name,
+ * monthlyTotal, isYou, deltaRanks }]`, best-first.
+ * @param {string} employerId
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object[]>}
+ */
+export function useEmployerLeaderboard(employerId) {
+  return useQuery({
+    queryKey: ['employerLeaderboard', employerId],
+    queryFn: () => employer.getEmployerLeaderboard(employerId),
+    enabled: !!employerId,
+    staleTime: READ_STALE_TIME,
+  });
+}
+
+/**
  * Mutation: patch the employer profile. Optimistically patches the cached
  * employer so settings/header chips reflect the change immediately; rolls back
  * on error.
+ *
+ * ATOMIC config save (audit §7d-3, migration 0056): the patch may ALSO carry the
+ * company-wide insurance toggle (`insuranceEnabled` + `groupCover`), which the
+ * service folds into the same `update_employer_profile` transaction (UPSERT/clear
+ * `insurance_policies`). Those two control keys are stripped from the optimistic
+ * cache patch (they aren't `employer` columns), and on settle this also
+ * invalidates the roster (`['employees']`) + every cached single employee
+ * (`['employee']`) — the surfaces the policy write moves — so the save needs no
+ * separate `applyGroupInsurance` call.
  * @param {string} employerId
  * @returns {import('@tanstack/react-query').UseMutationResult}
  */
@@ -129,8 +154,12 @@ export function useUpdateEmployerProfile(employerId) {
     onMutate: async (patch) => {
       await queryClient.cancelQueries({ queryKey: ['employer', employerId] });
       const previous = queryClient.getQueryData(['employer', employerId]);
+      // Strip the insurance-control keys — they drive the policy write, they are
+      // not columns on the `employer` record, so they must not leak into cache.
+      const { insuranceEnabled, groupCover, ...cachePatch } = patch ?? {};
+      void insuranceEnabled; void groupCover;
       queryClient.setQueryData(['employer', employerId], (old) =>
-        old ? { ...old, ...patch } : old,
+        old ? { ...old, ...cachePatch } : old,
       );
       return { previous };
     },
@@ -142,77 +171,108 @@ export function useUpdateEmployerProfile(employerId) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['employer', employerId] });
       queryClient.invalidateQueries({ queryKey: ['employerMetrics', employerId] });
+      // The atomic insurance leg can touch the whole roster + any open detail.
+      queryClient.invalidateQueries({ queryKey: ['employees', employerId] });
+      queryClient.invalidateQueries({ queryKey: ['employee'] });
     },
   });
 }
 
 /**
- * Mutation: replace an employee's contribution config. Optimistically patches
- * the cached employee so the detail panel reflects the change immediately;
- * rolls back on error.
- * @returns {import('@tanstack/react-query').UseMutationResult}
+ * Pending employer invites (members who've been invited but not yet completed
+ * KYC) — shown in the roster as "Pending KYC".
+ * @param {string} employerId
  */
-export function useUpdateEmployeeContributionConfig() {
+export function usePendingInvites(employerId) {
+  return useQuery({
+    queryKey: ['pendingInvites', employerId],
+    queryFn: () => employer.listPendingInvites(employerId),
+    enabled: !!employerId,
+    staleTime: READ_STALE_TIME,
+  });
+}
+
+/**
+ * Mutation: create an employer invite (identity-only). Returns
+ * { token, collectSchedule }; the UI surfaces the copy-able link. On success
+ * refreshes the pending-invites list.
+ * @param {string} employerId
+ */
+export function useCreateInvite(employerId) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ employeeId, config }) =>
-      employer.updateEmployeeContributionConfig(employeeId, config),
-    onMutate: async ({ employeeId, config }) => {
-      await queryClient.cancelQueries({ queryKey: ['employee', employeeId] });
-      const previous = queryClient.getQueryData(['employee', employeeId]);
-      queryClient.setQueryData(['employee', employeeId], (old) =>
-        old ? { ...old, contributionConfig: config } : old,
-      );
-      return { previous };
-    },
-    onError: (_err, { employeeId }, ctx) => {
-      if (ctx?.previous !== undefined) {
-        queryClient.setQueryData(['employee', employeeId], ctx.previous);
-      }
-    },
-    onSettled: (_data, _err, { employeeId }) => {
-      queryClient.invalidateQueries({ queryKey: ['employee', employeeId] });
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      queryClient.invalidateQueries({ queryKey: ['employerMetrics'] });
+    mutationFn: (prefill) => employer.createEmployerInvite(prefill),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pendingInvites', employerId] });
     },
   });
 }
 
 /**
- * Mutation: set an employee's insurance cover + premium. Optimistically patches
- * the cached employee; rolls back on error.
- * @returns {import('@tanstack/react-query').UseMutationResult}
+ * Mutation: bulk-create invites from an uploaded Excel (mass onboarding).
+ * Returns { created, failed, total }; refreshes the pending-invites list once.
+ * @param {string} employerId
  */
-export function useUpdateEmployeeInsurance() {
+export function useBulkCreateInvites(employerId) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ employeeId, cover, premium }) =>
-      employer.updateEmployeeInsurance(employeeId, { cover, premium }),
-    onMutate: async ({ employeeId, cover, premium }) => {
-      await queryClient.cancelQueries({ queryKey: ['employee', employeeId] });
-      const previous = queryClient.getQueryData(['employee', employeeId]);
-      const status = Number(cover ?? 0) > 0 ? 'active' : 'inactive';
-      queryClient.setQueryData(['employee', employeeId], (old) =>
-        old
-          ? {
-              ...old,
-              insuranceCover: Number(cover ?? 0),
-              insurancePremiumMonthly: Number(premium ?? 0),
-              insuranceStatus: status,
-            }
-          : old,
-      );
-      return { previous };
+    mutationFn: (prefills) => employer.bulkCreateEmployerInvites(prefills),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pendingInvites', employerId] });
     },
-    onError: (_err, { employeeId }, ctx) => {
-      if (ctx?.previous !== undefined) {
-        queryClient.setQueryData(['employee', employeeId], ctx.previous);
-      }
+  });
+}
+
+/** Mutation: cancel (expire) a pending invite. */
+export function useCancelInvite(employerId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (token) => employer.cancelEmployerInvite(token),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pendingInvites', employerId] });
     },
-    onSettled: (_data, _err, { employeeId }) => {
-      queryClient.invalidateQueries({ queryKey: ['employee', employeeId] });
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      queryClient.invalidateQueries({ queryKey: ['employerMetrics'] });
+  });
+}
+
+/**
+ * Mutation: activate a FLAT group life cover across the entire roster. Roster-
+ * wide, so it's a plain invalidate-on-success (no optimistic patch — a single
+ * employee key can't represent the whole roster). On success it invalidates the
+ * roster (`['employees', employerId]` — the InsuranceBenefits page), the hero
+ * "insured" figure (`['employerMetrics', employerId]`), and every cached single
+ * employee (`['employee']` — so any open employee detail refreshes too).
+ * @param {string} employerId
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useApplyGroupInsurance(employerId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ cover }) => employer.applyGroupInsurance(employerId, { cover }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees', employerId] });
+      queryClient.invalidateQueries({ queryKey: ['employerMetrics', employerId] });
+      queryClient.invalidateQueries({ queryKey: ['employee'] });
+    },
+  });
+}
+
+/**
+ * Mutation: remove a member from the company (un-link `employer_id`). The
+ * subscriber's account stays active — they just leave the roster. On success it
+ * invalidates the roster (`['employees', employerId]`), the hero's headcount /
+ * active / suspended counts (`['employerMetrics', employerId]`), and every cached
+ * single employee (`['employee']`) so an open detail panel refreshes too.
+ * @param {string} employerId
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useRemoveEmployee(employerId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ employeeId }) => employer.removeEmployee(employerId, employeeId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees', employerId] });
+      queryClient.invalidateQueries({ queryKey: ['employerMetrics', employerId] });
+      queryClient.invalidateQueries({ queryKey: ['employee'] });
     },
   });
 }
@@ -228,8 +288,8 @@ export function useUpdateEmployeeInsurance() {
 export function useRunContribution(employerId) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ rows, periodLabel, method, nonce }) =>
-      employer.submitContributionRun(employerId, { rows, periodLabel, method, nonce }),
+    mutationFn: ({ periodLabel, method, nonce } = {}) =>
+      employer.submitContributionRun(employerId, { periodLabel, method, nonce }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees', employerId] });
       queryClient.invalidateQueries({ queryKey: ['employee'] });
@@ -248,4 +308,34 @@ export function useRunContribution(employerId) {
 export function invalidateAllEmployer(queryClient) {
   ['employer', 'employees', 'employee', 'employeeContributions', 'contributionRuns', 'contributionRun', 'employerMetrics']
     .forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
+}
+
+// ─── Admin-scoped employer hooks (platform-wide, used by the Admin dashboard) ──
+
+/**
+ * Admin: per-employer roster rollup across EVERY employer (member counts +
+ * balances + contributions). Wraps get_all_employers_metrics (0049, admin-gated).
+ * @returns {import('@tanstack/react-query').UseQueryResult<Array<Object>>}
+ */
+export function useAllEmployersMetrics() {
+  return useQuery({
+    queryKey: ['allEmployersMetrics'],
+    queryFn: employer.getAllEmployersMetrics,
+    staleTime: READ_STALE_TIME,
+  });
+}
+
+/**
+ * Admin: create a new employer. Invalidates the admin roster rollup so the
+ * ViewEmployers list refreshes on success.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useCreateEmployer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: employer.createEmployer,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allEmployersMetrics'] });
+    },
+  });
 }

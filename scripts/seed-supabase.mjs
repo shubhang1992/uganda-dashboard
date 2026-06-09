@@ -49,13 +49,24 @@ const {
 const employerSeed = await import('../src/data/employerSeed.js');
 const {
   EMPLOYER,
-  EMPLOYEES,
+  MEMBERS,
   CONTRIBUTION_RUNS,
-  CONTRIBUTION_RUN_LINES,
+  MEMBER_TRANSACTIONS,
   EMPLOYER_DEMO_PHONE,
 } = employerSeed;
 
 const { Client } = pg;
+
+// Hardcoded demo unit price — UGX 1,000/unit, matching the live
+// `trg_transactions_contribution` constant (CLAUDE.md §10a). Units held are
+// derived from the net balance at this price so `units == total_balance / 1000`
+// holds for every seeded row (audit §1b.9 / §4b.5).
+const UNIT_PRICE = 1000;
+
+/** Derive units from a net balance at the fixed demo unit price (2dp). */
+function unitsFromBalance(netBalance) {
+  return Math.round(((netBalance ?? 0) / UNIT_PRICE) * 100) / 100;
+}
 
 // ─── Connection ─────────────────────────────────────────────────────────────
 const DB_URL = process.env.SUPABASE_DB_URL;
@@ -129,6 +140,43 @@ function toDateStr(v) {
   return null;
 }
 
+// ─── Date re-anchoring (audit §4b.2) ─────────────────────────────────────────
+// mockData.js anchors every relative date to a frozen `MOCK_NOW`. As real time
+// elapses past a seed run, forward-looking dates (notably `next_due_date`) drift
+// into the past relative to wall-clock now → ~40% of schedules render "overdue"
+// and the invariants #5 assertion fails on live. Rather than freezing a new
+// MOCK_NOW in mockData.js, the seed re-anchors the *forward-looking* dates it
+// emits onto today's date while preserving their MOCK_NOW-relative offset, so
+// "due in N days" math stays intact and no schedule is born stale.
+//
+// MOCK_NOW MUST mirror src/data/mockData.js (`new Date(2026, 4, 26)` = 2026-05-26).
+// If that constant moves, update this to match (kept in sync deliberately — the
+// seed can't import a live binding without re-evaluating the whole mock module).
+const MOCK_NOW = new Date(2026, 4, 26); // 2026-05-26 — mirror of mockData.MOCK_NOW
+const SEED_TODAY = new Date();
+SEED_TODAY.setHours(0, 0, 0, 0);
+// Whole-day delta from the frozen anchor to today (≥ 0 once wall-clock passes
+// MOCK_NOW; clamped at 0 so seeding *before* the anchor never shifts backwards).
+const DATE_SHIFT_DAYS = Math.max(
+  0,
+  Math.round((SEED_TODAY.getTime() - MOCK_NOW.getTime()) / 86400000)
+);
+
+/**
+ * Re-anchor a MOCK_NOW-relative YYYY-MM-DD date forward to wall-clock today by
+ * DATE_SHIFT_DAYS, preserving its offset from MOCK_NOW. Used for forward-looking
+ * dates (schedule `next_due_date`) so they are never born in the past. No-op when
+ * DATE_SHIFT_DAYS === 0 or the input is null.
+ */
+function reanchorDateStr(v) {
+  const s = toDateStr(v);
+  if (!s || DATE_SHIFT_DAYS === 0) return s;
+  const [y, m, d] = s.split('-').map(Number);
+  if (!y || !m || !d) return s;
+  const shifted = new Date(y, m - 1, d + DATE_SHIFT_DAYS);
+  return toDateStr(shifted);
+}
+
 /** Coerce a JS Date / string to a TIMESTAMPTZ-compatible ISO string. */
 function toTimestamptz(v) {
   if (!v) return null;
@@ -138,17 +186,17 @@ function toTimestamptz(v) {
 
 /** Approximate a DOB from age — mid-year on the birth-year boundary. */
 function dobFromAge(age) {
-  // MOCK_NOW reference is 2026-05-01 in mockData.
-  const birthYear = 2026 - age;
+  // MOCK_NOW reference is 2026-05-26 in mockData (see MOCK_NOW above).
+  const birthYear = MOCK_NOW.getFullYear() - age;
   return `${birthYear}-06-15`;
 }
 
-/** Compute tenure months from joinedDate (YYYY-MM-DD) at MOCK_NOW = 2026-05-01. */
+/** Compute tenure months from joinedDate (YYYY-MM-DD) at the MOCK_NOW anchor. */
 function tenureMonthsFromJoined(joinedDate, fallback) {
   if (typeof fallback === 'number') return fallback;
   if (!joinedDate) return null;
   const [y, m] = joinedDate.split('-').map(Number);
-  return (2026 - y) * 12 + (5 - m);
+  return (MOCK_NOW.getFullYear() - y) * 12 + (MOCK_NOW.getMonth() + 1 - m);
 }
 
 // ─── Seed ───────────────────────────────────────────────────────────────────
@@ -248,6 +296,59 @@ async function main() {
     //    seed can insert raw rows without double-firing them. CRITICAL.
     await client.query("SET session_replication_role = 'replica'");
 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  ⚠️  DESTRUCTIVE RESET — TRUNCATE … RESTART IDENTITY CASCADE  ⚠️
+    // ───────────────────────────────────────────────────────────────────────
+    //  This wipes EVERY seeded table (and the two upload audit tables) to
+    //  empty, resets their identity sequences, and CASCADEs to any dependent
+    //  rows. It exists so repeated reseeds do NOT accumulate dead tuples /
+    //  disk — the upserts below then repopulate from scratch.
+    //
+    //  ‼️  ONLY SAFE against the fresh, empty demo project this script is run
+    //      against. It is HUMAN-RUN ONLY and will irrecoverably destroy ALL
+    //      data in these tables — NEVER point this at a project with data you
+    //      care about. There is no undo.
+    //
+    //  Table list is exhaustive: every table this script INSERTs/upserts into,
+    //  PLUS the app-written-only audit/idempotency tables (settlement_uploads,
+    //  contribution_run_uploads, subscriber_signup_uploads, and employer_invites)
+    //  — none are seeded here, but a demo populates them, so they'd otherwise
+    //  grow unbounded across reseeds. (We deliberately do NOT touch the legacy
+    //  `employees`/`contribution_run_lines` tables: they are retired by 0045 in
+    //  the unified tagged-subscriber model — this seed never writes them, and
+    //  once 0045 is applied they no longer exist.)
+    // ═══════════════════════════════════════════════════════════════════════
+    console.log('• TRUNCATE (destructive reset)…');
+    await client.query(`
+      TRUNCATE TABLE
+        regions,
+        districts,
+        branches,
+        agents,
+        subscribers,
+        subscriber_balances,
+        contribution_schedules,
+        insurance_policies,
+        nominees,
+        transactions,
+        claims,
+        withdrawals,
+        commission_config,
+        commissions,
+        settlement_batches,
+        notifications,
+        distributors,
+        employers,
+        contribution_runs,
+        employer_invites,
+        demo_personas,
+        users,
+        settlement_uploads,
+        contribution_run_uploads,
+        subscriber_signup_uploads
+      RESTART IDENTITY CASCADE
+    `);
+
     // ── regions ────────────────────────────────────────────────────────────
     console.log('• regions…');
     await bulkInsert(
@@ -333,7 +434,26 @@ async function main() {
     );
 
     // ── agents ─────────────────────────────────────────────────────────────
+    // ux_agents_email forbids duplicate non-null emails, but the small name
+    // pool makes the generated 2049-agent emails collide (~1k dupes). The email
+    // is display-only (agents authenticate by phone/OTP via demo_personas), so:
+    //   (a) suffix any repeated email with the agent's unique id → globally
+    //       unique; (b) NULL existing agent emails first so re-setting them to
+    //       the new unique values can't transiently collide with an as-yet-
+    //       unupdated row's old email mid-statement.
     console.log('• agents…');
+    await client.query('UPDATE agents SET email = NULL');
+    const _seenAgentEmails = new Set();
+    const agentEmails = agents.map((a) => {
+      let email = a.email ?? null;
+      if (!email) return null;
+      if (_seenAgentEmails.has(email)) {
+        const [local, domain] = email.split('@');
+        email = `${local}.${a.id}@${domain}`;
+      }
+      _seenAgentEmails.add(email);
+      return email;
+    });
     await bulkInsert(
       client,
       'agents',
@@ -364,7 +484,7 @@ async function main() {
         agents.map((a) => a.center?.[0] ?? null),
         agents.map((a) => a.center?.[1] ?? null),
         agents.map((a) => a.phone ?? null),
-        agents.map((a) => a.email ?? null),
+        agentEmails,
         agents.map((a) => a.rating ?? null),
         agents.map((a) => a.performance ?? null),
         agents.map((a) => a.status ?? 'active'),
@@ -471,7 +591,10 @@ async function main() {
         subscribers.map((s) => s.retirementBalance ?? 0),
         subscribers.map((s) => s.emergencyBalance ?? 0),
         subscribers.map((s) => s.netBalance ?? 0),
-        subscribers.map((s) => s.unitsHeld ?? 0),
+        // Derive units from the net balance at the fixed unit price so
+        // `units == total_balance / 1000` holds (§1b.9) — mockData's
+        // independently-generated `unitsHeld` drifts off this identity.
+        subscribers.map((s) => unitsFromBalance(s.netBalance ?? 0)),
       ],
       'subscriber_id'
     );
@@ -502,7 +625,11 @@ async function main() {
         // (true) so the dashboard doesn't badge every seeded subscriber as
         // "decision pending".
         subscribers.map(() => true),
-        subscribers.map((s) => s.contributionSchedule?.nextDueDate ?? null),
+        // Re-anchor the forward-looking due date onto wall-clock today (§4b.2)
+        // so no schedule is seeded already-overdue when real time has elapsed
+        // past MOCK_NOW. Offset from MOCK_NOW is preserved (no-op at run-time
+        // == MOCK_NOW).
+        subscribers.map((s) => reanchorDateStr(s.contributionSchedule?.nextDueDate ?? null)),
       ],
       'subscriber_id'
     );
@@ -763,7 +890,10 @@ async function main() {
              updated_at = now()`,
       [
         COMMISSION_CONFIG.ratePerSubscriber,
-        COMMISSION_CONFIG.cadence,
+        // cadence/nextRunDate are vestigial post commission-simplify (the mock
+        // dropped them) but the live column is still NOT NULL — keep a sane
+        // placeholder so re-seeds satisfy the constraint.
+        COMMISSION_CONFIG.cadence ?? 'monthly-first',
         COMMISSION_CONFIG.nextRunDate ?? null,
         'seed',
       ]
@@ -778,8 +908,80 @@ async function main() {
     // and all dispute/hold/confirm columns no longer exist on the table.
     console.log('• commissions…');
     const COMMISSION_PAID_STATUSES = new Set(['released', 'confirmed']);
-    const commissionStatus = (c) =>
+    const baseCommissionStatus = (c) =>
       COMMISSION_PAID_STATUSES.has(c.status) ? 'paid' : 'due';
+
+    // ── Settlement-batch reconciliation (audit §4b.4) ──────────────────────
+    // We seed a couple of historical settlement batches so Supabase-mode demos
+    // show a non-empty settlement feed without anyone running apply_settlement
+    // first. The PREVIOUS seed hardcoded each batch's paid_amount/line_count but
+    // never flipped any commissions to `paid`, so the ledger contradicted itself
+    // (140k "settled" across 14 lines vs 0 paid commissions). Here we instead
+    // FLIP the matching agent's oldest still-`due` commissions to `paid` (up to
+    // a target count), then DERIVE the batch's paid_amount / pending_total /
+    // line_count from the lines we actually flipped — so the batch and the paid
+    // commissions reconcile exactly by construction, whatever the random seed's
+    // per-agent commission distribution turns out to be.
+    const settlementSeeds = [
+      { id: 'sb-seed-0001', agentId: 'a-001', branchId: 'b-kam-015', txnRef: 'MM-SEED-0001', paidDate: '2026-05-15', targetLines: 9 },
+      { id: 'sb-seed-0002', agentId: 'a-042', branchId: 'b-mba-290', txnRef: 'MM-SEED-0002', paidDate: '2026-05-22', targetLines: 5 },
+    ];
+    // Per-commission paid override, keyed by commission id → { paidDate, txnRef }.
+    const settlementFlips = new Map();
+    const seedBatches = [];
+    for (const seed of settlementSeeds) {
+      // Candidate lines: this agent's commissions that map to `due` and aren't
+      // already claimed by another batch. Oldest-first (by due_date) mirrors the
+      // real apply_settlement, which settles the oldest outstanding dues first.
+      const candidates = commissions
+        .filter(
+          (c) =>
+            c.agentId === seed.agentId &&
+            baseCommissionStatus(c) === 'due' &&
+            !settlementFlips.has(c.id)
+        )
+        .sort((a, b) => String(a.dueDate ?? '').localeCompare(String(b.dueDate ?? '')));
+      const chosen = candidates.slice(0, seed.targetLines);
+      // Guard: if this agent has no outstanding `due` lines to settle, skip the
+      // batch entirely rather than seed a self-consistent-but-empty "0 paid for
+      // 0 lines" record. Keeps the ledger non-trivial and the notification sane.
+      if (chosen.length === 0) {
+        console.warn(`  ⚠ ${seed.id}: agent ${seed.agentId} had no due commissions to settle — batch skipped.`);
+        continue;
+      }
+      // Re-anchor the batch paid_date forward like every other demo date so the
+      // settlement history doesn't read as months stale (§4b.2).
+      const paidDate = reanchorDateStr(seed.paidDate);
+      let paidAmount = 0;
+      for (const c of chosen) {
+        settlementFlips.set(c.id, { paidDate, txnRef: seed.txnRef });
+        paidAmount += c.amount ?? 0;
+      }
+      seedBatches.push({
+        id: seed.id,
+        agentId: seed.agentId,
+        branchId: seed.branchId,
+        // pending_total == paid_amount: the batch settles exactly the lines it
+        // flipped (no partial-pay / overpay in the seed).
+        pendingTotal: paidAmount,
+        paidAmount,
+        txnRef: seed.txnRef,
+        paidDate,
+        lineCount: chosen.length,
+      });
+    }
+
+    // Final per-commission status now accounts for the settlement flips.
+    const commissionStatus = (c) =>
+      settlementFlips.has(c.id) ? 'paid' : baseCommissionStatus(c);
+    const commissionPaidDate = (c) => {
+      if (settlementFlips.has(c.id)) return settlementFlips.get(c.id).paidDate;
+      return baseCommissionStatus(c) === 'paid' ? c.paidDate ?? null : null;
+    };
+    const commissionTxnRef = (c) => {
+      if (settlementFlips.has(c.id)) return settlementFlips.get(c.id).txnRef;
+      return baseCommissionStatus(c) === 'paid' ? c.txnRef ?? null : null;
+    };
     await bulkInsert(
       client,
       'commissions',
@@ -808,42 +1010,19 @@ async function main() {
         commissions.map((c) => c.firstContributionDate ?? null),
         commissions.map((c) => c.dueDate ?? null),
         // Paid lines keep their paid_date; due lines have none.
-        commissions.map((c) => (commissionStatus(c) === 'paid' ? c.paidDate ?? null : null)),
-        commissions.map((c) => (commissionStatus(c) === 'paid' ? c.txnRef ?? null : null)),
+        commissions.map(commissionPaidDate),
+        commissions.map(commissionTxnRef),
         commissions.map((c) => (commissionStatus(c) === 'paid' ? c.amount : null)),
       ],
       'id'
     );
 
     // ── settlement_batches + notifications (demo feed) ─────────────────────
-    // Seed a couple of historical settlement batches (and matching
-    // `commission_settled` notifications) so Supabase-mode demos show a
-    // non-empty feed without anyone having to run apply_settlement first. We
-    // target the default agent persona (a-001) and its branch, plus the
-    // northern-region agent (a-042), using a recent paid_date.
+    // The batch rows (totals derived above from the flipped commissions) plus
+    // matching `commission_settled` notifications. Each batch now reconciles
+    // with the agent's paid commissions: paid_amount == Σ(flipped line amounts)
+    // and line_count == COUNT(flipped lines).
     console.log('• settlement_batches + notifications…');
-    const seedBatches = [
-      {
-        id: 'sb-seed-0001',
-        agentId: 'a-001',
-        branchId: 'b-kam-015',
-        pendingTotal: 90000,
-        paidAmount: 90000,
-        txnRef: 'MM-SEED-0001',
-        paidDate: '2026-05-15',
-        lineCount: 9,
-      },
-      {
-        id: 'sb-seed-0002',
-        agentId: 'a-042',
-        branchId: 'b-mba-290',
-        pendingTotal: 50000,
-        paidAmount: 50000,
-        txnRef: 'MM-SEED-0002',
-        paidDate: '2026-05-22',
-        lineCount: 5,
-      },
-    ];
     await bulkInsert(
       client,
       'settlement_batches',
@@ -1002,65 +1181,115 @@ async function main() {
       ]
     );
 
-    // ── employees (standalone roster) ────────────────────────────────────────
-    console.log('• employees…');
+    // ── employer members (tagged subscribers) ────────────────────────────────
+    // Unified model (0043): the employer's staff are REAL subscribers tagged with
+    // employer_id, agent_id NULL (no agent commission). Triggers are off during
+    // this seed (session_replication_role='replica'), so we seed balances AND the
+    // own/employer transaction history directly without double-counting.
+    console.log('• employer members (tagged subscribers)…');
     await bulkInsert(
       client,
-      'employees',
+      'subscribers',
       [
         { name: 'id', type: 'text' },
-        { name: 'employer_id', type: 'text' },
         { name: 'name', type: 'text' },
-        { name: 'phone', type: 'text' },
         { name: 'email', type: 'text' },
+        { name: 'phone', type: 'text' },
         { name: 'gender', type: 'text' },
         { name: 'age', type: 'int' },
+        { name: 'dob', type: 'date' },
         { name: 'nin', type: 'text' },
-        { name: 'job_title', type: 'text' },
-        { name: 'salary', type: 'numeric' },
-        { name: 'status', type: 'text' },
-        { name: 'joined_date', type: 'date' },
-        { name: 'contribution_config', type: 'jsonb' },
-        { name: 'retirement_balance', type: 'numeric' },
-        { name: 'emergency_balance', type: 'numeric' },
-        { name: 'net_balance', type: 'numeric' },
-        { name: 'units_held', type: 'numeric' },
-        { name: 'total_contributions', type: 'numeric' },
-        { name: 'contribution_schedule', type: 'jsonb' },
-        { name: 'insurance_cover', type: 'numeric' },
-        { name: 'insurance_premium_monthly', type: 'numeric' },
-        { name: 'insurance_status', type: 'text' },
-        { name: 'insurance_renewal_date', type: 'date' },
-        { name: 'nominees', type: 'jsonb' },
+        { name: 'kyc_status', type: 'text' },
+        { name: 'occupation', type: 'text' },
+        { name: 'agent_id', type: 'text' },
+        { name: 'employer_id', type: 'text' },
+        { name: 'district_id', type: 'text' },
+        { name: 'is_active', type: 'boolean' },
+        { name: 'registered_date', type: 'date' },
       ],
       [
-        EMPLOYEES.map((e) => e.id),
-        EMPLOYEES.map((e) => e.employerId),
-        EMPLOYEES.map((e) => e.name),
-        EMPLOYEES.map((e) => e.phone ?? null),
-        EMPLOYEES.map((e) => e.email ?? null),
-        EMPLOYEES.map((e) => e.gender ?? null),
-        EMPLOYEES.map((e) => e.age ?? null),
-        EMPLOYEES.map((e) => e.nin ?? null),
-        EMPLOYEES.map((e) => e.jobTitle ?? null),
-        EMPLOYEES.map((e) => e.salary ?? 0),
-        EMPLOYEES.map((e) => e.status ?? 'active'),
-        EMPLOYEES.map((e) => toDateStr(e.joinedDate)),
-        EMPLOYEES.map((e) => JSON.stringify(e.contributionConfig ?? {})),
-        EMPLOYEES.map((e) => e.retirementBalance ?? 0),
-        EMPLOYEES.map((e) => e.emergencyBalance ?? 0),
-        EMPLOYEES.map((e) => e.netBalance ?? 0),
-        EMPLOYEES.map((e) => e.unitsHeld ?? 0),
-        EMPLOYEES.map((e) => e.totalContributions ?? 0),
-        EMPLOYEES.map((e) => JSON.stringify(e.contributionSchedule ?? {})),
-        EMPLOYEES.map((e) => e.insuranceCover ?? 0),
-        EMPLOYEES.map((e) => e.insurancePremiumMonthly ?? 0),
-        EMPLOYEES.map((e) => e.insuranceStatus ?? 'inactive'),
-        EMPLOYEES.map((e) => toDateStr(e.insuranceRenewalDate)),
-        EMPLOYEES.map((e) => JSON.stringify(e.nominees ?? [])),
+        MEMBERS.map((m) => m.id),
+        MEMBERS.map((m) => m.name),
+        MEMBERS.map((m) => m.email ?? null),
+        MEMBERS.map((m) => m.phone ?? null),
+        MEMBERS.map((m) => m.gender ?? null),
+        MEMBERS.map((m) => m.age ?? null),
+        MEMBERS.map((m) => toDateStr(m.dob)),
+        MEMBERS.map((m) => m.nin ?? null),
+        MEMBERS.map((m) => m.kycStatus ?? 'complete'), // all complete — real "pending KYC" = pending invites, not members
+        MEMBERS.map((m) => m.occupation ?? null),
+        MEMBERS.map(() => null),                       // agent_id NULL → no commission
+        MEMBERS.map((m) => m.employerId),
+        MEMBERS.map((m) => m.districtId ?? 'd-kampala'),
+        MEMBERS.map((m) => m.status !== 'suspended'),
+        MEMBERS.map((m) => toDateStr(m.joinedDate)),
       ],
       'id'
     );
+
+    await bulkInsert(
+      client,
+      'subscriber_balances',
+      [
+        { name: 'subscriber_id', type: 'text' },
+        { name: 'retirement_balance', type: 'numeric' },
+        { name: 'emergency_balance', type: 'numeric' },
+        { name: 'total_balance', type: 'numeric' },
+        { name: 'units', type: 'numeric' },
+      ],
+      [
+        MEMBERS.map((m) => m.id),
+        MEMBERS.map((m) => m.retirementBalance ?? 0),
+        MEMBERS.map((m) => m.emergencyBalance ?? 0),
+        MEMBERS.map((m) => m.netBalance ?? 0),
+        // Same units==balance/1000 identity as the subscriber balances (§1b.9).
+        MEMBERS.map((m) => unitsFromBalance(m.netBalance ?? 0)),
+      ],
+      'subscriber_id'
+    );
+
+    await bulkInsert(
+      client,
+      'contribution_schedules',
+      [
+        { name: 'subscriber_id', type: 'text' },
+        { name: 'frequency', type: 'text' },
+        { name: 'amount', type: 'numeric' },
+        { name: 'retirement_pct', type: 'int' },
+        { name: 'emergency_pct', type: 'int' },
+      ],
+      [
+        MEMBERS.map((m) => m.id),
+        MEMBERS.map((m) => m.contributionSchedule?.frequency ?? 'monthly'),
+        MEMBERS.map((m) => m.contributionSchedule?.amount ?? m.monthlyContribution ?? 0),
+        MEMBERS.map((m) => m.contributionSchedule?.retirementPct ?? 80),
+        MEMBERS.map((m) => m.contributionSchedule?.emergencyPct ?? 20),
+      ],
+      'subscriber_id'
+    );
+
+    const insuredMembers = MEMBERS.filter((m) => (m.insuranceCover ?? 0) > 0);
+    if (insuredMembers.length) {
+      await bulkInsert(
+        client,
+        'insurance_policies',
+        [
+          { name: 'subscriber_id', type: 'text' },
+          { name: 'cover', type: 'numeric' },
+          { name: 'premium_monthly', type: 'numeric' },
+          { name: 'status', type: 'text' },
+          { name: 'renewal_date', type: 'date' },
+        ],
+        [
+          insuredMembers.map((m) => m.id),
+          insuredMembers.map((m) => m.insuranceCover ?? 0),
+          insuredMembers.map((m) => m.insurancePremiumMonthly ?? 0),
+          insuredMembers.map((m) => m.insuranceStatus ?? 'inactive'),
+          insuredMembers.map((m) => toDateStr(m.insuranceRenewalDate)),
+        ],
+        'subscriber_id'
+      );
+    }
 
     // ── contribution_runs ────────────────────────────────────────────────────
     console.log('• contribution_runs…');
@@ -1090,30 +1319,39 @@ async function main() {
       'id'
     );
 
-    // ── contribution_run_lines ───────────────────────────────────────────────
-    console.log('• contribution_run_lines…');
+    // ── member contribution transactions (own + employer, source-tagged) ─────
+    // The employer-source rows link to their contribution_runs header via
+    // contribution_run_id (seeded above). Triggers are off (replica mode), so
+    // these do NOT re-bump the directly-seeded subscriber_balances.
+    console.log('• member transactions…');
     await bulkInsert(
       client,
-      'contribution_run_lines',
+      'transactions',
       [
         { name: 'id', type: 'text' },
-        { name: 'run_id', type: 'text' },
-        { name: 'employee_id', type: 'text' },
-        { name: 'employer_amount', type: 'numeric' },
-        { name: 'employee_amount', type: 'numeric' },
-        { name: 'retirement_amount', type: 'numeric' },
-        { name: 'emergency_amount', type: 'numeric' },
+        { name: 'subscriber_id', type: 'text' },
+        { name: 'type', type: 'text' },
+        { name: 'source', type: 'text' },
+        { name: 'amount', type: 'numeric' },
+        { name: 'date', type: 'timestamptz' },
+        { name: 'status', type: 'text' },
         { name: 'method', type: 'text' },
+        { name: 'split_retirement', type: 'numeric' },
+        { name: 'split_emergency', type: 'numeric' },
+        { name: 'contribution_run_id', type: 'text' },
       ],
       [
-        CONTRIBUTION_RUN_LINES.map((l) => l.id),
-        CONTRIBUTION_RUN_LINES.map((l) => l.runId),
-        CONTRIBUTION_RUN_LINES.map((l) => l.employeeId),
-        CONTRIBUTION_RUN_LINES.map((l) => l.employerAmount ?? 0),
-        CONTRIBUTION_RUN_LINES.map((l) => l.employeeAmount ?? 0),
-        CONTRIBUTION_RUN_LINES.map((l) => l.retirementAmount ?? 0),
-        CONTRIBUTION_RUN_LINES.map((l) => l.emergencyAmount ?? 0),
-        CONTRIBUTION_RUN_LINES.map((l) => l.method ?? null),
+        MEMBER_TRANSACTIONS.map((t) => t.id),
+        MEMBER_TRANSACTIONS.map((t) => t.subscriberId),
+        MEMBER_TRANSACTIONS.map((t) => t.type ?? 'contribution'),
+        MEMBER_TRANSACTIONS.map((t) => t.source ?? 'own'),
+        MEMBER_TRANSACTIONS.map((t) => t.amount ?? 0),
+        MEMBER_TRANSACTIONS.map((t) => toTimestamptz(t.date)),
+        MEMBER_TRANSACTIONS.map(() => 'settled'),
+        MEMBER_TRANSACTIONS.map((t) => t.method ?? null),
+        MEMBER_TRANSACTIONS.map((t) => t.retirementAmount ?? null),
+        MEMBER_TRANSACTIONS.map((t) => t.emergencyAmount ?? null),
+        MEMBER_TRANSACTIONS.map((t) => t.contributionRunId ?? null),
       ],
       'id'
     );
@@ -1188,6 +1426,21 @@ async function main() {
       { id: 'subscriber:+256711000004', phone: '+256711000004', role: 'subscriber', name: 'Demo subscriber 4', entity_id: 's-0004' },
       { id: 'subscriber:+256711000005', phone: '+256711000005', role: 'subscriber', name: 'Demo subscriber 5', entity_id: 's-0005' },
     ];
+    // De-duplicate on (phone, role) so the `users_phone_role_unique` constraint
+    // (UNIQUE(phone, role)) can always apply against seeded data (audit §4b.10).
+    // The persona ↔ subscriber lists are distinct today, but this guard keeps
+    // the seed correct if a future phone ever overlaps a role — first wins,
+    // mirroring a deterministic phone→user resolution.
+    const _seenUserKeys = new Set();
+    const dedupedUserRows = userRows.filter((u) => {
+      const key = `${u.phone}|${u.role}`;
+      if (_seenUserKeys.has(key)) {
+        console.warn(`  ⚠ users: dropping duplicate (phone, role) seed row ${u.id} (${key}).`);
+        return false;
+      }
+      _seenUserKeys.add(key);
+      return true;
+    });
     await bulkInsert(
       client,
       'users',
@@ -1200,14 +1453,14 @@ async function main() {
         { name: 'password_hash', type: 'text' },
       ],
       [
-        userRows.map((u) => u.id),
-        userRows.map((u) => u.phone),
-        userRows.map((u) => u.role),
-        userRows.map((u) => u.name),
-        userRows.map((u) => u.entity_id),
+        dedupedUserRows.map((u) => u.id),
+        dedupedUserRows.map((u) => u.phone),
+        dedupedUserRows.map((u) => u.role),
+        dedupedUserRows.map((u) => u.name),
+        dedupedUserRows.map((u) => u.entity_id),
         // NULL hash — verify-otp will stamp a bcrypt digest on first sign-in
         // if/when the user sets a password (the OTP path stays primary).
-        userRows.map(() => null),
+        dedupedUserRows.map(() => null),
       ],
       'id'
     );
@@ -1216,6 +1469,29 @@ async function main() {
     //    application — must go through the normal trigger machinery.
     await client.query("SET session_replication_role = 'origin'");
     await client.query('COMMIT');
+
+    // Reclaim disk from the dead tuples left by the TRUNCATE + churn. VACUUM
+    // (FULL, …) rewrites each table compactly and ANALYZE refreshes planner
+    // stats. VACUUM cannot run inside a transaction, so it goes on a FRESH
+    // connection AFTER the COMMIT. Best-effort: if it fails (e.g. lock
+    // contention or insufficient privilege on a pooled connection) we warn
+    // and carry on — the seed itself already committed successfully.
+    console.log('• VACUUM (FULL, ANALYZE) — reclaiming disk…');
+    const vacuumClient = new Client({ connectionString: DB_URL });
+    try {
+      await vacuumClient.connect();
+      await vacuumClient.query('VACUUM (FULL, ANALYZE)');
+      console.log('  → VACUUM complete.');
+    } catch (vacErr) {
+      console.warn(
+        `  ⚠ VACUUM (FULL, ANALYZE) skipped — ${vacErr.message}. ` +
+          'Seed committed successfully; disk reclamation can be run manually.'
+      );
+    } finally {
+      try {
+        await vacuumClient.end();
+      } catch {}
+    }
 
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     console.log(`\n✓ Seed complete in ${elapsed}s.`);

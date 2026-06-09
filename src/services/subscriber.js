@@ -168,6 +168,7 @@ function mapSubscriberRow(row) {
     occupation: row.occupation,
     parentId: row.agent_id,             // legacy field name kept for callers
     agentId: row.agent_id,
+    employerId: row.employer_id ?? null, // set when an employer onboarded them (0043)
     districtId: row.district_id,
     kycStatus: row.kyc_status,
     isActive: row.is_active,
@@ -230,6 +231,7 @@ function mapTransactionRow(row) {
     subscriberId: row.subscriber_id,
     agentId: row.agent_id,
     type: row.type,
+    source: row.source ?? 'own',        // 'own' | 'employer' (0043)
     amount,
     date: row.date,
     status: row.status,
@@ -374,9 +376,15 @@ export async function getSubscriberTransactions(id, { type, range, status } = {}
   }
 
   if (!id) return [];
+  // Narrowed from select('*') to exactly the columns mapTransactionRow reads
+  // (the sole consumer of these rows). This is the highest-volume subscriber
+  // list path, so trimming the over-fetch matters; keep this column set in sync
+  // with mapTransactionRow if a new mapped field is added.
   let q = supabase
     .from('transactions')
-    .select('*')
+    .select(
+      'id, subscriber_id, agent_id, type, source, amount, date, status, method, txn_ref, bucket, split_retirement, split_emergency',
+    )
     .eq('subscriber_id', id)
     .order('date', { ascending: false });
   if (type) q = q.eq('type', type);
@@ -388,6 +396,43 @@ export async function getSubscriberTransactions(id, { type, range, status } = {}
   }
   const rows = unwrap(await q);
   return (rows ?? []).map(mapTransactionRow);
+}
+
+/**
+ * Total / own / employer contribution breakdown for a subscriber (0043). "own"
+ * = the subscriber's own contributions; "employer" = contributions posted by
+ * their employer (source='employer'). Drives the employer-benefits view on the
+ * subscriber dashboard.
+ * @param {string} id
+ * @returns {Promise<{ own:number, employer:number, total:number }>}
+ */
+export async function getContributionBreakdown(id) {
+  if (!id) return { own: 0, employer: 0, total: 0 };
+  if (!IS_SUPABASE_ENABLED) {
+    const sub = SUBSCRIBERS[id];
+    const tx = sub ? (applyMutations(sub).transactions || []) : [];
+    let own = 0;
+    let employer = 0;
+    for (const t of tx) {
+      if (t.type !== 'contribution') continue;
+      if (t.source === 'employer') employer += Number(t.amount || 0);
+      else own += Math.abs(Number(t.amount || 0));
+    }
+    return { own, employer, total: own + employer };
+  }
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('amount, source, type')
+    .eq('subscriber_id', id)
+    .eq('type', 'contribution');
+  if (error) throw error;
+  let own = 0;
+  let employer = 0;
+  for (const t of data ?? []) {
+    if (t.source === 'employer') employer += Number(t.amount || 0);
+    else own += Number(t.amount || 0);
+  }
+  return { own, employer, total: own + employer };
 }
 
 export async function getSubscriberClaims(id) {
@@ -471,24 +516,27 @@ export async function getSubscriberAgent(subscriberId) {
     };
   }
   if (!subscriberId) return null;
-  // Two-step lookup — the cleaner approach (subscribers.agent_id → agents.id)
-  // is hard to express as a single PostgREST join without a relationship
-  // defined as an embed, so we fetch the agent_id first and then the agent.
-  const sub = unwrap(
+  // Single-query embed: subscribers.agent_id → agents.id is a real FK
+  // (0001_initial_schema.sql: `agent_id TEXT REFERENCES agents(id)`), so
+  // PostgREST resolves agents as an embedded resource, and agents.branch_id →
+  // branches gives the nested branch name. RLS is applied per embedded table
+  // exactly as in the prior two-step (the subscriber's policies already allowed
+  // reading their own agent + branch rows), so this collapses the round-trips
+  // without changing what's visible. A plain (non-inner) embed is used so a
+  // null/dangling agent_id still returns the subscriber row; the null-agent
+  // guard below preserves the prior "no agent → null" behaviour.
+  const row = unwrap(
     await supabase
       .from('subscribers')
-      .select('agent_id')
+      .select('agent_id, agents(*, branches(name))')
       .eq('id', subscriberId)
       .maybeSingle(),
   );
-  if (!sub?.agent_id) return null;
-  const agent = unwrap(
-    await supabase
-      .from('agents')
-      .select('*, branches(name)')
-      .eq('id', sub.agent_id)
-      .maybeSingle(),
-  );
+  if (!row?.agent_id) return null;
+  // PostgREST returns the embedded agent as an object (or array for some
+  // relationship shapes); normalise before mapping.
+  const agent = Array.isArray(row.agents) ? row.agents[0] : row.agents;
+  if (!agent) return null;
   return mapAgentRow(agent);
 }
 
@@ -497,15 +545,26 @@ export async function getSubscriberAgent(subscriberId) {
 // =============================================================================
 
 /**
- * Records an ad-hoc contribution. INSERTs into `transactions` with
- * type='contribution'; the AFTER INSERT trigger updates
- * `subscriber_balances` and (on first contribution) writes the commission
- * row. Returns the inserted transaction in the legacy mock shape.
+ * Records an ad-hoc contribution. The live path calls the `make_contribution`
+ * SECURITY DEFINER RPC (0054), which inserts the `transactions` row inside the
+ * function body; the AFTER INSERT trigger updates `subscriber_balances` and (on
+ * the first contribution) writes the commission row. The RPC is idempotent on
+ * `nonce` — a replay with the same nonce returns the original row WITHOUT
+ * double-crediting (audit §4a F-1). Returns the transaction in the legacy mock
+ * shape.
+ *
+ * `nonce` is a stable, per-confirm-sheet idempotency key minted by the page
+ * (SavePage) when the confirm sheet opens; it survives a double-tap / manual
+ * retry. If a caller omits it, a fresh UUID is minted so the RPC always has a
+ * key (no idempotency across separate calls in that case — same as before).
  *
  * @param {string} id - subscriber ID
- * @param {{amount:number, retirementPct?:number, method?:string}} payload
+ * @param {{amount:number, retirementPct?:number, method?:string, nonce?:string}} payload
  */
-export async function makeAdHocContribution(id, { amount, retirementPct = 80, method = 'MTN Mobile Money' } = {}) {
+export async function makeAdHocContribution(
+  id,
+  { amount, retirementPct = 80, method = 'MTN Mobile Money', nonce } = {},
+) {
   if (!IS_SUPABASE_ENABLED) {
     const sub = SUBSCRIBERS[id];
     if (!sub) throw new Error('Subscriber not found');
@@ -533,47 +592,42 @@ export async function makeAdHocContribution(id, { amount, retirementPct = 80, me
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error('amount must be positive');
   }
-  const ret = Math.round(amount * (retirementPct / 100));
-  const emg = amount - ret;
-  const ref = `CT-${Math.floor(Math.random() * 900000) + 100000}`;
-  const txId = `tx-${id}-adhoc-${Date.now()}`;
-  const row = unwrap(
-    await supabase
-      .from('transactions')
-      .insert({
-        id: txId,
-        subscriber_id: id,
-        type: 'contribution',
-        amount,
-        date: new Date().toISOString(),
-        status: 'settled',
-        method,
-        txn_ref: ref,
-        split_retirement: ret,
-        split_emergency: emg,
-      })
-      .select()
-      .single(),
-  );
-  return mapTransactionRow(row);
+  // Idempotent + atomic write via the 0054 DEFINER RPC. The subscriber is
+  // derived server-side from the JWT subscriberId claim — `id` is no longer the
+  // authority for WHO is credited (RLS/DEFINER trust the token, not the arg).
+  const { data, error } = await supabase.rpc('make_contribution', {
+    p_nonce: nonce ?? crypto.randomUUID(),
+    p_amount: amount,
+    p_retirement_pct: retirementPct,
+    p_method: method,
+  });
+  if (error) throw error;
+  // The RPC returns the inserted row already in the camelCase mock shape.
+  return data;
 }
 
 /**
- * Submits a withdrawal. The plan calls for both a `transactions` row (so the
- * balance trigger debits subscriber_balances) AND a `withdrawals` row (the
- * dedicated history table the WithdrawalsHistory report consumes). We write
- * BOTH because the legacy mock did so, and the dashboard pages still read
- * the `withdrawals` table for the reason/method/reference triple while the
- * `transactions` row carries the ledger entry that the balance trigger
- * watches. Returns the withdrawal record in the legacy mock shape.
+ * Submits a withdrawal. The live path calls the `request_withdrawal` SECURITY
+ * DEFINER RPC (0054), which performs BOTH the `transactions` ledger insert (the
+ * balance trigger debits subscriber_balances) AND the `withdrawals` history
+ * insert in ONE atomic function body — closing the prior two-unwrapped-inserts
+ * gap where a failed second insert left an orphaned debit (audit §4a F-2). The
+ * RPC also enforces a server-side "withdraw ≤ available balance" check (F-5) and
+ * decrements `units` (F-3), and is idempotent on `nonce` — a replay returns the
+ * original withdrawal WITHOUT double-debiting (F-1). Returns the withdrawal
+ * record in the legacy mock shape.
  *
- * Bucket semantics: if `bucket` is provided we set the matching split half
- * to the full amount (the trigger will debit that bucket); else the trigger
- * falls back to "emergency-first, then retirement" via NULL split columns.
+ * `nonce` is a stable, per-confirm-sheet idempotency key minted by the page
+ * (WithdrawPage) when the confirm sheet opens; it survives a double-tap / manual
+ * retry. If a caller omits it, a fresh UUID is minted.
+ *
+ * Bucket semantics: if `bucket` is provided the RPC routes the whole amount to
+ * that bucket; else the withdrawal trigger falls back to "emergency-first, then
+ * retirement".
  */
 export async function requestWithdrawal(
   id,
-  { amount, bucket, reason, method = 'MTN Mobile Money', splitRetirement, splitEmergency } = {},
+  { amount, bucket, reason, method = 'MTN Mobile Money', splitRetirement, splitEmergency, nonce } = {},
 ) {
   if (!IS_SUPABASE_ENABLED) {
     const sub = SUBSCRIBERS[id];
@@ -616,73 +670,22 @@ export async function requestWithdrawal(
     throw new Error('amount must be positive');
   }
 
-  // Resolve splits — if the caller supplied explicit splitRetirement /
-  // splitEmergency we honour them; if they supplied a bucket we route the
-  // whole amount to that bucket; else NULL (trigger falls back).
-  let sR = splitRetirement;
-  let sE = splitEmergency;
-  if (sR == null && sE == null && bucket) {
-    if (bucket === 'retirement') { sR = amount; sE = 0; }
-    else { sR = 0; sE = amount; }
-  }
-
-  const now = new Date();
-  const isoDate = now.toISOString();
-  const dateOnly = isoDate.slice(0, 10);
-  const ref = `WD-${Math.floor(Math.random() * 900000) + 100000}`;
-  const txId = `tx-${id}-wd-${Date.now()}`;
-  const wdId = `wd-${id}-${Date.now()}`;
-
-  // 1. transactions row → trigger debits subscriber_balances.
-  unwrap(
-    await supabase
-      .from('transactions')
-      .insert({
-        id: txId,
-        subscriber_id: id,
-        type: 'withdrawal',
-        amount,                   // magnitude — trigger uses ABS()
-        date: isoDate,
-        status: 'processing',
-        method,
-        txn_ref: ref,
-        bucket,
-        split_retirement: sR,
-        split_emergency: sE,
-      })
-      .select()
-      .single(),
-  );
-
-  // 2. withdrawals row → dashboard history.
-  const wdRow = unwrap(
-    await supabase
-      .from('withdrawals')
-      .insert({
-        id: wdId,
-        subscriber_id: id,
-        amount,
-        bucket: bucket ?? 'emergency',
-        reason,
-        method,
-        status: 'processing',
-        date: dateOnly,
-        reference: ref,
-      })
-      .select()
-      .single(),
-  );
-
-  return {
-    id: wdRow.id,
-    amount: Number(wdRow.amount),
-    bucket: wdRow.bucket,
-    reason: wdRow.reason,
-    method: wdRow.method,
-    status: wdRow.status,
-    date: wdRow.date,
-    reference: wdRow.reference,
-  };
+  // Idempotent + atomic write via the 0054 DEFINER RPC. The subscriber is
+  // derived server-side from the JWT subscriberId claim. Explicit splits, if
+  // supplied, are passed through and validated server-side (must sum to amount);
+  // else the bucket routes the whole amount; else the trigger falls back.
+  const { data, error } = await supabase.rpc('request_withdrawal', {
+    p_nonce: nonce ?? crypto.randomUUID(),
+    p_amount: amount,
+    p_bucket: bucket ?? null,
+    p_reason: reason ?? null,
+    p_method: method,
+    p_split_retirement: splitRetirement ?? null,
+    p_split_emergency: splitEmergency ?? null,
+  });
+  if (error) throw error;
+  // The RPC returns the withdrawal row already in the camelCase mock shape.
+  return data;
 }
 
 /** INSERTs a claim row. */
@@ -1015,16 +1018,56 @@ export async function updateProfile(id, updates = {}) {
  *
  * @param {object} payload - SignupContext snapshot. See plan §"Signup → real
  *   subscriber persistence" for the exact field list.
+ * @param {string} [nonce] - Per-attempt idempotency key (0042 `p_nonce`). A
+ *   replay with the same nonce returns the original subscriber id instead of
+ *   minting a duplicate chain. Stable across retries/reloads of one signup
+ *   attempt (see SignupContext.signupNonce).
  * @returns {Promise<{subscriberId: string}>}
  */
-export async function createFromSignup(payload) {
+export async function createFromSignup(payload, nonce) {
   if (!IS_SUPABASE_ENABLED) {
     // Mock fallback: synthesise a fake subscriber ID so callers can pretend
     // the write succeeded. We don't actually insert anything into the mock.
     const id = `s-mock-${Date.now()}`;
     return { subscriberId: id };
   }
-  const { data, error } = await supabase.rpc('create_subscriber_from_signup', { payload });
+  const { data, error } = await supabase.rpc('create_subscriber_from_signup', {
+    payload,
+    p_nonce: nonce ?? null,
+  });
+  if (error) throw error;
+  return { subscriberId: data };
+}
+
+/**
+ * Fetch a pending employer invite by token (anon — the invitee is pre-login).
+ * @returns {Promise<{ employerId, employerName, prefill, collectSchedule }>}
+ */
+export async function getEmployerInvite(token) {
+  if (!IS_SUPABASE_ENABLED) {
+    return { employerId: 'emp-001', employerName: 'Nile Breweries Demo Ltd', prefill: {}, collectSchedule: false };
+  }
+  const { data, error } = await supabase.rpc('get_employer_invite', { p_token: token });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Complete an employer invite after KYC — creates a subscriber tagged to the
+ * employer (agent_id NULL ⇒ no commission). For employer-only invites the
+ * payload's contributionSchedule carries only the split (no amount); for
+ * co-contribution it carries the full schedule + a first contribution is made.
+ * @returns {Promise<{ subscriberId: string }>}
+ */
+export async function createFromEmployerInvite(payload, token, nonce) {
+  if (!IS_SUPABASE_ENABLED) {
+    return { subscriberId: `s-mock-inv-${Date.now()}` };
+  }
+  const { data, error } = await supabase.rpc('create_subscriber_from_employer_invite', {
+    payload,
+    p_token: token,
+    p_nonce: nonce ?? null,
+  });
   if (error) throw error;
   return { subscriberId: data };
 }
@@ -1035,9 +1078,12 @@ export async function createFromSignup(payload) {
  *
  * @param {object} payload - SignupContext snapshot.
  * @param {string} agentId - The agent's authenticated agent_id.
+ * @param {string} [nonce] - Per-attempt idempotency key (0042 `p_nonce`); see
+ *   createFromSignup. Distinct per onboarded subscriber (reset() mints a fresh
+ *   one), stable across retries of the same one.
  * @returns {Promise<{subscriberId: string}>}
  */
-export async function createFromAgentOnboard(payload, agentId) {
+export async function createFromAgentOnboard(payload, agentId, nonce) {
   if (!IS_SUPABASE_ENABLED) {
     const id = `s-mock-${Date.now()}`;
     return { subscriberId: id };
@@ -1045,6 +1091,7 @@ export async function createFromAgentOnboard(payload, agentId) {
   const { data, error } = await supabase.rpc('create_subscriber_from_agent_onboard', {
     payload,
     calling_agent_id: agentId,
+    p_nonce: nonce ?? null,
   });
   if (error) throw error;
   return { subscriberId: data };

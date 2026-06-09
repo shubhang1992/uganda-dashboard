@@ -113,7 +113,7 @@
 
 .tableHead {
   display: grid;
-  grid-template-columns: minmax(0, 2.4fr) 1.1fr 0.9fr 0.9fr 1fr;
+  grid-template-columns: minmax(0, 2.2fr) 1fr 0.9fr 0.9fr;
   align-items: center;
   gap: var(--space-2);
   padding: 0 var(--space-3) var(--space-2);
@@ -135,29 +135,39 @@
 }
 
 .rowItem {
-  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 5%, transparent);
-}
-
-.row {
   display: grid;
-  grid-template-columns: minmax(0, 2.4fr) 1.1fr 0.9fr 0.9fr 1fr;
+  grid-template-columns: minmax(0, 2.2fr) 1fr 0.9fr 0.9fr;
   align-items: center;
   gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-3);
-  border: none;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 5%, transparent);
   border-radius: var(--radius-md);
   transition: background-color 0.16s ease;
 }
 
-.row:hover {
-  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
+.rowItem:hover {
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
 }
 
-.row:focus-visible {
+/* The member's name is the click target that opens the detail panel. */
+.nameBtn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-1) 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.nameBtn:hover .name {
+  text-decoration: underline;
+}
+
+.nameBtn:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-indigo) 35%, transparent);
 }
@@ -189,8 +199,7 @@
 
 .colMode,
 .colSplit,
-.colStatus,
-.colBalance {
+.colStatus {
   font-size: 0.8125rem;
   color: var(--color-slate);
 }
@@ -199,10 +208,61 @@
   font-variant-numeric: tabular-nums;
 }
 
-.colBalance {
+/* ── Detail view (list↔detail replace model) ───────────────────────────────── */
+.detailBack {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: var(--space-4);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-1);
+  border: none;
+  background: transparent;
+  color: var(--color-indigo-soft);
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
   font-weight: 700;
-  color: var(--color-indigo);
-  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color 0.16s ease;
+}
+
+.detailBack:hover { color: var(--color-indigo); }
+
+.detailBack:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-indigo) 32%, transparent);
+}
+
+.detailFooter {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid color-mix(in srgb, var(--color-indigo) 8%, transparent);
+}
+
+/* Destructive "Remove from company" — now lives on the member's own record. */
+.removeFromCompanyBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-alert) 50%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  color: var(--color-alert);
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.removeFromCompanyBtn:hover {
+  background: color-mix(in srgb, var(--color-alert) 8%, transparent);
+  border-color: var(--color-alert);
+}
+
+.removeFromCompanyBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-alert) 30%, transparent);
 }
 
 /* Funding-mode badge */
@@ -255,15 +315,132 @@
   }
 
   .tableHead {
-    grid-template-columns: minmax(0, 2fr) 0.9fr 1fr;
+    grid-template-columns: minmax(0, 2fr) 0.9fr;
   }
 
-  .row {
-    grid-template-columns: minmax(0, 2fr) 0.9fr 1fr;
+  .rowItem {
+    grid-template-columns: minmax(0, 2fr) 0.9fr;
   }
 
   .colMode,
   .colSplit {
     display: none;
   }
+}
+
+/* ── Remove-from-company confirmation (Modal content) ──────────────────────── */
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
+.confirmTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+}
+
+.confirmBody {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--color-slate);
+}
+
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.confirmCancel,
+.confirmRemove {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.confirmCancel {
+  border: 1px solid var(--color-lavender);
+  background: var(--color-white);
+  color: var(--color-slate);
+}
+
+.confirmCancel:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-indigo) 30%, transparent);
+}
+
+.confirmCancel:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+}
+
+.confirmRemove {
+  border: 1px solid var(--color-alert);
+  background: var(--color-alert);
+  color: var(--color-white);
+}
+
+.confirmRemove:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.confirmRemove:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-alert) 35%, transparent);
+}
+
+.confirmCancel:disabled,
+.confirmRemove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Pending invites — slim summary (full management lives in Pending KYC) ──── */
+.pendingSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  margin: 0 0 var(--space-4);
+  padding: 0.7rem 0.85rem;
+  border: 1px dashed #c7c6e0;
+  border-radius: 0.7rem;
+  background: #f6f6fb;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.pendingSummary:hover {
+  background: #f0f0f9;
+  border-color: var(--color-indigo-soft);
+}
+
+.pendingSummary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 20%, transparent);
+}
+
+.pendingSummaryText {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4b4a6a;
+}
+
+.pendingSummaryCta {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-indigo);
+  white-space: nowrap;
 }

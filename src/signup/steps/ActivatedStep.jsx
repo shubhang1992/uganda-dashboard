@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
-import { EASE_OUT_EXPO, formatUGXExact } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatUGX } from '../../utils/currency';
+
 import { formatMemberId } from '../../utils/memberId';
 import { useSignup } from '../SignupContext';
 import { openPolicyCertificate } from '../contribution/insurancePolicyCertificate';
@@ -154,7 +156,7 @@ export default function ActivatedStep({ onFinish, snapshot }) {
             </svg>
           </span>
           <span className={own.policyText}>
-            Life insurance · {formatUGXExact(contributionSchedule.insuranceCover)} cover
+            Life insurance · {formatUGX(contributionSchedule.insuranceCover, { compact: false })} cover
           </span>
           <span className={own.policyAction}>
             Download

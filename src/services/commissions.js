@@ -7,8 +7,12 @@
 //
 // Reads delegate to the slimmed read RPCs (get_commission_summary,
 // get_entity_commission_summary, get_agent_commission_detail re-emitted in
-// 0029). Direct SELECTs back the per-agent/per-branch list folds and the
-// settlement batches feed.
+// 0029; get_agent_commission_list / get_pending_dues_by_agent /
+// get_pending_dues_by_branch added in 0041). The 0041 trio folds server-side,
+// so the per-agent/per-branch list reads no longer silently truncate at
+// PostgREST's 1000-row default cap (the prior JS folds pulled every row to the
+// browser and dropped any commission past row 1000 before the reduce). A direct
+// SELECT now backs only the settlement-batches feed.
 //
 // Hook contracts in src/hooks/useCommission.js are preserved, so the React
 // Query layer remains the source of caching.
@@ -62,6 +66,56 @@ function _rowToCommission(row) {
   };
 }
 
+/* ─── 0041 aggregate-RPC row mappers ─────────────────────────────────────────
+ * The three 0041 RPCs return RETURNS TABLE rowsets (so `data` is an ARRAY, not
+ * an object — do NOT read `data.totalX`). Each mapper turns one snake_case row
+ * into the exact camelCase shape the prior JS fold emitted, so the swap is a
+ * pure data-source change with no UI-contract change. The defaults below mirror
+ * the old folds (`|| 'Unknown'`, `|| ''`); the RPCs already COALESCE these, so
+ * the defaults are belt-and-braces parity. */
+
+/** get_agent_commission_list row → per-agent tally (mirrors commissions.js fold). */
+function _rowToAgentTally(row) {
+  return {
+    agentId: row.agent_id,
+    agentName: row.agent_name || 'Unknown',
+    employeeId: row.employee_id || '',
+    branchId: row.branch_id || '',
+    branchName: row.branch_name || 'Unknown',
+    totalCommissions: Number(row.total_commissions ?? 0),
+    totalPaid: Number(row.total_paid ?? 0),
+    totalDue: Number(row.total_due ?? 0),
+    subscribersOnboarded: Number(row.subscribers_onboarded ?? 0),
+    activeSubscribers: Number(row.active_subscribers ?? 0),
+    filteredAmount: Number(row.filtered_amount ?? 0),
+    filteredCount: Number(row.filtered_count ?? 0),
+  };
+}
+
+/** get_pending_dues_by_agent row → per-agent pending-dues row. */
+function _rowToAgentDues(row) {
+  return {
+    agentId: row.agent_id,
+    agentName: row.agent_name || 'Unknown',
+    employeeId: row.employee_id || '',
+    branchId: row.branch_id || '',
+    branchName: row.branch_name || 'Unknown',
+    pendingAmount: Number(row.pending_amount ?? 0),
+    pendingCount: Number(row.pending_count ?? 0),
+  };
+}
+
+/** get_pending_dues_by_branch row → per-branch pending-dues row. */
+function _rowToBranchDues(row) {
+  return {
+    branchId: row.branch_id,
+    branchName: row.branch_name || 'Unknown',
+    pendingAmount: Number(row.pending_amount ?? 0),
+    pendingCount: Number(row.pending_count ?? 0),
+    agentCount: Number(row.agent_count ?? 0),
+  };
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * COMMISSION RATE
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -82,19 +136,27 @@ export async function getCommissionRate() {
 }
 
 /**
- * @endpoint PUT commission_config.rate
+ * @endpoint RPC set_commission_rate(p_rate numeric)
  * @scope Distributor only.
+ * @description Routes the commission-rate write through a SECURITY DEFINER RPC
+ *   (migration 0055) that gates app_role='distributor' and range-checks the rate
+ *   (0 ≤ rate ≤ 1,000,000 UGX) server-side. Replaces the prior unvalidated direct
+ *   `commission_config.update({rate})` client write (audit §4a F-7) — a §7.3
+ *   money-config direct-write with no bound check and no audit. The RPC stamps
+ *   last_updated_by/updated_at and returns the persisted rate, so the hook
+ *   contract is unchanged.
+ *
+ *   DORMANT until migration 0055 is applied at the G-DB gate: a live call before
+ *   then returns PGRST202/404 (function-not-found). The mock branch below is
+ *   unaffected.
  */
 export async function setCommissionRate(amount) {
   if (!IS_SUPABASE_ENABLED) return _legacy_mock_setCommissionRate(amount);
-  const { data, error } = await supabase
-    .from('commission_config')
-    .update({ rate: amount, updated_at: new Date().toISOString() })
-    .eq('id', 'default')
-    .select('rate')
-    .maybeSingle();
-  if (error) throw _rpcError(error, 'setCommissionRate');
-  return data?.rate != null ? Number(data.rate) : amount;
+  const { data, error } = await supabase.rpc('set_commission_rate', {
+    p_rate: amount,
+  });
+  if (error) throw _rpcError(error, 'set_commission_rate');
+  return data != null ? Number(data) : amount;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -150,64 +212,35 @@ export async function getEntityCommissionSummary(level, entityId) {
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * @endpoint Custom SELECT — agents joined to their commission tallies.
- * @description Pull every visible commission row + agents + branches in one
- *   round-trip and fold per-agent in JS.
+ * @endpoint RPC get_agent_commission_list(p_status_focus)
+ * @description Per-agent commission tallies, folded SERVER-SIDE by the 0041 RPC
+ *   (one round-trip, no 1000-row truncation — see file header). Replaces the
+ *   prior client-side fold over an unbounded `commissions` SELECT. The RPC's
+ *   arithmetic is the line-for-line equivalent of the old reduce (documented in
+ *   0041_commission_aggregate_rpcs.sql); `filteredAmount`/`filteredCount`
+ *   honour `p_status_focus` ('paid'→paid rows, 'due'→due rows, else all rows).
  * @param {('paid'|'due'|null)} statusFocus
- * @scope RLS: distributor sees everyone; branch sees own branch; agent sees own.
+ * @scope SECURITY DEFINER → the RPC BYPASSES RLS and folds the FULL network
+ *   rowset for every caller (it does not branch on app_role), like the sibling
+ *   0029 read RPCs. The distributor (the intended consumer) wants this; the
+ *   branch view (CommissionPanel mounted in BranchDashboardShell) re-scopes the
+ *   result CLIENT-SIDE by branchId. So branch/agent isolation moved from
+ *   RLS-enforced (the old per-role SELECT) to client-side filtering — acceptable
+ *   for the demo, but before real multi-tenant data an in-RPC app_role/branchId
+ *   scope gate should be added (mirror commissions_select_branch; see the SCOPE
+ *   caveat in 0041_commission_aggregate_rpcs.sql).
+ * @cache ['agentCommissions', statusFocus || 'all']
  */
 export async function getAgentCommissionList(statusFocus) {
   if (!IS_SUPABASE_ENABLED) return _legacy_mock_getAgentCommissionList(statusFocus);
 
-  const [{ data: commissions, error: cErr }, { data: agents, error: aErr }, { data: branches, error: bErr }] =
-    await Promise.all([
-      supabase.from('commissions').select(
-        'id, agent_id, branch_id, amount, status, paid_date, due_date, txn_ref, paid_amount, subscriber_id, subscriber_name'
-      ),
-      supabase.from('agents').select('id, name, employee_id, branch_id'),
-      supabase.from('branches').select('id, name'),
-    ]);
-  if (cErr) throw _rpcError(cErr, 'getAgentCommissionList:commissions');
-  if (aErr) throw _rpcError(aErr, 'getAgentCommissionList:agents');
-  if (bErr) throw _rpcError(bErr, 'getAgentCommissionList:branches');
-
-  const agentMap = new Map((agents || []).map((a) => [a.id, a]));
-  const branchMap = new Map((branches || []).map((b) => [b.id, b]));
-  const byAgent = new Map();
-  for (const row of commissions || []) {
-    const c = _rowToCommission(row);
-    if (!byAgent.has(c.agentId)) byAgent.set(c.agentId, []);
-    byAgent.get(c.agentId).push(c);
-  }
-
-  const result = [];
-  for (const [agentId, comms] of byAgent.entries()) {
-    const agent = agentMap.get(agentId) || {};
-    const branch = branchMap.get(agent.branch_id) || {};
-    let filtered = comms;
-    if (statusFocus === 'paid') filtered = comms.filter((c) => c.status === 'paid');
-    else if (statusFocus === 'due') filtered = comms.filter((c) => c.status === 'due');
-
-    const totalAmount = comms.reduce((s, c) => s + c.amount, 0);
-    const paidAmount = comms.filter((c) => c.status === 'paid').reduce((s, c) => s + c.amount, 0);
-    const dueAmount = comms.filter((c) => c.status === 'due').reduce((s, c) => s + c.amount, 0);
-
-    result.push({
-      agentId,
-      agentName: agent.name || 'Unknown',
-      employeeId: agent.employee_id || '',
-      branchId: agent.branch_id || '',
-      branchName: branch.name || 'Unknown',
-      totalCommissions: totalAmount,
-      totalPaid: paidAmount,
-      totalDue: dueAmount,
-      subscribersOnboarded: comms.length,
-      activeSubscribers: comms.length,
-      filteredAmount: filtered.reduce((s, c) => s + c.amount, 0),
-      filteredCount: filtered.length,
-    });
-  }
-  return result.filter((a) => a.subscribersOnboarded > 0);
+  const { data, error } = await supabase.rpc('get_agent_commission_list', {
+    p_status_focus: statusFocus ?? null,
+  });
+  if (error) throw _rpcError(error, 'get_agent_commission_list');
+  // The RPC's HAVING COUNT(*) > 0 already drops zero-row agents, so the prior
+  // `.filter(subscribersOnboarded > 0)` is intrinsically satisfied.
+  return (data || []).map(_rowToAgentTally);
 }
 
 /**
@@ -222,22 +255,16 @@ export async function getAgentCommissionDetail(agentId) {
   if (error) throw _rpcError(error, 'get_agent_commission_detail');
   if (!data) return null;
 
-  // Also pull the underlying commission rows so callers that need the raw set
-  // (e.g. Agent dashboard CommissionsPage.groupByPaidCycle) still get it.
-  const { data: rawRows, error: cErr } = await supabase
-    .from('commissions')
-    .select(
-      'id, agent_id, branch_id, subscriber_id, subscriber_name, amount, status, first_contribution_date, due_date, paid_date, txn_ref, paid_amount'
-    )
-    .eq('agent_id', agentId);
-  if (cErr) throw _rpcError(cErr, 'get_agent_commission_detail:rows');
-
+  // The RPC already returns the per-line breakdown the UI consumes as
+  // `paidTransactions` / `dueTransactions`; no consumer reads a separate raw
+  // `commissions` array off this detail, so a second SELECT for those rows was
+  // dead weight (one round-trip saved). If a caller ever needs the full raw set
+  // here, prefer extending the RPC rather than reintroducing the extra query.
   return {
     ...data,
     totalCommissions: Number(data.totalCommissions ?? 0),
     totalPaid: Number(data.totalPaid ?? 0),
     totalDue: Number(data.totalDue ?? 0),
-    commissions: (rawRows || []).map(_rowToCommission),
   };
 }
 
@@ -277,94 +304,42 @@ export async function getCommissionSubscribers(agentId, filter) {
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * @endpoint SELECT due commissions joined to agents/branches, folded per agent.
+ * @endpoint RPC get_pending_dues_by_agent()
+ * @description Per-agent DUE-only tallies, folded SERVER-SIDE by the 0041 RPC
+ *   (replaces the prior client-side fold over a `.eq('status','due')` SELECT —
+ *   no 1000-row truncation). The RPC returns only agents with pendingCount > 0
+ *   (HAVING COUNT(*) > 0) already ordered by pendingAmount DESC, so the prior
+ *   JS filter + sort are intrinsic to the rowset.
  * @returns {Promise<Array<{agentId, agentName, employeeId, branchId, branchName,
- *   pendingAmount, pendingCount}>>} only agents with pendingCount > 0, sorted by
- *   pendingAmount desc.
+ *   pendingAmount, pendingCount}>>} sorted by pendingAmount desc.
  * @cache ['pendingDuesByAgent']
  */
 export async function getPendingDuesByAgent() {
   if (!IS_SUPABASE_ENABLED) return _legacy_mock_getPendingDuesByAgent();
 
-  const [{ data: commissions, error: cErr }, { data: agents, error: aErr }, { data: branches, error: bErr }] =
-    await Promise.all([
-      supabase.from('commissions').select('agent_id, branch_id, amount, status').eq('status', 'due'),
-      supabase.from('agents').select('id, name, employee_id, branch_id'),
-      supabase.from('branches').select('id, name'),
-    ]);
-  if (cErr) throw _rpcError(cErr, 'getPendingDuesByAgent:commissions');
-  if (aErr) throw _rpcError(aErr, 'getPendingDuesByAgent:agents');
-  if (bErr) throw _rpcError(bErr, 'getPendingDuesByAgent:branches');
-
-  const agentMap = new Map((agents || []).map((a) => [a.id, a]));
-  const branchMap = new Map((branches || []).map((b) => [b.id, b]));
-  const byAgent = new Map();
-  for (const row of commissions || []) {
-    if (!byAgent.has(row.agent_id)) byAgent.set(row.agent_id, { amount: 0, count: 0 });
-    const entry = byAgent.get(row.agent_id);
-    entry.amount += Number(row.amount);
-    entry.count += 1;
-  }
-
-  const result = [];
-  for (const [agentId, agg] of byAgent.entries()) {
-    if (agg.count === 0) continue;
-    const agent = agentMap.get(agentId) || {};
-    const branch = branchMap.get(agent.branch_id) || {};
-    result.push({
-      agentId,
-      agentName: agent.name || 'Unknown',
-      employeeId: agent.employee_id || '',
-      branchId: agent.branch_id || '',
-      branchName: branch.name || 'Unknown',
-      pendingAmount: agg.amount,
-      pendingCount: agg.count,
-    });
-  }
-  return result.sort((a, b) => b.pendingAmount - a.pendingAmount);
+  const { data, error } = await supabase.rpc('get_pending_dues_by_agent');
+  if (error) throw _rpcError(error, 'get_pending_dues_by_agent');
+  return (data || []).map(_rowToAgentDues);
 }
 
 /**
- * @endpoint SELECT due commissions joined to branches, folded per branch.
+ * @endpoint RPC get_pending_dues_by_branch()
+ * @description Per-branch DUE-only tallies, folded SERVER-SIDE by the 0041 RPC
+ *   (replaces the prior client-side fold — no 1000-row truncation). Grouping is
+ *   on the COMMISSION's branch_id (faithful to the old JS, which keyed on
+ *   `row.branch_id`, NOT the agent's branch). `agentCount` is COUNT(DISTINCT
+ *   agent_id). The RPC returns only branches with pendingCount > 0, ordered by
+ *   pendingAmount DESC.
  * @returns {Promise<Array<{branchId, branchName, pendingAmount, pendingCount,
- *   agentCount}>>} only branches with pendingCount > 0, sorted by pendingAmount desc.
+ *   agentCount}>>} sorted by pendingAmount desc.
  * @cache ['pendingDuesByBranch']
  */
 export async function getPendingDuesByBranch() {
   if (!IS_SUPABASE_ENABLED) return _legacy_mock_getPendingDuesByBranch();
 
-  const [{ data: commissions, error: cErr }, { data: branches, error: bErr }] = await Promise.all([
-    supabase.from('commissions').select('agent_id, branch_id, amount, status').eq('status', 'due'),
-    supabase.from('branches').select('id, name'),
-  ]);
-  if (cErr) throw _rpcError(cErr, 'getPendingDuesByBranch:commissions');
-  if (bErr) throw _rpcError(bErr, 'getPendingDuesByBranch:branches');
-
-  const branchMap = new Map((branches || []).map((b) => [b.id, b]));
-  const byBranch = new Map();
-  for (const row of commissions || []) {
-    if (!byBranch.has(row.branch_id)) {
-      byBranch.set(row.branch_id, { amount: 0, count: 0, agents: new Set() });
-    }
-    const entry = byBranch.get(row.branch_id);
-    entry.amount += Number(row.amount);
-    entry.count += 1;
-    if (row.agent_id) entry.agents.add(row.agent_id);
-  }
-
-  const result = [];
-  for (const [branchId, agg] of byBranch.entries()) {
-    if (agg.count === 0) continue;
-    const branch = branchMap.get(branchId) || {};
-    result.push({
-      branchId,
-      branchName: branch.name || 'Unknown',
-      pendingAmount: agg.amount,
-      pendingCount: agg.count,
-      agentCount: agg.agents.size,
-    });
-  }
-  return result.sort((a, b) => b.pendingAmount - a.pendingAmount);
+  const { data, error } = await supabase.rpc('get_pending_dues_by_branch');
+  if (error) throw _rpcError(error, 'get_pending_dues_by_branch');
+  return (data || []).map(_rowToBranchDues);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

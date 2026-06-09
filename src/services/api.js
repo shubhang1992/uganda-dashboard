@@ -101,6 +101,11 @@ export async function apiFetch(path, options = {}) {
   const url = `${API_PREFIX}${path}`;
   const token = safeRead(TOKEN_KEY);
   const method = (options.method || 'GET').toUpperCase();
+  // Only GET/HEAD are safe to auto-retry — they're idempotent. POST/PUT/PATCH/
+  // DELETE must fast-fail and surface the error to the caller rather than
+  // silently replaying a write (pairs with the P5 signup nonce so a genuine
+  // duplicate is rejected server-side; here we simply never re-send).
+  const isIdempotent = method === 'GET' || method === 'HEAD';
 
   const headers = { ...(options.headers || {}) };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -108,13 +113,19 @@ export async function apiFetch(path, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  // B18 + G67 — Portable 20s timeout via AbortController. We can't use
-  // `AbortSignal.timeout(20_000)` because Safari 15 (still common in the
+  // B18 + G67 — Portable timeout via AbortController. We can't use
+  // `AbortSignal.timeout(...)` because Safari 15 (still common in the
   // demo's target deployment) needs polyfilling for it. G52 — if the caller
   // passes their own signal, we forward theirs so they retain cancellation
   // control; otherwise we use our internal controller.
+  //
+  // Auth paths (`/auth/*` — login / OTP / password) fail fast (~8s) so a sales
+  // rep at the sign-in modal isn't left hanging for 20s on a cold start; every
+  // other path keeps the 20s budget for cold-start tolerance.
+  const isAuthPath = path.startsWith('/auth/');
+  const timeoutMs = isAuthPath ? 8_000 : 20_000;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20_000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   // Strip internal-only flags from the fetch init.
   const { signal: callerSignal, _retry, ...rest } = options;
 
@@ -129,8 +140,10 @@ export async function apiFetch(path, options = {}) {
     clearTimeout(timeoutId);
     if (err?.name === 'AbortError' || err?.name === 'TimeoutError') {
       const timeoutErr = createApiError('timeout', 'Request timed out');
-      // G49 — single retry on transient cold-start failures.
-      if (!_retry) {
+      // G49 — single retry on transient cold-start failures, idempotent only.
+      // Writes (POST/PUT/PATCH/DELETE) fast-fail so a timed-out request is not
+      // silently replayed (it may have already mutated server state).
+      if (!_retry && isIdempotent) {
         await new Promise((r) => setTimeout(r, 1500));
         return apiFetch(path, { ...options, _retry: true });
       }
@@ -149,8 +162,9 @@ export async function apiFetch(path, options = {}) {
   // returning Render's HTML maintenance page, an LB 502, etc.).
   if (res.status >= 500) {
     const err = createApiError('server_unavailable', 'Server unavailable', res.status);
-    // G49 — single retry with 1.5s backoff.
-    if (!_retry) {
+    // G49 — single retry with 1.5s backoff, idempotent only. A 5xx on a write
+    // may have partially applied server-side, so we never auto-replay it.
+    if (!_retry && isIdempotent) {
       await new Promise((r) => setTimeout(r, 1500));
       return apiFetch(path, { ...options, _retry: true });
     }
@@ -167,7 +181,8 @@ export async function apiFetch(path, options = {}) {
     // Server returned 2xx/4xx but the body isn't JSON — most likely a CDN /
     // load-balancer HTML page interposed in front of the Express server.
     const err = createApiError('server_unavailable', 'Server unavailable', res.status);
-    if (!_retry) {
+    // Idempotent only — same write-safety reasoning as the 5xx branch above.
+    if (!_retry && isIdempotent) {
       await new Promise((r) => setTimeout(r, 1500));
       return apiFetch(path, { ...options, _retry: true });
     }

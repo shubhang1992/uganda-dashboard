@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../utils/finance';
+import { EASE_OUT_EXPO } from '../utils/motion';
+
 import styles from './EducationalLoader.module.css';
 
 // Rotating pension-benefit messages shown during KYC wait states (NIRA, AML).

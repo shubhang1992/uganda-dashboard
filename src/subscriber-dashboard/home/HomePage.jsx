@@ -1,8 +1,10 @@
 import { motion, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import PulseCard from './widgets/PulseCard';
+import EmployerBenefitsWidget from './widgets/EmployerBenefitsWidget';
 import TopUpWidget from './widgets/TopUpWidget';
 import CoPilotWidget from './widgets/CoPilotWidget';
 import PoliciesWidget from './widgets/PoliciesWidget';
@@ -64,6 +66,11 @@ export default function HomePage() {
       <motion.div variants={itemVariants} className={styles.slotPulse}>
         <PulseCard subscriber={sub} />
       </motion.div>
+      {sub.employerId && (
+        <motion.div variants={itemVariants} className={styles.slotPulse}>
+          <EmployerBenefitsWidget subscriber={sub} />
+        </motion.div>
+      )}
       <motion.div variants={itemVariants} className={styles.slotContrib}>
         <TopUpWidget subscriber={sub} />
       </motion.div>

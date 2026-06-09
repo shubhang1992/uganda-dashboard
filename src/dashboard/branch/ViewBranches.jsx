@@ -3,7 +3,8 @@ import { useOutsideClick } from '../../hooks/useOutsideClick';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAllEntities, useUpdateBranch, useSetBranchStatus, useAllEntitiesMetrics } from '../../hooks/useEntity';
-import { EASE_OUT_EXPO } from '../../utils/finance';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';

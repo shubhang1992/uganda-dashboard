@@ -1,5 +1,6 @@
 // DB invariants spec — guards the post-0029 schema state of the live
-// Supabase project (zengmiugieqjqzaccbqe).
+// Supabase project (ilkhfnoyxlxwqadebnkp — Singapore ap-southeast-1, cutover
+// 2026-06-05; replaced the dead Tokyo project zengmiugieqjqzaccbqe).
 //
 // The commission flow was simplified in migrations 0029/0030/0031 (applied +
 // ledger-tracked in live): the maker-checker run/dispute/hold/confirm state
@@ -26,9 +27,14 @@
 //      `paid_amount` are populated (apply_settlement stamps both, 0031/0032);
 //      and no `due` row leaks a `paid_date`. This is the post-collapse
 //      replacement for the old "paid_date ⇒ terminal status" invariant.
-//   5. Zero contribution schedules with `next_due_date < CURRENT_DATE` —
-//      contribution_schedules has no status column; we simply assert every
-//      schedule row has a non-stale next_due_date.
+//   5. Zero contribution schedules with `next_due_date < MOCK_NOW` —
+//      contribution_schedules has no status column; we assert every schedule
+//      row has a non-stale next_due_date RELATIVE TO THE SEED ANCHOR. The seed
+//      generates next_due_date relative to the frozen MOCK_NOW (2026-05-26),
+//      NOT wall-clock, so comparing against `new Date()` would fail purely from
+//      real time elapsing since cutover (~1997 "stale" rows that are stale only
+//      vs today, not vs the seed anchor — audit §4b.2). Comparing against
+//      MOCK_NOW asserts the genuine invariant the seed guarantees.
 //   6. The new `distributors` table is live with the d-001 row.
 //   7. The new settlement write RPCs `apply_settlement` and
 //      `mark_notifications_read` exist in pg_proc (replacing the dropped
@@ -43,12 +49,23 @@
 import { test, expect } from '@playwright/test';
 import { supabaseAdmin } from '../../fixtures/db';
 
+// Seed anchor — mirrors `MOCK_NOW = new Date(2026, 4, 26)` (2026-05-26) in
+// `src/data/mockData.js`. The seed generates `contribution_schedules
+// .next_due_date` relative to THIS frozen anchor, not wall-clock, so the
+// freshness invariant in assertion #5 must compare against it (not `new
+// Date()`) — otherwise real time elapsing since cutover reports thousands of
+// "stale" rows that are stale only vs today, never vs the seed (audit §4b.2).
+// Kept as a local literal rather than importing mockData.js so this Node-side
+// spec doesn't drag the app's mockGeo/mockBranchDefs graph into the Playwright
+// runner. If MOCK_NOW moves in mockData.js, mirror it here.
+const MOCK_NOW_ISO = '2026-05-26';
+
 // The whole file is service-role-only. If the env var is missing, the
 // supabaseAdmin client throws at import time; this guard catches the
 // import-time error and surfaces a clean skip for the file.
 const hasServiceRole = !!process.env.SUPABASE_SERVICE_ROLE_KEY && !!process.env.VITE_SUPABASE_URL;
 
-test.describe('DB invariants (zengmiugieqjqzaccbqe)', () => {
+test.describe('DB invariants (ilkhfnoyxlxwqadebnkp)', () => {
   test.skip(!hasServiceRole, 'requires SUPABASE_SERVICE_ROLE_KEY in env');
 
   test('no duplicate agent emails', async () => {
@@ -148,12 +165,16 @@ test.describe('DB invariants (zengmiugieqjqzaccbqe)', () => {
     expect(dueWithDate ?? 0, 'due commissions carrying a paid_date').toBe(0);
   });
 
-  test('no schedules with next_due_date < CURRENT_DATE', async () => {
+  test('no schedules with next_due_date < MOCK_NOW (seed anchor)', async () => {
     // contribution_schedules has no status column (0001 line 189) —
-    // every row is implicitly "active". We assert every row has either
-    // null (deliberately no schedule) or a non-stale next_due_date.
-    const today = new Date();
-    const isoDate = today.toISOString().slice(0, 10);
+    // every row is implicitly "active". We assert every row has a non-stale
+    // next_due_date RELATIVE TO THE SEED ANCHOR (MOCK_NOW), not wall-clock:
+    // the seed materialises next_due_date from the frozen MOCK_NOW
+    // (2026-05-26), so comparing against `new Date()` would fail purely from
+    // real time elapsing since cutover (audit §4b.2 — ~1997 rows stale only vs
+    // today). Comparing against MOCK_NOW asserts the invariant the seed
+    // actually guarantees.
+    const isoDate = MOCK_NOW_ISO;
     const { count, error } = await supabaseAdmin
       .from('contribution_schedules')
       .select('*', { count: 'exact', head: true })
@@ -161,7 +182,7 @@ test.describe('DB invariants (zengmiugieqjqzaccbqe)', () => {
     expect(error, 'schedules next_due_date query').toBeNull();
     expect(
       count ?? 0,
-      `schedules with next_due_date before ${isoDate}`,
+      `schedules with next_due_date before the seed anchor ${isoDate}`,
     ).toBe(0);
   });
 
@@ -187,19 +208,22 @@ test.describe('DB invariants (zengmiugieqjqzaccbqe)', () => {
     // error proves the function is present and wired. We pass an empty array so
     // nothing is settled even on the (impossible-here) happy path.
     //
-    // NOTE on the apply_settlement overload: the live DB currently carries the
-    // single-arg 0031 form `apply_settlement(p_rows jsonb)`; migration 0032
-    // (NOT yet applied to live — gated cutover step) replaces it with the
-    // two-arg `apply_settlement(p_rows jsonb, p_nonce text)`. We probe with the
-    // single-arg shape so this passes pre-0032; the two-arg form keeps the
-    // p_rows name, so the role-gate path still fires post-0032. If 0032 ever
-    // drops the single-arg overload while this probe lags, the result would be
-    // PGRST202 here — a deliberate tripwire that the probe needs the p_nonce
-    // arg added at cutover.
+    // NOTE on the apply_settlement overload: migration 0032 is NOW LIVE on the
+    // Singapore project, so the function is the two-arg form
+    // `apply_settlement(p_rows jsonb, p_nonce text)`. We probe with the two-arg
+    // shape `{ p_rows: [], p_nonce: 'test-probe' }` so PostgREST resolves the
+    // overload by its named-arg set; an empty p_rows means nothing is settled
+    // even if the (impossible-here, NULL-jwt) happy path were reached. The
+    // role-gate path still fires (P0001, role IS DISTINCT FROM 'distributor'),
+    // proving the function is present and wired. A PGRST202 here would mean the
+    // two-arg overload is missing — a deliberate tripwire.
     const fnMissing = (msg: string | null | undefined) =>
       /could not find.*function|PGRST202|does not exist/i.test(msg || '');
 
-    const applyRes = await supabaseAdmin.rpc('apply_settlement', { p_rows: [] });
+    const applyRes = await supabaseAdmin.rpc('apply_settlement', {
+      p_rows: [],
+      p_nonce: 'test-probe',
+    });
     if (applyRes.error) {
       expect(
         fnMissing(applyRes.error.message),

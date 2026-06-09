@@ -306,7 +306,6 @@
 
 .statusFill[data-variant='active'] { background: var(--color-positive); }
 .statusFill[data-variant='suspended'] { background: var(--color-amber); }
-.statusFill[data-variant='insured'] { background: var(--color-teal); }
 
 .statusValue {
   font-family: var(--font-display);

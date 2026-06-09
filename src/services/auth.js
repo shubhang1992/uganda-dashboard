@@ -8,7 +8,7 @@
 import { api } from './api';
 import { IS_DEV } from '../config/env';
 
-const DASHBOARD_ROLES = ['distributor', 'branch', 'subscriber', 'agent', 'employer'];
+const DASHBOARD_ROLES = ['distributor', 'branch', 'subscriber', 'agent', 'employer', 'admin'];
 
 /**
  * Standardised auth-error shape. Components catch these and render
@@ -212,10 +212,11 @@ export async function changePassword(currentPassword, newPassword) {
 }
 
 /**
- * @description Checks whether a role has a built dashboard. Currently 'distributor',
- *   'branch', 'subscriber', and 'agent' have dashboards. Other roles (employer,
- *   admin) are routed to `/coming-soon`. This is a client-side guard — the
- *   backend should enforce the same check on protected endpoints.
+ * @description Checks whether a role has a built dashboard. All six roles
+ *   ('distributor', 'branch', 'subscriber', 'agent', 'employer', 'admin') now
+ *   have dashboards; `/coming-soon` is retained as a fallback for any future
+ *   unbuilt role. This is a client-side guard — the backend should enforce the
+ *   same check on protected endpoints.
  * @param {string} role - User role to check
  * @returns {boolean} Whether the role has a dashboard
  */

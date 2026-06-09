@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../utils/finance';
+import { EASE_OUT_EXPO } from '../utils/motion';
+
 import { useIsMobile } from '../hooks/useIsMobile';
 import SavingsCalculator from './SavingsCalculator';
 import styles from './Hero.module.css';

@@ -1,18 +1,25 @@
-// Settings panel (Phase 8) — the real employer settings surface. Three tabs
+// Settings panel (Phase 8) — the real employer settings surface. Four tabs
 // inside the shared `EmployerSlidePanel` chrome (width 480), switched by a
 // local `tab` state with full ARIA tab semantics (tablist / tab / tabpanel):
 //
-//   'profile'  — company profile editor (name, sector, registration, contact,
-//                district, payroll cadence). Pre-filled from `useEmployer`.
-//                Save → `useUpdateEmployerProfile(employerId).mutate(patch)`
-//                with the camelCase profile keys the 0035 RPC honours.
-//   'config'   — the company-level DEFAULT contribution config (the template a
-//                new run starts from). Mode + employer % + employee %. Save →
-//                `useUpdateEmployerProfile(...).mutate({ defaultContributionConfig })`.
-//   'password' — current + new + confirm → `changePassword(current, next)`
-//                (real signed JWT). Mirrors the dashboard Settings password
-//                form: client shape check, AuthError-aware error routing,
-//                clear-on-success, toast on auth failure.
+//   'profile'   — company profile editor (name, sector, registration, contact,
+//                 district, payroll cadence). Pre-filled from `useEmployer`.
+//                 Save → `useUpdateEmployerProfile(employerId).mutate(patch)`
+//                 with the camelCase profile keys the 0035 RPC honours.
+//   'pension'   — the company-level DEFAULT contribution config (the template a
+//                 new run starts from). Mode + employer % + employee %, plus the
+//                 shared <GroupInsuranceFieldset>. Save → `saveConfig(...)`.
+//   'insurance' — group life cover, the same <GroupInsuranceFieldset> bound to
+//                 the SAME draft as the pension tab + the live exposure summary.
+//                 Save → `saveConfig(...)`.
+//   'password'  — current + new + confirm → `changePassword(current, next)`
+//                 (real signed JWT). Mirrors the dashboard Settings password
+//                 form: client shape check, AuthError-aware error routing,
+//                 clear-on-success, toast on auth failure.
+//
+// The Pension and Insurance tabs share ONE `default_contribution_config` draft
+// (lifted to the `SettingsBody` level) so editing funding mode on one tab and
+// group cover on the other never clobber each other — a single source of truth.
 //
 // This component never imports `employerSeed` / `mockData`; all company data
 // arrives through the employer hooks, and scope (`employerId`) via the
@@ -23,21 +30,40 @@ import { useEmployerPanel } from '../../contexts/EmployerPanelContext';
 import { useEmployerScope } from '../../contexts/EmployerScopeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
-import { useEmployer, useUpdateEmployerProfile } from '../../hooks/useEmployer';
+import {
+  useEmployer,
+  useEmployees,
+  useUpdateEmployerProfile,
+} from '../../hooks/useEmployer';
 import { changePassword, AuthError } from '../../services/auth';
-import { formatUGX } from '../../utils/currency';
+import { formatUGX, formatNumber } from '../../utils/currency';
 import SkeletonRow from '../../components/SkeletonRow';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import EmployerSlidePanel from '../panels/EmployerSlidePanel';
+import GroupInsuranceFieldset from './GroupInsuranceFieldset';
 import styles from './EmployerSettings.module.css';
 
 const round = (n) => Math.round(n);
 
 const TABS = [
   { key: 'profile', label: 'Company profile' },
-  { key: 'config', label: 'Default config' },
+  { key: 'pension', label: 'Pension contribution' },
+  { key: 'insurance', label: 'Insurance' },
   { key: 'password', label: 'Password' },
 ];
+
+// Cross-panel signal: a sibling panel (e.g. InsuranceBenefits' "Manage cover")
+// can request that Settings open on a specific tab. The shared
+// `EmployerPanelContext` only exposes a single `settingsOpen` boolean and isn't
+// owned here, so this minimal module-scoped pub/sub carries the desired initial
+// tab alongside the open flag without widening the context surface.
+let pendingSettingsTab = null;
+const settingsTabListeners = new Set();
+
+export function requestSettingsTab(tabKey) {
+  pendingSettingsTab = tabKey;
+  settingsTabListeners.forEach((fn) => fn(tabKey));
+}
 
 const SECTOR_OPTIONS = [
   'Agriculture',
@@ -77,13 +103,34 @@ export default function EmployerSettings({ splitMode = false }) {
     refetch,
   } = useEmployer(employerId);
 
-  const [tab, setTab] = useState('profile');
+  // Seed the initial tab from any cross-panel request already pending at mount
+  // (e.g. InsuranceBenefits' "Manage cover" deep-links to the insurance tab and
+  // sets `pendingSettingsTab` before `settingsOpen` flips true). Reading it in
+  // the lazy initializer honours the deep-link on the first render WITHOUT a
+  // setState inside an effect (react-hooks/set-state-in-effect).
+  const [tab, setTab] = useState(() => pendingSettingsTab || 'profile');
+
+  // Honour cross-panel "open on tab X" requests, and clear the one consumed at
+  // mount. The effect body does no synchronous setState; the listener fires
+  // from a sibling panel event, not during this effect.
+  useEffect(() => {
+    pendingSettingsTab = null;
+    const listener = (tabKey) => {
+      setTab(tabKey);
+      pendingSettingsTab = null;
+    };
+    settingsTabListeners.add(listener);
+    return () => settingsTabListeners.delete(listener);
+  }, []);
 
   // Reset to the first tab a moment after the panel closes so re-opening
-  // starts clean (matches the sibling panels' close-reset idiom).
+  // starts clean (matches the sibling panels' close-reset idiom). A pending
+  // tab request (set as the panel re-opens) wins over the reset.
   useEffect(() => {
     if (settingsOpen) return undefined;
-    const t = setTimeout(() => setTab('profile'), 400);
+    const t = setTimeout(() => {
+      if (!pendingSettingsTab) setTab('profile');
+    }, 400);
     return () => clearTimeout(t);
   }, [settingsOpen]);
 
@@ -130,48 +177,223 @@ export default function EmployerSettings({ splitMode = false }) {
           onRetry={refetch}
         />
       ) : (
-        <>
-          <div
-            role="tabpanel"
-            id="emp-settings-panel-profile"
-            aria-labelledby="emp-settings-tab-profile"
-            hidden={tab !== 'profile'}
-          >
-            {tab === 'profile' && (
-              <ProfileTab
-                employer={employer}
-                employerId={employerId}
-                addToast={addToast}
-              />
-            )}
-          </div>
-
-          <div
-            role="tabpanel"
-            id="emp-settings-panel-config"
-            aria-labelledby="emp-settings-tab-config"
-            hidden={tab !== 'config'}
-          >
-            {tab === 'config' && (
-              <DefaultConfigTab
-                employer={employer}
-                employerId={employerId}
-                addToast={addToast}
-              />
-            )}
-          </div>
-
-          <div
-            role="tabpanel"
-            id="emp-settings-panel-password"
-            aria-labelledby="emp-settings-tab-password"
-            hidden={tab !== 'password'}
-          >
-            {tab === 'password' && <PasswordTab open={settingsOpen} addToast={addToast} />}
-          </div>
-        </>
+        <SettingsBody
+          tab={tab}
+          settingsOpen={settingsOpen}
+          employer={employer}
+          employerId={employerId}
+          addToast={addToast}
+        />
       )}
     </EmployerSlidePanel>
+  );
+}
+
+// =============================================================================
+// Settings body — owns the SHARED contribution-config draft so the Pension and
+// Insurance tabs are a single source of truth, and exposes the one `saveConfig`
+// seam (insurance-tab + pension-tab config save) that C4 will replace with a
+// single atomic RPC.
+// =============================================================================
+
+function SettingsBody({ tab, settingsOpen, employer, employerId, addToast }) {
+  const updateProfile = useUpdateEmployerProfile(employerId);
+
+  // Dual-read seed: prefer the NEW keys (matchPct / maxContribution /
+  // groupCoverAmount) and fall back to the legacy %-pair so an un-migrated
+  // config still populates sensibly. Blank UGX fields stay '' (= no cap / no
+  // cover) so the inputs render empty rather than "0". `insuranceEnabled` /
+  // `groupCoverAmount` are part of this single draft so the Pension and
+  // Insurance tabs edit the SAME state.
+  const initial = useMemo(() => {
+    const cfg = employer?.defaultContributionConfig ?? {};
+    const coverRaw = cfg.groupCoverAmount;
+    return {
+      mode: cfg.mode ?? 'co-contribution',
+      matchPct: cfg.matchPct ?? 50,
+      maxContribution: cfg.maxContribution ?? '',
+      // Employer-only is now a FIXED monthly amount per member (members are
+      // subscribers with no salary) — Issue 2 / unified model.
+      employerAmount: cfg.employerAmount ?? 50000,
+      // Group insurance is a company-wide TRUE/FALSE config, independent of
+      // funding mode. Back-compat: an un-migrated config with a positive cover
+      // is treated as enabled so existing employers keep their cover.
+      insuranceEnabled: cfg.insuranceEnabled ?? (Number(coverRaw) > 0),
+      groupCoverAmount: coverRaw ?? '',
+    };
+  }, [employer]);
+
+  const [draft, setDraft] = useState(initial);
+  const [err, setErr] = useState('');
+
+  // Re-seed when the cached config changes identity (post-save refetch). Same
+  // render-time adjustment pattern as the profile tab — no setState-in-effect.
+  const [seededFrom, setSeededFrom] = useState(initial);
+  if (seededFrom !== initial) {
+    setSeededFrom(initial);
+    setDraft(initial);
+    setErr('');
+  }
+
+  // === saveConfig — THE config-save seam ===================================
+  // ATOMIC (audit §7d-3, migration 0056): persists `default_contribution_config`
+  // (incl. the insurance keys) AND applies the group cover to every staff member
+  // in ONE `update_employer_profile` transaction — the insurance fields ride
+  // along on the same mutate call (no separate `applyGroupInsurance` step, so a
+  // partial failure can no longer desync the config from `insurance_policies`).
+  // Shared by the Pension AND Insurance tabs (NOT the profile-tab handleSave) so
+  // both save the same draft.
+  function saveConfig(e) {
+    e.preventDefault();
+    if (updateProfile.isPending) return;
+
+    const isCo = draft.mode === 'co-contribution';
+
+    // Group insurance is a company-wide TRUE/FALSE config, independent of the
+    // funding mode: either every member gets the flat group cover or none do.
+    const insuranceEnabled = !!draft.insuranceEnabled;
+    const cover = insuranceEnabled
+      ? (draft.groupCoverAmount === '' ? null : Number(draft.groupCoverAmount))
+      : null;
+    if (insuranceEnabled && !(cover > 0)) {
+      setErr('Enter a cover amount greater than 0, or turn group insurance off.');
+      return;
+    }
+
+    // Build the mode-specific config; the insurance fields ride along on both
+    // modes so the company-wide setting is persisted either way.
+    let defaultContributionConfig;
+    if (isCo) {
+      const matchPct = Number(draft.matchPct);
+      const maxContribution =
+        draft.maxContribution === '' ? null : Number(draft.maxContribution);
+      if (!(matchPct >= 0 && matchPct <= 100)) {
+        setErr('Match % must be between 0 and 100.');
+        return;
+      }
+      if (maxContribution != null && !(maxContribution >= 0)) {
+        setErr('Maximum contribution must be 0 or more (or blank for no cap).');
+        return;
+      }
+      defaultContributionConfig = {
+        mode: 'co-contribution',
+        matchPct,
+        maxContribution,
+        insuranceEnabled,
+        groupCoverAmount: cover,
+      };
+    } else {
+      const employerAmount = Number(draft.employerAmount);
+      if (!(employerAmount >= 0) || !Number.isFinite(employerAmount)) {
+        setErr('Amount per member must be 0 or more.');
+        return;
+      }
+      defaultContributionConfig = {
+        mode: 'employer-only',
+        employerAmount,
+        insuranceEnabled,
+        groupCoverAmount: cover,
+      };
+    }
+    setErr('');
+
+    // ONE atomic call: the config patch + the roster-wide group cover commit in
+    // the same `update_employer_profile` transaction. `insuranceEnabled` +
+    // `groupCover` ride along on the patch; the service forwards them as
+    // p_insurance_enabled / p_group_cover. enabled → flat cover for everyone,
+    // disabled → cleared (cover null/0). No second RPC, so no config↔policy desync.
+    updateProfile.mutate(
+      { defaultContributionConfig, insuranceEnabled, groupCover: cover },
+      {
+        onSuccess: () => addToast(
+          'success',
+          insuranceEnabled
+            ? 'Settings saved — group cover applied to all staff.'
+            : 'Settings saved — group cover removed for all staff.',
+        ),
+        onError: (e2) => addToast('error', e2?.message || 'Could not save settings.'),
+      },
+    );
+  }
+
+  const saving = updateProfile.isPending;
+
+  // The Pension and Insurance tabs share the lifted insurance handlers so the
+  // <GroupInsuranceFieldset> is a single source of truth across both.
+  const setInsuranceEnabled = (on) => {
+    setDraft((d) => ({ ...d, insuranceEnabled: on }));
+    if (err) setErr('');
+  };
+  const setGroupCover = (value) => {
+    setDraft((d) => ({ ...d, groupCoverAmount: value }));
+    if (err) setErr('');
+  };
+
+  return (
+    <>
+      <div
+        role="tabpanel"
+        id="emp-settings-panel-profile"
+        aria-labelledby="emp-settings-tab-profile"
+        hidden={tab !== 'profile'}
+      >
+        {tab === 'profile' && (
+          <ProfileTab
+            employer={employer}
+            employerId={employerId}
+            addToast={addToast}
+          />
+        )}
+      </div>
+
+      <div
+        role="tabpanel"
+        id="emp-settings-panel-pension"
+        aria-labelledby="emp-settings-tab-pension"
+        hidden={tab !== 'pension'}
+      >
+        {tab === 'pension' && (
+          <PensionContributionTab
+            draft={draft}
+            setDraft={setDraft}
+            err={err}
+            setErr={setErr}
+            saving={saving}
+            saveConfig={saveConfig}
+            setInsuranceEnabled={setInsuranceEnabled}
+            setGroupCover={setGroupCover}
+          />
+        )}
+      </div>
+
+      <div
+        role="tabpanel"
+        id="emp-settings-panel-insurance"
+        aria-labelledby="emp-settings-tab-insurance"
+        hidden={tab !== 'insurance'}
+      >
+        {tab === 'insurance' && (
+          <InsuranceTab
+            employerId={employerId}
+            draft={draft}
+            err={err}
+            saving={saving}
+            saveConfig={saveConfig}
+            setInsuranceEnabled={setInsuranceEnabled}
+            setGroupCover={setGroupCover}
+          />
+        )}
+      </div>
+
+      <div
+        role="tabpanel"
+        id="emp-settings-panel-password"
+        aria-labelledby="emp-settings-tab-password"
+        hidden={tab !== 'password'}
+      >
+        {tab === 'password' && <PasswordTab open={settingsOpen} addToast={addToast} />}
+      </div>
+    </>
   );
 }
 
@@ -392,84 +614,40 @@ function ProfileTab({ employer, employerId, addToast }) {
 }
 
 // =============================================================================
-// Tab 2 — Default contribution config (the template a new run starts from)
+// Tab 2 — Pension contribution (the company-wide funding template a run starts
+// from) + the shared group-insurance fieldset. The draft + saveConfig seam are
+// owned by SettingsBody; this tab is presentational over the funding-mode slice.
 // =============================================================================
 
-function DefaultConfigTab({ employer, employerId, addToast }) {
-  const updateProfile = useUpdateEmployerProfile(employerId);
-
-  const initial = useMemo(() => {
-    const cfg = employer?.defaultContributionConfig ?? {};
-    return {
-      mode: cfg.mode ?? 'employer-only',
-      employerPct: cfg.employerPct ?? 0,
-      employeePct: cfg.employeePct ?? 0,
-    };
-  }, [employer]);
-
-  const [draft, setDraft] = useState(initial);
-  const [err, setErr] = useState('');
-
-  // Re-seed when the cached config changes identity (post-save refetch). Same
-  // render-time adjustment pattern as the profile tab — no setState-in-effect.
-  const [seededFrom, setSeededFrom] = useState(initial);
-  if (seededFrom !== initial) {
-    setSeededFrom(initial);
-    setDraft(initial);
-    setErr('');
-  }
-
+function PensionContributionTab({
+  draft,
+  setDraft,
+  err,
+  setErr,
+  saving,
+  saveConfig,
+  setInsuranceEnabled,
+  setGroupCover,
+}) {
   const isCo = draft.mode === 'co-contribution';
 
-  // Illustrative preview against a sample monthly salary so the percentages
-  // read as concrete shillings. Display-only — runs re-derive per employee.
-  const SAMPLE_SALARY = 1000000;
-  const preview = useMemo(() => {
-    const employerHalf = round(SAMPLE_SALARY * (Number(draft.employerPct) || 0) / 100);
-    const employeeHalf = isCo ? round(SAMPLE_SALARY * (Number(draft.employeePct) || 0) / 100) : 0;
-    return { employerHalf, employeeHalf, gross: employerHalf + employeeHalf };
-  }, [draft.employerPct, draft.employeePct, isCo]);
-
-  function handleSave(e) {
-    e.preventDefault();
-    if (updateProfile.isPending) return;
-
-    const employerPct = Number(draft.employerPct);
-    const employeePct = Number(draft.employeePct);
-    if (!(employerPct >= 0 && employerPct <= 100)) {
-      setErr('Employer % must be between 0 and 100.');
-      return;
-    }
-    if (isCo && !(employeePct >= 0 && employeePct <= 100)) {
-      setErr('Employee % must be between 0 and 100.');
-      return;
-    }
-    setErr('');
-
-    // Full config object with the exact keys the RPC reads under
-    // `defaultContributionConfig`. Amounts stay null — the default is %-based.
-    const defaultContributionConfig = {
-      mode: draft.mode,
-      employerPct,
-      employeePct: isCo ? employeePct : 0,
-      employerAmount: null,
-      employeeAmount: null,
-    };
-
-    updateProfile.mutate(
-      { defaultContributionConfig },
-      {
-        onSuccess: () => addToast('success', 'Default contribution config updated.'),
-        onError: (e2) => addToast('error', e2?.message || 'Could not update default config.'),
-      },
-    );
-  }
+  // Illustrative previews — display-only; runs re-derive per member.
+  //  • Co mode reads off an EXAMPLE member monthly saving (the match base).
+  //  • Employer-only is a fixed monthly amount per member.
+  const EXAMPLE_MONTHLY = 100000;
+  const coPreview = useMemo(() => {
+    const capSet = draft.maxContribution !== '' && draft.maxContribution != null;
+    const uncapped = round(EXAMPLE_MONTHLY * (Number(draft.matchPct) || 0) / 100);
+    const match = capSet ? Math.min(uncapped, round(Number(draft.maxContribution))) : uncapped;
+    return { match, capped: capSet && uncapped > match };
+  }, [draft.matchPct, draft.maxContribution]);
 
   return (
-    <form className={styles.form} onSubmit={handleSave} noValidate>
+    <form className={styles.form} onSubmit={saveConfig} noValidate>
       <p className={styles.intro}>
-        The default a new contribution run starts from. It seeds the new-run
-        wizard; you can still adjust any employee&apos;s own config individually.
+        This is the single company-wide funding model — it applies to{' '}
+        <strong>all</strong> members. Every contribution run uses these settings
+        for everyone; it cannot be changed per member.
       </p>
 
       <fieldset className={styles.fieldset}>
@@ -480,7 +658,7 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
               type="radio"
               name="emp-default-mode"
               checked={draft.mode === 'employer-only'}
-              onChange={() => setDraft((d) => ({ ...d, mode: 'employer-only' }))}
+              onChange={() => { setDraft((d) => ({ ...d, mode: 'employer-only' })); if (err) setErr(''); }}
             />
             Employer-only
           </label>
@@ -489,57 +667,162 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
               type="radio"
               name="emp-default-mode"
               checked={draft.mode === 'co-contribution'}
-              onChange={() => setDraft((d) => ({ ...d, mode: 'co-contribution' }))}
+              onChange={() => { setDraft((d) => ({ ...d, mode: 'co-contribution' })); if (err) setErr(''); }}
             />
             Co-contribution
           </label>
         </div>
       </fieldset>
 
-      <div className={styles.fieldRow}>
+      {isCo ? (
+        <div className={styles.fieldRow}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="emp-default-match">Match %</label>
+            <input
+              id="emp-default-match"
+              className={styles.input}
+              type="number"
+              min="0"
+              max="100"
+              step="0.5"
+              value={draft.matchPct}
+              onChange={(e) => {
+                setDraft((d) => ({ ...d, matchPct: e.target.value }));
+                if (err) setErr('');
+              }}
+            />
+            <span className={styles.hint}>
+              You match this % of each employee&apos;s own monthly contribution.
+            </span>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="emp-default-max">Maximum contribution (UGX)</label>
+            <input
+              id="emp-default-max"
+              className={styles.input}
+              type="number"
+              min="0"
+              step="1000"
+              value={draft.maxContribution}
+              placeholder="No cap"
+              onChange={(e) => {
+                setDraft((d) => ({ ...d, maxContribution: e.target.value }));
+                if (err) setErr('');
+              }}
+            />
+            <span className={styles.hint}>Optional — caps the employer top-up per employee.</span>
+          </div>
+        </div>
+      ) : (
         <div className={styles.field}>
-          <label className={styles.label} htmlFor="emp-default-er">Employer %</label>
+          <label className={styles.label} htmlFor="emp-default-er">Amount per member / month (UGX)</label>
           <input
             id="emp-default-er"
             className={styles.input}
             type="number"
             min="0"
-            max="100"
-            step="0.5"
-            value={draft.employerPct}
+            step="1000"
+            value={draft.employerAmount}
             onChange={(e) => {
-              setDraft((d) => ({ ...d, employerPct: e.target.value }));
+              setDraft((d) => ({ ...d, employerAmount: e.target.value }));
               if (err) setErr('');
             }}
           />
+          <span className={styles.hint}>The employer contributes this fixed amount to each member every month.</span>
         </div>
-        <div className={styles.field} data-disabled={!isCo || undefined}>
-          <label className={styles.label} htmlFor="emp-default-ee">Employee %</label>
-          <input
-            id="emp-default-ee"
-            className={styles.input}
-            type="number"
-            min="0"
-            max="100"
-            step="0.5"
-            value={draft.employeePct}
-            disabled={!isCo}
-            onChange={(e) => {
-              setDraft((d) => ({ ...d, employeePct: e.target.value }));
-              if (err) setErr('');
-            }}
-          />
-        </div>
-      </div>
+      )}
 
+      {isCo ? (
+        <div className={styles.preview} aria-live="polite">
+          <span className={styles.previewLabel}>
+            If an employee saves {formatUGX(EXAMPLE_MONTHLY, { compact: false })}/mo
+          </span>
+          <div className={styles.previewRow}>
+            <span>You add: <strong>{formatUGX(coPreview.match, { compact: false })}</strong>{coPreview.capped ? ' (capped)' : ''}</span>
+            <span>Total: <strong>{formatUGX(EXAMPLE_MONTHLY + coPreview.match, { compact: false })}</strong></span>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.preview} aria-live="polite">
+          <span className={styles.previewLabel}>Each member, every month</span>
+          <div className={styles.previewRow}>
+            <span>You contribute: <strong>{formatUGX(Number(draft.employerAmount) || 0, { compact: false })}</strong></span>
+          </div>
+        </div>
+      )}
+
+      {/* Group insurance — a company-wide TRUE/FALSE config, independent of the
+          funding mode above. Same <GroupInsuranceFieldset> rendered on the
+          Insurance tab, bound to the SAME draft (single source of truth). */}
+      <GroupInsuranceFieldset
+        enabled={draft.insuranceEnabled}
+        coverAmount={draft.groupCoverAmount}
+        onToggle={setInsuranceEnabled}
+        onCoverChange={setGroupCover}
+      />
+
+      {err && <p className={styles.error} role="alert">{err}</p>}
+
+      <div className={styles.actions}>
+        <button
+          type="submit"
+          className={styles.primaryBtn}
+          disabled={saving}
+        >
+          {saving ? 'Saving…' : 'Save settings'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// =============================================================================
+// Tab 3 — Insurance. Primary <GroupInsuranceFieldset> (same draft as Pension) +
+// the live company-wide exposure summary. Saves through the SAME saveConfig
+// seam so config and policies stay consistent.
+// =============================================================================
+
+function InsuranceTab({
+  employerId,
+  draft,
+  err,
+  saving,
+  saveConfig,
+  setInsuranceEnabled,
+  setGroupCover,
+}) {
+  const { data: employees = [] } = useEmployees(employerId);
+  const headcount = employees.length;
+
+  // Live exposure reflects the in-progress draft so the summary updates as the
+  // employer edits cover before saving (mirrors the read-only panel's numbers).
+  const enabled = !!draft.insuranceEnabled;
+  const cover = Number(draft.groupCoverAmount) || 0;
+
+  return (
+    <form className={styles.form} onSubmit={saveConfig} noValidate>
+      <p className={styles.intro}>
+        Group life cover is company-wide and all-or-nothing — a single flat
+        amount applies to <strong>every</strong> staff member, or no-one.
+      </p>
+
+      <GroupInsuranceFieldset
+        enabled={draft.insuranceEnabled}
+        coverAmount={draft.groupCoverAmount}
+        onToggle={setInsuranceEnabled}
+        onCoverChange={setGroupCover}
+      />
+
+      {/* Company-wide exposure summary — same numbers the read-only
+          InsuranceBenefits panel shows, kept in sync with the draft. */}
       <div className={styles.preview} aria-live="polite">
-        <span className={styles.previewLabel}>
-          Per-run preview (from {formatUGX(SAMPLE_SALARY, { compact: false })} salary)
-        </span>
+        <span className={styles.previewLabel}>Company exposure</span>
         <div className={styles.previewRow}>
-          <span>Employer: <strong>{formatUGX(preview.employerHalf, { compact: false })}</strong></span>
-          <span>Employee: <strong>{preview.employeeHalf > 0 ? formatUGX(preview.employeeHalf, { compact: false }) : '—'}</strong></span>
-          <span>Total: <strong>{formatUGX(preview.gross, { compact: false })}</strong></span>
+          <span>Staff covered: <strong>{enabled ? formatNumber(headcount) : '0'}</strong></span>
+          <span>
+            Total exposure:{' '}
+            <strong>{enabled ? formatUGX(cover * headcount, { compact: false }) : '—'}</strong>
+          </span>
         </div>
       </div>
 
@@ -549,9 +832,9 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
         <button
           type="submit"
           className={styles.primaryBtn}
-          disabled={updateProfile.isPending}
+          disabled={saving}
         >
-          {updateProfile.isPending ? 'Saving…' : 'Save default config'}
+          {saving ? 'Saving…' : 'Save settings'}
         </button>
       </div>
     </form>
@@ -559,7 +842,7 @@ function DefaultConfigTab({ employer, employerId, addToast }) {
 }
 
 // =============================================================================
-// Tab 3 — Password (real signed JWT via the auth endpoint)
+// Tab 4 — Password (real signed JWT via the auth endpoint)
 // =============================================================================
 
 function PasswordTab({ open, addToast }) {

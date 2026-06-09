@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { formatUGXExact } from '../../../utils/finance';
+import { formatUGX } from '../../../utils/currency';
+
 import { formatDate } from '../../../utils/date';
 import { useSubscriberTransactions } from '../../../hooks/useSubscriber';
 import styles from './ActivityWidget.module.css';
@@ -48,6 +49,10 @@ export default function ActivityWidget({ subscriber }) {
         <ul className={styles.list}>
           {transactions.map((tx) => {
             const meta = TX_META[tx.type] || TX_META.contribution;
+            const label =
+              tx.type === 'contribution' && tx.source === 'employer'
+                ? 'Employer contribution'
+                : meta.label;
             const negative = tx.amount < 0;
             return (
               <li key={tx.id} className={styles.row}>
@@ -57,7 +62,7 @@ export default function ActivityWidget({ subscriber }) {
                   </svg>
                 </span>
                 <div className={styles.main}>
-                  <span className={styles.label}>{meta.label}</span>
+                  <span className={styles.label}>{label}</span>
                   <span className={styles.meta}>
                     {formatTxDate(tx.date)}
                     {tx.method && (
@@ -69,7 +74,7 @@ export default function ActivityWidget({ subscriber }) {
                   </span>
                 </div>
                 <span className={styles.amount} data-negative={negative || undefined}>
-                  {negative ? '−' : '+'}{formatUGXExact(Math.abs(tx.amount))}
+                  {negative ? '−' : '+'}{formatUGX(Math.abs(tx.amount), { compact: false })}
                 </span>
               </li>
             );

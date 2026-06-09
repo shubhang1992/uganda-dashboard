@@ -107,8 +107,16 @@ describe('currency utils', () => {
       expect(formatUGXShort(1_000_000)).toBe('1M');
     });
 
+    it('formats 2_500_000 as 3M (rounds to nearest integer)', () => {
+      expect(formatUGXShort(2_500_000)).toBe('3M');
+    });
+
     it('formats 1_000_000_000 as 1.0B', () => {
       expect(formatUGXShort(1_000_000_000)).toBe('1.0B');
+    });
+
+    it('formats 1_500_000_000 as 1.5B', () => {
+      expect(formatUGXShort(1_500_000_000)).toBe('1.5B');
     });
 
     it('returns 0 for non-positive values', () => {
