@@ -10,9 +10,8 @@ import SkeletonRow from '../../../components/SkeletonRow';
 import EmptyState from '../../../components/EmptyState';
 import frameStyles from './ReportFrame.module.css';
 
-function monthLabel(i, len) {
-  const d = new Date();
-  const target = new Date(d.getFullYear(), d.getMonth() - (len - 1 - i), 1);
+function monthLabel(i, len, baseYear, baseMonth) {
+  const target = new Date(baseYear, baseMonth - (len - 1 - i), 1);
   return formatDate(target, { variant: 'short-month-year' });
 }
 
@@ -22,19 +21,36 @@ export default function ContributionsSummary() {
   const schedule = sub?.contributionSchedule;
   const retPct = (schedule?.retirementPct ?? 80) / 100;
 
+  // Anchor the month axis to the latest dated contribution/transaction rather
+  // than the wall clock: the demo seed is MOCK_NOW-anchored (2026), so labels
+  // built from `new Date()` drift away from the data as real time passes.
+  // Components must not import mockData (CLAUDE.md §4), so derive the base month
+  // from the dated transactions the hook already gave us, falling back to the
+  // wall clock when there is no dated data. Mirrors ActivityPage's data anchor.
+  const [baseYear, baseMonth] = useMemo(() => {
+    let latest = null;
+    (sub?.transactions || []).forEach((t) => {
+      if (!t.date) return;
+      const d = new Date(t.date);
+      if (!Number.isNaN(d.getTime()) && (latest == null || d > latest)) latest = d;
+    });
+    const base = latest ?? new Date();
+    return [base.getFullYear(), base.getMonth()];
+  }, [sub?.transactions]);
+
   const monthly = useMemo(
     () => history.map((v, i) => {
       const ret = Math.round(v * retPct);
       const emg = v - ret;
       return {
         id: `m-${i}`,
-        monthLabel: monthLabel(i, history.length),
+        monthLabel: monthLabel(i, history.length, baseYear, baseMonth),
         total: v,
         retirement: ret,
         emergency: emg,
       };
     }).reverse(),
-    [history, retPct]
+    [history, retPct, baseYear, baseMonth]
   );
 
   const totals = useMemo(() => {

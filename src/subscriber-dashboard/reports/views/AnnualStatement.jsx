@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useCurrentSubscriber } from '../../../hooks/useSubscriber';
 import { formatUGX } from '../../../utils/currency';
 
@@ -26,6 +26,14 @@ export default function AnnualStatement() {
   }, [transactions]);
 
   const [year, setYear] = useState(years[0] ?? new Date().getFullYear());
+
+  // The default `year` is read once from a possibly-empty `years` (transactions
+  // hydrate async). Re-sync onto a populated year once data lands, so the
+  // statement never sticks on a wall-clock year with no transactions.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- query result → state sync
+    if (years.length && !years.includes(year)) setYear(years[0]);
+  }, [years, year]);
 
   const yearTx = useMemo(
     () => transactions.filter((t) => txYear(t.date) === year),
