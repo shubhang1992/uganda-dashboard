@@ -246,14 +246,20 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
         {/* Col 1: Score */}
         <div className={styles.scoreSection}>
           <div className={styles.gaugeWrap}>
-            <ScoreGauge value={branch?.score ?? score.total} />
+            {/* Single source of truth: the gauge, its centre number, and the
+                quality label all read the locally-derived `score.total` — the
+                same computation that feeds the breakdown bars + KPI cards below.
+                Previously the gauge preferred a server-supplied `branch.score`
+                while the breakdown stayed local, so the headline number could
+                visibly disagree with its own breakdown (audit §3a-5). */}
+            <ScoreGauge value={score.total} />
             <div className={styles.scoreCenter}>
               <motion.span className={styles.scoreNumber}
                 initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 0.8, ease: EASE_OUT_EXPO }}>
-                {branch?.score ?? score.total}
+                {score.total}
               </motion.span>
-              <span className={styles.scoreQuality}>{scoreLabel(branch?.score ?? score.total)}</span>
+              <span className={styles.scoreQuality}>{scoreLabel(score.total)}</span>
             </div>
           </div>
           <span className={styles.scoreLabel}>Branch Score</span>

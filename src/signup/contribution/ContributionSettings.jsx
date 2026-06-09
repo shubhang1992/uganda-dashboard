@@ -11,6 +11,7 @@ import {
 } from '../../constants/savings';
 import logo from '../../assets/logo.png';
 import PaymentStep from './PaymentStep';
+import { PillChip, PillChipGroup } from '../../components/PillChip';
 import styles from './ContributionSettings.module.css';
 
 export { MIN_CONTRIBUTION };
@@ -231,7 +232,18 @@ export default function ContributionSettings({ initial, dob, phone, collectSched
             <span className={styles.sectionIndex}>01</span>
             <h2 id="freq-heading" className={styles.sectionTitle}>How often?</h2>
           </div>
-          <div className={styles.freqGrid} role="radiogroup" aria-label="Contribution frequency">
+          {/* Rich frequency cards keep their bespoke `.freqCard` styling (column
+              layout + helper + check badge), so they stay native role="radio"
+              buttons rather than the capsule <PillChip>. Wrapping them in
+              <PillChipGroup> still gives the WAI-ARIA radiogroup behaviour
+              (roving tabindex + arrow-key navigation), since the group queries
+              its `[role="radio"]` descendants regardless of element type. */}
+          <PillChipGroup
+            label="Contribution frequency"
+            layout="grid"
+            columns={FREQUENCIES.length}
+            className={styles.freqGrid}
+          >
             {FREQUENCIES.map((f) => {
               const active = frequency === f.id;
               return (
@@ -254,7 +266,7 @@ export default function ContributionSettings({ initial, dob, phone, collectSched
                 </button>
               );
             })}
-          </div>
+          </PillChipGroup>
         </section>
 
         {/* ── Section 2 — Amount ────────────────────────────────── */}

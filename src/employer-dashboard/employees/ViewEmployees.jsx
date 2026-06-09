@@ -7,7 +7,7 @@
 // view (a destructive footer action), not on every roster row. Data comes from
 // `useEmployees(employerId)` — never imports `employerSeed`.
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 import { useEmployerScope } from '../../contexts/EmployerScopeContext';
@@ -55,6 +55,16 @@ export default function ViewEmployees({ splitMode = false }) {
   const [detailId, setDetailId] = useState(null);
   // The member pending a "Remove from company" confirmation (null = no modal).
   const [removeTarget, setRemoveTarget] = useState(null);
+
+  // Focus targets for the single-panel-replace swap (§7c.3). On a list↔detail
+  // transition, focus moves to the newly shown container so keyboard/SR users
+  // land on the new content instead of <body> after the triggering row/back
+  // button unmounts. Mirrors SignupShell's mainRef focus-on-transition pattern.
+  const listRef = useRef(null);
+  const detailRef = useRef(null);
+  // Skip the very first focus pass (panel-open already moves focus into the
+  // panel chrome via EmployerSlidePanel) — only steer focus on an actual swap.
+  const didMountView = useRef(false);
 
   function openDetail(id) {
     setDetailId(id);
@@ -104,6 +114,21 @@ export default function ViewEmployees({ splitMode = false }) {
     return () => clearTimeout(t);
   }, [employeesOpen]);
 
+  // Move focus to the newly shown view on a list↔detail swap (§7c.3). The first
+  // render is skipped (panel-open focus is owned by EmployerSlidePanel); a
+  // requestAnimationFrame defer lets AnimatePresence mount the incoming view.
+  useEffect(() => {
+    if (!didMountView.current) {
+      didMountView.current = true;
+      return undefined;
+    }
+    const target = view === 'detail' ? detailRef : listRef;
+    const frame = requestAnimationFrame(() => {
+      target.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [view]);
+
   const kpis = useMemo(() => {
     const headcount = employees.length;
     const active = employees.filter((e) => e.status === 'active').length;
@@ -149,7 +174,7 @@ export default function ViewEmployees({ splitMode = false }) {
       <AnimatePresence mode="wait" initial={false}>
         {inDetail ? (
           /* ─── MEMBER DETAIL VIEW ─────────────────────────────────────── */
-          <motion.div key="detail" {...viewAnim}>
+          <motion.div key="detail" ref={detailRef} tabIndex={-1} {...viewAnim}>
             <button type="button" className={styles.detailBack} onClick={backToList}>
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="16" height="16">
                 <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
@@ -173,7 +198,7 @@ export default function ViewEmployees({ splitMode = false }) {
           </motion.div>
         ) : (
           /* ─── ROSTER LIST VIEW ───────────────────────────────────────── */
-          <motion.div key="list" {...viewAnim}>
+          <motion.div key="list" ref={listRef} tabIndex={-1} {...viewAnim}>
             {/* KPI strip */}
             <div className={styles.kpiRow}>
               <div className={styles.kpi}>
@@ -263,16 +288,17 @@ export default function ViewEmployees({ splitMode = false }) {
                   <ul className={styles.tableBody}>
                     {filtered.map((emp) => (
                       <li key={emp.id} role="row" className={styles.rowItem}>
-                        <button
-                          type="button"
-                          className={styles.nameBtn}
-                          onClick={() => openDetail(emp.id)}
-                          aria-label={`Open ${emp.name} details`}
-                          role="cell"
-                        >
-                          <span className={styles.name}>{emp.name}</span>
-                          <span className={styles.subline}>{emp.phone}</span>
-                        </button>
+                        <span role="cell" className={styles.colName}>
+                          <button
+                            type="button"
+                            className={styles.nameBtn}
+                            onClick={() => openDetail(emp.id)}
+                            aria-label={`Open ${emp.name} details`}
+                          >
+                            <span className={styles.name}>{emp.name}</span>
+                            <span className={styles.subline}>{emp.phone}</span>
+                          </button>
+                        </span>
                         <span className={styles.colMode} role="cell">
                           {formatUGX(emp.monthlyContribution, { compact: false })}
                         </span>

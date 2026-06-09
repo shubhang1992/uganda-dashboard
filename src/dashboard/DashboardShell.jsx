@@ -64,6 +64,7 @@ function MobileHeader({ onMenuToggle, menuOpen }) {
         onClick={onMenuToggle}
         aria-label={menuOpen ? 'Close menu' : 'Open menu'}
         aria-expanded={menuOpen}
+        aria-controls="distributor-mobile-drawer"
       >
         <span className={styles.hamburgerLine} data-open={menuOpen} />
         <span className={styles.hamburgerLine} data-open={menuOpen} />
@@ -155,8 +156,13 @@ function MobileDrawer({ open, onClose }) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
             onClick={onClose}
+            aria-hidden="true"
           />
           <motion.div
+            id="distributor-mobile-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Distributor dashboard menu"
             className={styles.drawer}
             initial={{ x: '100%' }}
             animate={{ x: 0 }}

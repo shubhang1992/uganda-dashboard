@@ -26,6 +26,17 @@ const VARIANTS = {
   'day-month': DAY_MONTH_OPTS,             // "8 Apr"
 };
 
+// A bare PG `DATE` value (`YYYY-MM-DD`, no time component): `next_due_date`,
+// `paid_date`, `renewal_date`, schedule dates. `new Date('2026-06-15')` parses
+// these as UTC midnight, so formatting them in the runtime zone shifts the
+// calendar day for any UTC-negative viewer. We render these with
+// `timeZone: 'UTC'` so the stored calendar date shows verbatim everywhere.
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isDateOnly(value) {
+  return typeof value === 'string' && DATE_ONLY_RE.test(value);
+}
+
 function toDate(value) {
   if (value == null || value === '') return null;
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
@@ -44,7 +55,12 @@ export function formatDate(value, options = {}) {
   const { variant = 'short' } = options;
   const d = toDate(value);
   if (!d) return '—';
-  const opts = VARIANTS[variant] ?? SHORT_OPTS;
+  let opts = VARIANTS[variant] ?? SHORT_OPTS;
+  // Date-only DB values (`YYYY-MM-DD`) are UTC-midnight instants; pin the format
+  // to UTC so the stored calendar day renders verbatim in every viewer zone.
+  // True timestamps (Date objects, ms, datetime strings) keep local-zone
+  // rendering — `time` in particular must show the viewer's wall clock.
+  if (isDateOnly(value)) opts = { ...opts, timeZone: 'UTC' };
   if (variant === 'time') return d.toLocaleTimeString(LOCALE, opts);
   return d.toLocaleDateString(LOCALE, opts);
 }

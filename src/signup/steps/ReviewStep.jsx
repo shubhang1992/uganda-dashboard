@@ -5,6 +5,7 @@ import { EASE_OUT_EXPO } from '../../utils/motion';
 import { useAllEntities } from '../../hooks/useEntity';
 import { useSignup } from '../SignupContext';
 import { extractIdFields } from '../../services/kyc';
+import { PillChip, PillChipGroup } from '../../components/PillChip';
 import styles from './Step.module.css';
 import own from './ReviewStep.module.css';
 
@@ -345,21 +346,17 @@ export default function ReviewStep({ onNext }) {
         </div>
 
         <ReviewField id="gender" label="Gender" autoFilled={isAutoFilled('gender')} error={errors.gender}>
-          <div className={styles.segment} style={{ '--cols': 3 }} role="radiogroup" aria-labelledby="gender-label">
+          <PillChipGroup label="Gender" layout="grid" columns={3}>
             {GENDERS.map((g) => (
-              <button
+              <PillChip
                 key={g.id}
-                type="button"
-                role="radio"
-                aria-checked={signup.gender === g.id}
-                data-active={signup.gender === g.id}
-                className={styles.segmentBtn}
+                selected={signup.gender === g.id}
                 onClick={() => { signup.patch({ gender: g.id }); markEdited('gender'); }}
               >
                 {g.label}
-              </button>
+              </PillChip>
             ))}
-          </div>
+          </PillChipGroup>
         </ReviewField>
 
         {/* Divider between OCR and manual fields */}

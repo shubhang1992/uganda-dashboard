@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
+import { PillChipGroup } from '../../components/PillChip';
 import styles from './ContributionSettings.module.css';
 
 /**
@@ -114,7 +115,16 @@ export default function PaymentStep({
         </button>
       </div>
 
-      <div className={styles.pmtMethodList} role="radiogroup" aria-label="Payment method">
+      {/* Each method is a bespoke expandable card (the role="radio" sits on the
+          inner header button), so the cards stay native markup; PillChipGroup
+          wraps them only to add the radiogroup roving-tabindex + arrow keys,
+          which it derives from its `[role="radio"]` descendants. */}
+      <PillChipGroup
+        label="Payment method"
+        layout="grid"
+        columns={1}
+        className={styles.pmtMethodList}
+      >
         {PAYMENT_METHODS.map((m) => {
           const active = method === m.id;
           return (
@@ -150,7 +160,12 @@ export default function PaymentStep({
                     <div className={styles.pmtFieldsInner}>
                       {m.id === 'momo' && (
                         <>
-                          <div className={styles.pmtProviderRow} role="radiogroup" aria-label="Mobile money provider">
+                          <PillChipGroup
+                            label="Mobile money provider"
+                            layout="grid"
+                            columns={2}
+                            className={styles.pmtProviderRow}
+                          >
                             {['mtn', 'airtel'].map((p) => (
                               <button
                                 key={p}
@@ -164,7 +179,7 @@ export default function PaymentStep({
                                 {p === 'mtn' ? 'MTN MoMo' : 'Airtel Money'}
                               </button>
                             ))}
-                          </div>
+                          </PillChipGroup>
                           <label className={styles.pmtFieldRow}>
                             <span className={styles.pmtFieldLabel}>Phone number</span>
                             <span className={styles.pmtPhoneField}>
@@ -203,7 +218,7 @@ export default function PaymentStep({
             </div>
           );
         })}
-      </div>
+      </PillChipGroup>
 
       <p className={styles.pmtSecure}>
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" aria-hidden="true">
