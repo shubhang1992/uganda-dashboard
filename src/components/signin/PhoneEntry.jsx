@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
 import { isValidUGPhone } from '../../utils/phone';
 import styles from './PhoneEntry.module.css';
 import modalStyles from '../SignInModal.module.css';
@@ -17,6 +16,33 @@ export default function PhoneEntry({ role, onSubmit, onBack, hideBadge = false, 
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const toggleRef = useRef(null);
+
+  // Roving tabindex: keep exactly one radio in the tab order (the checked one)
+  // so the method toggle is a single tab stop, mirroring PillChipGroup.
+  useEffect(() => {
+    const el = toggleRef.current;
+    if (!el) return;
+    const radios = Array.from(el.querySelectorAll('[role="radio"]'));
+    if (!radios.length) return;
+    const checked = radios.find((r) => r.getAttribute('aria-checked') === 'true');
+    radios.forEach((r) => { r.tabIndex = -1; });
+    (checked || radios[0]).tabIndex = 0;
+  }, [method]);
+
+  function handleToggleKeyDown(e) {
+    if (!['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(e.key)) return;
+    const el = toggleRef.current;
+    if (!el) return;
+    const radios = Array.from(el.querySelectorAll('[role="radio"]')).filter((r) => !r.disabled);
+    if (!radios.length) return;
+    const current = el.querySelector('[role="radio"]:focus') || radios[0];
+    const forward = e.key === 'ArrowRight' || e.key === 'ArrowDown';
+    const next = radios[(radios.indexOf(current) + (forward ? 1 : -1) + radios.length) % radios.length];
+    e.preventDefault();
+    next.focus();
+    next.click();
+  }
 
   function handleChange(e) {
     const val = e.target.value.replace(/\D/g, '').slice(0, 9);
@@ -75,9 +101,11 @@ export default function PhoneEntry({ role, onSubmit, onBack, hideBadge = false, 
           password step (goTo('password')). */}
       {onMethodChange && (
         <div
+          ref={toggleRef}
           className={modalStyles.methodToggle}
           role="radiogroup"
           aria-label="Sign-in method"
+          onKeyDown={handleToggleKeyDown}
         >
           <button
             type="button"

@@ -367,20 +367,17 @@ export default function SignInModal() {
                   >
                     {role === 'subscriber' ? (
                       <>
-                        <div className={styles.authTabs} role="tablist" aria-label="Authentication mode">
+                        <div className={styles.authTabs}>
                           <button
                             type="button"
-                            role="tab"
-                            aria-selected="true"
                             className={styles.authTab}
                             data-active="true"
+                            aria-current="page"
                           >
                             Sign in
                           </button>
                           <button
                             type="button"
-                            role="tab"
-                            aria-selected="false"
                             className={styles.authTab}
                             onClick={() => { close(); navigate('/signup'); }}
                           >

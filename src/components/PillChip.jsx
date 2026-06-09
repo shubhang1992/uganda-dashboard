@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { Children, useEffect, useRef } from 'react';
 import styles from './PillChip.module.css';
 
 /**
@@ -40,6 +40,13 @@ export function PillChipGroup({ label, layout = 'row', columns = 3, className = 
   const ref = useRef(null);
   const isGrid = layout === 'grid';
 
+  // Signature of which chip is selected (and how many there are) so the roving
+  // tabindex effect below re-runs only when selection or the child set changes,
+  // not on every render.
+  const checkedSig = Children.toArray(children)
+    .map((child) => (child?.props?.selected ? '1' : '0'))
+    .join('');
+
   // Roving tabindex: keep exactly one radio in the tab order (the checked one,
   // or the first when none is checked) so the group is a single tab stop.
   useEffect(() => {
@@ -50,7 +57,7 @@ export function PillChipGroup({ label, layout = 'row', columns = 3, className = 
     const checked = radios.find((r) => r.getAttribute('aria-checked') === 'true');
     radios.forEach((r) => { r.tabIndex = -1; });
     (checked || radios[0]).tabIndex = 0;
-  });
+  }, [checkedSig]);
 
   function handleKeyDown(e) {
     if (!['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(e.key)) return;
