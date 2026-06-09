@@ -149,7 +149,7 @@ All slide-in panels use `splitMode={true}`:
 - **Dashboard shell:** `SubscriberDashboardShell` (mobile-first, routed pages with `<AnimatePresence>` page transitions)
 - **Sidebar items (desktop SideNav):** Home, Save, Withdraw, Activity (redirects to AllTransactions report), Reports, Help, Agent, Settings
 - **Mobile shell:** Bottom tab bar with 3 core tabs + "More" popover
-- **KYC gate:** A subscriber with `isSignupComplete() === false` is routed to `/signup` rather than `/dashboard` after sign-in (`SignInModal#handleVerify`).
+- **Post-sign-in routing:** `SignInModal#handleVerify` routes purely by role — `hasDashboard(user.role)` sends a subscriber to `/dashboard`. There is no KYC/localStorage gate back to `/signup` (the former `isSignupComplete()` detour was removed).
 
 ### Pages/Views Accessible
 | View | Access | Notes |

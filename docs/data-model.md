@@ -704,8 +704,8 @@ Formats UGX amounts with short notation:
 - else: `"UGX X"`
 - <= 0: `"---"`
 
-### fmtShort(n)
-Same as `formatUGX` but without the `"UGX "` prefix.
+### formatUGXShort(n)
+Same as `formatUGX` but without the `"UGX "` prefix (e.g. `"1.2M"`). Lives in `src/utils/currency.js` (the former `fmtShort` shim no longer exists).
 
 ### getInitials(name)
 First letter of each word, max 2 characters, uppercase.

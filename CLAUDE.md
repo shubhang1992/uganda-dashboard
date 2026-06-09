@@ -71,7 +71,7 @@ Key | Scope
 
 File | What it does
 --- | ---
-`vite.config.js` | Path aliases (`@`, `@components`, `@contexts`, `@dashboard`, `@data`, `@utils`); manual vendor chunks (`vendor-leaflet`/`-charts`/`-motion`/`-tanstack`/`-router`/`-react`); `chunkSizeWarningLimit: 700`; embedded Vitest config
+`vite.config.js` | Path alias (`@` → `./src` — the only alias defined); manual vendor chunks (`vendor-leaflet`/`-charts`/`-motion`/`-tanstack`/`-router`/`-react`); `chunkSizeWarningLimit: 700`; embedded Vitest config
 `eslint.config.js` | ESLint 9 flat config (`@eslint/js` + react-hooks + react-refresh)
 `.env.local.example` | Canonical env-var template (copy to `.env.local` — gitignored)
 `.npmrc` | `legacy-peer-deps=true`
@@ -190,7 +190,7 @@ See `FRONTEND.md §16a` and `BACKEND.md §14a` for the role-specific demo-scope 
 
 - **`MOCK_NOW = new Date(2026, 4, 26)`** (2026-05-26) in `src/data/mockData.js` anchors "due in N days" demos. Slide it forward (or flip to `new Date()`) when the demo's relative dates start looking stale.
 - **NPM deps inventory (verified 2026-05-22 in audit Phase 6):** every direct dep in `package.json` is actually used. `dotenv` is used by `e2e/fixtures/db.ts:13` + `playwright.config.ts:16` (NOT unused). `react-is` is required transitively by `recharts` (build fails without it). `jose` is used in `api/_lib/jwt.ts`; `pg` is used in `scripts/seed-supabase.mjs`. None should be removed.
-- **Real bugs in the demo experience** (not demo-scope) are catalogued in `docs/FRONTEND.md §16b` (subscriber Settings/notifications + Settings/security now redirect to `/dashboard/settings` — the `StubPage` component was removed in the audit-remediation cleanup) and `docs/BACKEND.md §14b` (nominee shares can sum >100%). The employer role is **shipped to production** (migrations `0032`–`0036`, part of the full `0001`–`0042` chain now on the new Singapore DB); only employee **onboarding** remains a deferred placeholder (Phase 9). The commission dispute/maker-checker flow was removed in the 0029–0031 simplification, so the old `agent_dispute_line` / `disputeCommission` items no longer apply.
+- **Real bugs in the demo experience** (not demo-scope) are catalogued in `docs/FRONTEND.md §16b` (subscriber Settings/notifications + Settings/security now redirect to `/dashboard/settings` — the `StubPage` component was removed in the audit-remediation cleanup) and `docs/BACKEND.md §14b` (nominee shares can sum >100%). The employer role is **shipped to production** (migrations `0032`–`0036`, part of the full chain now on the new Singapore DB). Employee **onboarding** is no longer a deferred placeholder — it shipped as the invite-based KYC flow (migrations `0043`–`0047`). The commission dispute/maker-checker flow was removed in the 0029–0031 simplification, so the old `agent_dispute_line` / `disputeCommission` items no longer apply.
 
 ---
 

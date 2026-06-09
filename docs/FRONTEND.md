@@ -210,8 +210,12 @@ Routed pages under `/dashboard/*`:
 | `/dashboard/subscribers` | `pages/SubscribersPage` (lazy) |
 | `/dashboard/subscribers/:id` | `pages/SubscriberDetailPage` (lazy) |
 | `/dashboard/subscribers/:id/schedule` | `pages/SubscriberSchedulePage` (lazy) |
+| `/dashboard/inbox` | `pages/InboxPage` (lazy) |
 | `/dashboard/analytics` | `pages/AnalyticsPage` (lazy) |
 | `/dashboard/commissions` and `/dashboard/commissions/:view` | `pages/CommissionsPage` (lazy) |
+| `/dashboard/contributions` | `pages/ContributionsThisMonthPage` (lazy) |
+| `/dashboard/onboarded-this-month` | `pages/OnboardedThisMonthPage` (lazy) |
+| `/dashboard/yet-to-contribute` | `pages/YetToContributePage` (lazy) |
 | `/dashboard/settings` | `pages/SettingsPage` (lazy) |
 | `*` | `Navigate to="/dashboard"` |
 
@@ -631,16 +635,16 @@ The audit flagged four context providers as building a new `value` object every 
 | `useEntity(level, id)` | `['entity', level, id]` |
 | `useCurrentEntity(level, selectedIds)` | derived (walks `selectedIds`) |
 | `useChildren(level, parentId)` | `['children', level, parentId]` |
-| `useAllEntities(level)` | `['allEntities', level]` |
-| `useInfiniteEntityList(level, opts)` | `['allEntities', level, opts]` (cursor) |
-| `useAllEntitiesMap(level)` | `['allEntitiesMap', level]` |
+| `useAllEntities(level)` | `['entities', level]` |
+| `useInfiniteEntityList(level, opts)` | `['entity-page', level, opts]` (cursor; `opts` = `{ search, statusFilter, sortKey, pageSize }`) |
+| `useAllEntitiesMap(level)` | `['entitiesMap', level]` |
 | `useTopBranch(level, parentId)` | `['topBranch', level, parentId]` |
 | `useBreadcrumb(currentLevel, selectedIds)` | `['breadcrumb', currentLevel, selectedIds]` — see audit F13 |
 | `useSearch(query)` | `['search', query]` (pair with `useDebouncedValue`, §7.8) |
 | `useChildrenMetrics(parentLevel, parentId)` | `['childrenMetrics', parentLevel, parentId, ids]` |
 | `useEntityMetrics(level, id)` | `['entityMetrics', level, id]` |
 | `useAllEntitiesMetrics(level)` | `['allEntitiesMetrics', level, ids]` |
-| `useCreateBranch / useCreateAgent / useUpdateBranch / useSetBranchStatus / useUpdateDistributor` | mutations — invalidate `['allEntities', level]` + ancestors |
+| `useCreateBranch / useCreateAgent / useUpdateBranch / useSetBranchStatus / useUpdateDistributor` | mutations — invalidate `['entities', level]` (and `['entitiesMap', level]`) + ancestors |
 
 Audit F13 flags `['breadcrumb', currentLevel, selectedIds]` — the `selectedIds` object identity is unstable across renders, so the cache thrashes. Known issue; see §16b.
 
@@ -670,7 +674,7 @@ Backs the notification bell. Hooks: `useNotifications` (`['notifications']`), `u
 
 | Hook | Query key |
 | --- | --- |
-| `useCurrentSubscriber()` | `['subscriber', phone]` |
+| `useCurrentSubscriber()` | `['currentSubscriber', phone]` |
 | `useSubscriberTransactions(id, filters)` | `['subscriberTransactions', id, filters]` |
 | `useSubscriberClaims(id)` | `['subscriberClaims', id]` |
 | `useSubscriberWithdrawals(id)` | `['subscriberWithdrawals', id]` |
@@ -899,7 +903,7 @@ Modules: **Overview** (hero + notifications + operations), **Employees** (`ViewE
 - **`EPHEMERAL_KEYS = ['idFrontFile', 'idBackFile', 'selfieFile', 'idFrontPreviewUrl', 'idBackPreviewUrl', 'password']`** dropped on serialise. User re-uploads images on refresh; OCR result + phone + beneficiaries + consent + KYC outcomes survive. **Raw passwords MUST NOT touch localStorage** — `password` lives in memory only and is re-entered on remount if the user navigates back to `ReviewStep`.
 - `onboardingSessionId` minted via `crypto.randomUUID()` (fallback to time+random) — backend uses it to correlate every KYC stage.
 - **Wizard position (`stepId`) is persisted** (non-ephemeral string in `SignupContext`, written by `SignupFlow.goTo`) so a mid-flow refresh resumes the user's step instead of dropping to step 1 (BL-22). `SignupFlow` lazily rehydrates via `resolveResumeStep()`, which **clamps** the persisted step back to the first file-gated step (`id-upload`, then `liveness`, in flow order) whose re-uploadable File is now `null` after the refresh — preserving the documented "re-upload files on refresh" behaviour without letting the user land past an empty upload gate. Terminal screens (`agent`/`pending-review`) route via `setStepId` (not `goTo`) and are intentionally **not** persisted, so a refresh on a failure screen resumes the last real step that preceded it.
-- `isSignupComplete()` (in `src/signup/signupState.js`) returns `state.consent === true`. Used by `SignInModal.handleVerify` to send subscribers with incomplete KYC back to `/signup` instead of `/dashboard`.
+- `src/signup/signupState.js` now exports only `SIGNUP_STORAGE_KEY` (the canonical `'uganda-pensions-signup'` localStorage key, consumed by `SignupContext`). The old `isSignupComplete()` / `readSignupState()` helpers were removed: `SignInModal.handleVerify` no longer inspects localStorage to choose a destination — it trusts the `verify-otp` response (which resolves or falls back to a real server subscriber row) and routes purely by role (`hasDashboard(user.role) ? '/dashboard' : '/coming-soon'`).
 
 ### 11.2 Contribution sub-flow (`/signup/contribution`)
 
@@ -1011,7 +1015,7 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 
 | File | Key exports |
 | --- | --- |
-| `finance.js` | `MONTHLY_RATE`, `ANNUAL_RATE`, `FREQUENCY` constants, `FREQUENCY_LABEL`, `normalizeFrequency`, `periodsPerYear`, `monthlyEquivalent`, **`parseAmount`** (the canonical money parser — strips grouping/currency, parses decimals, **rounds to a whole-UGX integer**, returns `null` for blank/non-finite/non-positive; `settlement.js` imports this, no second copy), `calcFV`, `formatUGX`, `formatUGXExact`, `fmtShort`, `sliderToAmt`, `amtToSlider`. **Re-exports `EASE_OUT_EXPO` from `./motion` for backwards compat** (commit `fccfa7b`). |
+| `finance.js` | `MONTHLY_RATE`, `ANNUAL_RATE`, `FREQUENCY` constants, `FREQUENCY_LABEL`, `normalizeFrequency`, `periodsPerYear`, `monthlyEquivalent`, **`parseAmount`** (the canonical money parser — strips grouping/currency, parses decimals, **rounds to a whole-UGX integer**, returns `null` for blank/non-finite/non-positive; `settlement.js` imports this, no second copy), `calcFV`, `sliderToAmt`, `amtToSlider`. **Re-exports `EASE_OUT_EXPO` from `./motion` for backwards compat** (commit `fccfa7b`). Money *rendering* lives in `currency.js` (`formatUGX` / `formatNumber` / `formatUGXShort`) — `finance.js` no longer re-exports the old `formatUGX` / `formatUGXExact` / `fmtShort` shims. |
 | `motion.js` | `EASE_OUT_EXPO = [0.16, 1, 0.3, 1]` — canonical Framer Motion easing curve (Phase 5D promoted from inline). Mirrors `--ease-out-expo` CSS token in `src/index.css`. |
 | `navigation.js` | `goBackOrFallback(navigate, fallback)` — extracted in Phase 4B (`bd5ea82`); reads `window.history.state.idx` to detect a poppable in-app entry. See §4.1. |
 | `currency.js` | `formatUGX(value, { compact? = true })` (compact `'UGX 1.2M'` / exact `'UGX 50,000'` — non-positive → `'—'` in compact mode, `'UGX 0'` in exact), `formatNumber(value)` (locale-grouped count `'12,345'` — non-finite → `'0'`), `formatUGXShort(value)` (axis-label form `'1.2M'`, no UGX prefix). Single source of truth for money rendering. |
@@ -1202,7 +1206,7 @@ Slide-in panel conventions live in §12.2.
 
 ### 16.8 Iconography, map
 
-**Icon system.** Inline SVG line icons, `stroke="currentColor"`, `strokeWidth="1.75"`, 24×24 viewBox. Containers: `background: rgba(41,40,103,0.06); border: 1px solid var(--color-lavender); border-radius: var(--radius-md)`. Shared icon set in `src/dashboard/shared/Icons.jsx`. Some icons live in the SVG sprite at `public/icons.svg` and are referenced via `<use href="/icons.svg#name" />`. Never emojis, icon fonts, or icon libraries. Decorative SVGs next to text labels must have `aria-hidden="true"`.
+**Icon system.** Inline SVG line icons, `stroke="currentColor"`, `strokeWidth="1.75"`, 24×24 viewBox. Containers: `background: rgba(41,40,103,0.06); border: 1px solid var(--color-lavender); border-radius: var(--radius-md)`. Every icon is an inline-SVG React component in the shared set `src/dashboard/shared/Icons.jsx` — there is **no** SVG sprite (`public/icons.svg` was removed) and no `<use href>` references. Never emojis, icon fonts, or icon libraries. Decorative SVGs next to text labels must have `aria-hidden="true"`.
 
 **Map (Distributor).** Full-bleed `react-leaflet` + CartoDB Positron tiles. GeoJSON in `public/uganda-districts.geojson` (clipped to region polygons via `scripts/clip-districts.mjs` using `@turf/turf`) + `public/uganda-regions.geojson`. Region colours: Central `#5E63A8`, Eastern `#2F8F9D`, Northern `#3D3C80`, Western `#7B7FC4`. Soft bokeh glow halos at region centroids. `flyTo`/`fitBounds` on drill-down. Lazy-load + WeakMap style cache applied in Phase 4F (`c3c28c3`) — F10 / F11 addressed.
 
@@ -1352,7 +1356,7 @@ These are residual issues that survived the Phase 4–5 cleanup. Listed so anyon
 | `src/utils/__tests__/phone.test.js` | UG phone parse/format/validate/canonicalise |
 | `src/utils/__tests__/sentryScrub.test.js` | Sentry PII scrubber — phone / `role:phone` id / JWT / Bearer / password redaction across event + breadcrumb shapes, cycle + depth guards (BL-26 / H-4) |
 | `src/utils/__tests__/dashboard.test.js` | `getInitials`, `getTrend`, `perfLevel` |
-| `src/utils/__tests__/finance.test.js` | `parseAmount` (grouping / currency-prefix / decimal-rounds-to-integer-UGX / negative-and-zero → `null`), `formatUGX`, `fmtShort` |
+| `src/utils/__tests__/finance.test.js` | `parseAmount` (grouping / currency-prefix / decimal-rounds-to-integer-UGX / negative-and-zero → `null`), `normalizeFrequency`, `periodsPerYear`, `monthlyEquivalent`, `calcFV`, `sliderToAmt` / `amtToSlider`. (Currency rendering moved to `currency.test.js`, next row.) |
 | `src/utils/__tests__/currency.test.js` | `formatUGX`, `formatNumber`, `formatUGXShort` edge cases |
 | `src/utils/__tests__/date.test.js` | All `formatDate` variants + `'—'` fallback |
 | `src/utils/csv.test.js` | RFC 4180 + OWASP formula-injection defence |

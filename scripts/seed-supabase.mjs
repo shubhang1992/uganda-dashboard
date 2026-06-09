@@ -7,7 +7,8 @@
  *
  * Usage:
  *   1. Add SUPABASE_DB_URL=postgres://... to .env.local (use the connection
- *      pooler URL: aws-1-ap-northeast-1.pooler.supabase.com:6543).
+ *      pooler URL for the Singapore project, e.g.
+ *      aws-1-ap-southeast-1.pooler.supabase.com:6543).
  *   2. Ensure migrations 0001+ are applied to the project.
  *   3. node scripts/seed-supabase.mjs
  *
@@ -15,7 +16,7 @@
  *   • Wraps everything in a single transaction.
  *   • SET session_replication_role = replica so the first-contribution
  *     trigger (added in 0002) does NOT fire while seeding — otherwise the
- *     30k seeded contribution transactions would double-insert commissions.
+ *     ~5,000 seeded contribution transactions would double-insert commissions.
  *   • Upserts on PK so re-runs converge.
  *   • Bulk-inserts via the unnest() pattern (one INSERT per table batch).
  *
@@ -204,11 +205,12 @@ async function main() {
   const t0 = Date.now();
   console.log('• Materializing mockData…');
 
-  // Touching SUBSCRIBERS triggers the lazy Proxy → generates the 30k rows.
+  // Touching SUBSCRIBERS triggers the lazy Proxy → generates the rows
+  // (~5,000 per the `TARGET_SUBS = 5000` const in src/data/mockData.js).
   const subscriberIds = Object.keys(SUBSCRIBERS);
   const subscribers = subscriberIds.map((id) => SUBSCRIBERS[id]);
 
-  // mockData's random phone generator collides at 30k scale (~0.5% dupe rate).
+  // mockData's random phone generator can collide at scale (~0.5% dupe rate).
   // The partial unique index `subscribers(phone) WHERE NOT is_demo_signup`
   // rejects duplicates. Reassign duplicates to +25671XXXXXXX (non-real UG range)
   // so they stay unique and don't collide with demo personas at +2567000000XX.
