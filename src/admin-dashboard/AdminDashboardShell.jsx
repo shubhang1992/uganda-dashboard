@@ -288,7 +288,7 @@ function AdminDashboardContent() {
       {createEmployerOpen && <CreateEmployer />}
       {/* Reused distributor-shell panels */}
       {createBranchOpen && <CreateBranch />}
-      {viewBranchesOpen && <ViewBranches />}
+      {viewBranchesOpen && <ViewBranches readOnly />}
       {viewAgentsOpen && <ViewAgents />}
       {viewSubscribersOpen && <ViewSubscribers />}
       {viewReportsOpen && <ViewReports />}

@@ -421,11 +421,7 @@ export default function AdminSidebar() {
   }
 
   function handleBranchSub(subId) {
-    if (subId === 'create-branch') {
-      setViewBranchesOpen(false);
-      setDrillTargetBranchId(null);
-      setCreateBranchOpen(true);
-    } else if (subId === 'view-branches') {
+    if (subId === 'view-branches') {
       setCreateBranchOpen(false);
       setDrillTargetBranchId(null);
       setViewBranchesOpen(true);
@@ -502,7 +498,7 @@ export default function AdminSidebar() {
                     </div>
                     <div className={styles.subMenuDivider} />
                     {BRANCH_SUB.map((sub, i) => {
-                      const isActive = (sub.id === 'create-branch' && createBranchOpen) || (sub.id === 'view-branches' && viewBranchesOpen);
+                      const isActive = sub.id === 'view-branches' && viewBranchesOpen;
                       return (
                         <motion.button
                           key={sub.id}

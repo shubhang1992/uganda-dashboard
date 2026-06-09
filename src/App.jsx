@@ -203,6 +203,7 @@ export default function App() {
           }
         />
         <Route path="/dashboard/*" element={<ProtectedDashboard />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <SignInModal />
     </SignInProvider>

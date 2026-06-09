@@ -122,7 +122,7 @@ function AgentDetail({ agent }) {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Branch Detail View                                                        */
 /* ═══════════════════════════════════════════════════════════════════════════ */
-function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch }) {
+function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch, readOnly = false }) {
   const m = branch.metrics;
   const agents = useMemo(() => branchAgents(branch.id, agentsByBranch), [branch.id, agentsByBranch]);
   const { data: commission } = useEntityCommissionSummary('branch', branch.id);
@@ -170,12 +170,14 @@ function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch }) {
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <span className={styles.sectionTitle}>Branch Admin</span>
-          <button className={styles.editBtn} onClick={() => onEdit('admin')}>
-            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
-              <path d="M11.5 1.5l3 3L5 14H2v-3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-            </svg>
-            Edit
-          </button>
+          {!readOnly && (
+            <button className={styles.editBtn} onClick={() => onEdit('admin')}>
+              <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="12" height="12">
+                <path d="M11.5 1.5l3 3L5 14H2v-3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+              </svg>
+              Edit
+            </button>
+          )}
         </div>
         <div className={styles.adminCard}>
           <div className={styles.adminAvatar}>{getInitials(branch.managerName)}</div>
@@ -369,7 +371,7 @@ const SORT_OPTIONS = [
   { key: 'agents', label: 'Agents', fn: (a, b) => b.metrics.totalAgents - a.metrics.totalAgents },
 ];
 
-export default function ViewBranches() {
+export default function ViewBranches({ readOnly = false }) {
   const { viewBranchesOpen, setViewBranchesOpen, drillTargetBranchId, closeDrillPanel } = useDashboard();
   const { addToast } = useToast();
   const updateBranchMutation = useUpdateBranch();
@@ -937,7 +939,7 @@ export default function ViewBranches() {
                     exit={{ opacity: 0, x: -24 }}
                     transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
                   >
-                    <BranchDetail branch={selectedBranch} onSelectAgent={handleSelectAgent} onEdit={handleEdit} agentsByBranch={AGENTS_BY_BRANCH} />
+                    <BranchDetail branch={selectedBranch} onSelectAgent={handleSelectAgent} onEdit={handleEdit} agentsByBranch={AGENTS_BY_BRANCH} readOnly={readOnly} />
                   </motion.div>
                 )}
 
@@ -971,7 +973,7 @@ export default function ViewBranches() {
             </div>
 
             {/* ── Footer (detail view — toggle status) ────────────── */}
-            {view === 'detail' && selectedBranch && (
+            {!readOnly && view === 'detail' && selectedBranch && (
               <div className={styles.footer}>
                 {selectedBranch.status === 'active' ? (
                   <button className={styles.deactivateBtn} onClick={handleToggleStatusRequest}>Deactivate Branch</button>
