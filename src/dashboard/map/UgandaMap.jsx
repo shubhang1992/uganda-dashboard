@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useCallback, useMemo } from 'react';
+import { memo, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, GeoJSON, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -193,6 +193,20 @@ function UgandaMap() {
   const REGION_NAME_TO_ID = useMemo(() => Object.fromEntries(regionsArr.map((r) => [r.name, r.id])), [regionsArr]);
   const DISTRICT_NAME_TO_ID = useMemo(() => Object.fromEntries(districtsArr.map((d) => [d.name, d.id])), [districtsArr]);
 
+  // react-leaflet binds each <GeoJSON> onEachFeature click handler ONCE per layer, so a
+  // handler can capture an EMPTY name→id map when the geojson paints before the entity
+  // hooks (useAllEntities) resolve — the geojson fetch and the data queries race. That is
+  // the real §7f drill-down regression (NOT the pixel-projection/invalidateSize theory):
+  // hover still works because it never reads the map, but the click resolves an undefined
+  // id → drillDown never fires. Reading the map through an always-current ref resolves the
+  // id at CLICK time, so mount/load order no longer matters at any drill level.
+  const regionNameToIdRef = useRef(REGION_NAME_TO_ID);
+  const districtNameToIdRef = useRef(DISTRICT_NAME_TO_ID);
+  useEffect(() => {
+    regionNameToIdRef.current = REGION_NAME_TO_ID;
+    districtNameToIdRef.current = DISTRICT_NAME_TO_ID;
+  }, [REGION_NAME_TO_ID, DISTRICT_NAME_TO_ID]);
+
   // Regions GeoJSON is small + always required at every drill level — fetch
   // immediately on mount so the base country fill paints right away.
   useEffect(() => {
@@ -370,15 +384,15 @@ function UgandaMap() {
   // ─── Event handlers ──────────────────────────────────────────────────────────
   const onRegionClick = useCallback((e) => {
     const name = e.target.feature.properties.name;
-    const regionId = REGION_NAME_TO_ID[name];
+    const regionId = regionNameToIdRef.current[name];
     if (regionId) drillDown('region', regionId);
-  }, [drillDown, REGION_NAME_TO_ID]);
+  }, [drillDown]);
 
   const onDistrictClick = useCallback((e) => {
     const name = e.target.feature.properties.name;
-    const districtId = DISTRICT_NAME_TO_ID[name];
+    const districtId = districtNameToIdRef.current[name];
     if (districtId) drillDown('district', districtId);
-  }, [drillDown, DISTRICT_NAME_TO_ID]);
+  }, [drillDown]);
 
   const onEachRegion = useCallback((feature, layer) => {
     layer.on({
