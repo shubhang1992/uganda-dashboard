@@ -14,7 +14,9 @@
 // per CLAUDE.md §5.7 — NEVER auth.uid(), NEVER 'role'):
 //   • commissions_select_agent   (0007): agent_id = jwt.agentId
 //   • subscriber_balances_select_self (0007): subscriber_id = jwt.subscriberId
-//   • employees_by_employer_select (0034): employer_id = jwt.employerId
+//   • subscribers_select_employer (0043): app_role='employer' AND
+//       employer_id = jwt.employerId  (the live employer tenant boundary after
+//       0045 retired public.employees → employees are now tagged subscribers)
 //
 // Service-role (supabaseAdmin) is used ONLY for setup/teardown + to confirm
 // tenant B's rows genuinely exist (so a "0 rows" result is real isolation, not an
@@ -129,42 +131,90 @@ test.describe('cross-tenant RLS isolation (DB layer)', () => {
     expect((ownBal ?? []).length, 'A reads its own balance').toBeGreaterThan(0);
   });
 
-  test("an employer's JWT cannot read another employer's employees", async () => {
-    // The demo seed has a single employer (emp-001). A foreign employer's token
-    // (a DIFFERENT employerId claim) must read ZERO of emp-001's roster — the
-    // RLS predicate is employer_id = jwt.employerId, so a non-matching claim sees
-    // nothing. No DB mutation needed: we only prove the negative direction.
-    const ownEmployer = PERSONA_FOR.employer.entityId; // 'emp-001'
-    const foreignEmployer = `emp-e2e-foreign-${Date.now()}`;
+  test("employer A's JWT cannot read employer B's tagged subscribers", async () => {
+    // LIVE employer model (0043, after 0045 retired public.employees): an
+    // employer's "employees" are REAL subscribers tagged via subscribers.
+    // employer_id. The RLS predicate is subscribers_select_employer (0043):
+    //   app_role = 'employer' AND employer_id = jwt.employerId
+    // so employer A's token must read ZERO of employer B's tagged subscribers.
+    //
+    // employer A = emp-001 (seeded, has tagged subscribers). employer B is a
+    // second tagged employer: the demo seed ships a SINGLE employer, so we seed
+    // one foreign employer + one tagged subscriber via the service-role client
+    // (mirroring how the settlement fixtures stage rows), then tear it down.
+    const employerA = PERSONA_FOR.employer.entityId; // 'emp-001'
+    const employerB = `emp-e2e-foreign-${Date.now()}`;
+    const subBId = `s-e2e-emp-foreign-${Date.now()}`;
 
-    // Ground truth: emp-001 has seeded employees.
-    const { count: ownRows, error: adminErr } = await supabaseAdmin
-      .from('employees')
-      .select('*', { count: 'exact', head: true })
-      .eq('employer_id', ownEmployer);
-    expect(adminErr, 'service-role count of emp-001 employees').toBeNull();
-    expect(ownRows ?? 0, 'emp-001 must have ≥1 employee for this probe').toBeGreaterThan(0);
+    // ── Seed employer B + one subscriber tagged to it (service-role bypasses RLS).
+    const { error: empErr } = await supabaseAdmin
+      .from('employers')
+      .insert({ id: employerB, name: 'E2E Foreign Employer (RLS probe)' });
+    expect(empErr, 'service-role insert of employer B').toBeNull();
 
-    // Attack: the FOREIGN employer's token, scoped to emp-001's roster → 0 rows.
-    const asForeign = await roleClient('employer', foreignEmployer);
-    const { data, error } = await asForeign
-      .from('employees')
-      .select('id, employer_id')
-      .eq('employer_id', ownEmployer);
-    expect(error, 'scoped read should not error').toBeNull();
-    expect(
-      (data ?? []).length,
-      `foreign employer (${foreignEmployer}) leaked ${(data ?? []).length} of ${ownEmployer}'s employees`,
-    ).toBe(0);
+    try {
+      const { error: subErr } = await supabaseAdmin.from('subscribers').insert({
+        id: subBId,
+        name: 'E2E Foreign Member (RLS probe)',
+        phone: `+25670000${Date.now().toString().slice(-5)}`,
+        employer_id: employerB,
+        agent_id: null, // tagged subscriber: no agent commission (0043)
+      });
+      expect(subErr, 'service-role insert of employer B subscriber').toBeNull();
 
-    // And a foreign employer reading its OWN (empty) roster is also 0 — proves the
-    // token isn't simply blanket-denied (a deny-all would also fail the positive
-    // controls above); here it correctly resolves to the empty foreign scope.
-    const { data: ownForeign, error: ownErr } = await asForeign
-      .from('employees')
-      .select('id')
-      .eq('employer_id', foreignEmployer);
-    expect(ownErr, "foreign employer's own scoped read should not error").toBeNull();
-    expect((ownForeign ?? []).length, 'foreign employer has no employees').toBe(0);
+      // Ground truth: employer A genuinely HAS tagged subscribers, AND employer B
+      // has exactly the one we seeded — so a 0-row scoped read is real isolation.
+      const { count: aRowsAdmin, error: aAdminErr } = await supabaseAdmin
+        .from('subscribers')
+        .select('*', { count: 'exact', head: true })
+        .eq('employer_id', employerA);
+      expect(aAdminErr, 'service-role count of employer A subscribers').toBeNull();
+      expect(
+        aRowsAdmin ?? 0,
+        'employer A (emp-001) must have ≥1 tagged subscriber for this probe',
+      ).toBeGreaterThan(0);
+
+      const { count: bRowsAdmin, error: bAdminErr } = await supabaseAdmin
+        .from('subscribers')
+        .select('*', { count: 'exact', head: true })
+        .eq('employer_id', employerB);
+      expect(bAdminErr, 'service-role count of employer B subscribers').toBeNull();
+      expect(bRowsAdmin ?? 0, 'employer B must have ≥1 tagged subscriber').toBeGreaterThan(0);
+
+      // Attack: employer A's token, scoped to employer B's subscribers → RLS must
+      // return 0 (an empty set, not an error, for rows the policy excludes).
+      const asEmployerA = await roleClient('employer', employerA);
+      const { data, error } = await asEmployerA
+        .from('subscribers')
+        .select('id, employer_id')
+        .eq('employer_id', employerB);
+      expect(error, 'scoped read should not error, just return nothing').toBeNull();
+      expect(
+        (data ?? []).length,
+        `employer A (${employerA}) leaked ${(data ?? []).length} of employer B (${employerB})'s subscribers`,
+      ).toBe(0);
+
+      // Positive control: employer A CAN read its OWN tagged subscribers (proves
+      // the token + policy work, so the 0 above is isolation — not a blank token).
+      const { data: ownData, error: ownErr } = await asEmployerA
+        .from('subscribers')
+        .select('id, employer_id')
+        .eq('employer_id', employerA)
+        .limit(5);
+      expect(ownErr, "employer A's own read should succeed").toBeNull();
+      expect((ownData ?? []).length, 'employer A reads its own tagged subscribers').toBeGreaterThan(0);
+      for (const row of ownData ?? []) {
+        expect(
+          (row as { employer_id: string }).employer_id,
+          'own read returns only own rows',
+        ).toBe(employerA);
+      }
+    } finally {
+      // Teardown (newest-FK first): drop the tagged subscriber, then employer B.
+      // ON DELETE SET NULL on subscribers.employer_id means an orphaned subscriber
+      // would otherwise survive the employer delete, so remove it explicitly.
+      await supabaseAdmin.from('subscribers').delete().eq('id', subBId);
+      await supabaseAdmin.from('employers').delete().eq('id', employerB);
+    }
   });
 });
