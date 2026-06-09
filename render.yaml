@@ -2,8 +2,9 @@
 #
 # IMPORTANT INVARIANTS:
 # - region: singapore is IMMUTABLE after service creation (audit B14).
-#   Supabase is hosted in ap-northeast-1 (Tokyo); Singapore minimises the
-#   Render→Supabase hop while keeping Uganda→Render latency reasonable.
+#   Supabase is hosted in ap-southeast-1 (Singapore, cutover 2026-06-05); the
+#   Render→Supabase hop is now intra-region while keeping Uganda→Render latency
+#   reasonable.
 # - autoDeployTrigger: off mirrors the CLAUDE.md §1 guardrail:
 #   "auto-deploy on push to main — do not push without explicit approval".
 # - SUPABASE_JWT_SECRET MUST be copied verbatim from the Supabase project

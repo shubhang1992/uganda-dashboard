@@ -22,6 +22,7 @@
 
 import type { VercelResponse } from '@vercel/node';
 import { withOptionalAuth, type MaybeAuthedRequest } from './_lib/withOptionalAuth.js';
+import { checkLen } from './_lib/assertLen.js';
 
 type ChatContext = 'admin' | 'agent' | 'subscriber';
 type ChatBody = { message?: unknown; context?: unknown };
@@ -270,6 +271,23 @@ async function chatHandler(req: MaybeAuthedRequest, res: VercelResponse): Promis
   if (!message.trim()) {
     res.status(400).json({ code: 'invalid_message' });
     return;
+  }
+
+  // §2a.5: explicit length caps on the public body fields before doing any
+  // work. `message` is the free-text spam vector; `context` is also bounded
+  // defensively (only the three literal flavors are ever honored downstream,
+  // but reject an over-length body value up front rather than ignoring it).
+  const messageTooLong = checkLen(message, 4000, 'message_too_long');
+  if (messageTooLong) {
+    res.status(400).json(messageTooLong);
+    return;
+  }
+  if (typeof body.context === 'string') {
+    const contextTooLong = checkLen(body.context, 32, 'context_too_long');
+    if (contextTooLong) {
+      res.status(400).json(contextTooLong);
+      return;
+    }
   }
 
   const flavor = resolveFlavor(req, body.context);

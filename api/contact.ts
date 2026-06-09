@@ -9,6 +9,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import supabaseAdmin from './_lib/supabase-admin.js';
+import { checkLen } from './_lib/assertLen.js';
 
 // Same regex the frontend uses for client-side validation.
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -46,6 +47,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ code: 'invalid_email' });
   }
   if (!message) return res.status(400).json({ code: 'invalid_message' });
+
+  // §2a.5: explicit per-field length caps before the service-role insert —
+  // these fields persist verbatim via the RLS-bypassing admin client, so an
+  // over-length field is a storage-spam vector on this public form.
+  const tooLong =
+    checkLen(name, 120, 'name_too_long') ??
+    checkLen(email, 254, 'email_too_long') ??
+    checkLen(message, 4000, 'message_too_long');
+  if (tooLong) return res.status(400).json(tooLong);
 
   const id = generateId();
 

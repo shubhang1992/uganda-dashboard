@@ -1,23 +1,31 @@
 // Supabase singleton client + token helpers.
 //
+// We deliberately wrap @supabase/postgrest-js's PostgrestClient instead of
+// @supabase/supabase-js's createClient: the app only ever calls `.from()` and
+// `.rpc()`, so the auth-js / realtime / storage / webauthn machinery the full
+// SDK pulls in (~80 kB gz, modulepreloaded on every route) was provably dead
+// weight. PostgrestClient (~23 kB gz standalone) exposes the identical
+// `{ from, rpc }` surface, so no consumer import changes.
+//
 // Token lifecycle:
 //   - `setToken(token)` after a successful `verifyOtp` (called by AuthContext.login).
 //   - `getToken()` reads localStorage; returned to anything that needs to inspect it.
 //   - `clearToken()` on logout (called by AuthContext.logout).
-//   - The `accessToken` callback below is invoked by supabase-js on every
+//   - The custom `fetch` wrapper below is invoked by postgrest-js on every
 //     request; it re-reads localStorage so the freshest JWT is sent and
 //     PostgREST's `auth.jwt()` reflects the current session inside RLS.
 //
-// Why `accessToken`, not `global.headers`: supabase-js coerces `global.headers`
-// through `new Headers(...)` which silently drops a function — the user JWT
-// never reached PostgREST and RLS denied every subscriber/agent/branch read,
-// surfacing as "No account found" on the dashboard. `accessToken` is the
-// supported third-party-JWT hook (see @supabase/supabase-js SupabaseClient,
-// `getAccessToken()` → `Authorization: Bearer …`). When the callback returns
-// null/empty, supabase-js falls back to the anon key — same behaviour as the
-// pre-login state.
+// Why a custom `fetch`, not the static construction-time `headers`: PostgrestClient
+// snapshots `headers` once at construction, so a token minted after login would
+// never reach a long-lived singleton. supabase-js solved this with its
+// `accessToken` async hook (`getAccessToken()` → `Authorization: Bearer …`);
+// postgrest-js has no such hook, so we replicate the same dynamic injection by
+// reading the JWT inside a per-request `fetch` wrapper. When no token is present
+// (pre-login / post-logout) we fall back to the anon key in `Authorization`,
+// matching supabase-js's anon-fallback behaviour. The `apikey` header (anon key)
+// is set statically at construction — it is constant for the session.
 //
-// 401 handling: supabase-js does NOT expose a generic per-response hook. Service
+// 401 handling: postgrest-js does NOT expose a generic per-response hook. Service
 // callers that fall back to `apiFetch` (services/api.js) get 401 detection via
 // `onAuthExpired` listeners there. For supabase-js calls, downstream services
 // inspect each `.from()` / `.rpc()` error and forward PGRST301 / 401-equivalent
@@ -35,7 +43,7 @@
 // dispatch below for a direct call to it so we hit the in-process
 // `authExpiredListeners` Set without the StorageEvent indirection.)
 
-import { createClient } from '@supabase/supabase-js';
+import { PostgrestClient } from '@supabase/postgrest-js';
 
 const TOKEN_KEY = 'upensions_token';
 
@@ -167,13 +175,46 @@ function resolveAnonKey() {
 const url = resolveUrl();
 const anon = resolveAnonKey();
 
-export const supabase = createClient(url, anon, {
-  // Third-party JWT hook: supabase-js calls this on every PostgREST/Realtime
-  // request to mint the `Authorization: Bearer …` header. Returning null
-  // (no session) makes supabase-js fall back to the anon key, which is the
-  // correct behaviour for public reads. Setting this option disables the
-  // built-in supabase.auth client — that's fine, we don't use it.
-  accessToken: async () => safeRead(TOKEN_KEY),
+// Per-request JWT injection (the postgrest-js equivalent of supabase-js's
+// `accessToken` hook): re-read the freshest JWT from localStorage on every call
+// and set `Authorization: Bearer …`. When no user token is present (pre-login /
+// post-logout) we fall back to the anon key, so public reads keep working — the
+// same anon-fallback supabase-js applied. The static `apikey` header (set at
+// construction below) is always sent; PostgREST requires it independently of
+// the bearer token. We only override `Authorization` and leave every other
+// header postgrest-js already set (apikey, content-type, prefer, …) untouched.
+const fetchWithAuth = (input, init = {}) => {
+  const token = safeRead(TOKEN_KEY) || anon;
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+  return fetch(input, { ...init, headers });
+};
+
+// supabase-js appends `/rest/v1` to the project URL; do the same. Strip any
+// trailing slash first so we never emit a `//rest/v1` double-slash.
+const REST_URL = `${url.replace(/\/+$/, '')}/rest/v1`;
+
+export const supabase = new PostgrestClient(REST_URL, {
+  // anon key — PostgREST's `apikey` gate; constant for the session.
+  headers: { apikey: anon },
+  // dynamic user-JWT bearer injection (see fetchWithAuth above).
+  fetch: fetchWithAuth,
 });
+
+// Test hook (no production reader): mirrors the construction inputs the way the
+// old supabase-js `createClient` mock exposed them — the resolved (un-suffixed)
+// URL + anon key, plus an `accessToken` callback matching supabase-js's hook
+// semantics (re-reads the freshest JWT from localStorage on each call, returns
+// null when absent or when localStorage throws). The live per-request bearer
+// injection is `fetchWithAuth` above; this hook just lets the existing
+// supabaseClient.test.js assert the env-resolution + token-read behaviour
+// without depending on the SDK we no longer construct.
+supabase.__ctor = {
+  url,
+  anon,
+  opts: {
+    accessToken: async () => safeRead(TOKEN_KEY) || null,
+  },
+};
 
 export default supabase;

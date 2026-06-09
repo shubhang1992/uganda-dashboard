@@ -147,6 +147,13 @@ describe('POST /api/auth/verify-password', () => {
     expect(res.__headers['Allow']).toBe('POST');
   });
 
+  it('sets Cache-Control: no-store on the 405 path (2a.2)', async () => {
+    // no-store is set BEFORE the method check, so even a 405 carries it.
+    await call(makeReq({ method: 'GET' }), res);
+    expect(res.__getStatus()).toBe(405);
+    expect(res.__headers['Cache-Control']).toBe('no-store');
+  });
+
   it('returns 405 method_not_allowed for PUT/DELETE', async () => {
     for (const method of ['PUT', 'DELETE']) {
       const r = makeRes();

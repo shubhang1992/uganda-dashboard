@@ -106,6 +106,9 @@ app.set('trust proxy', 1);
 // all — the `cors` package omits it when the request has no Origin — so the
 // uptime-monitor response stays as tiny as before.
 app.get('/healthz', cors(corsOptions), (_req, res) => {
+  // 2a.7 — no-store so a naive uptime pinger can't be served a conditional 304
+  // off the default ETag (Express auto-emits a weak ETag on the JSON body).
+  res.setHeader('Cache-Control', 'no-store');
   res.status(200).json({ ok: true });
 });
 
@@ -121,6 +124,9 @@ app.get('/healthz', cors(corsOptions), (_req, res) => {
 // and registered BEFORE route mounts so a catch-all can't shadow it. 200 on a
 // successful read; 503 with a tiny JSON body when the read errors.
 app.get('/readyz', cors(corsOptions), async (_req, res) => {
+  // 2a.7 — no-store: a readiness verdict must never be cached (it reflects
+  // live DB reachability, which changes minute to minute on a cold backend).
+  res.setHeader('Cache-Control', 'no-store');
   try {
     const { error } = await supabaseAdmin
       .from('commission_config')
@@ -148,6 +154,38 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '200kb' })); // G2 — 25× smaller than the plan's draft 5mb; no handler needs more
 app.use(compression());
 
+// ─── 6b. Body-parser error handler (2a.3) — `express.json()` throws BEFORE any
+// route handler runs: a malformed JSON body yields a `SyntaxError` whose
+// `.type` is `entity.parse.failed` (`status: 400`), and a body over the 200kb
+// cap yields a `PayloadTooLargeError` whose `.type` is `entity.too.large`
+// (`status: 413`). Without this, both bubble to the final catch-all and surface
+// as `500 {code:'unexpected_error'}` — a client error mis-reported as a server
+// failure, which `apiFetch` then treats as `server_unavailable` and auto-retries
+// (the cold-start "Retrying…" message for a self-inflicted payload). Map them to
+// the correct 4xx code with `Cache-Control: no-store`; anything else (no body
+// error or already-sent) is forwarded to the central error handler unchanged.
+// Registered here — after parsing, before route mounts — so it sits ahead of
+// the Sentry/final handlers in the error chain and intercepts parser throws.
+app.use(
+  (err: Error & { type?: string; status?: number }, _req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) {
+      next(err);
+      return;
+    }
+    if (err?.type === 'entity.parse.failed' || err?.status === 400) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(400).json({ code: 'invalid_json' });
+      return;
+    }
+    if (err?.type === 'entity.too.large' || err?.status === 413) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(413).json({ code: 'payload_too_large' });
+      return;
+    }
+    next(err);
+  }
+);
+
 // ─── 7. Access log with pinned format (G17, G68). Render captures stdout so
 // `morgan` writing to process.stdout lands in the platform log stream with
 // no extra wiring. Format choice: human-readable, includes :response-time
@@ -167,12 +205,20 @@ app.use(
 // Returns the same `{ code: 'rate_limited' }` shape `verify-otp` already
 // produces (api/auth/verify-otp.ts:20), so the frontend's existing
 // error-vocab handling needs no changes.
+// `skip: req.method !== 'POST'` (2a.4) — the per-handler 405 check runs INSIDE
+// the handler, after the limiter. Without this skip, cheap non-POST 405 probes
+// (GET/HEAD/…) that never touch bcrypt/DB would still consume the per-IP budget
+// — a minor DoS-amplification. Counting only POSTs makes the documented limits
+// mean "per write attempt", not "per request incl. rejected non-POSTs".
+const skipNonPost = (req: Request) => req.method !== 'POST';
+
 const authLimiter = rateLimit({
   windowMs: 60_000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { code: 'rate_limited' },
+  skip: skipNonPost,
 });
 
 const writeLimiter = rateLimit({
@@ -181,6 +227,22 @@ const writeLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { code: 'rate_limited' },
+  skip: skipNonPost,
+});
+
+// chatLimiter (2b.5) — /api/chat is unauthenticated and runs a `.toLowerCase()/
+// .includes()` keyword chain on a 200kb-bounded body. Cheap today, but a
+// cost/DoS vector the moment it is wired to a real LLM (the route's own TODO
+// anticipates it). 20/60s is generous for the demo's canned replies while
+// capping abuse; same `{ code: 'rate_limited' }` shape + POST-only skip as the
+// other limiters so the frontend's error-vocab handling needs no changes.
+const chatLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { code: 'rate_limited' },
+  skip: skipNonPost,
 });
 
 // ─── 9. 14 route mounts (B5) — `app.all` is REQUIRED. Every handler
@@ -201,7 +263,7 @@ app.all('/api/kyc/aml-screen', toExpress(amlScreen));
 app.all('/api/kyc/nira-verify', toExpress(niraVerify));
 app.all('/api/kyc/agent-referral', writeLimiter, toExpress(agentReferral)); // G18 — DB insert (spam to agent_referrals)
 app.all('/api/contact', writeLimiter, toExpress(contact)); // G18 — DB insert (spam to contact_submissions)
-app.all('/api/chat', toExpress(chat));
+app.all('/api/chat', chatLimiter, toExpress(chat)); // G18 / 2b.5 — unauthenticated keyword chain; cost/DoS vector once wired to a real LLM
 
 // ─── 10. Sentry error handler — MUST come after routes, before custom error
 // handlers. Captures any error that bubbled through `next(err)` from the

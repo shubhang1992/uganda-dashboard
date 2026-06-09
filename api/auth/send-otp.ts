@@ -10,15 +10,16 @@ import { toCanonicalUGPhone } from '../_lib/phone.js';
 const VALID_ROLES = new Set(['subscriber', 'agent', 'branch', 'distributor', 'employer', 'admin']);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // B13: every response path on this auth route must be uncacheable. Set the
+  // header BEFORE the method check so even the 405 carries no-store (2a.2) —
+  // a 405 from the auth family must not be cacheable.
+  res.setHeader('Cache-Control', 'no-store');
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     res.status(405).json({ code: 'method_not_allowed' });
     return;
   }
-
-  // B13: every response path on this auth route must be uncacheable. Setting
-  // the header once at the top of the handler covers success + all 4xx paths.
-  res.setHeader('Cache-Control', 'no-store');
 
   // Vercel parses JSON bodies by default when the content-type is set.
   const body = (req.body ?? {}) as { phone?: unknown; role?: unknown };

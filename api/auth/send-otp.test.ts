@@ -162,6 +162,13 @@ describe('POST /api/auth/send-otp', () => {
     expect(res.__headers['Allow']).toBe('POST');
   });
 
+  it('sets Cache-Control: no-store on the 405 path (2a.2)', async () => {
+    // no-store is set BEFORE the method check, so even a 405 carries it.
+    await call(makeReq({ method: 'GET' }), res);
+    expect(res.__getStatus()).toBe(405);
+    expect(res.__headers['Cache-Control']).toBe('no-store');
+  });
+
   it.each(['PUT', 'DELETE', 'PATCH', 'OPTIONS'])(
     'returns 405 method_not_allowed for method=%s',
     async (method) => {
