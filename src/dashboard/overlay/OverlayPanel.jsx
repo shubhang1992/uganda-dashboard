@@ -570,9 +570,6 @@ export default function OverlayPanel() {
               <div className={styles.commissionBar}>
                 <div className={styles.commissionBarFill} data-status="settled" style={{ flex: commissionSummary.countPaid }} />
                 <div className={styles.commissionBarFill} data-status="due" style={{ flex: commissionSummary.countDue }} />
-                {commissionSummary.countDisputed > 0 && (
-                  <div className={styles.commissionBarFill} data-status="disputed" style={{ flex: commissionSummary.countDisputed }} />
-                )}
               </div>
               <div className={styles.commissionStats}>
                 <span className={styles.commissionStat}>
@@ -583,12 +580,6 @@ export default function OverlayPanel() {
                   <span className={styles.commissionDot} data-status="due" />
                   {formatUGX(commissionSummary.totalDue)}
                 </span>
-                {commissionSummary.countDisputed > 0 && (
-                  <span className={styles.commissionStat} data-status="disputed">
-                    <span className={styles.commissionDot} data-status="disputed" />
-                    {commissionSummary.countDisputed}
-                  </span>
-                )}
               </div>
             </button>
           )}

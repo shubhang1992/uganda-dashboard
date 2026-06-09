@@ -532,10 +532,6 @@
   background: var(--color-status-warning);
 }
 
-.commissionBarFill[data-status='disputed'] {
-  background: var(--color-status-poor);
-}
-
 .commissionStats {
   display: flex;
   gap: 0.5rem;
@@ -552,10 +548,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.commissionStat[data-status='disputed'] {
-  color: var(--color-status-poor);
-}
-
 .commissionDot {
   width: 6px;
   height: 6px;
@@ -569,10 +561,6 @@
 
 .commissionDot[data-status='due'] {
   background: var(--color-status-warning);
-}
-
-.commissionDot[data-status='disputed'] {
-  background: var(--color-status-poor);
 }
 
 /* ── Period card + tabs ── */

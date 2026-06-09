@@ -248,16 +248,6 @@ function BranchDetail({ branch, onSelectAgent, onEdit, agentsByBranch, readOnly 
             </span>
           </div>
           <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>
-              <span className={styles.commDot} data-status="disputed" />
-              Disputed
-            </span>
-            <span className={`${styles.infoValue}${commission && commission.totalDisputed > 0 ? ` ${styles.commDisputed}` : ''}`}>
-              <span className={styles.commAmount}>{commission ? formatUGX(commission.totalDisputed) : '--'}</span>
-              <span className={styles.commCount}>{commission ? `${commission.countDisputed} txn${commission.countDisputed !== 1 ? 's' : ''}` : ''}</span>
-            </span>
-          </div>
-          <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Settlement Rate</span>
             <span className={styles.infoValue}>
               <span className={styles.commRate}>{commission ? `${commission.settlementRate}%` : '--'}</span>
