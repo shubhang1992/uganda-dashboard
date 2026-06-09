@@ -39,7 +39,7 @@ export default function YetToContributePage() {
   );
 
   const pending = useMemo(
-    () => pendingContributors(subscribers, contributions).slice().sort((a, b) => a.name.localeCompare(b.name)),
+    () => pendingContributors(subscribers, contributions).slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')),
     [subscribers, contributions],
   );
 
