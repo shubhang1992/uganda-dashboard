@@ -103,20 +103,26 @@ describe('currency utils', () => {
       expect(formatUGXShort(50000)).toBe('50K');
     });
 
-    it('formats 1_000_000 as 1M', () => {
-      expect(formatUGXShort(1_000_000)).toBe('1M');
+    it('formats 1_000_000 as 1.0M (matches formatUGX M band)', () => {
+      expect(formatUGXShort(1_000_000)).toBe('1.0M');
     });
 
-    it('formats 2_500_000 as 3M (rounds to nearest integer)', () => {
-      expect(formatUGXShort(2_500_000)).toBe('3M');
+    it('formats 2_500_000 as 2.5M (matches formatUGX M band)', () => {
+      expect(formatUGXShort(2_500_000)).toBe('2.5M');
     });
 
-    it('formats 1_000_000_000 as 1.0B', () => {
-      expect(formatUGXShort(1_000_000_000)).toBe('1.0B');
+    it('formats 1_000_000_000 as 1.00B (matches formatUGX B band)', () => {
+      expect(formatUGXShort(1_000_000_000)).toBe('1.00B');
     });
 
-    it('formats 1_500_000_000 as 1.5B', () => {
-      expect(formatUGXShort(1_500_000_000)).toBe('1.5B');
+    it('formats 1_500_000_000 as 1.50B (matches formatUGX B band)', () => {
+      expect(formatUGXShort(1_500_000_000)).toBe('1.50B');
+    });
+
+    it('agrees with formatUGX (sans prefix) across the M/B bands', () => {
+      for (const v of [1_000_000, 2_500_000, 3_750_000, 1_000_000_000, 1_500_000_000]) {
+        expect(`UGX ${formatUGXShort(v)}`).toBe(formatUGX(v));
+      }
     });
 
     it('returns 0 for non-positive values', () => {

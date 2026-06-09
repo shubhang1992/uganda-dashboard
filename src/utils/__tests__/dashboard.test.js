@@ -18,6 +18,21 @@ describe('dashboard utils', () => {
     it('returns uppercase initials', () => {
       expect(getInitials('john doe')).toBe('JD');
     });
+
+    it('returns "?" for empty / nullish names', () => {
+      expect(getInitials('')).toBe('?');
+      expect(getInitials('   ')).toBe('?');
+      expect(getInitials(null)).toBe('?');
+      expect(getInitials(undefined)).toBe('?');
+    });
+
+    it('coerces truthy non-string names without throwing', () => {
+      // String(12345) → "12345": one whitespace-free token, first char only.
+      expect(getInitials(12345)).toBe('1');
+      // 0 is not nullish, so String(0) → "0" (not the "?" empty fallback).
+      expect(getInitials(0)).toBe('0');
+      expect(() => getInitials(12345)).not.toThrow();
+    });
   });
 
   describe('getTrend()', () => {
