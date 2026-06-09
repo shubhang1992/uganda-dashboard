@@ -74,15 +74,13 @@ test.describe('Modal Escape regression', () => {
       const firstBranchRow = page.locator('button[data-index="0"]').first();
       await expect(firstBranchRow).toBeVisible({ timeout: 10_000 });
 
-      // Click the branch row. Note: this drills into BranchDetail, which
-      // can crash if a branch's metrics shape doesn't match BranchDetail's
-      // expectations. Treat any error-boundary fallback OR a missing
-      // status-toggle as an upstream bug and skip the rest of this spec
-      // so the panel-modal interaction isn't gated on an unrelated crash.
+      // Click the branch row to drill into BranchDetail.
       await firstBranchRow.click();
 
       // Race the error-boundary text against the status-toggle button.
-      // Whichever appears first determines whether we exercise the modal.
+      // Whichever appears first tells us whether BranchDetail rendered the
+      // distributor detail view (with its Activate/Deactivate footer) or
+      // fell through to the error boundary.
       const statusToggle = page.getByRole('button', { name: /^(deactivate|activate)\s+branch$/i });
       const errorBoundary = page.getByText(/something went wrong/i);
 
@@ -90,20 +88,38 @@ test.describe('Modal Escape regression', () => {
         statusToggle.first().waitFor({ state: 'visible', timeout: 12_000 }).then(() => 'toggle' as const).catch(() => null),
         errorBoundary.first().waitFor({ state: 'visible', timeout: 12_000 }).then(() => 'error' as const).catch(() => null),
       ]);
-      // FEATURE-GATED: BranchDetail can crash on certain branches whose
-      // `metrics` shape diverges from the component's expectations — a known
-      // upstream defect tracked separately (see Agent H follow-ups). The
-      // modal/escape contract being asserted here is shared with two other
-      // tests in this file (agent DisputeModal, distributor commission
-      // resolution) which DO seed their own state via fixtures (T12), so
-      // skipping when the panel itself crashes does not reduce coverage of
-      // the Modal.jsx Escape stop-propagation primitive. This is NOT a
-      // seed-window skip — keeping it requires a real fix to BranchDetail.
-      test.skip(
-        ready !== 'toggle',
-        `BranchDetail did not reach the status-toggle state (race winner: ${ready ?? 'none'}). ` +
-          'Likely an upstream BranchDetail render crash — see Agent H follow-ups.',
-      );
+
+      // HARD ASSERTION (was a silent `test.skip` — §15-M5, decision V1).
+      //
+      // The original guard skipped this test GREEN whenever the status-toggle
+      // state wasn't reached, on the premise that BranchDetail "can crash on
+      // certain branches whose metrics shape diverges". That premise no longer
+      // holds for the distributor detail view, so a skip would mask a real,
+      // demo-visible defect that has no other guard. Specifically, every field
+      // BranchDetail reads is now crash-safe for the distributor role:
+      //   - `branch.metrics` is always populated — either EMPTY_METRICS (12-slot
+      //     monthlyContributions array + zeroed counters) from the entity mapper,
+      //     or the get_entity_metrics_rollup RPC, which COALESCEs the array and
+      //     newSubscribers* counters (0020_entity_metrics_rollup_v3.sql), so
+      //     `MiniChart`'s `Math.max(...data)` never spreads undefined.
+      //   - `<Demographics metrics={m}>` null-guards genderRatio/ageDistribution
+      //     internally (Demographics.jsx).
+      //   - `commission` from useEntityCommissionSummary is read only behind
+      //     `commission ? … : '--'` guards.
+      //   - `getInitials(branch.managerName)` is null-safe (String(name ?? '')).
+      //   - Phase 1 only gated the Edit/footer controls behind `readOnly`
+      //     (distributor keeps full controls); Phase 2 removed dead Disputed
+      //     rows. Neither touches a data read, so neither adds a crash path.
+      // Therefore: if we DON'T reach the toggle, that's a genuine regression
+      // (a BranchDetail render crash, a missing footer, or a relabelled
+      // button) and the test must FAIL loudly rather than skip.
+      expect(
+        ready,
+        `BranchDetail did not reach the distributor status-toggle state (race winner: ${ready ?? 'none'}). ` +
+          'BranchDetail reads as crash-safe for the distributor role, so this indicates a real ' +
+          'regression — an upstream render crash (error boundary), a missing Activate/Deactivate ' +
+          'footer, or a relabelled toggle button — not a tolerable skip condition.',
+      ).toBe('toggle');
 
       await statusToggle.first().click();
 
