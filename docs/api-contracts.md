@@ -38,7 +38,9 @@ JWT is HS256, custom-signed (not Supabase Auth — see `BACKEND.md §6`). Claims
 
 ### 1.3 Cache headers
 
-Every auth handler and the chat/contact handlers set `Cache-Control: no-store` on **every** response path (B13 in the audit). KYC routes don't currently set this; they hit no DB so caching by accident is harmless, but the convention is to add it on any route that touches user-scoped state.
+Every auth handler and the chat/contact handlers set `Cache-Control: no-store` on **every** response path (B13 in the audit). This now holds for the **405 method-not-allowed path too** — the 2026-06-08 audit (§2a.2) found the four auth handlers (`send-otp`, `verify-otp`, `verify-password`, `change-password`) had `return`ed the 405 *before* their `res.setHeader('Cache-Control','no-store')` line, leaving auth-family 405s cacheable; the campaign **lifted the header above the method check** in all four, so a GET-against-auth 405 now carries `Cache-Control: no-store` like every other family. (Verify by reading the first lines of each `api/auth/*.ts` handler — the `setHeader` precedes the method gate.) KYC routes still don't set this; they hit no DB so caching by accident is harmless, but the convention is to add it on any route that touches user-scoped state.
+
+**Malformed / oversized request bodies** are now mapped explicitly (audit §2a.3): a body-parser-aware error handler in `server/index.ts` turns a `SyntaxError` (`entity.parse.failed`) into `400 { code: 'invalid_json' }` and a `>200kb` body (`entity.too.large`) into `413 { code: 'payload_too_large' }`, both with `Cache-Control: no-store` — previously both surfaced as `500 { code: 'unexpected_error' }`, which `apiFetch` mis-read as a server outage and auto-retried.
 
 ### 1.4 Demo scope (do not propose fixes)
 
@@ -105,6 +107,19 @@ All KYC routes are stateless Smile-ID-v2-shaped mocks with simulated latency. Th
 | `POST /api/kyc/agent-referral` | `{ phone, reason, stage?, trackingId?, sessionId? }` (JSON) | `{ ticketId, eta }` | ~600ms | — |
 
 Sources: `api/kyc/*.ts`. Each route also returns `400 invalid_request` for missing/malformed fields and `405 method_not_allowed` for non-POST.
+
+#### KYC verdict-envelope matrix — 4xx vs 200 (intentional demo behavior)
+
+A KYC step **failing its check is a business verdict, not an HTTP error** — these routes return **HTTP 200 with the verdict in the body** (`{ verified:false }`, `{ result:'no-match' }`, `{ outcome:'flagged' }`, …), and reserve the **4xx envelope** strictly for *shape*/transport faults (missing field, wrong method). This is by design (audit §2a, C1's 4xx-vs-200 matrix): a "no-match" NIRA result is a normal signup branch the client renders into a retry/agent-referral flow, so it must not look like a network failure. Forcing a verdict via the `x-qa-force` header still returns 200 — the header only changes the *verdict in the body*, never the status. The deliberate split:
+
+| Outcome class | HTTP | Body | Example |
+| --- | --- | --- | --- |
+| **Success / positive verdict** | **200** | route success shape | `{ verified: true }`, `{ result: 'match' }`, `{ outcome: 'clear', trackingId }` |
+| **Negative / "failed-check" verdict** (incl. `x-qa-force`-forced) | **200** | same success shape, verdict field flipped | `{ verified: false }`, `{ result: 'no-match', mismatchedFields, reason }`, `{ outcome: 'flagged' }`, `{ outcome: 'liveness-fail' }` |
+| **Bad request shape** (missing/malformed field, bad file) | **400** | `{ code: 'invalid_request' }` | `nira-verify` with no `nin` |
+| **Wrong method** (GET/PUT/…) | **405** | `{ code: 'method_not_allowed' }` + `Allow: POST` | `GET /api/kyc/aml-screen` |
+
+Consequence for the client: KYC service callers branch on the **body verdict** (`result`/`outcome`/`verified`), and only treat a thrown `err.code` (the 4xx/`apiFetch` path) as a true error. Do not "fix" the 200-on-failed-verdict by promoting it to a 4xx — it would break the signup branch logic and is explicitly out of scope (demo behavior, CLAUDE.md §10a).
 
 ### 2.3 Misc (2 routes)
 

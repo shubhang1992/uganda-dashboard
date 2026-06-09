@@ -19,7 +19,7 @@
 --      row, in canonical `+256…` format. Add or remove rows as needed.
 --   2. Paste the entire file into the Supabase SQL editor, or invoke via the
 --      Supabase MCP `execute_sql` tool. (CLI: `psql "$SUPABASE_DB_URL" -f
---      scripts/cleanup-test-subscribers.sql` also works.)
+--      scripts/oneoffs/cleanup-test-subscribers.sql` also works.)
 --   3. First run: leave the final `ROLLBACK;` in place — Postgres will
 --      execute the deletes inside the transaction, return all the
 --      verification counts, then roll everything back. Nothing is persisted.

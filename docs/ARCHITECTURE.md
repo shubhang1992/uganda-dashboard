@@ -75,12 +75,12 @@ The platform is a thin, three-tier stack with a deliberately narrow contract bet
          ┌─────────────────────────────────────────────────────────────────┐
          │                Supabase Postgres (single project)               │
          │  28 tables · 2 ENUMs · pg_trgm · 5 triggers                     │
-         │  30 functions (21 RPCs + 4 helpers + 5 triggers)                │
-         │  72 RLS policies (zero `auth.uid()` calls — all read app_role)  │
+         │  40 functions (29 SECURITY DEFINER + 11 INVOKER)                │
+         │  ~90 RLS policies (zero `auth.uid()` calls — all read app_role) │
          │  supabase_realtime publication: empty (no tables)               │
          │                                                                 │
-         │  42 migrations on the new DB (cutover 2026-06-05):              │
-         │    0001 → 0042 inclusive (0019 backfilled, no longer            │
+         │  57 migrations on the new DB (cutover 2026-06-05):              │
+         │    0001 → 0057 inclusive (0019 backfilled, no longer            │
          │    skipped). New Singapore DB — no ledger drift. See §13.       │
          └─────────────────────────────────────────────────────────────────┘
 ```
@@ -239,7 +239,7 @@ AuthContext.logout + navigate('/')  (no hard reload — preserves Query state)
 
 `change-password.ts` joined the cleanup too (Phase 1A `aab34e9`): it now uses `extractBearer` from `api/_lib/bearer.ts` instead of its own inline `Authorization` header parser. Same one-source rule as the rest of the auth surface.
 
-**The `auth.uid()` consequence.** Because the JWT is custom and not minted by Supabase Auth, there is no `auth.users` row — so `auth.uid()` returns `NULL` inside every Postgres expression. Every RLS policy and every RPC must read JWT claims via `auth.jwt() ->> '<key>'`. The audit (D2) confirms the discipline holds: **zero `auth.uid()` usage across all 21 RPCs and all 72 RLS policies** on the live new DB.
+**The `auth.uid()` consequence.** Because the JWT is custom and not minted by Supabase Auth, there is no `auth.users` row — so `auth.uid()` returns `NULL` inside every Postgres expression. Every RLS policy and every RPC must read JWT claims via `auth.jwt() ->> '<key>'`. The audit (D2, re-confirmed 2026-06-08) confirms the discipline holds: **zero `auth.uid()` usage across every RPC and all ~90 RLS policies** on the live new DB.
 
 **The `'role'` vs `'app_role'` trap.** This is the highest-stakes correctness check in the platform, verified on every single policy (D1).
 
@@ -586,7 +586,7 @@ REVOKE ALL ON FUNCTION public.create_subscriber_from_signup(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_subscriber_from_signup(jsonb) TO anon, authenticated;
 ```
 
-`0027_post_audit_polish` (D3) extended the `REVOKE FROM PUBLIC` → `GRANT TO authenticated` pattern to `upsert_nominees`, which had been the lone holdout. The discipline is now uniform across all 21 RPCs (verified on the new DB: `upsert_nominees` ACL is `authenticated`/`service_role` only, no PUBLIC).
+`0027_post_audit_polish` (D3) extended the `REVOKE FROM PUBLIC` → `GRANT TO authenticated` pattern to `upsert_nominees`, which had been the lone holdout. The discipline is now uniform across every RPC (verified on the new DB: `upsert_nominees` ACL is `authenticated`/`service_role` only, no PUBLIC; later RPCs through `0057` follow the same house grant pattern).
 
 **Tables with NO direct INSERT/UPDATE/DELETE policy** (writes flow ONLY through RPCs):
 
@@ -656,7 +656,7 @@ SELECT tablename
 
 ## 13. Migration & schema-evolution discipline
 
-**Forward-only migrations** under `supabase/migrations/`. Sequential 4-digit prefix; never edit a shipped migration. The full list today runs `0001` → `0042` (**42 migrations**, with `0019` backfilled as the captured remote hotfix); `0029`–`0031` deliver the commission-flow simplification (`due → paid`), `0032`–`0036` the settlement fixes + employer family, `0037`–`0039` the funder-redesign, and `0040`–`0042` the post-restore cleanup + commission-aggregate RPCs + signup/write-flow hardening. All are applied to the new Singapore DB (cutover 2026-06-05).
+**Forward-only migrations** under `supabase/migrations/`. Sequential 4-digit prefix; never edit a shipped migration. The full list today runs `0001` → `0057` (**57 migrations**, with `0019` backfilled as the captured remote hotfix); `0029`–`0031` deliver the commission-flow simplification (`due → paid`), `0032`–`0036` the settlement fixes + employer family, `0037`–`0039` the funder-redesign, `0040`–`0042` the post-restore cleanup + commission-aggregate RPCs + signup/write-flow hardening, `0043`–`0048` the subscriber⇄employer unification + invite-based onboarding (`employer_invites`, `0047`), `0049`–`0051` the **admin** role (shipped — platform-wide RLS + create/overview/settlement RPCs), and `0052`–`0057` the 2026-06-08 audit-remediation batch (`0052` re-pins `_insert_subscriber_chain`'s `search_path`; `0053` schema-hygiene; `0054` subscriber money RPCs; `0055` `set_commission_rate`; `0056` atomic employer config; `0057` perf rollups). All are applied to the new Singapore DB (`ilkhfnoyxlxwqadebnkp`, cutover 2026-06-05). See `BACKEND.md §12` for the per-migration table.
 
 **Discipline rules:**
 

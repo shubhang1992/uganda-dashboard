@@ -360,10 +360,10 @@ There are only two statuses: `due` and `paid` (the `commission_status` ENUM is n
 |------|---------|------------|
 | Distributor Admin | All entities at all levels | Create branches, set the flat commission rate, settle commissions via the per-agent Excel upload (`apply_settlement`), own profile |
 | Branch Admin | Own branch, own agents, own subscribers | Create agents, view own branch's commissions, receive settlement notifications, own profile |
-| Agent (planned) | Own record, own subscribers, own commissions | Register subscribers, record collections, view own `due`/`paid` commissions, receive settlement notifications |
-| Subscriber (planned) | Own record only | Own profile, withdrawal requests |
-| Employer (planned) | Own organization's employees | Employee management, bulk contributions |
-| Admin (planned) | Everything | Everything (system configuration, user management) |
+| Agent | Own record, own subscribers, own commissions | Register subscribers, record collections, view own `due`/`paid` commissions, receive settlement notifications |
+| Subscriber | Own record only | Own profile, top-up (Save), withdrawal requests |
+| Employer | Own organization's tagged-subscriber roster | Invite-based member onboarding (KYC), company-wide contribution runs + group insurance, remove-from-company |
+| Admin (shipped) | Everything (platform-wide reads via `*_select_admin` RLS) | Create distributors + employers, apply commission settlements, view platform overview — via the `0049`–`0051` SECURITY DEFINER RPCs. (No general "system configuration / user management" UI today — the scope is view + create-distributor/employer + settle.) |
 
 ### Backend Enforcement
 The frontend applies scoping via:

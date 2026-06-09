@@ -1,3 +1,10 @@
+// Branch tickets panel — read-only oversight (no composer).
+//
+// INTENTIONAL DUPLICATION with `src/dashboard/tickets/ViewTickets.jsx` (the
+// distributor version). The two share the slide-in chrome but diverge in their
+// data wiring (branch-scoped, read-only here vs network-wide there), so they are
+// kept as separate files rather than a shared component.
+
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';

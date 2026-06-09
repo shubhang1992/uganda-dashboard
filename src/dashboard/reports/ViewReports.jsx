@@ -45,12 +45,6 @@ function ReportLoading() {
   );
 }
 
-const BRANCH_EXCLUDED_REPORTS = new Set([
-  'distribution-summary',
-  'all-branches',
-  'branch-performance',
-]);
-
 export default function ViewReports({ splitMode = false }) {
   const { viewReportsOpen, setViewReportsOpen, reportContext, setReportContext } = useDashboard();
   const { branchId } = useBranchScope();

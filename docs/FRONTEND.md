@@ -237,8 +237,8 @@ Shell file: `src/agent-dashboard/AgentDashboardShell.jsx`. Sub-areas: `shell/` (
 | `/dashboard/settings/profile` | `pages/ProfilePage` (lazy) |
 | `/dashboard/settings/nominees` | `pages/NomineesPage` (lazy) |
 | `/dashboard/settings/insurance` | `pages/InsurancePage` (lazy) |
-| `/dashboard/settings/notifications` | `pages/StubPage title="Notifications"` (placeholder — see §16b) |
-| `/dashboard/settings/security` | `pages/StubPage title="Security"` (placeholder — see §16b) |
+| `/dashboard/settings/notifications` | `Navigate replace to="/dashboard/settings"` (deliberate redirect — see §16b) |
+| `/dashboard/settings/security` | `Navigate replace to="/dashboard/settings"` (deliberate redirect — see §16b) |
 | `*` | `Navigate to="/dashboard"` |
 
 Shell file: `src/subscriber-dashboard/SubscriberDashboardShell.jsx`. Sub-areas: `shell/` (SubscriberShell + SideNav + BottomTabBar + PageHeader + `navigation.js` (legacy local helper kept for module-internal use)), `home/` (HomePage + 6 widgets/), `pages/`, `reports/views/`. Wraps `SubscriberPanelProvider` (which composes the generic `DashboardPanelProvider` — see §6) + `DashboardNavProvider`.
@@ -256,7 +256,7 @@ Sub-areas (under `src/employer-dashboard/`):
 | `EmployerDashboardShell.jsx` (+ `.module.css`) | Shell: CSS grid (`var(--sidebar-width) 1fr`), mobile header + drawer, route guard, provider nest |
 | `sidebar/EmployerSidebar.jsx` | Icon rail (indigo-deep, teal active indicator) + mobile drawer + bottom-tab. `NAV_ITEMS = [overview, employees, runs, insurance, reports (labelled "Analytics"), support]`; `BOTTOM_ITEMS = [settings, logout]`; `MOBILE_NAV = first 3`; the "Employees" entry opens a small menu (rail: right fly-out; drawer: inline accordion) → "View employees" / "Onboard an employee" |
 | `overview/` | `EmployerHealthScore.jsx` (hero — see §9), `EmployerOverview.jsx` (hero + notifications + operations, carries the `PANEL_PADDING` split-reflow map), `EmployerOperations.jsx` |
-| `employees/` | `ViewEmployees.jsx` (roster; per-row **Remove from company** action — un-links via `useRemoveEmployee` behind a `Modal` confirm), `EmployeeDetail.jsx` (read-only detail), `OnboardStaffPanel.jsx` (onboarding — **Single** mints a tokenized invite link via `useCreateInvite`; **Bulk** downloads an Excel template (`downloadSheet`), parses an uploaded file (`parseSheet`), shows a per-row review table, then creates invites for every valid row via `useBulkCreateInvites`. Identity is name + phone + email only — gender / NIN are collected during the member's own KYC signup). **Privacy:** an employee's pension balance is the employee's private info and is NOT shown to the employer anywhere (no balance column / "Total balance" KPI in the roster, no Balances section in the detail, no balance column in the Analytics export) |
+| `employees/` | `ViewEmployees.jsx` (roster; per-row **Remove from company** action — un-links via `useRemoveEmployee` behind a `Modal` confirm), `MemberDetailBody.jsx` (read-only member detail — rendered **inline inside `ViewEmployees.jsx`** in a single-panel replace model; the former standalone `EmployeeDetail.jsx` was deleted in the employer-overhaul and its CSS lives on as `MemberDetailBody.module.css`), `OnboardStaffPanel.jsx` (onboarding — **Single** mints a tokenized invite link via `useCreateInvite`; **Bulk** downloads an Excel template (`downloadSheet`), parses an uploaded file (`parseSheet`), shows a per-row review table, then creates invites for every valid row via `useBulkCreateInvites`. Identity is name + phone + email only — gender / NIN are collected during the member's own KYC signup). **Privacy:** an employee's pension balance is the employee's private info and is NOT shown to the employer anywhere (no balance column / "Total balance" KPI in the roster, no Balances section in the detail, no balance column in the Analytics export) |
 | `runs/` | `ContributionRuns.jsx` (history + run detail + new-run wizard) |
 | `insurance/` | `InsuranceBenefits.jsx` (company-wide oversight) |
 | `kyc/` | `PendingKyc.jsx` — slide-in list of staff with pending KYC (`kyc_status` ∈ pending/incomplete) + a demo-only per-row "Nudge" (success toast; opened from the hero's Pending KYC tile via `kycOpen`) |
@@ -299,7 +299,7 @@ These rules are audit-verified — Phase 1E confirmed all four cleanly held acro
 | 5 | Always pass schedule frequencies through `normalizeFrequency(value)` from `src/utils/finance.js`. Defends against legacy aliases (`half-yearly`, `halfYearly`, `semi-annually`, `semiAnnually`). | Service + hook + UI write paths. |
 | 6 | Signup persistence: `SignupContext` writes every patch to `localStorage['uganda-pensions-signup']` (debounced — see §11). **File/Blob fields + `password` are dropped on serialise** via `EPHEMERAL_KEYS`. | `src/signup/SignupContext.jsx`. |
 | 7 | No raw SQL from the frontend. Every write goes through a Supabase RPC (typically SECURITY DEFINER) — see BACKEND.md §10. | Service layer. |
-| 8 | RLS policies read `auth.jwt() ->> 'app_role'`, **never** `'role'`. `auth.uid()` is `NULL` for our custom HS256 JWTs (BACKEND.md §9). | Verified on the new DB: 72/72 policies correct. |
+| 8 | RLS policies read `auth.jwt() ->> 'app_role'`, **never** `'role'`. `auth.uid()` is `NULL` for our custom HS256 JWTs (BACKEND.md §9). | Verified on the new DB: all ~90 policies correct (count grew with the `0049` admin clones). |
 
 Phase 1E also confirmed **no `dangerouslySetInnerHTML` anywhere** (React's default escaping is preserved) and **no open-redirect vectors** — every `window.location` / `navigate` destination is a hardcoded path.
 
@@ -394,7 +394,7 @@ export async function changePassword(currentPassword, newPassword)
 export function hasDashboard(role): boolean
 ```
 
-`AuthError.code` values that the UI maps to friendly messages via `messageForCode`: `rate_limited`, `locked`, `invalid_otp`, `password_too_short`, `password_too_weak`, `password_too_long`, `password_required`, `invalid_password`, `password_not_set`, `current_password_required`, `current_password_invalid`. Anything else falls back to "Could not verify the code. Please try again."
+`AuthError.code` values that the UI maps to friendly messages via `messageForCode` (`src/services/auth.js`): the OTP/password codes `rate_limited`, `locked`, `invalid_otp`, `password_too_short`, `password_too_weak`, `password_too_long`, `password_required`, `invalid_password`, `password_not_set`, `current_password_required`, `current_password_invalid`, **plus the transport-level cold-start codes** `network_unreachable` ("Couldn't reach the server. Please try again in a moment."), `server_unavailable` ("Demo backend is temporarily unavailable. Retrying…"), and `timeout` ("Request timed out. Please try again.") surfaced by `services/api.js` (G47 — so a waking Render backend reads as a warm-up message, not "Invalid code"). Anything else falls back to "Could not verify the code. Please try again." **Scope note:** this friendly-message normalization covers the auth + transport layer only; the **admin create-form** write path (`create_distributor`/`create_employer`) still `throw`s the raw Supabase `error` rather than mapping `P0001`/`23505` into a `{code}` — a known Low gap (audit §5a / C1 §2a.8), not yet normalized.
 
 Dev-only QA force-overrides via `localStorage['upensions_otp_force']` (`invalid_otp` / `rate_limited` / `locked`). `verifyOtp` returns `{ token, user: { role, phone, name?, subscriberId?, agentId?, branchId?, distributorId?, hasPassword? } }`.
 
@@ -826,7 +826,7 @@ Agent-side disputes were **removed** in the 0029 commission simplification — t
 
 6 home widgets: `PulseCard`, `TopUpWidget`, `CoPilotWidget` (see §13), `PoliciesWidget` (insurance snapshot → `/dashboard/policies`), `ActivityWidget`, `IfYouNeedItWidget` (desktop only). Reports under `reports/views/`: `AllTransactions`, `ContributionsSummary`, `WithdrawalsHistory`, `InsuranceStatement`, `AnnualStatement`. `PoliciesPage` lists active/expired policies (derived — see §5.6) with a renew-by-payment sheet mirroring `SavePage`. All mutations are optimistic via the `_sessionMutations` log in `subscriber.js`.
 
-`/settings/notifications` and `/settings/security` are `StubPage` placeholders — see §16b.
+`/settings/notifications` and `/settings/security` redirect to `/dashboard/settings` (deliberate `<Navigate replace>` — see §16b).
 
 ### 9.5 Employer — `src/employer-dashboard/`
 
@@ -844,7 +844,7 @@ Single main view `EmployerOverview` + state-based slide-in panels (`EmployerPane
 
 **Reusable panel chrome — `panels/EmployerSlidePanel.jsx`.** Every employer module (`ViewEmployees`, `ContributionRuns`, `InsuranceBenefits`, `EmployerReports`, `EmployerTickets`, `EmployerSettings`, `OnboardStaffPanel`, `PendingKyc`) wraps this one component instead of the centered shared `Modal` — it follows the branch panel idiom: a right-docked panel sliding from `x:'100%'` with `EASE_OUT_EXPO`, a Framer backdrop **suppressed when `splitMode`** (so the shell docks + reflows main beside it), `data-split-mode` for the flat split chrome, Escape-to-close, a `--panel-width` CSS var kept in sync with `PANEL_PADDING`, and an `eyebrow`/`title`/`headerActions` header.
 
-Modules: **Overview** (hero + notifications + operations), **Employees** (`ViewEmployees` roster with a per-row Remove-from-company action + read-only `EmployeeDetail`; employee pension balances are never shown to the employer), **Contribution Runs** (history + run detail + new-run wizard — the core write flow; server re-derives amounts, nonce-idempotent, **no commission side-effects** — see §5.12 + `BACKEND.md §10`), **Insurance/Benefits** (company-wide oversight), **Analytics** (`EmployerReports` — workforce demographic charts (gender / age / status / saving / roles / headcount growth) + downloadable reports via `downloadCsv`/`downloadSheet`; replaced the former 4-report hub), **Support** (`EmployerTickets` — employer↔platform threads **with a composer**; the employer raises + replies, unlike the view-only branch/distributor variants), **Settings** (profile + default contribution config + password). **Onboard members** (`OnboardStaffPanel`, opened from the Employees menu) offers **Single** (one invite-link) and **Bulk** (Excel template download → upload → per-row review → mass invite via `useBulkCreateInvites`) — name/phone/email only; gender + NIN are collected in the member's own KYC. **Pending KYC** (`PendingKyc`, `src/employer-dashboard/kyc/PendingKyc.jsx`) is a slide-in listing staff with pending KYC, each with a demo-only per-row "Nudge" (a success toast + a session-local "Reminded" marker — no real SMS, per demo scope); it is opened from the hero's "Pending KYC" alert tile via `kycOpen`/`setKycOpen` on `EmployerPanelContext` and is mounted in `EmployerDashboardShell.jsx`.
+Modules: **Overview** (hero + notifications + operations), **Employees** (`ViewEmployees` roster with a per-row Remove-from-company action + a read-only member detail rendered inline via `MemberDetailBody` — the standalone `EmployeeDetail.jsx` was removed in the employer-overhaul; employee pension balances are never shown to the employer), **Contribution Runs** (history + run detail + new-run wizard — the core write flow; server re-derives amounts, nonce-idempotent, **no commission side-effects** — see §5.12 + `BACKEND.md §10`), **Insurance/Benefits** (company-wide oversight), **Analytics** (`EmployerReports` — workforce demographic charts (gender / age / status / saving / roles / headcount growth) + downloadable reports via `downloadCsv`/`downloadSheet`; replaced the former 4-report hub), **Support** (`EmployerTickets` — employer↔platform threads **with a composer**; the employer raises + replies, unlike the view-only branch/distributor variants), **Settings** (profile + default contribution config + password). **Onboard members** (`OnboardStaffPanel`, opened from the Employees menu) offers **Single** (one invite-link) and **Bulk** (Excel template download → upload → per-row review → mass invite via `useBulkCreateInvites`) — name/phone/email only; gender + NIN are collected in the member's own KYC. **Pending KYC** (`PendingKyc`, `src/employer-dashboard/kyc/PendingKyc.jsx`) is a slide-in listing staff with pending KYC, each with a demo-only per-row "Nudge" (a success toast + a session-local "Reminded" marker — no real SMS, per demo scope); it is opened from the hero's "Pending KYC" alert tile via `kycOpen`/`setKycOpen` on `EmployerPanelContext` and is mounted in `EmployerDashboardShell.jsx`.
 
 ---
 
@@ -1111,6 +1111,7 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 --color-kyc-error-soft:   #FB7185;
 
 /* Health & trend accents (branch + subscriber) */
+/* ⚠️ Dome-only accents — see the contrast note below this code block. */
 --color-positive:        #4ADE80;
 --color-positive-soft:   #818CF8;
 --color-accent-mint:     #2DD4BF;
@@ -1146,6 +1147,8 @@ A shared shell would have to standardise the CSS contract (visual change) or pas
 ```
 
 Plus full scales for `--text-xs`…`--text-7xl`, `--space-1`…`--space-32`, `--radius-sm/md/lg/xl/full/capsule`, `--shadow-sm/md/lg/xl`. The shared easing curve `EASE_OUT_EXPO = [0.16, 1, 0.3, 1]` is exported from `src/utils/motion.js` (re-exported from `src/utils/finance.js` for backwards compat) and mirrored as `--ease-out-expo`. The three subscriber-mobile tokens (`--color-on-indigo-muted`, `--radius-capsule`, `--gradient-hero`) are documented in §16.9.
+
+> **⚠️ Contrast — these bright accents are dome-only (audit §7c.8, latent).** `--color-status-warning` `#E6A817` (2.10:1 on white), `--color-positive` `#4ADE80` (1.74:1) and `--color-amber` / `--color-medal-gold` `#FBBF24` (1.67:1) **fail WCAG AA badly as small text on a light surface.** In current usage they are safe — they appear only as dots/accent backgrounds, medal fills, or **text on the dark indigo hero dome** (where mint resolves ~7.56:1 and amber ~7.89:1, both PASS). **Rule:** use these accents on the indigo dome or as non-text fills only; for the same semantic on a *light* surface, use the dark variants (e.g. `--color-status-good` `#2E8B57`, the KYC `…-dark`/`…-amber` tokens, or dark text on a light tint as the employer status pills do — `#166534` on mint-18%, `#92400e` on amber-22%). Not a current defect; a guard against future misuse.
 
 ### 16.3 Breakpoint scale (Phase 5C `ee78074`)
 
@@ -1242,7 +1245,7 @@ The dome is painted with `--gradient-hero` + `--radius-capsule`; decorative SVGs
 - **5-tab `BottomTabBar`** (`src/subscriber-dashboard/shell/BottomTabBar.jsx`) — Home · Activity · **[centre Save FAB]** · Withdraw · Goals · Profile, as `NavLink`s with `aria-current` active styling under `<nav aria-label="Quick navigation">`. Tabs are 52px tall; the centre FAB is the indigo Save action (`aria-label="Save"`, ≥44px, indigo — never mint, no mint-glow) with reduced-motion handling on its `transform`/`box-shadow` transitions. The bar is hidden at `min-width: 1024px` (mobile-only; desktop keeps the SideNav).
 - **The mobile "More" menu was removed** — there are no `MoreMenu` / `moreOpen` references left in `shell/`. Destinations that used to live there are re-homed (below).
 - **`/dashboard/activity` now renders `ActivityPage`** (lazy) instead of redirecting. It is no longer `Navigate to="/dashboard/reports/all-transactions"`; the Activity tab is a first-class page. (Update §2.4: the row now reads `pages/ActivityPage (lazy)`.)
-- **Reports / Agent / Help / Security re-homed as `SettingsPage` rows** (`src/subscriber-dashboard/pages/SettingsPage.jsx`). The Profile tab's settings list now also carries: *Reports & statements* → `/dashboard/reports`, *Your agent* → `/dashboard/agent`, *Help* → `/dashboard/help`, and *Password & security* — which opens the shared `<Settings />` slide-in panel via `setSettingsOpen(true)` from `useDashboard()` rather than routing (it's the only surface exposing the password card on this page). *Notifications* is present but `disabled` with a "Soon" badge (the `/settings/notifications` + `/settings/security` `StubPage`s still exist — §16b).
+- **Reports / Agent / Help / Security re-homed as `SettingsPage` rows** (`src/subscriber-dashboard/pages/SettingsPage.jsx`). The Profile tab's settings list now also carries: *Reports & statements* → `/dashboard/reports`, *Your agent* → `/dashboard/agent`, *Help* → `/dashboard/help`, and *Password & security* — which opens the shared `<Settings />` slide-in panel via `setSettingsOpen(true)` from `useDashboard()` rather than routing (it's the only surface exposing the password card on this page). *Notifications* is present but `disabled` with a "Soon" badge (the `/settings/notifications` + `/settings/security` routes now redirect to `/dashboard/settings` — §16b).
 
 ---
 
@@ -1266,7 +1269,7 @@ These behaviours are intentional limits of a sales-rep demo platform. Do not pro
 
 These are residual issues that survived the Phase 4–5 cleanup. Listed so anyone touching frontend code knows what already-known drift looks like.
 
-**StubPage placeholders.** `/dashboard/settings/notifications` and `/dashboard/settings/security` are `StubPage title="..."` shells. If a demo touches Settings these dead-ends are visible.
+**Settings redirect routes.** `/dashboard/settings/notifications` and `/dashboard/settings/security` redirect back to `/dashboard/settings` (`<Navigate replace to="/dashboard/settings" />`). They are deliberate redirects — the old `StubPage` placeholders were removed in the audit-remediation cleanup — so the routes no longer strand demos on dead-end stubs. Pinned by `e2e/specs/regression/subscriber-settings-stubs.spec.ts`.
 
 | ID | Severity | Where | What |
 | --- | --- | --- | --- |
@@ -1418,11 +1421,11 @@ export const MAX_ROWS
 **Dashboard direction by role.**
 
 - **Subscriber.** Balance, recent contributions, goal progress, future impact, simple reminders.
-- **Employer (deferred).** Participation, contribution management, uploads, reporting.
+- **Employer (shipped).** Participation, contribution management, invite-based onboarding, reporting.
 - **Agent.** Assisted actions, pending tasks, subscriber status, fast mobile completion.
 - **Branch.** Local performance, agent oversight, subscriber activity, exceptions, progress snapshots.
 - **Distributor.** Network-wide growth, branch/agent performance, trends, operational visibility, strategic reporting.
-- **Admin (deferred).** Full platform control + all data access.
+- **Admin (shipped).** Full platform control + all data access (map-theme shell at `src/admin-dashboard/`; platform-wide reads + create-distributor/employer + settlement via `0049`–`0051`).
 
 **Optimisation priorities** for any new product work: trust → clarity → inclusivity → multi-role usability → long-term savings behaviour → elegant scrollytelling → meaningful motion → strong alignment + readability → indigo-led brand consistency.
 

@@ -1,3 +1,10 @@
+// Agent home "pulse" hero card.
+//
+// INTENTIONAL DUPLICATION with `src/subscriber-dashboard/home/widgets/PulseCard.jsx`.
+// The two versions diverge by design (different CSS classes, header DOM, and the
+// agent-vs-subscriber data wiring), so they are kept as separate files rather
+// than a shared component — same rationale as the CoPilotWidget pair.
+
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useReducedMotion } from 'framer-motion';

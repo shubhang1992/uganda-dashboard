@@ -26,6 +26,7 @@ export function useNotifications({ role, entityId, unreadOnly = false } = {}) {
     // stay in lockstep with the count; force a refetch on mount so opening the
     // bell popover always shows the latest list rather than a stale cached one.
     refetchInterval: UNREAD_REFETCH_MS,
+    refetchIntervalInBackground: false,
     refetchOnMount: 'always',
   });
 }
@@ -36,6 +37,7 @@ export function useUnreadNotificationCount({ role, entityId } = {}) {
     queryFn: () => notifications.getUnreadCount({ role, entityId }),
     enabled: !!role && !!entityId,
     refetchInterval: UNREAD_REFETCH_MS,
+    refetchIntervalInBackground: false,
   });
 }
 

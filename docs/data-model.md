@@ -9,7 +9,7 @@
 
 ```
 Country (Uganda)
-└── Distributor (1 — national singleton, d-001)
+└── Distributor (2 seeded — d-001 "National" + d-002 "Secondary")
     └── Region (4)
         └── District (136)
             └── Branch (~316)
@@ -46,7 +46,7 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 ### Fields
 | Field | Type | Storage | Description |
 |-------|------|---------|-------------|
-| id | string | Stored | Format: `d-{seq}`; today only `d-001` |
+| id | string | Stored | Format: `d-{seq}`; the seed ships two — `d-001` (National) + `d-002` (Secondary) |
 | name | string | Stored | Distributor name (`"Universal Pensions Uganda — National"`) |
 | parentId | string | Stored | Always `"ug"` (the Country) |
 | managerName | string | Stored | National operations lead |
@@ -59,12 +59,12 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 
 ### Relationships
 - Parent: Country (`"ug"`)
-- Children: Regions (4) — geographic; today the singleton owns the entire network so this is equivalent to "the whole tree below Country"
+- Children: Regions (4) — geographic; `d-001` (National) owns the entire agent→subscriber network, so for it this is equivalent to "the whole tree below Country"
 
 ### Business Rules
-- **National singleton.** The seed ships exactly one row (`d-001`). The schema permits multiple distributors so the table can grow into a multi-distributor model without migration churn.
+- **Two distributors seeded (was a singleton).** The seed now ships **two** rows: `d-001` "Universal Pensions Uganda — National" and `d-002` "Universal Pensions Uganda — Secondary" (both `status='active'`, both stamped at the seed timestamp; audit §4b.3 / D15). `d-002` is a **deliberately-seeded, loginnable** second distributor — `demo_personas` carries `distributor +256700000022 → d-002`. The agent→subscriber tree currently hangs entirely off `d-001`. The schema always permitted multiple distributors; the admin `create_distributor` RPC (`0049`) + the platform-overview rollups handle N distributors. ⚠️ Mock-backed mode (`VITE_USE_SUPABASE=false`) still knows only `d-001` (`mockData.js#DISTRIBUTORS`) — a known mock↔live parity gap, not a code-assumes-singleton bug.
 - **Metrics.** `useDistributorMetrics()` returns `{ totalSubscribers, totalAgents, totalBranches, aum }` derived from `getAllAtLevel('subscriber' | 'agent' | 'branch')` + a `subscriber_balances` aggregate. Mock fallback returns `aum: 0` plus an `aumNote` string.
-- **RLS.** Read-across-levels via `distributors_select USING (true)` (every authenticated role can read the singleton — used for "Operated by …" attribution surfaces). Self-update via `distributors_update_self USING (auth.jwt() ->> 'distributorId' = id)` — only the distributor role may update, and only against its own row. See `docs/role-permissions.md` and `BACKEND.md §8`.
+- **RLS.** Read-across-levels via `distributors_select USING (true)` (every authenticated role can read all distributor rows — used for "Operated by …" attribution surfaces). Self-update via `distributors_update_self USING (auth.jwt() ->> 'distributorId' = id)` — only the distributor role may update, and only against its own row. See `docs/role-permissions.md` and `BACKEND.md §8`.
 
 ---
 
@@ -250,11 +250,40 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 - **Pending KYC surfacing.** The Overview hero surfaces each member's `kycStatus` (already a `subscribers` column) as a **"Pending KYC"** count + a nudge panel (`PendingKyc`); pending = `kycStatus` in (`pending`, `incomplete`). A few demo staff (Mary Auma, Diana Nabirye, Juliet Akello) are seeded `pending`.
 - **RLS.** `employer_self_select USING (app_role='employer' AND id = auth.jwt() ->> 'employerId')`. Profile updates via `update_employer_profile` (own row only). See `BACKEND.md §8`/§10.1.
 
+> **⚠️ Model change (`0043`–`0047`, applied to live).** The original `0034` "standalone employees" model below is **retired.** Migrations `0043`/`0044` **unified the employer roster into `subscribers`** — an employer's staff are now REAL subscribers tagged via `subscribers.employer_id` (with a subscriber identity + dashboard login; employer money rides the normal `transactions` ledger via `transactions.source='employer'` + `transactions.contribution_run_id`; `agent_id` is NULL ⇒ NO agent commission). **`0045` then DROPPED the `employees` and `contribution_run_lines` tables.** Onboarding is now invite-based (see **Employer Invite** below). The **Employee** / **Contribution Run Line** sections that follow describe the pre-`0045` schema and are retained as history; for the live model read the **Subscriber** entity + `BACKEND.md §8` "Domain: Employer".
+
+---
+
+## Employer Invite
+
+> Invite-based employer onboarding with KYC (`employer_invites`, migration `0047`). The employer enters a prospective member's identity → an invite token + `pending` row is minted (a "prefill"). The invitee opens `/invite/:token`, completes KYC, and a REAL subscriber tagged to the employer is created (the invite flips to `completed`). Replaces the retired instant-onboard path.
+
+### Fields
+| Field | Type | Storage | Description |
+|-------|------|---------|-------------|
+| token | string | Stored | **PK.** `inv-<uuid>` — the opaque invite link token |
+| employerId | string | Stored | FK → `employers(id) ON DELETE CASCADE` (the inviting employer); snake `employer_id`. **Indexed** |
+| prefill | object (JSONB) | Stored | `{ name, phone, email, nin, gender }` — the identity the employer pre-entered; the invitee confirms/extends it during KYC |
+| collectSchedule | boolean | Stored | snake `collect_schedule`. `true` = the employer's mode is `co-contribution` → the invitee also sets a schedule + first payment; `false` = `employer-only` → KYC + retirement/emergency split only, starts at 0 |
+| status | string | Stored | `'pending'` \| `'completed'` \| `'expired'` (CHECK-constrained); default `'pending'` |
+| subscriberId | string \| null | Stored | FK → `subscribers(id) ON DELETE SET NULL`; set to the created subscriber once KYC completes. **No covering index on this FK at table-create** — added by `0053` (sole `unindexed_foreign_keys` advisor hit) |
+| createdAt | timestamptz | Stored | Row creation |
+| expiresAt | timestamptz | Stored | snake `expires_at`; default `now() + interval '7 days'` — the TTL after which a still-`pending` invite is treated as `expired` |
+| completedAt | timestamptz \| null | Stored | snake `completed_at`; stamped when the invite flips to `completed` |
+
+### Relationships
+- Parent: Employer (`employer_id` FK, CASCADE — deleting an employer removes its invites)
+- Produces: a tagged Subscriber (`subscriber_id` FK, SET NULL — the invite survives if that subscriber is later deleted/re-seeded)
+
+### Business Rules
+- **Lifecycle.** `pending → completed` (invitee finishes KYC via `create_subscriber_from_employer_invite`) or `pending → expired` (7-day TTL elapses with no completion). `create_employer_invite` dedupes against the existing roster + other pending invites (same normalized phone) so an employer can't double-invite.
+- **RLS.** `employer_invites_self_select USING (app_role='employer' AND employer_id = auth.jwt() ->> 'employerId')` — an employer reads only its own invites. The pre-login invitee read (`get_employer_invite(token)`) is an **anon** SECURITY DEFINER RPC (the invitee has no JWT yet). All writes go through the `0047` DEFINER RPCs. See `BACKEND.md §8` "Domain: Employer".
+
 ---
 
 ## Employee
 
-> The employer's standalone staff roster (`employees`, migration `0034`). **NOT a subscriber** — pension balances live on THIS row (not `subscriber_balances`), and the per-employee contribution ledger is `contribution_run_lines` (not `transactions`). There is intentionally no contribution trigger on this table; `submit_contribution_run` writes balances inline.
+> **HISTORICAL (pre-`0045`).** The employer's standalone staff roster (`employees`, migration `0034`) — **dropped by `0045`** when the roster was unified into `subscribers` (see the model-change banner under **Employer**). Retained here for provenance only. **NOT a subscriber** — pension balances lived on THIS row (not `subscriber_balances`), and the per-employee contribution ledger was `contribution_run_lines` (not `transactions`). There was intentionally no contribution trigger on this table; `submit_contribution_run` wrote balances inline.
 
 ### Fields
 | Field | Type | Storage | Description |
@@ -538,7 +567,7 @@ In-app feed row (table `notifications`, migration `0031`). SELECT-only — agent
 - role: `subscriber` | `employer` | `distributor` | `branch` | `agent` | `admin`
 
 ### Business Rules
-- Five of six roles have dashboard access (`hasDashboard()` / `DASHBOARD_ROLES = ['distributor','branch','subscriber','agent','employer']`); only `admin` is deferred.
+- **All six roles have dashboard access** (`hasDashboard()` / `DASHBOARD_ROLES = ['distributor','branch','subscriber','agent','employer','admin']`). The **admin** role is shipped: `src/admin-dashboard/` is a map-theme shell reusing the distributor map/overlay/view panels, backed by migration `0049`'s 18 `*_select_admin` platform-wide RLS policies + the `create_distributor` / `create_employer` / `get_all_employers_metrics` / `get_platform_overview` / admin-settlement RPCs (`0049`–`0051`). Demo persona `admin-001`.
 - The backend returns the role-scoped ID (`branchId` / `agentId` / `distributorId` / `subscriberId` / `employerId`) as a JWT claim + in the auth response; the client no longer injects it.
 - UNCLEAR — confirm: Should a distributor admin be scoped to a specific distributor entity, or always see the full network?
 
@@ -603,8 +632,8 @@ The Metrics object is shared across Country, Region, District, Branch, and Agent
 - **Branch level**: `addMetrics(branch, agent)` for each child agent, then `finalizeRates()`.
 - **District level**: `addMetrics(district, branch)` for each child branch, then `finalizeRates()`.
 - **Region level**: Same pattern from districts.
-- **Distributor level**: National singleton (`d-001`). Today the rollup is computed by `getDistributorMetrics()` as a flat `Promise.all` of `getAllAtLevel('subscriber' | 'agent' | 'branch')` + a `subscriber_balances` AUM aggregate, rather than the recursive `addMetrics()` walk used by Region/Country — there is only one row and it owns the entire network, so the flat counts equal what a recursive walk would produce. The recursive `addMetrics()` pattern from Region applies when a multi-distributor seed lands.
-- **Country level**: Same pattern from regions (equivalent to "the distributor singleton's view" today; remains separate so the country row stays a meaningful aggregation anchor).
+- **Distributor level**: Two seeded distributors (`d-001` National + `d-002` Secondary), but the entire agent→subscriber tree currently hangs off `d-001`. Today the rollup is computed by `getDistributorMetrics()` as a flat `Promise.all` of `getAllAtLevel('subscriber' | 'agent' | 'branch')` + a `subscriber_balances` AUM aggregate, rather than the recursive `addMetrics()` walk used by Region/Country — because `d-001` owns the whole network the flat counts equal what a recursive walk would produce (and `d-002` has no children to roll up). The recursive `addMetrics()` pattern from Region applies once a second distributor actually owns a sub-tree.
+- **Country level**: Same pattern from regions (equivalent to the `d-001`-rooted distributor view today; remains separate so the country row stays a meaningful aggregation anchor across all distributors).
 
 `addMetrics()` sums all numeric fields. For rates:
 - `activeRate` = tracked via `_activeCount` during aggregation, then `round((_activeCount / totalSubscribers) * 100)`.

@@ -14,7 +14,7 @@ import SkeletonRow from '../../components/SkeletonRow';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import EmptyState from '../../components/EmptyState';
 import { companyFundingLabel } from './fundingLabel';
-import styles from './EmployeeDetail.module.css';
+import styles from './MemberDetailBody.module.css';
 
 export default function MemberDetailBody({ employeeId }) {
   const { employerId } = useEmployerScope();

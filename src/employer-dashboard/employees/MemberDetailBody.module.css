@@ -1,0 +1,181 @@
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  MemberDetailBody — read-only sections for a single staff member.             */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.identity {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-gray);
+}
+
+.suspendNote {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-amber) 14%, transparent);
+  color: #92400e;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* ── Sections ──────────────────────────────────────────────────────────────── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--color-indigo);
+}
+
+/* ── Definition lists ──────────────────────────────────────────────────────── */
+.defs {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.def {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 5%, transparent);
+}
+
+.defLabel {
+  font-size: 0.8125rem;
+  color: var(--color-gray);
+}
+
+.defValue {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-slate);
+  text-align: right;
+}
+
+.insHint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-gray);
+}
+
+/* ── Contribution history list ─────────────────────────────────────────────── */
+.txList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.txRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 5%, transparent);
+}
+
+.txMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.txPeriod {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-indigo);
+}
+
+.txMeta {
+  font-size: 0.6875rem;
+  color: var(--color-gray);
+}
+
+.txAmounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.txTotal {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: var(--color-slate);
+  font-variant-numeric: tabular-nums;
+}
+
+.txHalves {
+  font-size: 0.6875rem;
+  color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Nominees ──────────────────────────────────────────────────────────────── */
+.nomineeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nomineeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 5%, transparent);
+}
+
+.nomineeMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nomineeName {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-slate);
+}
+
+.nomineeRel {
+  font-size: 0.6875rem;
+  color: var(--color-gray);
+}
+
+.nomineeShare {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+.emptyInline {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-gray);
+}
