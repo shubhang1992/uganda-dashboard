@@ -15,7 +15,7 @@ import styles from './BranchHealthScore.module.css';
 /* ── Derived metrics ── */
 function deriveMetrics(metrics, agents) {
   const totalSubs = metrics.totalSubscribers || 0;
-  const activeSubs = metrics.activeSubscribers || 0;
+  const activeSubs = Math.round(totalSubs * ((metrics.activeRate || 0) / 100));
   const retentionRate = totalSubs > 0 ? (activeSubs / totalSubs) * 100 : 0;
   const totalContrib = agents.reduce((s, a) => s + (a.metrics?.totalContributions || 0), 0);
   const avgPerSub = totalSubs > 0 ? totalContrib / totalSubs : 0;
@@ -116,7 +116,7 @@ function generateActivity(agents) {
 
 function computeAlerts(metrics, commissionSummary) {
   const totalSubs = metrics.totalSubscribers || 0;
-  const activeSubs = metrics.activeSubscribers || 0;
+  const activeSubs = Math.round(totalSubs * ((metrics.activeRate || 0) / 100));
   const dormant = totalSubs - activeSubs;
   const kycIssues = (metrics.kycPending || 0) + (metrics.kycIncomplete || 0);
   const settlementRate = commissionSummary?.settlementRate || 0;
@@ -282,7 +282,7 @@ export default function BranchHealthScore({ metrics, agents, branch, user, commi
               <span className={styles.metricLabel}>Subscribers</span>
               <div className={styles.metricRow}>
                 <span className={styles.metricValueMd}>{formatNumber(metrics.totalSubscribers || 0)}</span>
-                <span className={styles.metricSub}>{metrics.activeSubscribers || 0} active</span>
+                <span className={styles.metricSub}>{formatNumber(Math.round((metrics.totalSubscribers || 0) * ((metrics.activeRate || 0) / 100)))} active</span>
               </div>
             </button>
             <button type="button" className={`${styles.metricBlock} ${styles.metricCard}`} onClick={openAgents}>
