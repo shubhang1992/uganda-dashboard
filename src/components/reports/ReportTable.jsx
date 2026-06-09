@@ -63,13 +63,13 @@ export default function ReportTable({
   }, [data, sortKey, sortDir, columns]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  // Clamp to the last valid page without a render-phase setState (avoids a
+  // stale empty-slice frame). safePage === page whenever page is in range.
+  const safePage = Math.min(page, Math.max(0, totalPages - 1));
   const paginated = useMemo(
-    () => sorted.slice(page * pageSize, (page + 1) * pageSize),
-    [sorted, page, pageSize]
+    () => sorted.slice(safePage * pageSize, (safePage + 1) * pageSize),
+    [sorted, safePage, pageSize]
   );
-
-  // Reset page if it overflows
-  if (page >= totalPages && page > 0) setPage(0);
 
   if (loading) {
     return (
@@ -158,7 +158,7 @@ export default function ReportTable({
                   transition={{ duration: 0.15, delay: reducedMotion ? 0 : Math.min(idx * 0.01, 0.2), ease: EASE_OUT_EXPO }}
                   layout={!reducedMotion}
                 >
-                  <td className={styles.rowNum}>{page * pageSize + idx + 1}</td>
+                  <td className={styles.rowNum}>{safePage * pageSize + idx + 1}</td>
                   {columns.map((col) => (
                     <td key={col.key} className={styles.td} data-align={col.align || 'left'}>
                       {col.render ? col.render(row) : row[col.key]}
@@ -175,7 +175,7 @@ export default function ReportTable({
       <div className={styles.pagination}>
         <div className={styles.pageInfo}>
           <span className={styles.pageCount}>
-            {formatNumber(page * pageSize + 1)}–{formatNumber(Math.min((page + 1) * pageSize, sorted.length))} of {formatNumber(sorted.length)}
+            {formatNumber(safePage * pageSize + 1)}–{formatNumber(Math.min((safePage + 1) * pageSize, sorted.length))} of {formatNumber(sorted.length)}
           </span>
         </div>
         <div className={styles.pageControls}>
@@ -194,19 +194,19 @@ export default function ReportTable({
           </div>
           <button
             className={styles.pageBtn}
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
+            onClick={() => setPage(Math.max(0, safePage - 1))}
+            disabled={safePage === 0}
             aria-label="Previous page"
           >
             <svg viewBox="0 0 24 24" fill="none" width="14" height="14" aria-hidden="true">
               <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
-          <span className={styles.pageNumber}>{page + 1} / {totalPages}</span>
+          <span className={styles.pageNumber}>{safePage + 1} / {totalPages}</span>
           <button
             className={styles.pageBtn}
-            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            disabled={page >= totalPages - 1}
+            onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))}
+            disabled={safePage >= totalPages - 1}
             aria-label="Next page"
           >
             <svg viewBox="0 0 24 24" fill="none" width="14" height="14" aria-hidden="true">
