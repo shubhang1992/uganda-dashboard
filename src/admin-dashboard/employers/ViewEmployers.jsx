@@ -13,8 +13,18 @@ import styles from '../adminPanels.module.css';
  * get_all_employers_metrics RPC. "+ New Employer" opens the create form.
  */
 export default function ViewEmployers() {
-  const { viewEmployersOpen, setViewEmployersOpen, setCreateEmployerOpen } = useAdminPanel();
+  const {
+    viewEmployersOpen, setViewEmployersOpen, setCreateEmployerOpen,
+    setDetailEmployerId, setViewEmployerDetailOpen,
+  } = useAdminPanel();
   const { data: employers = [], isLoading } = useAllEmployersMetrics();
+
+  // Drill into a single employer — opens the detail card on top of this list
+  // (same panel the map drill-down opens). Its back/close returns here.
+  const openEmployer = (id) => {
+    setDetailEmployerId(id);
+    setViewEmployerDetailOpen(true);
+  };
 
   useEffect(() => {
     if (!viewEmployersOpen) return;
@@ -99,7 +109,14 @@ export default function ViewEmployers() {
               ) : (
                 <div className={styles.list}>
                   {employers.map((e) => (
-                    <div className={styles.row} key={e.id}>
+                    <button
+                      type="button"
+                      className={styles.row}
+                      key={e.id}
+                      onClick={() => openEmployer(e.id)}
+                      aria-label={`View ${e.name}`}
+                      style={{ width: '100%', textAlign: 'left', font: 'inherit', cursor: 'pointer', opacity: e.status === 'inactive' ? 0.62 : 1 }}
+                    >
                       <div className={styles.rowHead}>
                         <div>
                           <div className={styles.rowName}>{e.name}</div>
@@ -107,6 +124,16 @@ export default function ViewEmployers() {
                             {[e.sector, e.district].filter(Boolean).join(' · ') || 'No sector set'}
                           </div>
                         </div>
+                        {e.status === 'inactive' && (
+                          <span className={`${styles.statusPill} ${styles.statusInactive}`} style={{ flexShrink: 0 }}>
+                            Deactivated
+                          </span>
+                        )}
+                        <span style={{ color: 'var(--color-gray)', flexShrink: 0, display: 'flex' }}>
+                          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+                            <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
                       </div>
                       <div className={styles.rowMetrics}>
                         <div className={styles.metric}>
@@ -130,7 +157,7 @@ export default function ViewEmployers() {
                           <span className={styles.metricLabel}>Insured</span>
                         </div>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}

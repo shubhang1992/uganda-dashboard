@@ -36,7 +36,10 @@ const {
   createBranch,
   getEntityMetricsRollup,
   createDistributor,
+  setDistributorStatus,
   getPlatformOverview,
+  getEmployerGeoRollup,
+  getEmployerActivityRollup,
 } = await import('../entities');
 
 beforeEach(() => {
@@ -405,6 +408,26 @@ describe('entities service', () => {
     });
   });
 
+  describe('setDistributorStatus() — admin set_distributor_status RPC (0060)', () => {
+    it('passes p_distributor_id / p_status and returns the cascade summary', async () => {
+      supabaseMock.__queueRpc('set_distributor_status', {
+        data: { id: 'd-001', status: 'inactive', branchesUpdated: 316, agentsUpdated: 2049, subscribersDetached: 5000 },
+        error: null,
+      });
+      const res = await setDistributorStatus('d-001', 'inactive');
+      expect(res).toMatchObject({ id: 'd-001', status: 'inactive', subscribersDetached: 5000 });
+      const call = supabaseMock.__getRpcCalls('set_distributor_status').at(-1);
+      expect(call.args).toEqual({ p_distributor_id: 'd-001', p_status: 'inactive' });
+    });
+
+    it('throws when the RPC returns an error (e.g. non-admin caller)', async () => {
+      supabaseMock.__queueRpc('set_distributor_status', {
+        data: null, error: { code: 'P0001', message: 'admin only' },
+      });
+      await expect(setDistributorStatus('d-001', 'inactive')).rejects.toMatchObject({ code: 'P0001' });
+    });
+  });
+
   describe('getPlatformOverview() — admin get_platform_overview RPC', () => {
     it('calls the RPC with no args and returns the payload as-is', async () => {
       const payload = {
@@ -433,6 +456,71 @@ describe('entities service', () => {
         data: null, error: { code: 'P0001', message: 'admin only' },
       });
       await expect(getPlatformOverview()).rejects.toMatchObject({ code: 'P0001' });
+    });
+  });
+
+  describe('getEmployerGeoRollup() — admin get_employer_geo_rollup RPC', () => {
+    it('calls the RPC with no args and returns the payload as-is', async () => {
+      const payload = {
+        byRegion: { 'r-central': { subscribers: 22, active: 18, aum: 1000, employers: 2 } },
+        byDistrict: {
+          'd-kampala': {
+            subscribers: 16, active: 14, aum: 800, employers: 1,
+            list: [{ id: 'emp-001', name: 'Nile Breweries Demo Ltd', subscribers: 16, active: 14, aum: 800 }],
+          },
+        },
+      };
+      supabaseMock.__queueRpc('get_employer_geo_rollup', { data: payload, error: null });
+      const geo = await getEmployerGeoRollup();
+      expect(geo).toEqual(payload);
+      const calls = supabaseMock.__getRpcCalls('get_employer_geo_rollup');
+      expect(calls).toHaveLength(1);
+      expect(calls[0].args).toBeUndefined();
+    });
+
+    it('returns an empty rollup when the RPC data is null', async () => {
+      supabaseMock.__queueRpc('get_employer_geo_rollup', { data: null, error: null });
+      expect(await getEmployerGeoRollup()).toEqual({ byRegion: {}, byDistrict: {} });
+    });
+
+    it('throws when the RPC returns an error', async () => {
+      supabaseMock.__queueRpc('get_employer_geo_rollup', {
+        data: null, error: { code: 'P0001', message: 'admin only' },
+      });
+      await expect(getEmployerGeoRollup()).rejects.toMatchObject({ code: 'P0001' });
+    });
+  });
+
+  describe('getEmployerActivityRollup() — admin get_employer_activity_rollup RPC', () => {
+    it('calls the RPC with no args and returns the payload as-is', async () => {
+      const payload = {
+        dailyContributions: 2358000, weeklyContributions: 2358000,
+        monthlyContributions: [0, 0, 0, 0, 0, 0, 0, 0, 0, 2358000, 2358000, 7074000],
+        dailyWithdrawals: 150000, monthlyWithdrawals: 330000,
+        newSubscribersToday: 2, newSubscribersThisWeek: 2, newSubscribersThisMonth: 4,
+        topEmployer: { name: 'Nile Breweries Demo Ltd', contribution: 7074000 },
+      };
+      supabaseMock.__queueRpc('get_employer_activity_rollup', { data: payload, error: null });
+      const activity = await getEmployerActivityRollup();
+      expect(activity).toEqual(payload);
+      const calls = supabaseMock.__getRpcCalls('get_employer_activity_rollup');
+      expect(calls).toHaveLength(1);
+      expect(calls[0].args).toBeUndefined();
+    });
+
+    it('returns the all-zero shape (null topEmployer) when the RPC data is null', async () => {
+      supabaseMock.__queueRpc('get_employer_activity_rollup', { data: null, error: null });
+      const activity = await getEmployerActivityRollup();
+      expect(activity.topEmployer).toBeNull();
+      expect(activity.dailyContributions).toBe(0);
+      expect(activity.monthlyContributions).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    });
+
+    it('throws when the RPC returns an error', async () => {
+      supabaseMock.__queueRpc('get_employer_activity_rollup', {
+        data: null, error: { code: 'P0001', message: 'admin only' },
+      });
+      await expect(getEmployerActivityRollup()).rejects.toMatchObject({ code: 'P0001' });
     });
   });
 });

@@ -5,6 +5,7 @@ import { EASE_OUT_EXPO } from '../utils/motion';
 
 import { DashboardProvider, useDashboard } from '../contexts/DashboardContext';
 import { AdminPanelProvider, useAdminPanel } from '../contexts/AdminPanelContext';
+import { DataScopeProvider } from '../contexts/DataScopeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrentEntity } from '../hooks/useEntity';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -23,7 +24,6 @@ import ViewBranches from '../dashboard/branch/ViewBranches';
 import ViewAgents from '../dashboard/agent/ViewAgents';
 import ViewSubscribers from '../dashboard/subscriber/ViewSubscribers';
 import ViewReports from '../dashboard/reports/ViewReports';
-import CommissionPanel from '../dashboard/commissions/CommissionPanel';
 import Settings from '../dashboard/settings/Settings';
 import ViewTickets from '../dashboard/tickets/ViewTickets';
 // Admin-exclusive: country-level Summary card (true platform totals + distributor/
@@ -34,6 +34,7 @@ import ViewDistributors from './distributors/ViewDistributors';
 import CreateDistributor from './distributors/CreateDistributor';
 import ViewEmployers from './employers/ViewEmployers';
 import CreateEmployer from './employers/CreateEmployer';
+import ViewEmployerDetail from './employers/ViewEmployerDetail';
 // Reuse the distributor shell layout styles for pixel-identical chrome.
 import styles from '../dashboard/DashboardShell.module.css';
 
@@ -44,7 +45,6 @@ const DRAWER_ITEMS = [
   { id: 'branches', label: 'View Branches' },
   { id: 'agents', label: 'View Agents' },
   { id: 'subscribers', label: 'Subscribers' },
-  { id: 'commissions', label: 'Commissions' },
   { id: 'tickets', label: 'Support' },
   { id: 'reports', label: 'Reports' },
   { id: 'settings', label: 'Settings' },
@@ -95,7 +95,6 @@ function MobileDrawer({ open, onClose }) {
     setAgentMenuOpen, setViewAgentsOpen,
     setViewSubscribersOpen,
     setViewReportsOpen,
-    setCommissionsOpen,
     setSettingsOpen,
     setViewTicketsOpen,
   } = useDashboard();
@@ -128,7 +127,6 @@ function MobileDrawer({ open, onClose }) {
     setViewSubscribersOpen(false);
     setCreateBranchOpen(false);
     setViewReportsOpen(false);
-    setCommissionsOpen(false);
     setSettingsOpen(false);
     setViewTicketsOpen(false);
     adminCloseAllPanels();
@@ -151,9 +149,6 @@ function MobileDrawer({ open, onClose }) {
         break;
       case 'subscribers':
         setViewSubscribersOpen(true);
-        break;
-      case 'commissions':
-        setCommissionsOpen(true);
         break;
       case 'tickets':
         setViewTicketsOpen(true);
@@ -255,7 +250,6 @@ function AdminDashboardContent() {
     viewAgentsOpen,
     viewSubscribersOpen,
     viewReportsOpen,
-    commissionsOpen,
     settingsOpen,
     viewTicketsOpen,
   } = useDashboard();
@@ -264,7 +258,16 @@ function AdminDashboardContent() {
     createDistributorOpen,
     viewEmployersOpen,
     createEmployerOpen,
+    viewEmployerDetailOpen,
+    setViewEmployerDetailOpen,
+    setDetailEmployerId,
   } = useAdminPanel();
+  // Open the employer detail panel focused on the clicked employer (from the map
+  // district drill-down's Employers tab) — mirrors clicking a branch.
+  const handleEmployerSelect = useCallback((id) => {
+    setDetailEmployerId(id);
+    setViewEmployerDetailOpen(true);
+  }, [setDetailEmployerId, setViewEmployerDetailOpen]);
   return (
     <>
       <main className={styles.main} id="main">
@@ -277,7 +280,7 @@ function AdminDashboardContent() {
         <Breadcrumb />
         {/* Admin-framed Summary at country level; reuse the distributor overlay
             for deeper geographic drill-down (region/district/branch/agent). */}
-        {level === 'country' ? <AdminCountryOverview /> : <OverlayPanel />}
+        {level === 'country' ? <AdminCountryOverview /> : <OverlayPanel onEmployerSelect={handleEmployerSelect} />}
         <TopBar />
         <MetricsRow />
       </main>
@@ -286,13 +289,13 @@ function AdminDashboardContent() {
       {createDistributorOpen && <CreateDistributor />}
       {viewEmployersOpen && <ViewEmployers />}
       {createEmployerOpen && <CreateEmployer />}
+      {viewEmployerDetailOpen && <ViewEmployerDetail />}
       {/* Reused distributor-shell panels */}
       {createBranchOpen && <CreateBranch />}
-      {viewBranchesOpen && <ViewBranches />}
+      {viewBranchesOpen && <ViewBranches readOnly />}
       {viewAgentsOpen && <ViewAgents />}
       {viewSubscribersOpen && <ViewSubscribers />}
       {viewReportsOpen && <ViewReports />}
-      {commissionsOpen && <CommissionPanel />}
       {settingsOpen && <Settings />}
       {viewTicketsOpen && <ViewTickets />}
     </>
@@ -306,12 +309,14 @@ export default function AdminDashboardShell() {
   return (
     <DashboardProvider>
       <AdminPanelProvider>
-        <div className={styles.shell}>
-          <AdminSidebar />
-          <MobileHeader onMenuToggle={handleMenuToggle} menuOpen={menuOpen} />
-          <MobileDrawer open={menuOpen} onClose={handleMenuClose} />
-          <AdminDashboardContent />
-        </div>
+        <DataScopeProvider defaultScope="all">
+          <div className={styles.shell}>
+            <AdminSidebar />
+            <MobileHeader onMenuToggle={handleMenuToggle} menuOpen={menuOpen} />
+            <MobileDrawer open={menuOpen} onClose={handleMenuClose} />
+            <AdminDashboardContent />
+          </div>
+        </DataScopeProvider>
       </AdminPanelProvider>
     </DashboardProvider>
   );

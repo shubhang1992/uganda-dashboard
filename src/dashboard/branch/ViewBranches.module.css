@@ -905,11 +905,6 @@
   box-shadow: 0 0 0 2px rgba(230, 168, 23, 0.15);
 }
 
-.commDot[data-status='disputed'] {
-  background: var(--color-status-poor);
-  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.15);
-}
-
 .commAmount {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -922,10 +917,6 @@
   font-weight: 400;
   margin-left: 0.25rem;
   font-variant-numeric: tabular-nums;
-}
-
-.commDisputed {
-  color: var(--color-status-poor);
 }
 
 .commRate {

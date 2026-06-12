@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { useCurrentEntity, useChildren } from '../../hooks/useEntity';
+import { useCurrentEntity, useChildren, useChildrenMetrics } from '../../hooks/useEntity';
 import { CHILD_LEVEL } from '../../constants/levels';
 import { EASE_OUT_EXPO as EASE } from '../../utils/motion';
 import { formatUGX } from '../../utils/currency';
@@ -66,6 +66,14 @@ export default function TopBar() {
   const { data: currentEntity } = useCurrentEntity(level, selectedIds);
   const { data: children = [] } = useChildren(level, parentId);
 
+  // Under Supabase, useChildren returns EMPTY_METRICS (all zeros) per child.
+  // Merge in the real rollup so the CSV export carries actual values.
+  const { data: childrenMetrics = {} } = useChildrenMetrics(level, parentId);
+  const childrenWithMetrics = useMemo(
+    () => children.map((c) => ({ ...c, metrics: childrenMetrics[c.id] ?? c.metrics })),
+    [children, childrenMetrics],
+  );
+
   // Filter state
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterValue, setFilterValue] = useState(null);
@@ -94,17 +102,17 @@ export default function TopBar() {
 
   // Apply the active filter to the children list before CSV export.
   const filteredChildren = useMemo(() => {
-    if (!filterValue || !filterConfig) return children;
+    if (!filterValue || !filterConfig) return childrenWithMetrics;
     const defaultOption = filterConfig.options[0];
-    if (filterValue === defaultOption) return children;
+    if (filterValue === defaultOption) return childrenWithMetrics;
     if (level === 'district') {
       // Status filter: 'Active' or 'Inactive'
       const wantActive = filterValue === 'Active';
-      return children.filter((c) => (c.active !== false) === wantActive);
+      return childrenWithMetrics.filter((c) => (c.active !== false) === wantActive);
     }
     // Region/district: filter by name
-    return children.filter((c) => c.name === filterValue);
-  }, [children, filterValue, filterConfig, level]);
+    return childrenWithMetrics.filter((c) => c.name === filterValue);
+  }, [childrenWithMetrics, filterValue, filterConfig, level]);
 
   // CSV download handler — exports the filtered children
   const handleDownload = useCallback(() => {

@@ -97,10 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // proceed via a different channel. Logged for operator triage.
     // eslint-disable-next-line no-console
     console.error('[agent-referral] insert failed', error);
-    return res.status(500).json({
-      code: 'db_error',
-      message: error.code ?? error.message,
-    });
+    return res.status(500).json({ code: 'db_error' });
   }
 
   return res.status(200).json({ ticketId, eta });

@@ -152,7 +152,7 @@ function DonutChart({ ratio }) {
 function AgeBarChart({ distribution }) {
   if (!distribution) return null;
   const entries = Object.entries(distribution);
-  const max = Math.max(...entries.map(([, v]) => v));
+  const max = Math.max(...entries.map(([, v]) => v), 1);
   return (
     <div className={styles.ageBars} role="img" aria-label="Age distribution chart">
       {entries.map(([label, value]) => (

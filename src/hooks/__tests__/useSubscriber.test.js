@@ -169,6 +169,7 @@ describe('useSubscriber hooks — invalidating mutations', () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['currentSubscriber'] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['subscriberTransactions', 'sub-1'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['contributionBreakdown', 'sub-1'] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['subscriberClaims', 'sub-1'] });
   });
 

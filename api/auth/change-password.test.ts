@@ -395,10 +395,8 @@ describe('POST /api/auth/change-password', () => {
       res,
     );
     expect(res.__getStatus()).toBe(500);
-    expect(res.__getPayload()).toEqual({
-      code: 'db_error',
-      message: '42501',
-    });
+    // §11-M1: opaque payload — the raw supabase code/message must NOT leak.
+    expect(res.__getPayload()).toEqual({ code: 'db_error' });
   });
 
   it('returns 500 db_error when the users update returns an error', async () => {
@@ -415,9 +413,7 @@ describe('POST /api/auth/change-password', () => {
       res,
     );
     expect(res.__getStatus()).toBe(500);
-    expect(res.__getPayload()).toEqual({
-      code: 'db_error',
-      message: '23505',
-    });
+    // §11-M1: opaque payload — the raw supabase code/message must NOT leak.
+    expect(res.__getPayload()).toEqual({ code: 'db_error' });
   });
 });

@@ -28,6 +28,8 @@ function messageForCode(code) {
   if (code === 'rate_limited') return 'Too many attempts. Try again shortly.';
   if (code === 'locked') return 'This account is temporarily locked.';
   if (code === 'invalid_otp') return 'Invalid code. Please try again.';
+  // Account deactivated by an admin (migration 0060 login gate).
+  if (code === 'account_deactivated') return 'This account has been deactivated. Please contact support to reactivate it.';
   // Password-related codes — surfaced by the new password-aware auth routes
   // (verify-otp w/ password, verify-password, change-password) added in
   // Phases 2–5. These are demo-appropriate phrasings; the server is the

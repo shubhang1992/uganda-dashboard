@@ -68,6 +68,7 @@ export function useUpdateSubscriberSchedule(subscriberId, agentId) {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['agentSubscribers', agentId] });
+      queryClient.invalidateQueries({ queryKey: ['agentContributions', agentId] });
       queryClient.invalidateQueries({ queryKey: ['subscriberTransactions', subscriberId] });
     },
   });

@@ -118,6 +118,18 @@ export const DISTRIBUTORS = {
 
 
 
+// Demo-fallback entity IDs that the auth layer hands out when a login phone
+// isn't recognised (ROLE_DEFAULTS in api/auth/_lib/personas.ts): agent `a-001`,
+// branch `b-kam-015`, distributor `d-001`, employer `emp-001`. These MUST always
+// seed as `status: 'active'` — otherwise a re-seed can randomly mark a fallback
+// persona inactive, and the verify-otp/verify-password deactivation gate then
+// 403s the demo login ("account has been deactivated"). Distributor `d-001` is
+// already hardcoded active above and the employer INSERT omits status (DB
+// DEFAULT 'active'), so only the randomised branch + agent assignments below
+// need the guard. Kept inline (not imported from the API layer) so mockData.js
+// stays free of server-side imports; the IDs are stable demo constants.
+const DEMO_FALLBACK_ACTIVE_IDS = new Set(['a-001', 'b-kam-015', 'd-001', 'emp-001']);
+
 export const BRANCHES = {};
 BRANCH_DEFS.forEach((b) => {
   const mGender = rand() < 0.55 ? 'male' : 'female';
@@ -127,8 +139,11 @@ BRANCH_DEFS.forEach((b) => {
     parentId: b.districtId,
     managerName: mName,
     managerPhone: ugandanPhone(),
-    managerEmail: `${mName.toLowerCase().replace(/\s+/g, '.')}@upensions.ug`,
-    status: rand() < 0.9 ? 'active' : 'inactive',
+    // Force the demo-fallback branch (b-kam-015) active so the branch demo
+    // login never trips the deactivation gate. Others keep the ~10% inactive mix.
+    status: DEMO_FALLBACK_ACTIVE_IDS.has(b.id)
+      ? 'active'
+      : rand() < 0.9 ? 'active' : 'inactive',
     metrics: null,
   };
   delete BRANCHES[b.id].districtId;
@@ -190,7 +205,10 @@ Object.keys(BRANCHES).forEach((branchId) => {
       email: `${name.toLowerCase().replace(/\s/g, '.')}@universalpensions.ug`,
       rating: Math.round((3 + rand() * 2) * 10) / 10, // 3.0 - 5.0
       performance: randInt(45, 100),
-      status: pick(AGENT_STATUSES),
+      // Force the demo-fallback agent (a-001) active so the agent demo login
+      // (and the unknown-phone fallback) never trips the deactivation gate.
+      // Others keep the ~20% inactive mix from AGENT_STATUSES.
+      status: DEMO_FALLBACK_ACTIVE_IDS.has(id) ? 'active' : pick(AGENT_STATUSES),
       languages,
       specialties: Array.from(specialties),
       tenureMonths,

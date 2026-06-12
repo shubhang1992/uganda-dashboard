@@ -65,8 +65,8 @@ export function formatNumber(value) {
 export function formatUGXShort(value) {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return '0';
-  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `${(n / 1e6).toFixed(0)}M`;
+  if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
   // Below 1,000 the "K" form would round to a misleading "0K" / "1K"; show the
   // exact rounded amount instead (mirrors the formatUGX guard). >= 1000 unchanged.
   if (n < 1e3) return `${Math.round(n).toLocaleString(LOCALE)}`;

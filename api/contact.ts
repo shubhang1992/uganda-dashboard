@@ -69,10 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (error) {
     // eslint-disable-next-line no-console
     console.error('[contact] insert failed', error);
-    return res.status(500).json({
-      code: 'db_error',
-      message: error.code ?? error.message,
-    });
+    return res.status(500).json({ code: 'db_error' });
   }
 
   return res.status(200).json({ submitted: true, id });

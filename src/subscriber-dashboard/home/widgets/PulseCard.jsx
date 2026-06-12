@@ -41,7 +41,7 @@ export default function PulseCard({ subscriber }) {
       <span>
         Invested <strong>{formatUGX(netInvested)}</strong>
       </span>
-      <span style={{ color: 'var(--color-green)' }}>
+      <span style={{ color: growth >= 0 ? 'var(--color-green)' : 'var(--color-amber)' }}>
         {growth >= 0 ? '+' : '−'}{Math.abs(growthPct).toFixed(1)}% growth
       </span>
     </>

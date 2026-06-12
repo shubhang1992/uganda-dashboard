@@ -122,13 +122,17 @@ jobs:
         # both so a single cache key serves both jobs.
         run: npx playwright install --with-deps chromium webkit
 
-      - name: Run Playwright smoke + flow specs (PR — chromium + mobile-chromium)
+      - name: Run Playwright smoke + flow + db specs (PR — chromium + mobile-chromium)
         if: github.event_name == 'pull_request'
         # PR feedback path: smoke covers every dashboard route per role,
-        # flow specs exercise the write+DB chain. Two projects only so we
-        # stay under the 5-min-per-combo SLA from §6.H of the audit plan.
+        # flow specs exercise the write+DB chain. We also gate the db/ guards
+        # (cross-tenant RLS isolation, money RPC idempotency, schema invariants)
+        # on PRs — they are service-role-only (~7 fast queries, no UI/browser,
+        # so they add only seconds) and catch security/money regressions before
+        # merge rather than only post-merge on main (§15-H1). Two projects only
+        # so we stay under the 5-min-per-combo SLA from §6.H of the audit plan.
         run: |
-          npx playwright test e2e/specs/smoke e2e/specs/flows \
+          npx playwright test e2e/specs/smoke e2e/specs/flows e2e/specs/db \
             --project=chromium --project=mobile-chromium \
             --workers=1
 
@@ -140,6 +144,40 @@ jobs:
         # each merge to main.
         run: |
           npx playwright test --workers=1
+
+      - name: Assert db/ specs actually executed (not silently skipped) (§15-M1)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # Guard against silent hollowing-out: every test in e2e/specs/db/ is
+        # wrapped in `test.skip(!hasEnv, …)`, so a MISSING secret turns the whole
+        # db/ guard suite into all-skipped — which still reports GREEN and would
+        # let a cross-tenant RLS / money-idempotency regression sail through on
+        # main. Re-run just the db/ specs with the JSON reporter and fail the job
+        # if zero tests EXECUTED (stats.expected === 0 ⇒ everything was skipped or
+        # nothing was discovered). A real db-test failure already fails the full
+        # matrix above; this step specifically catches the "0 ran" case.
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: db-results.json
+        run: |
+          npx playwright test e2e/specs/db \
+            --project=chromium \
+            --workers=1 \
+            --reporter=json
+          node -e '
+            const fs = require("fs");
+            const file = process.env.PLAYWRIGHT_JSON_OUTPUT_NAME;
+            const report = JSON.parse(fs.readFileSync(file, "utf8"));
+            const { expected = 0, skipped = 0, unexpected = 0, flaky = 0 } = report.stats || {};
+            console.log(`db/ specs — expected(ran+passed): ${expected}, skipped: ${skipped}, unexpected: ${unexpected}, flaky: ${flaky}`);
+            if (expected < 1) {
+              console.error(
+                "§15-M1 FAILURE: 0 db/ specs executed (all skipped or none discovered). " +
+                "This usually means a required secret (SUPABASE_SERVICE_ROLE_KEY / " +
+                "VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / SUPABASE_JWT_SECRET) is " +
+                "missing, so the RLS / money-idempotency / invariant guards did NOT run."
+              );
+              process.exit(1);
+            }
+          '
 
       - name: Upload Playwright HTML report
         if: ${{ !cancelled() }}

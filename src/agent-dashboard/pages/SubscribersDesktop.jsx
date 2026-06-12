@@ -123,6 +123,8 @@ export default function SubscribersDesktop() {
   );
 
   const loading = isLoading && subscribers.length === 0;
+  // Active % — surfaced in the subtitle to match the mobile hero stat row.
+  const activePct = counts.all ? Math.round((counts.active / counts.all) * 100) : 0;
   const isEmpty = !loading && !isError && filtered.length === 0;
   // Distinguish a genuinely empty portfolio from a filtered-to-zero view so the
   // copy is honest (mirrors the mobile page's no-data vs no-match split).
@@ -131,12 +133,12 @@ export default function SubscribersDesktop() {
   return (
     <div className={styles.page}>
       <header className={styles.head}>
-        <p className={styles.eyebrow}>Your portfolio</p>
+        <p className={styles.eyebrow}>YOUR PORTFOLIO</p>
         <h1 className={styles.title}>My subscribers</h1>
         <p className={styles.subtitle}>
           {loading
             ? 'Loading your portfolio…'
-            : `${counts.all} subscribers · ${counts.active} active · ${counts.dormant} dormant`}
+            : `${counts.all} subscribers · ${counts.active} active · ${counts.dormant} dormant · ${activePct}% active`}
         </p>
       </header>
 
@@ -147,7 +149,7 @@ export default function SubscribersDesktop() {
           placeholder="Search by name, ID or phone…"
         />
         <PillChipGroup
-          label="Filter by status"
+          label="Filter subscribers"
           layout="row"
           className={styles.statusFilters}
         >

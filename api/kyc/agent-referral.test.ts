@@ -173,9 +173,8 @@ describe('POST /api/kyc/agent-referral', () => {
     await vi.advanceTimersByTimeAsync(600);
     await pending;
     expect(res.statusCode).toBe(500);
-    const body = res.body as { code: string; message?: string };
-    expect(body.code).toBe('db_error');
-    expect(body.message).toBe('23505');
+    // §11-M1: opaque payload — the raw supabase code/message must NOT leak.
+    expect(res.body).toEqual({ code: 'db_error' });
     errSpy.mockRestore();
   });
 

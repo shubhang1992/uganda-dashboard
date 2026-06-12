@@ -126,7 +126,10 @@ export async function buildWorkbookBuffer({ rows, columns, sheetName = DEFAULT_S
  *
  * @param {object} args
  * @param {Array<object>} args.rows — Data rows (plain objects).
- * @param {Array<string>} args.columns — Header strings; column order + key set.
+ * @param {Array<string|{key:string,label:string}>} args.columns — Column order
+ *   + key set, forwarded to `buildWorkbookBuffer`. A string is both header label
+ *   and row-lookup key; a `{ key, label }` object separates the two (employer
+ *   onboarding template + roster export use the object form).
  * @param {string} [args.filename] — Download filename. A `.xlsx` extension is
  *   appended if missing. Defaults to `export.xlsx`.
  * @param {string} [args.sheetName='Sheet1'] — Worksheet name.

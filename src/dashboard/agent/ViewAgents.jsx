@@ -134,17 +134,6 @@ function AgentDetail({ agent, branchesMap, districtsMap, regionsMap, onViewCommi
             </span>
           </div>
           <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>Disputed</span>
-            <span className={styles.infoValue}>
-              <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--color-status-poor)' }}>
-                {commissionData ? formatUGX(commissionData.totalDisputed) : '--'}
-              </span>
-              <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 'var(--text-xs)', color: 'var(--color-gray)' }}>
-                {commissionData ? `(${commissionData.countDisputed})` : ''}
-              </span>
-            </span>
-          </div>
-          <div className={styles.infoRow}>
             <span className={styles.infoLabel}>Settlement Rate</span>
             <span className={styles.infoValue}>
               <span style={{ fontVariantNumeric: 'tabular-nums' }}>

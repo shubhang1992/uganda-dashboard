@@ -2,17 +2,14 @@ import { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { parseAmount, calcFV, FREQUENCY, normalizeFrequency, periodsPerYear } from '../../utils/finance';
+import { parseAmount, normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 import { formatNumber, formatUGXShort, formatUGX } from '../../utils/currency';
-import { useCurrentSubscriber, useMakeContribution, useUpdateSchedule } from '../../hooks/useSubscriber';
+import { useCurrentSubscriber, useMakeContribution } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import {
   MIN_CONTRIBUTION,
   MOBILE_QUICK_CONTRIBUTION_AMOUNTS,
-  RETIREMENT_AGE,
-  INSURANCE_PREMIUM_MONTHLY,
-  INSURANCE_COVER,
 } from '../../constants/savings';
 import PageHeader from '../../components/PageHeader';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
@@ -20,15 +17,6 @@ import { goBackOrFallback } from '../shell/navigation';
 import styles from './SavePage.module.css';
 
 const PRESET_AMOUNTS = MOBILE_QUICK_CONTRIBUTION_AMOUNTS;
-
-// Mode 'oneoff' routes through useMakeContribution; the recurring modes write a
-// contribution schedule via useUpdateSchedule, mapped to canonical FREQUENCY ids.
-const MODES = [
-  { id: 'oneoff',             label: 'One-off',   recurring: false, cadence: 'One-off' },
-  { id: FREQUENCY.WEEKLY,     label: 'Weekly',    recurring: true,  cadence: 'Weekly'    },
-  { id: FREQUENCY.MONTHLY,    label: 'Monthly',   recurring: true,  cadence: 'Monthly'   },
-  { id: FREQUENCY.QUARTERLY,  label: 'Quarterly', recurring: true,  cadence: 'Quarterly' },
-];
 
 // Mobile-money only per the redesign mockup. Bank transfer was dropped from the
 // Save flow for product — flag left here so it can be reinstated if needed.
@@ -43,10 +31,6 @@ const DEFAULT_RETIREMENT_PCT = 70;
 // rather than "—" before any interaction — matches mockup 02.
 const DEFAULT_AMOUNT = 25_000;
 
-function modeById(id) {
-  return MODES.find((m) => m.id === id) ?? MODES[2];
-}
-
 function methodById(id) {
   return METHODS.find((m) => m.id === id) ?? METHODS[0];
 }
@@ -58,17 +42,36 @@ export default function SavePage() {
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const makeContribution = useMakeContribution(sub?.id);
-  const updateSchedule = useUpdateSchedule(sub?.id);
 
+  // This page only ever makes a single payment — either the user's scheduled
+  // amount (prefilled by TopUpWidget's "Pay") or an ad-hoc top-up. Frequency
+  // and the retirement/emergency split are properties of the saved schedule
+  // (configured in SchedulePage), NOT chosen here: the user already set them,
+  // so we read the split off the existing schedule and apply it silently. No
+  // schedule yet → fall back to the 70/30 default.
   const existing = sub?.contributionSchedule;
-  const defaultRetPct = existing?.retirementPct ?? DEFAULT_RETIREMENT_PCT;
+  const retirementPct = existing?.retirementPct ?? DEFAULT_RETIREMENT_PCT;
+  const emergencyPct = 100 - retirementPct;
   const prefillAmount = location.state?.prefillAmount;
+
+  // Scheduled-payment mode — reached only via TopUpWidget's "Pay" button, which
+  // sets state.scheduled. The amount is LOCKED to the configured schedule amount:
+  // no presets, no input, the user can only pay what they set. Requires an actual
+  // schedule to lock to, so it degrades to the editable ad-hoc view when the flag
+  // is absent (tab nav, "Top up extra") OR there's no schedule yet OR a hard
+  // refresh dropped location.state — never a locked card with a missing amount.
+  // Lock only when the schedule amount is itself payable (>= the minimum). Legacy
+  // weekly seed rows can sit below MIN_CONTRIBUTION; locking one would render a
+  // card whose "Pay" button is disabled with no way to edit — a dead end. Such
+  // (or missing) schedules fall through to the editable view, which pre-fills the
+  // amount (via prefillAmount) and shows the standard raise-to-minimum flow.
+  const scheduledAmount = Number(existing?.amount);
+  const lockableSchedule = Number.isFinite(scheduledAmount) && scheduledAmount >= MIN_CONTRIBUTION;
+  const lockedMode = location.state?.scheduled === true && lockableSchedule;
+  const cadenceLabel = FREQUENCY_LABEL[normalizeFrequency(existing?.frequency)];
 
   const [view, setView] = useState('form'); // form | confirm | success
   const [amountStr, setAmountStr] = useState(String(prefillAmount ?? DEFAULT_AMOUNT));
-  const [modeId, setModeId] = useState('oneoff');
-  const [retirementPct, setRetirementPct] = useState(defaultRetPct);
-  const [includeInsurance, setIncludeInsurance] = useState(Boolean(existing?.includeInsurance));
   const [method, setMethod] = useState('mtn');
   const [submitting, setSubmitting] = useState(false);
   const [resultTx, setResultTx] = useState(null);
@@ -80,13 +83,13 @@ export default function SavePage() {
   // next top-up gets a fresh key.
   const contributionNonce = useRef(null);
 
-  const amount = parseAmount(amountStr);
-  const emergencyPct = 100 - retirementPct;
+  // In locked mode the amount IS the configured schedule amount (authoritative,
+  // never the possibly-stale nav prefill); otherwise it comes from the editable
+  // field. There is no DOM path that can mutate it in locked mode (no chips/input
+  // are rendered), so the lock holds by construction.
+  const amount = lockedMode ? scheduledAmount : parseAmount(amountStr);
   const hasAmount = amount !== null && amount >= MIN_CONTRIBUTION;
-  const belowMin = amount !== null && amount < MIN_CONTRIBUTION;
-
-  const mode = modeById(modeId);
-  const isRecurring = mode.recurring;
+  const belowMin = !lockedMode && amount !== null && amount < MIN_CONTRIBUTION;
 
   const retAmt = hasAmount ? Math.round(amount * (retirementPct / 100)) : 0;
   const emgAmt = hasAmount ? amount - retAmt : 0;
@@ -96,29 +99,7 @@ export default function SavePage() {
     return (sub.netBalance || 0) + (hasAmount ? amount : 0);
   }, [sub, hasAmount, amount]);
 
-  // Recurring projection — what you'll pay per period + the retirement bucket's
-  // future value at age 60. Only meaningful for the recurring modes.
-  const projection = useMemo(() => {
-    if (!isRecurring || !hasAmount) return null;
-    const freqPerYear = periodsPerYear(mode.id);
-    const premiumPerPeriod = includeInsurance
-      ? Math.round((INSURANCE_PREMIUM_MONTHLY * 12) / freqPerYear)
-      : 0;
-    const totalPerPeriod = amount + premiumPerPeriod;
-    const annualTotal = totalPerPeriod * freqPerYear;
-    const age = typeof sub?.age === 'number' ? sub.age : 35;
-    const years = Math.max(0, RETIREMENT_AGE - age);
-    const contribMonthly = (amount * freqPerYear) / 12;
-    const retMonthly = contribMonthly * (retirementPct / 100);
-    const retirementFV = years > 0 && retMonthly > 0 ? calcFV(retMonthly, years) : 0;
-    return { freqPerYear, premiumPerPeriod, totalPerPeriod, annualTotal, years, retirementFV };
-  }, [isRecurring, hasAmount, mode.id, includeInsurance, amount, retirementPct, sub]);
-
-  const heroSubtitle = `${mode.cadence} · ${retirementPct}% retirement · ${emergencyPct}% emergency`;
-
-  function resetSplit() {
-    setRetirementPct(defaultRetPct);
-  }
+  const heroSubtitle = `${retirementPct}% retirement · ${emergencyPct}% emergency`;
 
   function handleBack() {
     if (view === 'confirm') {
@@ -153,37 +134,20 @@ export default function SavePage() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      if (isRecurring) {
-        // Recurring: write a contribution schedule. Frequency normalised; the
-        // existing nextDueDate is preserved if present (schema honours partial
-        // patches), insurance opt-in flows through includeInsurance.
-        const schedulePayload = {
-          frequency: normalizeFrequency(mode.id),
-          amount,
-          retirementPct,
-          emergencyPct,
-          includeInsurance,
-        };
-        if (existing?.nextDueDate) schedulePayload.nextDueDate = existing.nextDueDate;
-        await updateSchedule.mutateAsync(schedulePayload);
-        setResultTx(null);
-        setView('success');
-        addToast('success', `${mode.cadence} top-up of ${formatUGX(amount, { compact: false })} scheduled.`);
-      } else {
-        // One-off: ad-hoc contribution. The stable nonce makes a double-tap /
-        // retry idempotent on the server (§4a F-1).
-        const tx = await makeContribution.mutateAsync({
-          amount,
-          retirementPct,
-          method: methodById(method).full,
-          nonce: contributionNonce.current ?? undefined,
-        });
-        setResultTx(tx);
-        setView('success');
-        // Settled successfully — drop the nonce so a later top-up gets a fresh key.
-        contributionNonce.current = null;
-        addToast('success', `${formatUGX(amount, { compact: false })} added to your savings.`);
-      }
+      // Ad-hoc contribution. The stable nonce makes a double-tap / retry
+      // idempotent on the server (§4a F-1). retirementPct comes from the saved
+      // schedule, so the payment lands in the buckets the user already chose.
+      const tx = await makeContribution.mutateAsync({
+        amount,
+        retirementPct,
+        method: methodById(method).full,
+        nonce: contributionNonce.current ?? undefined,
+      });
+      setResultTx(tx);
+      setView('success');
+      // Settled successfully — drop the nonce so a later top-up gets a fresh key.
+      contributionNonce.current = null;
+      addToast('success', `${formatUGX(amount, { compact: false })} added to your savings.`);
     } catch (err) {
       addToast('error', err?.message || 'Could not complete the top-up.');
     } finally {
@@ -198,7 +162,7 @@ export default function SavePage() {
       <PageHeader
         variant="hero"
         title="Save"
-        eyebrow="TOP UP AMOUNT"
+        eyebrow={lockedMode ? 'SCHEDULED CONTRIBUTION' : 'TOP UP AMOUNT'}
         prefix="UGX"
         amount={heroAmount}
         subtitle={heroSubtitle}
@@ -207,179 +171,80 @@ export default function SavePage() {
       />
 
       <div className={styles.body}>
-        <section className={styles.section} aria-labelledby="save-amount-label">
-          <div className={styles.sectionHead}>
-            <h2 className={styles.sectionTitle} id="save-amount-label">How much?</h2>
-            <span className={styles.sectionAside}>Min {formatUGX(MIN_CONTRIBUTION, { compact: false })}</span>
-          </div>
+        {lockedMode ? (
+          /* Scheduled payment — the amount is fixed to the configured schedule
+             amount. Read-only by construction: no chips, no input, an inert
+             <div> (not a label) so nothing can route setAmountStr. The padlock
+             glyph + aria-label communicate that the value is fixed and why. */
+          <section className={styles.section} aria-labelledby="save-amount-label">
+            <div className={styles.sectionHead}>
+              <h2 className={styles.sectionTitle} id="save-amount-label">Scheduled amount</h2>
+            </div>
 
-          <PillChipGroup label="Quick top-up amount" layout="grid" columns={3}>
-            {PRESET_AMOUNTS.map((v) => (
-              <PillChip key={v} selected={amount === v} onClick={() => setAmountStr(String(v))}>
-                {formatUGXShort(v)}
-              </PillChip>
-            ))}
-          </PillChipGroup>
-
-          <label className={styles.amountField} data-error={belowMin || undefined}>
-            <span className={styles.amountPrefix} aria-hidden="true">UGX</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              spellCheck={false}
-              value={amountStr ? formatNumber(Number.parseInt(amountStr, 10)) : ''}
-              onChange={(e) => setAmountStr(e.target.value.replace(/[^\d]/g, ''))}
-              placeholder="Enter another amount"
-              className={styles.amountInput}
-              aria-label="Contribution amount in UGX"
-              aria-invalid={belowMin || undefined}
-              aria-describedby={belowMin ? 'save-amount-error' : undefined}
-            />
-          </label>
-
-          {belowMin && (
-            <p id="save-amount-error" className={styles.errorLine} role="alert">Minimum {formatUGX(MIN_CONTRIBUTION, { compact: false })} required.</p>
-          )}
-        </section>
-
-        <section className={styles.section} aria-labelledby="save-mode-label">
-          <div className={styles.sectionHead}>
-            <h2 className={styles.sectionTitle} id="save-mode-label">How often?</h2>
-          </div>
-          <PillChipGroup label="Top-up frequency" layout="row">
-            {MODES.map((m) => (
-              <PillChip key={m.id} selected={modeId === m.id} onClick={() => setModeId(m.id)}>
-                {m.label}
-              </PillChip>
-            ))}
-          </PillChipGroup>
-          <p className={styles.modeNote}>
-            {isRecurring
-              ? 'Recurring top-ups update your savings schedule.'
-              : 'A single top-up, paid now.'}
-          </p>
-        </section>
-
-        <section className={styles.section} aria-labelledby="save-split-label">
-          <div className={styles.sectionHead}>
-            <h2 className={styles.sectionTitle} id="save-split-label">Retirement vs Emergency</h2>
-            {retirementPct !== defaultRetPct && (
-              <button type="button" className={styles.resetBtn} onClick={resetSplit}>
-                Reset to default
-              </button>
-            )}
-          </div>
-
-          <div className={styles.splitHead}>
-            <span><strong>Retirement</strong> {retirementPct}%</span>
-            <span data-tone="teal"><strong>Emergency</strong> {emergencyPct}%</span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={retirementPct}
-            onChange={(e) => setRetirementPct(Number.parseInt(e.target.value, 10))}
-            className={styles.slider}
-            style={{ '--pct': `${retirementPct}%` }}
-            aria-label="Retirement vs emergency allocation"
-            aria-valuetext={`${retirementPct}% retirement, ${emergencyPct}% emergency`}
-          />
-          <p className={styles.bucketHelp}>
-            <span className={styles.bucketDot} data-tone="retirement" aria-hidden="true" />
-            <strong>Retirement</strong> locked until age {RETIREMENT_AGE}
-            <span className={styles.bucketSep} aria-hidden="true">·</span>
-            <span className={styles.bucketDot} data-tone="emergency" aria-hidden="true" />
-            <strong>Emergency</strong> any time
-          </p>
-        </section>
-
-        {/* Insurance opt-in — recurring only (writes includeInsurance on the schedule). */}
-        <AnimatePresence initial={false}>
-          {isRecurring && (
-            <motion.section
-              key="insurance"
-              className={styles.section}
-              data-compact="true"
-              initial={reduceMotion ? false : { opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-              transition={{ duration: reduceMotion ? 0 : 0.24, ease: EASE_OUT_EXPO }}
+            <div
+              className={styles.amountField}
+              data-locked="true"
+              role="img"
+              aria-label={`Scheduled contribution: ${formatUGX(amount, { compact: false })}. Amount is fixed.`}
             >
+              <span className={styles.amountPrefix} aria-hidden="true">UGX</span>
+              <span className={styles.amountLocked}>{formatNumber(amount)}</span>
+              <svg className={styles.lockGlyph} aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <rect x="3.25" y="7" width="9.5" height="6.25" rx="1.25" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M5.25 7V5.25a2.75 2.75 0 0 1 5.5 0V7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+            </div>
+
+            <p className={styles.methodHelper}>
+              {cadenceLabel} contribution
+              <span className={styles.bucketSep} aria-hidden="true">·</span>
               <button
                 type="button"
-                role="switch"
-                aria-checked={includeInsurance}
-                className={styles.insuranceRow}
-                data-active={includeInsurance}
-                onClick={() => setIncludeInsurance((v) => !v)}
+                className={styles.resetBtn}
+                onClick={() => navigate('/dashboard/save/schedule')}
               >
-                <span className={styles.insuranceIcon} aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                    <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-                    <path d="M9 12l2.2 2 3.8-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </span>
-                <span className={styles.insuranceCopy}>
-                  <span className={styles.insuranceTitle}>Add life insurance</span>
-                  <span className={styles.insuranceDetail}>
-                    {includeInsurance && projection
-                      ? `+${formatUGX(projection.premiumPerPeriod, { compact: false })} · ${formatUGX(INSURANCE_COVER, { compact: false })} cover`
-                      : 'UGX 2,000 / mo · UGX 1M cover'}
-                  </span>
-                </span>
-                <span className={styles.insuranceToggle} aria-hidden="true">
-                  <span className={styles.insuranceToggleKnob} />
-                </span>
+                Change in schedule
               </button>
-            </motion.section>
-          )}
-        </AnimatePresence>
+            </p>
+            <p className={styles.modeNote}>This is the amount you set in your savings schedule.</p>
+          </section>
+        ) : (
+          <section className={styles.section} aria-labelledby="save-amount-label">
+            <div className={styles.sectionHead}>
+              <h2 className={styles.sectionTitle} id="save-amount-label">How much?</h2>
+              <span className={styles.sectionAside}>Min {formatUGX(MIN_CONTRIBUTION, { compact: false })}</span>
+            </div>
 
-        {/* Recurring summary — "what you'll pay" + projected balance at 60. */}
-        <AnimatePresence initial={false}>
-          {projection && (
-            <motion.section
-              key="summary"
-              className={styles.summarySection}
-              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-              transition={{ duration: reduceMotion ? 0 : 0.24, ease: EASE_OUT_EXPO }}
-            >
-              <div className={styles.summaryHead}>
-                <span className={styles.summaryEyebrow}>What you&apos;ll pay</span>
-                <span className={styles.summaryCadence}>{mode.cadence}</span>
-              </div>
-              <div className={styles.summaryBig}>{formatUGX(projection.totalPerPeriod, { compact: false })}</div>
-              <ul className={styles.summaryList}>
-                <li className={styles.summaryRow}>
-                  <span>Per year</span>
-                  <span>{formatUGX(projection.annualTotal, { compact: false })}</span>
-                </li>
-                {includeInsurance && (
-                  <li className={styles.summaryRow}>
-                    <span>
-                      <span className={styles.summaryDot} data-tone="insurance" /> Life insurance
-                    </span>
-                    <span>+{formatUGX(projection.premiumPerPeriod, { compact: false })}</span>
-                  </li>
-                )}
-              </ul>
-              {projection.retirementFV > 0 && (
-                <div className={styles.projection}>
-                  <span className={styles.projLabel}>Projected at age {RETIREMENT_AGE}</span>
-                  <span className={styles.projValue}>{formatUGX(Math.round(projection.retirementFV), { compact: false })}</span>
-                  <span className={styles.projNote}>
-                    Retirement bucket, compounded over {Math.round(projection.years)} years.
-                  </span>
-                </div>
-              )}
-            </motion.section>
-          )}
-        </AnimatePresence>
+            <PillChipGroup label="Quick top-up amount" layout="grid" columns={3}>
+              {PRESET_AMOUNTS.map((v) => (
+                <PillChip key={v} selected={amount === v} onClick={() => setAmountStr(String(v))}>
+                  {formatUGXShort(v)}
+                </PillChip>
+              ))}
+            </PillChipGroup>
+
+            <label className={styles.amountField} data-error={belowMin || undefined}>
+              <span className={styles.amountPrefix} aria-hidden="true">UGX</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                spellCheck={false}
+                value={amountStr ? formatNumber(Number.parseInt(amountStr, 10)) : ''}
+                onChange={(e) => setAmountStr(e.target.value.replace(/[^\d]/g, ''))}
+                placeholder="Enter another amount"
+                className={styles.amountInput}
+                aria-label="Contribution amount in UGX"
+                aria-invalid={belowMin || undefined}
+                aria-describedby={belowMin ? 'save-amount-error' : undefined}
+              />
+            </label>
+
+            {belowMin && (
+              <p id="save-amount-error" className={styles.errorLine} role="alert">Minimum {formatUGX(MIN_CONTRIBUTION, { compact: false })} required.</p>
+            )}
+          </section>
+        )}
 
         {/* Payout / pay-with method — mobile money only (Bank dropped per mockup). */}
         <section className={styles.section} aria-labelledby="save-method-label">
@@ -404,7 +269,7 @@ export default function SavePage() {
           disabled={!hasAmount}
           onClick={handleContinue}
         >
-          <span>Top up</span>
+          <span>{lockedMode ? 'Pay' : 'Top up'}</span>
           {hasAmount && <span className={styles.primaryAmt}>{formatUGX(amount, { compact: false })}</span>}
         </button>
       </footer>
@@ -438,9 +303,7 @@ export default function SavePage() {
 
               {view === 'confirm' && (
                 <div className={styles.sheetBody}>
-                  <span className={styles.confirmEyebrow}>
-                    {isRecurring ? `You'll pay ${mode.cadence.toLowerCase()}` : 'You’re paying'}
-                  </span>
+                  <span className={styles.confirmEyebrow}>{lockedMode ? 'Your scheduled payment' : 'You’re paying'}</span>
                   <div className={styles.confirmBig}>{formatUGX(amount, { compact: false })}</div>
 
                   <ul className={styles.confirmList}>
@@ -458,31 +321,14 @@ export default function SavePage() {
                       </span>
                       <strong>{formatUGX(emgAmt, { compact: false })}</strong>
                     </li>
-                    {isRecurring && includeInsurance && projection && (
-                      <li className={styles.confirmRow}>
-                        <span>
-                          <span className={styles.summaryDot} data-tone="insurance" />
-                          Life insurance
-                        </span>
-                        <strong>+{formatUGX(projection.premiumPerPeriod, { compact: false })}</strong>
-                      </li>
-                    )}
                     <li className={styles.confirmRow}>
                       <span>Payment method</span>
                       <strong>{methodById(method).full}</strong>
                     </li>
-                    {!isRecurring && (
-                      <li className={styles.confirmRow} data-highlight="true">
-                        <span>New balance</span>
-                        <strong>{formatUGX(newBalance, { compact: false })}</strong>
-                      </li>
-                    )}
-                    {isRecurring && projection && (
-                      <li className={styles.confirmRow} data-highlight="true">
-                        <span>Projected at age {RETIREMENT_AGE}</span>
-                        <strong>{formatUGX(Math.round(projection.retirementFV), { compact: false })}</strong>
-                      </li>
-                    )}
+                    <li className={styles.confirmRow} data-highlight="true">
+                      <span>New balance</span>
+                      <strong>{formatUGX(newBalance, { compact: false })}</strong>
+                    </li>
                   </ul>
                   <p className={styles.confirmNote}>
                     You&apos;ll receive an SMS prompt to authorise the payment on your mobile money account.
@@ -517,13 +363,9 @@ export default function SavePage() {
                       <path d="M14 24l7 7 14-15" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </div>
-                  <h2 className={styles.successTitle}>
-                    {isRecurring ? 'Schedule updated' : 'Contribution added'}
-                  </h2>
+                  <h2 className={styles.successTitle}>Contribution added</h2>
                   <p className={styles.successSubtitle}>
-                    {isRecurring
-                      ? `Your ${mode.cadence.toLowerCase()} top-up of ${formatUGX(amount, { compact: false })} is set. We'll prompt you each time it's due.`
-                      : `${formatUGX(amount, { compact: false })} is now working for you. Your new balance is ${formatUGX(newBalance, { compact: false })}.`}
+                    {`${formatUGX(amount, { compact: false })} is now working for you. Your new balance is ${formatUGX(newBalance, { compact: false })}.`}
                   </p>
                   {resultTx?.reference && (
                     <div className={styles.successRef}>

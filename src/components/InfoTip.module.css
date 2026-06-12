@@ -1,0 +1,73 @@
+/* InfoTip — inline explain-on-hover/focus tooltip. The trigger carries a subtle
+   dotted-underline affordance + a help cursor; the bubble is a fixed-position
+   portal node so it escapes the MetricTile's overflow:hidden. */
+
+/* Native <button> reset — renders as inline text, keeping the affordance
+   (dotted underline in the current text colour + help cursor) and native focus. */
+.trigger {
+  appearance: none;
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  cursor: help;
+  text-decoration: underline dotted currentColor;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  border-radius: 3px;
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--color-white);
+  outline-offset: 2px;
+}
+
+.bubble {
+  position: fixed;
+  z-index: 1000;
+  transform: translate(-50%, calc(-100% - 10px));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 250px;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-indigo-deep);
+  color: var(--color-white);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: normal;
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  animation: infotip-in 0.14s var(--ease-out-expo);
+}
+
+/* Downward caret pinned to the bubble's bottom-centre, over the trigger. */
+.bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--color-indigo-deep);
+}
+
+@keyframes infotip-in {
+  from { opacity: 0; transform: translate(-50%, calc(-100% - 4px)); }
+  to   { opacity: 1; transform: translate(-50%, calc(-100% - 10px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble {
+    animation: none;
+  }
+}

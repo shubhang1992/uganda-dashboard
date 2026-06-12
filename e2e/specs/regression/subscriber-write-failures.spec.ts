@@ -18,13 +18,26 @@
 // `.from('insurance_policies')` + `.from('contribution_schedules')` + the
 // nominees upsert RPC etc).
 //
-// BL-39 (R9) coverage note: two surfaces are now fully driven to a real
-// 500→toast assertion — Profile Save (PATCH /subscribers) and Schedule Save
-// (PATCH /contribution_schedules). The remaining four (Withdraw, Claim,
-// Insurance, Nominees) stay as expect.soft reachability checks because their
-// real write is feature-gated behind multi-step / file-upload / tier-delta
-// UX that's out of scope for a toast-wiring regression; they share the same
-// useToast pipeline the two driven surfaces prove intact.
+// BL-39 (R9) / §15-H3 coverage note: THREE surfaces are now fully driven to a
+// real 500→toast assertion —
+//   1. Profile Save  → PATCH /rest/v1/subscribers
+//   2. Schedule Save → PATCH /rest/v1/contribution_schedules
+//   3. Withdraw      → POST /rest/v1/rpc/request_withdrawal (multi-step:
+//      slider → footer CTA → confirm sheet → Confirm withdrawal button)
+// Driving the Withdraw confirm-sheet submit through a genuine intercepted 500
+// closes the §15-H3 gap where Withdraw was only an expect.soft reachability
+// check. The remaining three (Claim, Insurance, Nominees) stay as expect.soft
+// reachability checks because their real write is feature-gated behind an
+// active-policy gate (Claim) / tier-delta + two-tap (Insurance) / share-percent
+// rebalancing (Nominees) — out of scope for a toast-wiring regression; they
+// share the same useToast pipeline the three driven surfaces prove intact.
+//
+// Data dependency (Withdraw): the driven path needs the logged-in subscriber
+// (persona s-0001) to hold at least MIN_WITHDRAW (5,000 UGX) in its Savings
+// (emergency) pot, else the amount slider renders disabled and the CTA never
+// enables. s-0001 is a long-tenured seeded subscriber so this holds in the
+// standard seed; if a future reseed zeroes that pot the test guards by skipping
+// the drive (see the slider-enabled check) rather than failing spuriously.
 
 import { test, expect, type Page } from '@playwright/test';
 import { storageStatePathFor } from '../../fixtures/auth';
@@ -112,44 +125,88 @@ test.describe('subscriber dashboard → write-failure surfaces', () => {
   });
 
   test('Withdraw shows error toast on 500', async ({ page }) => {
-    // Withdrawals route through an RPC + transactions insert. We fail the
-    // transactions insert since that's the visible write path.
+    // §15-H3: this surface is now a REAL 500→toast assertion (the third fully
+    // driven write surface after Profile Save + Schedule Save), driven all the
+    // way through the multi-step confirm sheet to the real network POST.
+    //
+    // Write path: WithdrawPage → useRequestWithdrawal → services/subscriber.js
+    // `requestWithdrawal` → `supabase.rpc('request_withdrawal', …)` → a single
+    // POST /rest/v1/rpc/request_withdrawal (the 0054 atomic DEFINER RPC). On a
+    // non-2xx the supabase-js error propagates to handleConfirm's catch, which
+    // calls addToast('error', err?.message || 'Could not request withdrawal.').
+    //
+    // We fail the RPC POST (the actual write). The extra table-route intercepts
+    // only catch POST/PATCH, so the subscriber READ (a GET on /subscribers with
+    // embedded subscriber_balances) still passes through and hydrates the pot
+    // balances that gate the slider.
     await failPath(page, /\/rest\/v1\/(transactions|subscriber_balances|subscribers|withdrawals)/, ['POST', 'PATCH']);
-    // Some flows route through a withdrawal RPC.
     await failPath(page, /\/rest\/v1\/rpc\//, ['POST']);
 
     await page.goto('/dashboard/withdraw/savings');
     await expect(page.getByRole('heading', { level: 1, name: /^withdraw$/i })).toBeVisible();
 
-    // Redesign: the amount input is now a `<input type="range">` slider, not a
-    // textbox. It exposes role="slider" with aria-label
-    // "Withdrawal amount from your <retirement|emergency> pot in UGX" and an
-    // aria-valuetext (WithdrawPage.jsx:143-155). The previous textbox lookup
-    // for "withdrawal amount in ugx" no longer matches either the role or the
-    // (now pot-qualified) accessible name. Anchor on the slider role +
-    // "pot in UGX" name fragment instead.
+    // The amount input is a `<input type="range">` slider (WithdrawPage.jsx:164-176)
+    // — role="slider", aria-label "Withdrawal amount from your <Savings|Retirement>
+    // pot in UGX". The default pot is "Savings" (emergency). The slider renders
+    // disabled when the active pot holds less than MIN_WITHDRAW (5,000 UGX); the
+    // footer CTA then never enables.
     const amount = page.getByRole('slider', { name: /withdrawal amount from your .* pot in ugx/i });
     await expect(amount).toBeVisible({ timeout: 10_000 });
 
-    // T13: skip-removal decision — convert to expect.soft.
-    // WithdrawPage is a multi-step flow (form → confirm sheet → success). The
-    // primary footer CTA on the form view now reads "Withdraw" (and
-    // "Withdraw <amount>" once a non-zero amount is set — WithdrawPage.jsx:264);
-    // it advances to the confirm sheet whose "Submit"/confirm button fires the
-    // real network POST. Driving the whole sheet flow is out of scope for a
-    // toast-wiring regression; assert the "Withdraw" CTA is reachable and
-    // acknowledge the confirm step is feature-gated by the multi-step UX
-    // rather than a flag (toast pipeline shared with Profile Save).
+    // Hydration / data-dependency guard. We need the Savings pot to hold at
+    // least MIN_WITHDRAW so the slider is interactive. For the standard seed
+    // s-0001 carries a large Savings balance; but if a reseed zeroes it the
+    // slider stays disabled — skip the drive rather than fail spuriously.
+    const sliderDisabled = await amount.isDisabled();
+    test.skip(
+      sliderDisabled,
+      'Savings pot below MIN_WITHDRAW for this seed — slider is disabled, ' +
+        'so the withdrawal write cannot be driven. The 500→toast path is also ' +
+        'proven by Profile Save + Schedule Save (shared useToast pipeline).',
+    );
+
+    // Set the amount to the pot maximum: focus the slider and press End, which
+    // moves a native range input to its max and fires input/change so
+    // handleSliderChange commits a non-zero, withdrawable amount.
+    await amount.focus();
+    await amount.press('End');
+
+    // The footer CTA reads "Withdraw" while amount is 0 and "Withdraw <amount>"
+    // once a withdrawable figure is set (WithdrawPage.jsx:285); it is
+    // disabled={!hasAmount}. Wait for it to enable, then open the confirm sheet.
     const withdrawBtn = page.getByRole('button', { name: /^withdraw\b/i }).first();
-    await expect(withdrawBtn).toBeVisible({ timeout: 10_000 });
-    expect
-      .soft(
-        await withdrawBtn.isVisible(),
-        'Withdraw CTA must render on the form view; the real ' +
-          'transactions/withdrawals 500 path is covered by the multi-step confirm-sheet ' +
-          'submit button (out of scope here — toast pipeline shared with Profile Save).',
-      )
-      .toBe(true);
+    await expect(withdrawBtn).toBeEnabled({ timeout: 10_000 });
+    await withdrawBtn.click();
+
+    // Confirm sheet (role="dialog", aria-label "Confirm withdrawal"). Its
+    // "Confirm withdrawal" button fires the real RPC POST.
+    const confirmSheet = page.getByRole('dialog', { name: /confirm withdrawal/i });
+    await expect(confirmSheet).toBeVisible({ timeout: 10_000 });
+    const confirmBtn = confirmSheet.getByRole('button', { name: /confirm withdrawal/i });
+    await expect(confirmBtn).toBeEnabled({ timeout: 5_000 });
+
+    // Confirm our route intercept fires on the RPC POST.
+    const rpcWait = page.waitForResponse(
+      (res) =>
+        res.url().includes('/rest/v1/rpc/request_withdrawal') &&
+        res.request().method() === 'POST',
+      { timeout: 15_000 },
+    );
+
+    await confirmBtn.click();
+
+    const rpcResp = await rpcWait;
+    expect(
+      rpcResp.status(),
+      `expected 500 from route intercept, got ${rpcResp.status()} for ${rpcResp.url()}`,
+    ).toBe(500);
+
+    // handleConfirm catch: addToast('error', err?.message || 'Could not request
+    // withdrawal.') — the synthetic body message wins, but we accept the
+    // fallback copy too in case the supabase-js error shape changes.
+    await expect(
+      page.getByText(/could not request withdrawal|synthetic failure/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test('Claim shows error toast on 500', async ({ page }) => {

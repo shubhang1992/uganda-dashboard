@@ -104,6 +104,7 @@ export default function OnboardFlow() {
               <OnboardKycFlow
                 onComplete={() => setStage('schedule')}
                 onBackToAwareness={() => setStage('awareness')}
+                onExit={handleClose}
               />
             </motion.div>
           )}

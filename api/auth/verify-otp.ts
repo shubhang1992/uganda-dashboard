@@ -34,6 +34,10 @@ import {
   resolveSubscriber,
 } from './_lib/personas.js';
 import { buildAuthResponseDto, buildJwtClaims } from './_lib/claims.js';
+import {
+  isEntityDeactivated,
+  ACCOUNT_DEACTIVATED_RESPONSE,
+} from './_lib/entity-status.js';
 
 const OTP_REGEX = /^\d{6}$/;
 const VALID_ROLES = new Set<JwtRole>([
@@ -206,6 +210,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       passwordProvided ? hashPassword(password as string) : Promise.resolve(null),
     ]);
 
+    // Enforce deactivation: a deactivated distributor / branch / agent / employer
+    // cannot authenticate (admin deactivation, migration 0060). Subscribers + admin
+    // are NEVER gated. Shared with verify-password via `_lib/entity-status.ts`;
+    // the lookup is non-fatal (a missing demo-fallback row must not block login).
+    if (await isEntityDeactivated(supabaseAdmin, typedRole, entityId)) {
+      res.status(403).json(ACCOUNT_DEACTIVATED_RESPONSE);
+      return;
+    }
+
     const { hasPassword } = await upsertUser(
       canonicalPhone,
       typedRole,
@@ -240,10 +253,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // reserved for shape-validation failures earlier in the handler.
     if (err instanceof DbError) {
       console.error('[verify-otp] db error', err);
-      res.status(500).json({
-        code: 'db_error',
-        message: err.code ?? err.dbMessage,
-      });
+      res.status(500).json({ code: 'db_error' });
       return;
     }
     console.error('[verify-otp] unexpected error', err);

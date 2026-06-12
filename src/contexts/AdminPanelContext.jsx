@@ -18,6 +18,10 @@ import { createContext, useContext, useState, useMemo, useCallback } from 'react
  * @property {(open: boolean) => void} setViewEmployersOpen
  * @property {boolean} createEmployerOpen
  * @property {(open: boolean) => void} setCreateEmployerOpen
+ * @property {boolean} viewEmployerDetailOpen
+ * @property {(open: boolean) => void} setViewEmployerDetailOpen
+ * @property {string|null} detailEmployerId
+ * @property {(id: string|null) => void} setDetailEmployerId
  * @property {() => void} closeAllPanels
  */
 
@@ -28,6 +32,11 @@ export function AdminPanelProvider({ children }) {
   const [createDistributorOpen, setCreateDistributorOpen] = useState(false);
   const [viewEmployersOpen, setViewEmployersOpen] = useState(false);
   const [createEmployerOpen, setCreateEmployerOpen] = useState(false);
+  // Employer DETAIL panel — opened by clicking an employer in the map district
+  // drill-down (mirrors the branch detail). `detailEmployerId` is the focused
+  // employer; the panel reads it + `viewEmployerDetailOpen` to render.
+  const [viewEmployerDetailOpen, setViewEmployerDetailOpen] = useState(false);
+  const [detailEmployerId, setDetailEmployerId] = useState(null);
 
   /* Close every admin slide-in panel. The create panels deliberately stay
      independent of their list panels so "Create" can open over the list. */
@@ -36,6 +45,7 @@ export function AdminPanelProvider({ children }) {
     setCreateDistributorOpen(false);
     setViewEmployersOpen(false);
     setCreateEmployerOpen(false);
+    setViewEmployerDetailOpen(false);
   }, []);
 
   const value = useMemo(() => ({
@@ -43,10 +53,13 @@ export function AdminPanelProvider({ children }) {
     createDistributorOpen, setCreateDistributorOpen,
     viewEmployersOpen, setViewEmployersOpen,
     createEmployerOpen, setCreateEmployerOpen,
+    viewEmployerDetailOpen, setViewEmployerDetailOpen,
+    detailEmployerId, setDetailEmployerId,
     closeAllPanels,
   }), [
     viewDistributorsOpen, createDistributorOpen,
     viewEmployersOpen, createEmployerOpen,
+    viewEmployerDetailOpen, detailEmployerId,
     closeAllPanels,
   ]);
 

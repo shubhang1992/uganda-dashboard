@@ -30,7 +30,10 @@ vi.mock('../../services/entities', () => ({
   updateBranch: vi.fn(),
   updateDistributor: vi.fn(),
   setBranchStatus: vi.fn(),
+  setDistributorStatus: vi.fn(),
   getEntityMetricsRollup: vi.fn(),
+  getEmployerGeoRollup: vi.fn(),
+  getEmployerActivityRollup: vi.fn(),
 }));
 
 vi.mock('../../services/search', () => ({
@@ -50,6 +53,9 @@ const {
   useUpdateBranch,
   useUpdateDistributor,
   useSetBranchStatus,
+  useSetDistributorStatus,
+  useEmployerGeoRollup,
+  useEmployerActivityRollup,
 } = await import('../useEntity');
 
 function makeWrapper() {
@@ -157,6 +163,40 @@ describe('useEntity hooks — queries', () => {
     const { result } = renderHook(() => useSearch('cen'), { wrapper: Wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual([{ id: 'r1', name: 'Central' }]);
+  });
+
+  it('useEmployerGeoRollup fetches when enabled', async () => {
+    const geo = { byRegion: { 'r-central': { subscribers: 16 } }, byDistrict: {} };
+    entities.getEmployerGeoRollup.mockResolvedValue(geo);
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useEmployerGeoRollup(true), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(geo);
+    expect(entities.getEmployerGeoRollup).toHaveBeenCalledTimes(1);
+  });
+
+  it('useEmployerGeoRollup is disabled (distributor isolation) when enabled is false', async () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useEmployerGeoRollup(false), { wrapper: Wrapper });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(entities.getEmployerGeoRollup).not.toHaveBeenCalled();
+  });
+
+  it('useEmployerActivityRollup fetches when enabled', async () => {
+    const activity = { dailyContributions: 1200, topEmployer: { name: 'Acme', contribution: 800 } };
+    entities.getEmployerActivityRollup.mockResolvedValue(activity);
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useEmployerActivityRollup(true), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(activity);
+    expect(entities.getEmployerActivityRollup).toHaveBeenCalledTimes(1);
+  });
+
+  it('useEmployerActivityRollup is disabled (distributor isolation) when enabled is false', async () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useEmployerActivityRollup(false), { wrapper: Wrapper });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(entities.getEmployerActivityRollup).not.toHaveBeenCalled();
   });
 });
 
@@ -286,5 +326,74 @@ describe('useEntity hooks — mutations + optimistic rollback', () => {
     await act(async () => {
       resolveSet({ id: 'b-1', status: 'inactive' });
     });
+  });
+
+  it('useSetDistributorStatus optimistically flips status on the rendered list (entities,distributor) before settle', async () => {
+    let resolveSet;
+    entities.setDistributorStatus.mockReturnValue(
+      new Promise((res) => { resolveSet = res; }),
+    );
+    const { queryClient, Wrapper } = makeWrapper();
+    // The pill renders off useAllEntities('distributor') = ['entities','distributor'].
+    queryClient.setQueryData(['entities', 'distributor'], [
+      { id: 'd-001', name: 'Acme', status: 'active' },
+      { id: 'd-002', name: 'Other', status: 'active' },
+    ]);
+
+    const { result } = renderHook(() => useSetDistributorStatus(), { wrapper: Wrapper });
+    act(() => {
+      result.current.mutate({ id: 'd-001', status: 'inactive' });
+    });
+
+    // Optimistic patch flips ONLY the targeted entity in the list, synchronously.
+    await waitFor(() => {
+      expect(queryClient.getQueryData(['entities', 'distributor'])).toEqual([
+        { id: 'd-001', name: 'Acme', status: 'inactive' },
+        { id: 'd-002', name: 'Other', status: 'active' },
+      ]);
+    });
+
+    await act(async () => {
+      resolveSet({ id: 'd-001', status: 'inactive', branchesUpdated: 0, agentsUpdated: 0, subscribersDetached: 0 });
+    });
+  });
+
+  it('useSetDistributorStatus rolls the list back to the pre-mutation snapshot on error', async () => {
+    entities.setDistributorStatus.mockRejectedValue(new Error('rls denied'));
+    const { queryClient, Wrapper } = makeWrapper();
+    queryClient.setQueryData(['entities', 'distributor'], [
+      { id: 'd-001', name: 'Acme', status: 'active' },
+    ]);
+
+    const { result } = renderHook(() => useSetDistributorStatus(), { wrapper: Wrapper });
+    await act(async () => {
+      try {
+        await result.current.mutateAsync({ id: 'd-001', status: 'inactive' });
+      } catch {
+        // Expected — the mutation rejects.
+      }
+    });
+
+    expect(queryClient.getQueryData(['entities', 'distributor'])).toEqual([
+      { id: 'd-001', name: 'Acme', status: 'active' },
+    ]);
+  });
+
+  it('useSetDistributorStatus invalidates the broad agent-tree reads on settle', async () => {
+    entities.setDistributorStatus.mockResolvedValue({
+      id: 'd-001', status: 'inactive', branchesUpdated: 0, agentsUpdated: 0, subscribersDetached: 0,
+    });
+    const { queryClient, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const { result } = renderHook(() => useSetDistributorStatus(), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ id: 'd-001', status: 'inactive' });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['entities', 'distributor'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['entities', 'branch'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['entities', 'agent'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['platformOverview'] });
   });
 });

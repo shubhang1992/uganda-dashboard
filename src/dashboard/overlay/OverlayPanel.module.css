@@ -532,10 +532,6 @@
   background: var(--color-status-warning);
 }
 
-.commissionBarFill[data-status='disputed'] {
-  background: var(--color-status-poor);
-}
-
 .commissionStats {
   display: flex;
   gap: 0.5rem;
@@ -552,10 +548,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.commissionStat[data-status='disputed'] {
-  color: var(--color-status-poor);
-}
-
 .commissionDot {
   width: 6px;
   height: 6px;
@@ -569,10 +561,6 @@
 
 .commissionDot[data-status='due'] {
   background: var(--color-status-warning);
-}
-
-.commissionDot[data-status='disputed'] {
-  background: var(--color-status-poor);
 }
 
 /* ── Period card + tabs ── */
@@ -1183,6 +1171,43 @@
 
 .entityBtn[data-inactive='true'] {
   opacity: 0.6;
+}
+
+/* ── District drill-down: Branches | Employers bifurcation (admin scope) ── */
+/* Tablist reusing .periodTab buttons; sits inline in the section header. */
+.bifurcationTabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 0;
+}
+
+/* Employer leaf row — read-only (terminal), so no hover/click affordance. The
+   employer name flexes to fill (unlike the fixed-width branch .statusLabel) since
+   account names are longer and there's no metric bar competing for the row. */
+.employerRow {
+  width: 100%;
+  padding: 0.3rem 0.375rem;
+}
+
+.employerName {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-slate);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.emptyHint {
+  padding: 1rem 0.5rem;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
 }
 
 /* ── Panel header with collapse toggle ── */

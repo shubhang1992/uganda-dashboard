@@ -84,6 +84,7 @@ function useInvalidateSubscriber(id) {
   return () => {
     qc.invalidateQueries({ queryKey: ['currentSubscriber'] });
     qc.invalidateQueries({ queryKey: ['subscriberTransactions', id] });
+    qc.invalidateQueries({ queryKey: ['contributionBreakdown', id] });
     qc.invalidateQueries({ queryKey: ['subscriberClaims', id] });
     qc.invalidateQueries({ queryKey: ['subscriberWithdrawals', id] });
     qc.invalidateQueries({ queryKey: ['subscriberNominees', id] });

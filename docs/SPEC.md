@@ -405,7 +405,7 @@ The frontend applies scoping via:
 ### Currency
 - **UGX** — Ugandan Shillings, integer-only (no decimals)
 - Store as integers in the database
-- Frontend formatting: `formatUGX()` and `fmtShort()` in `src/utils/finance.js`
+- Frontend formatting: `formatUGX()` and `formatUGXShort()` in `src/utils/currency.js`
 
 ### Phone Numbers
 - Format: `+256` followed by 9 digits

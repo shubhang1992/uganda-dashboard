@@ -946,45 +946,149 @@ export async function createDistributor(payload) {
 }
 
 /**
- * @endpoint RPC get_platform_overview() — admin-only TRUE platform totals (0050).
+ * @endpoint RPC set_distributor_status(p_distributor_id, p_status) — admin-only
+ *   SECURITY DEFINER (0060). Flips the distributor + its branches + its agents
+ *   between 'active'/'inactive'; on 'inactive' also detaches every subscriber
+ *   under its agent tree (agent_id -> NULL, is_active untouched → self-onboarded).
+ *   Reactivate is a pure status flip (detached subscribers do NOT re-tag).
+ * @param {string} id
+ * @param {'active'|'inactive'} status
+ * @returns {Promise<{id:string,status:string,branchesUpdated:number,agentsUpdated:number,subscribersDetached:number}>}
+ * @scope Admin only — the RPC RAISEs for any other app_role.
+ */
+export async function setDistributorStatus(id, status) {
+  if (!IS_SUPABASE_ENABLED) {
+    return { id, status, branchesUpdated: 0, agentsUpdated: 0, subscribersDetached: 0 };
+  }
+  const { data, error } = await supabase.rpc('set_distributor_status', {
+    p_distributor_id: id,
+    p_status: status,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * @endpoint RPC get_platform_overview() — admin-only TRUE platform totals (0050;
+ *   `byChannel` split added in 0058).
  * @description Unlike get_entity_metrics_rollup('country','ug') (which counts
  *   subscribers via the agent tree and so misses employer-onboarded ones), this
  *   counts EVERY subscriber regardless of acquisition channel, and returns the
  *   distributor/employer counts + the channel breakdown the admin Summary needs.
+ *   The `byChannel` object splits subscribers/active/inactive/aum/contributions/
+ *   withdrawals across distributor (agent_id), employer (employer_id) and direct
+ *   (neither) — it powers the admin Platform Overview data-scope filter. The three
+ *   channels sum exactly to the un-split totals.
  * @returns {Promise<{totalSubscribers:number, subscribersViaDistributor:number,
  *   subscribersViaEmployer:number, subscribersDirect:number, activeSubscribers:number,
  *   inactiveSubscribers:number, distributors:number, employers:number, branches:number,
- *   agents:number, aum:number, totalContributions:number, totalWithdrawals:number}>}
+ *   agents:number, aum:number, totalContributions:number, totalWithdrawals:number,
+ *   byChannel:{distributor:Object, employer:Object, direct:Object}}>}
  * @scope Admin only — the RPC RAISEs for any other app_role.
  */
 export async function getPlatformOverview() {
   if (!IS_SUPABASE_ENABLED) {
     // Emergency mock fallback — reuse the mock country rollup for the network
     // numbers; the employer channel isn't tracked in this service's mock, so
-    // it's reported as the distributor channel (acceptable for the rollback path).
+    // everything is reported as the distributor channel (acceptable for the
+    // rollback path; getEmployerGeoRollup's mock is empty to stay consistent).
     const rollup = await getEntityMetricsRollup('country', ['ug']);
     const c = rollup?.ug ?? {};
     const total = c.totalSubscribers ?? 0;
     const active = Math.round(total * ((c.activeRate ?? 0) / 100));
+    const inactive = Math.max(0, total - active);
+    const aum = c.aum ?? 0;
+    const contributions = c.totalContributions ?? 0;
+    const withdrawals = c.totalWithdrawals ?? 0;
+    const zeroChannel = { subscribers: 0, active: 0, inactive: 0, aum: 0, contributions: 0, withdrawals: 0 };
     return {
       totalSubscribers: total,
       subscribersViaDistributor: total,
       subscribersViaEmployer: 0,
       subscribersDirect: 0,
       activeSubscribers: active,
-      inactiveSubscribers: Math.max(0, total - active),
+      inactiveSubscribers: inactive,
       distributors: 1,
       employers: 1,
       branches: c.totalBranches ?? 0,
       agents: c.totalAgents ?? 0,
-      aum: c.aum ?? 0,
-      totalContributions: c.totalContributions ?? 0,
-      totalWithdrawals: c.totalWithdrawals ?? 0,
+      aum,
+      totalContributions: contributions,
+      totalWithdrawals: withdrawals,
+      byChannel: {
+        distributor: { subscribers: total, active, inactive, aum, contributions, withdrawals },
+        employer: { ...zeroChannel },
+        direct: { ...zeroChannel },
+      },
     };
   }
   const { data, error } = await supabase.rpc('get_platform_overview');
   if (error) throw error;
   return data ?? {};
+}
+
+/**
+ * @endpoint RPC get_employer_geo_rollup() — admin-only employer-channel subscriber
+ *   aggregates placed on the region/district map (0058).
+ * @description Employers are not part of the agent→branch→district→region tree, so
+ *   get_entity_metrics_rollup excludes them below country level. This resolves each
+ *   employer's free-text `district` to a real district (by name) → region and returns
+ *   `byRegion` / `byDistrict` aggregates keyed by the SAME region_id / district.id the
+ *   entity tree uses, plus a per-district employer leaf list (for the district drill-
+ *   down "Employers" tab). Unmatched district text buckets under `'unmapped'`.
+ * @returns {Promise<{byRegion:Object<string,{subscribers:number,active:number,aum:number,employers:number}>,
+ *   byDistrict:Object<string,{subscribers:number,active:number,aum:number,employers:number,
+ *   list:Array<{id:string,name:string,subscribers:number,active:number,aum:number}>}>}>}
+ * @scope Admin only — the RPC RAISEs for any other app_role.
+ */
+export async function getEmployerGeoRollup() {
+  if (!IS_SUPABASE_ENABLED) {
+    // Rollback path: no employer-channel geography in the mock (kept empty so it
+    // stays consistent with getPlatformOverview's all-distributor mock).
+    return { byRegion: {}, byDistrict: {} };
+  }
+  const { data, error } = await supabase.rpc('get_employer_geo_rollup');
+  if (error) throw error;
+  return data ?? { byRegion: {}, byDistrict: {} };
+}
+
+/** All-zero employer-activity shape — the rollback/mock fallback (and a safe
+ *  default while the query resolves). Mirrors the trend keys TimePeriodCard reads. */
+const EMPTY_EMPLOYER_ACTIVITY = Object.freeze({
+  dailyContributions: 0, prevDailyContributions: 0,
+  weeklyContributions: 0, prevWeeklyContributions: 0,
+  monthlyContributions: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  dailyWithdrawals: 0, prevDailyWithdrawals: 0,
+  weeklyWithdrawals: 0, prevWeeklyWithdrawals: 0,
+  monthlyWithdrawals: 0, prevMonthlyWithdrawals: 0,
+  newSubscribersToday: 0, prevNewSubscribersToday: 0,
+  newSubscribersThisWeek: 0, prevNewSubscribersThisWeek: 0,
+  newSubscribersThisMonth: 0, prevNewSubscribersThisMonth: 0,
+  topEmployer: null,
+});
+
+/**
+ * @endpoint RPC get_employer_activity_rollup() — admin-only employer-channel
+ *   Today/Week/Month activity (new members, contributions, withdrawals) +
+ *   topEmployer (0059).
+ * @description Employers sit outside the agent tree, so get_entity_metrics_rollup
+ *   excludes them. This returns the SAME trend-key contract (so the shared
+ *   TimePeriodCard renders it unchanged), filtered to employer-tagged subscribers
+ *   and anchored on _demo_now(), plus `topEmployer {name, contribution}`. Powers
+ *   the Platform Overview "Employers" scope trends strip.
+ * @returns {Promise<Object>} the trend object (zeros + null topEmployer when empty).
+ * @scope Admin only — the RPC RAISEs for any other app_role.
+ */
+export async function getEmployerActivityRollup() {
+  if (!IS_SUPABASE_ENABLED) {
+    // Rollback path: no employer-channel time-series in the mock (kept all-zero
+    // so the card renders without crashing, consistent with the other employer
+    // mocks above).
+    return { ...EMPTY_EMPLOYER_ACTIVITY };
+  }
+  const { data, error } = await supabase.rpc('get_employer_activity_rollup');
+  if (error) throw error;
+  return data ?? { ...EMPTY_EMPLOYER_ACTIVITY };
 }
 
 // ─── Mock-fallback shims (used when IS_SUPABASE_ENABLED === false) ─────────

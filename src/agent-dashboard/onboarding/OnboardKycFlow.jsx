@@ -29,7 +29,7 @@ const NO_BACK_STEPS = new Set(['id-upload', 'done', AGENT_STEP, PENDING_REVIEW_S
  *    full-page screens, since the agent is operating inside their dashboard.
  *  - "Done" hands off to the parent onComplete instead of /signup/contribution.
  */
-export default function OnboardKycFlow({ onComplete, onBackToAwareness }) {
+export default function OnboardKycFlow({ onComplete, onBackToAwareness, onExit }) {
   const signup = useSignup();
   const [stepId, setStepId] = useState('id-upload');
   const [pausedAt, setPausedAt] = useState(null);
@@ -171,9 +171,9 @@ export default function OnboardKycFlow({ onComplete, onBackToAwareness }) {
       case 'consent':
         return <ConsentStep onActivate={async () => goNext()} />;
       case AGENT_STEP:
-        return <ManualReviewCard onComplete={onComplete} title="Manual review needed" reason={signup.failureReason} />;
+        return <ManualReviewCard onComplete={onExit} title="Manual review needed" reason={signup.failureReason} />;
       case PENDING_REVIEW_STEP:
-        return <ManualReviewCard onComplete={onComplete} title="Flagged for compliance review" reason="The subscriber matched a watchlist entry. The compliance team will review and follow up." />;
+        return <ManualReviewCard onComplete={onExit} title="Flagged for compliance review" reason="The subscriber matched a watchlist entry. The compliance team will review and follow up." />;
       default:
         return null;
     }
@@ -184,8 +184,10 @@ export default function OnboardKycFlow({ onComplete, onBackToAwareness }) {
  * Inline replacement for the AgentFallbackStep / PendingReviewStep terminal
  * screens. Those screens are designed for a subscriber who hit a dead end and
  * needs to reach a human; in the agent context the agent IS the human, so we
- * render a compact card that captures the situation and lets them finish the
- * onboarding session (the subscriber's record stays in pending state).
+ * render a compact card that captures the situation. This is a hard stop: KYC
+ * never cleared, so onComplete here exits the flow back to the dashboard
+ * WITHOUT creating a subscriber (no schedule step, no OnboardingComplete) — a
+ * failed/flagged applicant must not be written as an active, KYC-complete member.
  */
 function ManualReviewCard({ title, reason, onComplete }) {
   return (

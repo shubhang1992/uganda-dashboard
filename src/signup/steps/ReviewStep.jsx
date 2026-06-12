@@ -38,10 +38,15 @@ export default function ReviewStep({ onNext }) {
     signup.idConfidence != null ? 'done' : 'running'
   );
   const [ocrError, setOcrError] = useState('');
+  // Bumping ocrRunId re-triggers the OCR effect — that's how the error-screen
+  // "Try again" button re-invokes extractIdFields rather than hanging on a
+  // 'running' state that nothing ever resolves.
+  const [ocrRunId, setOcrRunId] = useState(0);
 
-  /* Run OCR silently on mount, unless it already ran (idConfidence set). Gating
-   * on idConfidence — not fullName — means an employer-invite flow (which
-   * pre-fills name/nin/gender) STILL runs OCR, so card number + DOB auto-fill. */
+  /* Run OCR silently on mount (and on each retry — see ocrRunId in deps),
+   * unless it already ran (idConfidence set). Gating on idConfidence — not
+   * fullName — means an employer-invite flow (which pre-fills name/nin/gender)
+   * STILL runs OCR, so card number + DOB auto-fill. */
   useEffect(() => {
     if (signup.idConfidence != null) return;
     let cancelled = false;
@@ -81,7 +86,7 @@ export default function ReviewStep({ onNext }) {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ocrRunId]);
 
   /* Snapshot of OCR-derived values — used to decide which fields still show
    * "Auto-filled". `districtId` is omitted: it isn't on a Ugandan National ID
@@ -234,8 +239,13 @@ export default function ReviewStep({ onNext }) {
             type="button"
             className={styles.submit}
             onClick={() => {
-              setOcrState('running');
+              // Reset OCR state and bump the runId so the effect re-invokes
+              // extractIdFields. idConfidence is cleared too so the effect's
+              // early-return guard can't short-circuit the retry.
+              signup.patch({ idConfidence: null });
               setOcrError('');
+              setOcrState('running');
+              setOcrRunId((n) => n + 1);
             }}
           >
             Try again

@@ -21,7 +21,7 @@ const SORT_OPTIONS = [
   { key: 'contributions', label: 'Contributions', fn: (a, b) => b.totalContributions - a.totalContributions },
   { key: 'balance', label: 'Balance', fn: (a, b) => (b.netBalance || 0) - (a.netBalance || 0) },
   { key: 'registration', label: 'Registration', fn: (a, b) => (b.registeredDate || '').localeCompare(a.registeredDate || '') },
-  { key: 'name', label: 'Name', fn: (a, b) => a.name.localeCompare(b.name) },
+  { key: 'name', label: 'Name', fn: (a, b) => (a.name || '').localeCompare(b.name || '') },
 ];
 
 const FILTERS = [
@@ -56,7 +56,7 @@ export default function SubscribersPage() {
     const out = subscribers.filter((s) => {
       if (filter === 'active' && !s.isActive) return false;
       if (filter === 'dormant' && s.isActive) return false;
-      if (q && !s.name.toLowerCase().includes(q) && !s.id.toLowerCase().includes(q) && !(s.phone || '').includes(q)) {
+      if (q && !(s.name || '').toLowerCase().includes(q) && !s.id.toLowerCase().includes(q) && !(s.phone || '').includes(q)) {
         return false;
       }
       return true;

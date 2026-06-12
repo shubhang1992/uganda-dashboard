@@ -33,6 +33,7 @@ vi.mock('../../services/employer', () => ({
   submitContributionRun: vi.fn(),
   getAllEmployersMetrics: vi.fn(),
   createEmployer: vi.fn(),
+  setEmployerStatus: vi.fn(),
 }));
 
 const employer = await import('../../services/employer');
@@ -49,6 +50,7 @@ const {
   useUpdateEmployerProfile,
   useAllEmployersMetrics,
   useCreateEmployer,
+  useSetEmployerStatus,
 } = await import('../useEmployer');
 
 function makeWrapper() {
@@ -215,6 +217,8 @@ describe('useEmployer hooks — mutations + invalidation', () => {
     // it as (variables, context) — assert on the first positional arg only.
     expect(employer.createEmployer.mock.calls[0][0]).toEqual({ name: 'New Co' });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['allEmployersMetrics'] });
+    // Symmetric with useCreateDistributor — the platform overview counts employers.
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['platformOverview'] });
   });
 });
 
@@ -253,5 +257,70 @@ describe('useUpdateEmployerProfile — optimistic patch + rollback', () => {
     });
 
     expect(queryClient.getQueryData(['employer', 'emp-001'])).toEqual({ id: 'emp-001', name: 'Old Co' });
+  });
+});
+
+describe('useSetEmployerStatus — optimistic patch + rollback + invalidation', () => {
+  it('optimistically flips status on the rendered admin rollup (allEmployersMetrics) before settle', async () => {
+    let resolveSet;
+    employer.setEmployerStatus.mockReturnValue(new Promise((res) => { resolveSet = res; }));
+    const { queryClient, Wrapper } = makeWrapper();
+    // The status pill renders off useAllEmployersMetrics = ['allEmployersMetrics'].
+    queryClient.setQueryData(['allEmployersMetrics'], [
+      { id: 'emp-001', name: 'Acme', status: 'active' },
+      { id: 'emp-002', name: 'Other', status: 'active' },
+    ]);
+
+    const { result } = renderHook(() => useSetEmployerStatus(), { wrapper: Wrapper });
+    act(() => {
+      result.current.mutate({ id: 'emp-001', status: 'inactive' });
+    });
+
+    await waitFor(() => {
+      expect(queryClient.getQueryData(['allEmployersMetrics'])).toEqual([
+        { id: 'emp-001', name: 'Acme', status: 'inactive' },
+        { id: 'emp-002', name: 'Other', status: 'active' },
+      ]);
+    });
+
+    await act(async () => {
+      resolveSet({ id: 'emp-001', status: 'inactive' });
+    });
+  });
+
+  it('rolls the rollup back to the pre-mutation snapshot on error', async () => {
+    employer.setEmployerStatus.mockRejectedValue(new Error('rls denied'));
+    const { queryClient, Wrapper } = makeWrapper();
+    queryClient.setQueryData(['allEmployersMetrics'], [
+      { id: 'emp-001', name: 'Acme', status: 'active' },
+    ]);
+
+    const { result } = renderHook(() => useSetEmployerStatus(), { wrapper: Wrapper });
+    await act(async () => {
+      try {
+        await result.current.mutateAsync({ id: 'emp-001', status: 'inactive' });
+      } catch {
+        // Expected — the mutation rejects.
+      }
+    });
+
+    expect(queryClient.getQueryData(['allEmployersMetrics'])).toEqual([
+      { id: 'emp-001', name: 'Acme', status: 'active' },
+    ]);
+  });
+
+  it('invalidates every employer + platform read the detach moves on settle', async () => {
+    employer.setEmployerStatus.mockResolvedValue({ id: 'emp-001', status: 'inactive' });
+    const { queryClient, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const { result } = renderHook(() => useSetEmployerStatus(), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ id: 'emp-001', status: 'inactive' });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['allEmployersMetrics'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['platformOverview'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['employees', 'emp-001'] });
   });
 });

@@ -7,7 +7,8 @@
  *
  * Usage:
  *   1. Add SUPABASE_DB_URL=postgres://... to .env.local (use the connection
- *      pooler URL: aws-1-ap-northeast-1.pooler.supabase.com:6543).
+ *      pooler URL for the Singapore project, e.g.
+ *      aws-1-ap-southeast-1.pooler.supabase.com:6543).
  *   2. Ensure migrations 0001+ are applied to the project.
  *   3. node scripts/seed-supabase.mjs
  *
@@ -15,7 +16,7 @@
  *   • Wraps everything in a single transaction.
  *   • SET session_replication_role = replica so the first-contribution
  *     trigger (added in 0002) does NOT fire while seeding — otherwise the
- *     30k seeded contribution transactions would double-insert commissions.
+ *     ~5,000 seeded contribution transactions would double-insert commissions.
  *   • Upserts on PK so re-runs converge.
  *   • Bulk-inserts via the unnest() pattern (one INSERT per table batch).
  *
@@ -54,6 +55,11 @@ const {
   MEMBER_TRANSACTIONS,
   EMPLOYER_DEMO_PHONE,
 } = employerSeed;
+// Extra employers spread across regions/districts — admin Platform Overview scope
+// filter + district "Employers" tab only (no employer-role login). Additive: just
+// employer rows + tagged subscribers + balances.
+const employerGeoSeed = await import('../src/data/employerGeoSeed.js');
+const { EXTRA_EMPLOYERS, EXTRA_MEMBERS } = employerGeoSeed;
 
 const { Client } = pg;
 
@@ -204,11 +210,12 @@ async function main() {
   const t0 = Date.now();
   console.log('• Materializing mockData…');
 
-  // Touching SUBSCRIBERS triggers the lazy Proxy → generates the 30k rows.
+  // Touching SUBSCRIBERS triggers the lazy Proxy → generates the rows
+  // (~5,000 per the `TARGET_SUBS = 5000` const in src/data/mockData.js).
   const subscriberIds = Object.keys(SUBSCRIBERS);
   const subscribers = subscriberIds.map((id) => SUBSCRIBERS[id]);
 
-  // mockData's random phone generator collides at 30k scale (~0.5% dupe rate).
+  // mockData's random phone generator can collide at scale (~0.5% dupe rate).
   // The partial unique index `subscribers(phone) WHERE NOT is_demo_signup`
   // rejects duplicates. Reassign duplicates to +25671XXXXXXX (non-real UG range)
   // so they stay unique and don't collide with demo personas at +2567000000XX.
@@ -1181,6 +1188,30 @@ async function main() {
       ]
     );
 
+    // Extra employers (admin geo spread, emp-002+) — same insert shape. These have
+    // no employer-role login; they exist to populate the admin map across regions.
+    if (EXTRA_EMPLOYERS.length) {
+      console.log(`• employers (extra geo spread: ${EXTRA_EMPLOYERS.length})…`);
+      for (const e of EXTRA_EMPLOYERS) {
+        await client.query(
+          `INSERT INTO employers (
+             id, name, sector, registration_no, contact_name, contact_phone,
+             contact_email, district, payroll_cadence, default_contribution_config
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           ON CONFLICT (id) DO UPDATE SET
+             name = EXCLUDED.name, sector = EXCLUDED.sector,
+             registration_no = EXCLUDED.registration_no,
+             contact_name = EXCLUDED.contact_name, contact_phone = EXCLUDED.contact_phone,
+             contact_email = EXCLUDED.contact_email, district = EXCLUDED.district,
+             payroll_cadence = EXCLUDED.payroll_cadence,
+             default_contribution_config = EXCLUDED.default_contribution_config,
+             updated_at = now()`,
+          [e.id, e.name, e.sector, e.registrationNo, e.contactName, e.contactPhone,
+            e.contactEmail, e.district, e.payrollCadence, JSON.stringify(e.defaultContributionConfig ?? {})]
+        );
+      }
+    }
+
     // ── employer members (tagged subscribers) ────────────────────────────────
     // Unified model (0043): the employer's staff are REAL subscribers tagged with
     // employer_id, agent_id NULL (no agent commission). Triggers are off during
@@ -1247,6 +1278,71 @@ async function main() {
       ],
       'subscriber_id'
     );
+
+    // Extra employer members (tagged subscribers) for the geo spread — subscribers
+    // + balances only (no schedules/transactions/insurance: the admin geo rollup and
+    // the employer slice of the overview read only headcount + balances).
+    if (EXTRA_MEMBERS.length) {
+      console.log(`• extra employer members (tagged subscribers: ${EXTRA_MEMBERS.length})…`);
+      await bulkInsert(
+        client,
+        'subscribers',
+        [
+          { name: 'id', type: 'text' },
+          { name: 'name', type: 'text' },
+          { name: 'email', type: 'text' },
+          { name: 'phone', type: 'text' },
+          { name: 'gender', type: 'text' },
+          { name: 'age', type: 'int' },
+          { name: 'dob', type: 'date' },
+          { name: 'nin', type: 'text' },
+          { name: 'kyc_status', type: 'text' },
+          { name: 'occupation', type: 'text' },
+          { name: 'agent_id', type: 'text' },
+          { name: 'employer_id', type: 'text' },
+          { name: 'district_id', type: 'text' },
+          { name: 'is_active', type: 'boolean' },
+          { name: 'registered_date', type: 'date' },
+        ],
+        [
+          EXTRA_MEMBERS.map((m) => m.id),
+          EXTRA_MEMBERS.map((m) => m.name),
+          EXTRA_MEMBERS.map((m) => m.email ?? null),
+          EXTRA_MEMBERS.map((m) => m.phone ?? null),
+          EXTRA_MEMBERS.map((m) => m.gender ?? null),
+          EXTRA_MEMBERS.map((m) => m.age ?? null),
+          EXTRA_MEMBERS.map((m) => toDateStr(m.dob)),
+          EXTRA_MEMBERS.map((m) => m.nin ?? null),
+          EXTRA_MEMBERS.map((m) => m.kycStatus ?? 'complete'),
+          EXTRA_MEMBERS.map((m) => m.occupation ?? null),
+          EXTRA_MEMBERS.map(() => null),               // agent_id NULL → employer channel
+          EXTRA_MEMBERS.map((m) => m.employerId),
+          EXTRA_MEMBERS.map((m) => m.districtId),
+          EXTRA_MEMBERS.map((m) => m.isActive),
+          EXTRA_MEMBERS.map((m) => toDateStr(m.joinedDate)),
+        ],
+        'id'
+      );
+      await bulkInsert(
+        client,
+        'subscriber_balances',
+        [
+          { name: 'subscriber_id', type: 'text' },
+          { name: 'retirement_balance', type: 'numeric' },
+          { name: 'emergency_balance', type: 'numeric' },
+          { name: 'total_balance', type: 'numeric' },
+          { name: 'units', type: 'numeric' },
+        ],
+        [
+          EXTRA_MEMBERS.map((m) => m.id),
+          EXTRA_MEMBERS.map((m) => m.retirementBalance ?? 0),
+          EXTRA_MEMBERS.map((m) => m.emergencyBalance ?? 0),
+          EXTRA_MEMBERS.map((m) => m.netBalance ?? 0),
+          EXTRA_MEMBERS.map((m) => unitsFromBalance(m.netBalance ?? 0)),
+        ],
+        'subscriber_id'
+      );
+    }
 
     await bulkInsert(
       client,

@@ -1,0 +1,64 @@
+/* Slim horizontal top bar above the routed content in the desktop subscriber
+   shell. Left: section eyebrow. Right: member identity. Spans the full width of
+   the right column (content below is centred at a route-aware max-width), so the
+   identity sits at the far-right edge like a conventional app top bar. */
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 56px;
+  padding: var(--space-3) var(--space-8);
+}
+
+/* ── Left: section eyebrow (NOT an <h1>) ──────────────────────────────── */
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Right: identity ──────────────────────────────────────────────────── */
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.identityName {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-slate);
+  letter-spacing: -0.01em;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.identityRole {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-gray);
+}

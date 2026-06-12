@@ -30,6 +30,7 @@ import { formatUGX } from '../../../utils/currency';
 
 import { useAgentSubscribers } from '../../../hooks/useAgent';
 import { useEntityCommissionSummary } from '../../../hooks/useCommission';
+import { deriveMonthAnchors, isOnboardedSince } from '../agentHomeSummary';
 import styles from './CoPilotWidget.module.css';
 
 const SUGGESTIONS = [
@@ -47,9 +48,8 @@ function buildReply(message, { subscribers, commissions }) {
   const paid = commissions?.totalPaid || 0;
   const countDue = commissions?.countDue || 0;
 
-  const now = new Date();
-  const cutoff = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-  const thisMonth = subscribers?.filter((s) => s.registeredDate && new Date(s.registeredDate).getTime() >= cutoff).length || 0;
+  const { onboardStart } = deriveMonthAnchors(subscribers || []);
+  const thisMonth = subscribers?.filter((s) => isOnboardedSince(s, onboardStart)).length || 0;
 
   if (m.includes('subscriber') || m.includes('how many')) {
     return `You have ${total} subscriber${total === 1 ? '' : 's'} in your portfolio. ${thisMonth} joined this month.`;
@@ -58,7 +58,7 @@ function buildReply(message, { subscribers, commissions }) {
     return `${activeCount} of your subscribers are active and ${dormantCount} are dormant. Open the Subscribers page to filter them.`;
   }
   if (m.includes('commission') || m.includes('owe') || m.includes('pay') || m.includes('settle') || m.includes('payout')) {
-    return `You've earned ${formatUGX(paid)} so far. ${formatUGX(due)} is still due across ${countDue} record${countDue === 1 ? '' : 's'} — they'll roll into your next payout cycle automatically.`;
+    return `You've earned ${formatUGX(paid)} so far. ${formatUGX(due)} is still due across ${countDue} record${countDue === 1 ? '' : 's'} — they'll be settled when your distributor next pays out.`;
   }
   if (m.includes('this month') || m.includes('joined') || m.includes('new')) {
     return thisMonth > 0

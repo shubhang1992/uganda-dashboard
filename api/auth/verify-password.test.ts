@@ -313,10 +313,8 @@ describe('POST /api/auth/verify-password', () => {
       res,
     );
     expect(res.__getStatus()).toBe(500);
-    expect(res.__getPayload()).toEqual({
-      code: 'db_error',
-      message: '42501',
-    });
+    // §11-M1: opaque payload — the raw supabase code/message must NOT leak.
+    expect(res.__getPayload()).toEqual({ code: 'db_error' });
   });
 
   // -------------------------------------------------------------------------
@@ -487,6 +485,127 @@ describe('POST /api/auth/verify-password', () => {
     const payload = res.__getPayload() as { user: Record<string, unknown> };
     expect(payload.user.agentId).toBe('a-009');
     expect(payload.user.name).toBe('Alex Agent');
+  });
+
+  // -------------------------------------------------------------------------
+  // Deactivation gate (H1) — a deactivated entity cannot authenticate via the
+  // password route either. CRITICAL ORDERING: the gate runs AFTER the bcrypt
+  // compare, so a WRONG password on a deactivated account still returns 401
+  // invalid_password; only a CORRECT password on a deactivated account is
+  // turned away with 403 account_deactivated.
+  // -------------------------------------------------------------------------
+
+  it('returns 403 account_deactivated for a deactivated entity + CORRECT password', async () => {
+    const hash = await ensureHash();
+    queueFrom('users', { data: { password_hash: hash, role: 'distributor' }, error: null });
+    queueFrom('demo_personas', { data: null, error: null }); // → fallback d-001
+    queueFrom('distributors', { data: { status: 'inactive' }, error: null });
+
+    await call(
+      makeReq({
+        body: {
+          phone: '+256700000001',
+          role: 'distributor',
+          password: 'Demo1234',
+        },
+      }),
+      res,
+    );
+    expect(res.__getStatus()).toBe(403);
+    expect(res.__getPayload()).toEqual({
+      code: 'account_deactivated',
+      message:
+        'This account has been deactivated. Please contact support to reactivate it.',
+    });
+    // Gate fires before signJwt — a blocked login mints no token.
+    expect(signJwtMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 invalid_password for a deactivated entity + WRONG password (gate not reached)', async () => {
+    const hash = await ensureHash();
+    queueFrom('users', { data: { password_hash: hash, role: 'distributor' }, error: null });
+    // No demo_personas / distributors status row queued — proves the gate is
+    // never reached when the bcrypt compare fails first.
+
+    await call(
+      makeReq({
+        body: {
+          phone: '+256700000001',
+          role: 'distributor',
+          password: 'wrong-password-1',
+        },
+      }),
+      res,
+    );
+    expect(res.__getStatus()).toBe(401);
+    expect(res.__getPayload()).toEqual({ code: 'invalid_password' });
+  });
+
+  it('returns 200 for an active entity + correct password', async () => {
+    const hash = await ensureHash();
+    queueFrom('users', { data: { password_hash: hash, role: 'agent' }, error: null });
+    queueFrom('demo_personas', {
+      data: { entity_id: 'a-009', label: 'Alex Agent' },
+      error: null,
+    });
+    queueFrom('agents', { data: { status: 'active' }, error: null });
+
+    await call(
+      makeReq({
+        body: {
+          phone: '+256777247884',
+          role: 'agent',
+          password: 'Demo1234',
+        },
+      }),
+      res,
+    );
+    expect(res.__getStatus()).toBe(200);
+    const payload = res.__getPayload() as { user: Record<string, unknown> };
+    expect(payload.user.agentId).toBe('a-009');
+    expect(payload.user.hasPassword).toBe(true);
+  });
+
+  it('never gates a subscriber (no entity status lookup blocks it)', async () => {
+    const hash = await ensureHash();
+    queueFrom('users', { data: { password_hash: hash, role: 'subscriber' }, error: null });
+    queueFrom('subscribers', { data: { id: 's-0042', name: 'Mary' }, error: null });
+
+    await call(
+      makeReq({
+        body: {
+          phone: '+256777247884',
+          role: 'subscriber',
+          password: 'Demo1234',
+        },
+      }),
+      res,
+    );
+    expect(res.__getStatus()).toBe(200);
+    expect((res.__getPayload() as { user: { subscriberId: string } }).user.subscriberId).toBe('s-0042');
+  });
+
+  it('treats a status-lookup error as non-fatal (login proceeds, 200)', async () => {
+    const hash = await ensureHash();
+    queueFrom('users', { data: { password_hash: hash, role: 'distributor' }, error: null });
+    queueFrom('demo_personas', { data: null, error: null });
+    queueFrom('distributors', {
+      data: null,
+      error: { code: '42501', message: 'permission denied' },
+    });
+
+    await call(
+      makeReq({
+        body: {
+          phone: '+256700000001',
+          role: 'distributor',
+          password: 'Demo1234',
+        },
+      }),
+      res,
+    );
+    expect(res.__getStatus()).toBe(200);
+    expect((res.__getPayload() as { user: { distributorId: string } }).user.distributorId).toBe('d-001');
   });
 
   // -------------------------------------------------------------------------

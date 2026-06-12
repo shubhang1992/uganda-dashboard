@@ -14,7 +14,10 @@ export default function TopUpWidget({ subscriber }) {
 
   function payScheduled() {
     if (!hasSchedule) return;
-    navigate('/dashboard/save', { state: { prefillAmount: schedule.amount } });
+    // `scheduled: true` tells SavePage this is a fixed scheduled contribution —
+    // the amount is locked to the configured schedule amount (no editing). The
+    // ad-hoc "Top up extra" path below omits the flag and stays editable.
+    navigate('/dashboard/save', { state: { prefillAmount: schedule.amount, scheduled: true } });
   }
   function topUpExtra() {
     navigate('/dashboard/save');

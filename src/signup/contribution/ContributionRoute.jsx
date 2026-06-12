@@ -6,6 +6,7 @@ import { useSignup } from '../SignupContext';
 import * as subscriberService from '../../services/subscriber';
 import { verifyOtp } from '../../services/auth';
 import { toCanonicalUGPhone } from '../../utils/phone';
+import { normalizeFrequency } from '../../utils/finance';
 import ContributionSettings from './ContributionSettings';
 import SignupShell from '../SignupShell';
 import ActivatedStep from '../steps/ActivatedStep';
@@ -71,7 +72,7 @@ export default function ContributionRoute() {
       consent: !!signup.consent,
       consentTimestamp: signup.consentTimestamp,
       contributionSchedule: {
-        frequency: schedule.frequency,
+        frequency: normalizeFrequency(schedule.frequency),
         amount: schedule.amount,
         retirementPct: schedule.retirementPct,
         emergencyPct: schedule.emergencyPct,

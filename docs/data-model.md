@@ -235,7 +235,7 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 | sector | string | Stored | Industry sector (e.g. `"Manufacturing"`) |
 | registrationNo | string | Stored | Company registration number |
 | contactName / contactPhone / contactEmail | string | Stored | Primary HR/admin contact |
-| district | string | Stored | Operating district |
+| district | string | Stored | Operating district — **free text**, NOT an FK. The admin Platform Overview employer geo rollup (`get_employer_geo_rollup`, 0058) places the employer on the map by resolving `district = districts.name` (case-insensitive) → `region_id`; unmatched text buckets under `'unmapped'`. |
 | payrollCadence | string | Stored | `"monthly"` \| `"weekly"` \| … |
 | defaultContributionConfig | object (JSONB) | Stored | The template a new run starts from. Shape `{ mode, matchPct, maxContribution }` (co-contribution) or `{ mode, employerPct }` (employer-only), plus company-wide group-insurance fields `insuranceEnabled` (boolean) + `groupCoverAmount` that apply to **both** modes — see [Contribution Config shape](#contribution-config-shape) |
 | createdAt / updatedAt | timestamptz | Stored | Row timestamps (`updated_at` maintained inline by the `0035` RPCs — no shared trigger) |
@@ -244,7 +244,7 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 - Children: Employee (the staff roster), Contribution Run (the funding history)
 
 ### Business Rules
-- **National singleton today.** The demo seeds exactly one employer (`emp-001`). Demo login phone `EMPLOYER_DEMO_PHONE` (`+256700000031`) resolves to it via `demo_personas`; any other phone on the `employer` role falls back to `emp-001`.
+- **One login employer + geo-spread extras.** The employer ROLE seeds exactly one login-able employer (`emp-001`, Kampala). Demo login phone `EMPLOYER_DEMO_PHONE` (`+256700000031`) resolves to it via `demo_personas`; any other phone on the `employer` role falls back to `emp-001`. Migration `0058`'s feature adds ~6 **login-less** extra employers (`emp-002…007`) spread across regions/districts (`src/data/employerGeoSeed.js` → seeded as `employers` rows + tagged subscribers + balances) so the admin Employers scope + district Employers tab are demonstrable on the map. These have no employer-role dashboard and no contribution-run history (admin geo view reads only headcount + balances).
 - **No employer health score.** Unlike a Branch, the Employer has **no derived health/scheme-health score**. The funder-redesign removed the scheme-health gauge / participation composite from the Overview hero (an employer is a funder, not a sales line); there is no `score` field and no formula. The hero now leads with total contributions + funder tiles + a monthly **standing** gauge — the employer's peer **rank** shown in the Branch score-gauge language (still a rank, NOT a re-introduced health composite); the old recent-runs bar-trend was removed — see `FRONTEND.md §9.5`.
 - **Group life insurance.** Group insurance is now a company-wide TRUE/FALSE config (`insuranceEnabled` in `defaultContributionConfig`), set via **Settings → Default config** and **independent of the funding mode** (previously it was only available in `employer-only` mode). Saving syncs the roster through the `apply_group_insurance` RPC (`0039`) on **every save**: when cover `> 0` it activates **flat group life cover for the whole roster** — every owned employee's `insuranceCover` is set to the flat amount, `insuranceStatus` derives from it (`>0 → active`, `0 → inactive`), and `insurancePremiumMonthly` is zeroed (employer-included); a `0` cover clears it (switches group cover off). The per-employee insurance editor still applies individual overrides afterwards. `0039` is **applied to the live Singapore DB** (cutover 2026-06-05).
 - **Pending KYC surfacing.** The Overview hero surfaces each member's `kycStatus` (already a `subscribers` column) as a **"Pending KYC"** count + a nudge panel (`PendingKyc`); pending = `kycStatus` in (`pending`, `incomplete`). A few demo staff (Mary Auma, Diana Nabirye, Juliet Akello) are seeded `pending`.
@@ -704,8 +704,8 @@ Formats UGX amounts with short notation:
 - else: `"UGX X"`
 - <= 0: `"---"`
 
-### fmtShort(n)
-Same as `formatUGX` but without the `"UGX "` prefix.
+### formatUGXShort(n)
+Same as `formatUGX` but without the `"UGX "` prefix (e.g. `"1.2M"`). Lives in `src/utils/currency.js` (the former `fmtShort` shim no longer exists).
 
 ### getInitials(name)
 First letter of each word, max 2 characters, uppercase.

@@ -58,6 +58,7 @@ export function mapEmployer(row) {
     contactPhone: row.contact_phone,
     contactEmail: row.contact_email,
     district: row.district,
+    status: row.status ?? 'active',
     payrollCadence: row.payroll_cadence,
     defaultContributionConfig: row.default_contribution_config ?? null,
     createdAt: row.created_at,
@@ -522,6 +523,7 @@ export async function getAllEmployersMetrics() {
       name: EMPLOYER.name,
       sector: EMPLOYER.sector ?? null,
       district: EMPLOYER.district ?? null,
+      status: EMPLOYER.status ?? 'active',
       payrollCadence: EMPLOYER.payrollCadence ?? null,
       createdAt: null,
       headcount: m.headcount ?? 0,
@@ -671,6 +673,26 @@ export async function removeEmployee(employerId, employeeId) {
   }
   const { data, error } = await supabase.rpc('remove_employer_member', {
     p_subscriber_id: employeeId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * @endpoint RPC set_employer_status(p_employer_id, p_status) — admin-only
+ *   SECURITY DEFINER (0060). Flips employers.status; on 'inactive' detaches all
+ *   members (employer_id -> NULL, is_active untouched → self-onboarded).
+ *   Reactivate is a pure status flip (detached members do NOT re-tag).
+ * @param {string} id
+ * @param {'active'|'inactive'} status
+ * @returns {Promise<{id:string,status:string,membersDetached:number}>}
+ * @scope Admin only — the RPC RAISEs for any other app_role.
+ */
+export async function setEmployerStatus(id, status) {
+  if (!IS_SUPABASE_ENABLED) return { id, status, membersDetached: 0 };
+  const { data, error } = await supabase.rpc('set_employer_status', {
+    p_employer_id: id,
+    p_status: status,
   });
   if (error) throw error;
   return data;
