@@ -1,10 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { useAdminPanel } from '../../contexts/AdminPanelContext';
-import { useAllEntities, usePlatformOverview } from '../../hooks/useEntity';
+import { useAllEntities, usePlatformOverview, useSetDistributorStatus } from '../../hooks/useEntity';
+import { useToast } from '../../contexts/ToastContext';
 import { formatNumber, formatUGXShort } from '../../utils/currency';
+import Modal from '../../components/Modal';
 import styles from '../adminPanels.module.css';
 
 function fmtDate(value) {
@@ -29,6 +31,10 @@ export default function ViewDistributors() {
   const { viewDistributorsOpen, setViewDistributorsOpen, setCreateDistributorOpen } = useAdminPanel();
   const { data: distributors = [], isLoading } = useAllEntities('distributor');
   const { data: platform } = usePlatformOverview();
+  const setStatus = useSetDistributorStatus();
+  const { addToast } = useToast();
+  // The distributor whose deactivate/reactivate is awaiting confirmation.
+  const [confirmTarget, setConfirmTarget] = useState(null);
 
   useEffect(() => {
     if (!viewDistributorsOpen) return;
@@ -38,6 +44,18 @@ export default function ViewDistributors() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [viewDistributorsOpen, setViewDistributorsOpen]);
+
+  async function handleConfirm() {
+    if (!confirmTarget) return;
+    const next = confirmTarget.status === 'inactive' ? 'active' : 'inactive';
+    try {
+      await setStatus.mutateAsync({ id: confirmTarget.id, status: next });
+      addToast('success', next === 'active' ? 'Distributor reactivated.' : 'Distributor deactivated.');
+      setConfirmTarget(null);
+    } catch (err) {
+      addToast('error', err?.message || 'Could not update status.');
+    }
+  }
 
   const platformKpis = [
     { label: 'Distributors', value: formatNumber(platform?.distributors ?? 0) },
@@ -131,11 +149,20 @@ export default function ViewDistributors() {
                             {d.managerPhone ? ` · ${d.managerPhone}` : ''}
                           </div>
                         </div>
-                        <span
-                          className={`${styles.statusPill} ${d.status === 'active' ? styles.statusActive : styles.statusInactive}`}
-                        >
-                          {d.status || 'active'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
+                          <span
+                            className={`${styles.statusPill} ${d.status === 'inactive' ? styles.statusInactive : styles.statusActive}`}
+                          >
+                            {d.status === 'inactive' ? 'Deactivated' : 'Active'}
+                          </span>
+                          <button
+                            type="button"
+                            className={d.status === 'inactive' ? styles.activateBtn : styles.deactivateBtn}
+                            onClick={() => setConfirmTarget(d)}
+                          >
+                            {d.status === 'inactive' ? 'Reactivate' : 'Deactivate'}
+                          </button>
+                        </div>
                       </div>
                       <div className={styles.rowMetrics}>
                         <div className={styles.metric}>
@@ -159,6 +186,42 @@ export default function ViewDistributors() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {confirmTarget && (() => {
+        const isActive = confirmTarget.status !== 'inactive';
+        const title = isActive ? `Deactivate ${confirmTarget.name}?` : `Reactivate ${confirmTarget.name}?`;
+        return (
+          <Modal
+            open
+            onClose={() => { if (!setStatus.isPending) setConfirmTarget(null); }}
+            title={title}
+            size="sm"
+            dismissOnBackdrop={!setStatus.isPending}
+          >
+            <div className={styles.confirmDialog}>
+              <h3 className={styles.confirmTitle}>{title}</h3>
+              <p className={styles.confirmBody}>
+                {isActive
+                  ? 'Its branches and agents will be deactivated, and every subscriber under this distributor will be reset to self-onboarded — they stay active and keep their pension.'
+                  : 'This reactivates the distributor, its branches, and its agents. Subscribers that were reset to self-onboarded are not re-linked.'}
+              </p>
+              <div className={styles.confirmActions}>
+                <button type="button" className={styles.cancelBtn} onClick={() => setConfirmTarget(null)} disabled={setStatus.isPending}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={isActive ? styles.deactivateBtn : styles.activateBtn}
+                  onClick={handleConfirm}
+                  disabled={setStatus.isPending}
+                >
+                  {setStatus.isPending ? 'Working…' : isActive ? 'Deactivate' : 'Reactivate'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
     </>
   );
 }

@@ -1,8 +1,10 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import ErrorCard from '../../components/feedback/ErrorCard';
+import HomeDesktop from './HomeDesktop';
 import PulseCard from './widgets/PulseCard';
 import EmployerBenefitsWidget from './widgets/EmployerBenefitsWidget';
 import TopUpWidget from './widgets/TopUpWidget';
@@ -23,6 +25,7 @@ const item = {
 
 export default function HomePage() {
   const reduceMotion = useReducedMotion();
+  const isDesktop = useIsDesktop();
   const { data: sub, isLoading, isError, error, refetch } = useCurrentSubscriber();
 
   if (isLoading) {
@@ -53,6 +56,12 @@ export default function HomePage() {
       </div>
     );
   }
+
+  // >=1024px renders the dedicated wide desktop overview (KPI row + 2-up widget
+  // grid). The mobile stacked layout below is left exactly as shipped. Gated
+  // here (not in the shell) so the loading / error / no-account guards above run
+  // once for both layouts and HomeDesktop always receives a resolved subscriber.
+  if (isDesktop) return <HomeDesktop subscriber={sub} />;
 
   const itemVariants = reduceMotion ? undefined : item;
 

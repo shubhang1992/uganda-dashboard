@@ -199,3 +199,104 @@
     font-size: var(--text-xs);
   }
 }
+
+/* ── Desktop (>=1024px): flatten the dome into a clean page heading ──────────
+   On desktop the subscriber dashboard renders inside SubscriberDesktopShell
+   (sidebar rail + top bar + framed light content column). The full-bleed indigo
+   dome — designed for the edge-to-edge mobile viewport — stretches flat and wide
+   there, which is the awkward look this restyle removes. Instead the same markup
+   becomes a left-aligned page header on the light page: a small indigo eyebrow,
+   a large indigo title, a headline figure, then the supporting subtitle / stat
+   row, separated from the page body by a hairline rule.
+
+   This is CSS-only (no DOM change → no test impact) and effectively
+   subscriber-only at this breakpoint: the agent dashboard renders dedicated
+   *Desktop page variants at >=1024px and never mounts HeroCapsule here, and the
+   subscriber Home swaps PulseCard's dome for HomeDesktop. Every other subscriber
+   hero page (Withdrawals, Your agent, Reports, Help, Settings, Save, …) inherits
+   this heading automatically. */
+@media (min-width: 1024px) {
+  .hero {
+    /* Strip the dome: no indigo gradient, curve, shadow or dot texture. */
+    background: none;
+    color: var(--color-slate);
+    border-radius: 0;
+    box-shadow: none;
+    padding: var(--space-6) 0 var(--space-5);
+    margin-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-lavender);
+    text-align: left;
+  }
+  .hero::before {
+    display: none;
+  }
+
+  /* The top bar collapses to just the title heading — the empty 44px spacers
+     and the dome's translucent kebab/help button have no place on the light
+     header, so the title sits flush-left as the page <h1>. */
+  .topBar {
+    min-height: 0;
+  }
+  .iconSpacer,
+  .iconBtn {
+    display: none;
+  }
+
+  .title {
+    flex: 1 1 auto;
+    text-align: left;
+    font-size: var(--text-3xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    text-transform: none;
+    color: var(--color-indigo);
+  }
+
+  .body {
+    margin-top: var(--space-3);
+    text-align: left;
+  }
+
+  .eyebrow {
+    color: var(--color-indigo-soft);
+  }
+
+  /* Headline figure: left-aligned, dark, and sized down from the dome's giant
+     clamp so it reads as a page metric rather than a hero number. */
+  .amount {
+    justify-content: flex-start;
+    min-height: 0;
+    margin-top: var(--space-1);
+  }
+  .prefix {
+    margin-top: 0.32em;
+    font-size: var(--text-base);
+    color: var(--color-gray);
+  }
+  .amountValue {
+    font-size: clamp(2rem, 3vw, 2.5rem);
+    color: var(--color-indigo);
+  }
+
+  .subtitle {
+    color: var(--color-gray);
+  }
+
+  .subtitleCompact {
+    color: var(--color-gray);
+  }
+
+  /* Stat row reads left-to-right (not edge-to-edge) on the wide header. */
+  .statRow {
+    justify-content: flex-start;
+    gap: var(--space-2) var(--space-6);
+    margin-top: var(--space-4);
+    color: var(--color-gray);
+  }
+  .statRow > * {
+    text-align: left;
+  }
+  .statRow strong {
+    color: var(--color-indigo);
+  }
+}

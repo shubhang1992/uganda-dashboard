@@ -633,6 +633,14 @@ describe('messageForCode branch coverage (via AuthError messages)', () => {
     await expectMessageFor('current_password_invalid', 'Current password is incorrect.', viaSendOtp);
   });
 
+  it('maps account_deactivated (admin login gate, migration 0060)', async () => {
+    await expectMessageFor(
+      'account_deactivated',
+      'This account has been deactivated. Please contact support to reactivate it.',
+      viaSendOtp,
+    );
+  });
+
   it('falls back to the default branch for an unknown code (e.g. role_mismatch)', async () => {
     // Codes added by 1I (role_mismatch) and other future codes (db_error,
     // wrong_old_password, unauthorized, invalid_request) aren't yet mapped in

@@ -3,9 +3,11 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import Settings from '../../dashboard/settings/Settings';
 import BottomTabBar from './BottomTabBar';
 import SideNav from './SideNav';
+import SubscriberDesktopShell from './SubscriberDesktopShell';
 import styles from './SubscriberShell.module.css';
 
 export default function SubscriberShell() {
@@ -17,6 +19,12 @@ export default function SubscriberShell() {
   useLayoutEffect(() => {
     viewportRef.current?.scrollTo(0, 0);
   }, [location.pathname]);
+
+  // >=1024px gets the dedicated desktop chrome (sidebar rail + top bar + framed
+  // content column) — the same split the agent shell uses. Below that the mobile
+  // shell (bottom tab bar + full-bleed pages) stays exactly as shipped.
+  const isDesktop = useIsDesktop();
+  if (isDesktop) return <SubscriberDesktopShell />;
 
   return (
     <div className={styles.shell}>

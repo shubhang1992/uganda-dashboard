@@ -391,6 +391,46 @@ export function usePlatformOverview() {
 }
 
 /**
+ * Admin: employer-channel subscriber aggregates placed on the region/district map
+ * (byRegion / byDistrict + per-district employer leaf list). Wraps
+ * get_employer_geo_rollup (0058, admin-gated). Powers the Platform Overview
+ * data-scope filter (Employers/All) and the district drill-down "Employers" tab.
+ * 5-min staleTime to match usePlatformOverview.
+ *
+ * @param {boolean} [enabled=true] Distributor-isolation guard: the shared
+ *   OverlayPanel passes `false` for non-admin scopes so the distributor role never
+ *   fires this admin-only query.
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object>}
+ */
+export function useEmployerGeoRollup(enabled = true) {
+  return useQuery({
+    queryKey: ['employerGeoRollup'],
+    queryFn: entities.getEmployerGeoRollup,
+    staleTime: 5 * 60 * 1000,
+    enabled,
+  });
+}
+
+/**
+ * Admin: employer-channel Today/Week/Month activity (new members, contributions,
+ * withdrawals) + topEmployer. Wraps get_employer_activity_rollup (0059, admin-
+ * gated) — powers the Platform Overview "Employers" scope trends strip. 5-min
+ * staleTime to match the other admin overview queries.
+ *
+ * @param {boolean} [enabled=true] Distributor-isolation guard: pass `false` for
+ *   non-employer scopes so the admin-only query never fires when it isn't shown.
+ * @returns {import('@tanstack/react-query').UseQueryResult<Object>}
+ */
+export function useEmployerActivityRollup(enabled = true) {
+  return useQuery({
+    queryKey: ['employerActivityRollup'],
+    queryFn: entities.getEmployerActivityRollup,
+    staleTime: 5 * 60 * 1000,
+    enabled,
+  });
+}
+
+/**
  * Mutation to flip a branch between active and inactive. Optimistically
  * updates the cached entity so the status pill flips instantly; rolls back
  * on error.
@@ -417,6 +457,59 @@ export function useSetBranchStatus() {
       queryClient.invalidateQueries({ queryKey: ['entity', 'branch', id] });
       queryClient.invalidateQueries({ queryKey: ['entities', 'branch'] });
       queryClient.invalidateQueries({ queryKey: ['children'] });
+    },
+  });
+}
+
+/**
+ * Admin: deactivate / reactivate a distributor (set_distributor_status, 0060).
+ * On 'inactive' the RPC also flips the distributor's branches + agents inactive
+ * and detaches every subscriber under its agent tree (→ self-onboarded). So the
+ * invalidation is BROAD — the whole agent tree's reads could have moved.
+ *
+ * The status pill in ViewDistributors renders off the ['entities','distributor']
+ * LIST (useAllEntities('distributor')), not the ['entity','distributor',id] detail,
+ * so the optimistic patch targets that rendered list (mirrors useSetEmployerStatus)
+ * — the pill flips instantly instead of waiting for the onSettled refetch. The
+ * detail-key patch is kept too for any open detail view.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useSetDistributorStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }) => entities.setDistributorStatus(id, status),
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['entities', 'distributor'] });
+      await queryClient.cancelQueries({ queryKey: ['entity', 'distributor', id] });
+      const prevList = queryClient.getQueryData(['entities', 'distributor']);
+      const previous = queryClient.getQueryData(['entity', 'distributor', id]);
+      queryClient.setQueryData(['entities', 'distributor'], (old) =>
+        Array.isArray(old) ? old.map((e) => (e.id === id ? { ...e, status } : e)) : old,
+      );
+      queryClient.setQueryData(['entity', 'distributor', id], (old) =>
+        old ? { ...old, status } : old,
+      );
+      return { prevList, previous };
+    },
+    onError: (_err, { id }, ctx) => {
+      if (ctx?.prevList !== undefined) {
+        queryClient.setQueryData(['entities', 'distributor'], ctx.prevList);
+      }
+      if (ctx?.previous !== undefined) {
+        queryClient.setQueryData(['entity', 'distributor', id], ctx.previous);
+      }
+    },
+    onSettled: (_data, _err, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['entity', 'distributor', id] });
+      queryClient.invalidateQueries({ queryKey: ['entities', 'distributor'] });
+      queryClient.invalidateQueries({ queryKey: ['entities', 'branch'] });
+      queryClient.invalidateQueries({ queryKey: ['entities', 'agent'] });
+      queryClient.invalidateQueries({ queryKey: ['platformOverview'] });
+      queryClient.invalidateQueries({ queryKey: ['children'] });
+      queryClient.invalidateQueries({ queryKey: ['childrenMetrics'] });
+      queryClient.invalidateQueries({ queryKey: ['entityMetrics'] });
+      queryClient.invalidateQueries({ queryKey: ['allEntitiesMetrics'] });
+      queryClient.invalidateQueries({ queryKey: ['entity-page'] });
     },
   });
 }

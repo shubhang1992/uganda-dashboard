@@ -42,7 +42,6 @@ vi.mock('../dashboard/branch/ViewBranches', () => ({ default: () => null }));
 vi.mock('../dashboard/agent/ViewAgents', () => ({ default: () => null }));
 vi.mock('../dashboard/subscriber/ViewSubscribers', () => ({ default: () => null }));
 vi.mock('../dashboard/reports/ViewReports', () => ({ default: () => null }));
-vi.mock('../dashboard/commissions/CommissionPanel', () => ({ default: () => null }));
 vi.mock('../dashboard/settings/Settings', () => ({ default: () => null }));
 vi.mock('../dashboard/tickets/ViewTickets', () => ({ default: () => null }));
 vi.mock('./distributors/ViewDistributors', () => ({ default: () => null }));

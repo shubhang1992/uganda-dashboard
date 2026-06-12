@@ -5,7 +5,6 @@ import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import Settings from '../../dashboard/settings/Settings';
 import AgentSideNavDesktop from './AgentSideNavDesktop';
-import AgentTopBar from './AgentTopBar';
 import styles from './AgentDesktopShell.module.css';
 
 export default function AgentDesktopShell() {
@@ -22,7 +21,6 @@ export default function AgentDesktopShell() {
     <div className={styles.shell}>
       <AgentSideNavDesktop />
       <main ref={viewportRef} className={styles.viewport} id="main">
-        <AgentTopBar />
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={location.pathname}

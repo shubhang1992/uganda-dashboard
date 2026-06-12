@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { EASE_OUT_EXPO } from '../../utils/motion';
@@ -18,23 +18,24 @@ function formatCount(n) {
   return formatNumber(n);
 }
 
-// Admin-exclusive rail items (platform-wide managers). Rendered before the
-// reused entity views so the admin's primary actions lead.
+// The node-graph mark doubles as the "Distributor Network" group icon — it reads
+// as a connected hierarchy (distributor → branches → agents).
+const NETWORK_ICON = (
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
+    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75"/>
+    <circle cx="12" cy="3" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
+    <circle cx="12" cy="21" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
+    <circle cx="3" cy="12" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
+    <circle cx="21" cy="12" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M12 4.5v4.5M12 15v4.5M4.5 12H9M15 12h4.5" stroke="currentColor" strokeWidth="1.5"/>
+  </svg>
+);
+
+// Admin-exclusive rail items (platform-wide managers). The distributor hierarchy
+// (distributor → branches → agents) is grouped under a single "Distributor
+// Network" item whose flyout lists the three; Employers stays its own channel.
 const ADMIN_NAV = [
-  {
-    id: 'distributors',
-    label: 'Distributors',
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
-        <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75"/>
-        <circle cx="12" cy="3" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
-        <circle cx="12" cy="21" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
-        <circle cx="3" cy="12" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
-        <circle cx="21" cy="12" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
-        <path d="M12 4.5v4.5M12 15v4.5M4.5 12H9M15 12h4.5" stroke="currentColor" strokeWidth="1.5"/>
-      </svg>
-    ),
-  },
+  { id: 'distributor-network', label: 'Distributor Network', icon: NETWORK_ICON },
   {
     id: 'employers',
     label: 'Employers',
@@ -63,29 +64,6 @@ const MOBILE_NAV = [
   },
   ...ADMIN_NAV,
   {
-    id: 'branches',
-    label: 'Branches',
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
-        <path d="M3 21h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-        <path d="M5 21V7l7-4 7 4v14" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
-        <rect x="9" y="13" width="6" height="8" rx="1" stroke="currentColor" strokeWidth="1.75"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'agents',
-    label: 'Agents',
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
-        <circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.75"/>
-        <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-        <circle cx="18" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.75"/>
-        <path d="M21 21v-1.5a3 3 0 00-3-3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-      </svg>
-    ),
-  },
-  {
     id: 'subscribers',
     label: 'Subscribers',
     icon: (
@@ -99,18 +77,6 @@ const MOBILE_NAV = [
 
 const NAV_ITEMS = [
   ...MOBILE_NAV,
-  {
-    id: 'commissions',
-    label: 'Commissions',
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
-        <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.75"/>
-        <path d="M2 10h20" stroke="currentColor" strokeWidth="1.75"/>
-        <path d="M6 15h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-        <path d="M14 15h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-      </svg>
-    ),
-  },
   {
     id: 'tickets',
     label: 'Support',
@@ -191,14 +157,29 @@ const BOTTOM_ITEMS = [
   },
 ];
 
-// Admin does NOT create branches — branches.INSERT is RLS-gated to the
-// distributor role (branches_insert_distributor); admin's create path is
-// distributors + employers (via SECURITY DEFINER RPCs). So the admin Branches
-// submenu is view-only (no "Create New Branch", which would RLS-fail).
-const BRANCH_SUB = [
+// "Distributor Network" group flyout — the distributor hierarchy as ordered
+// children: Distributors → Branches → Agents. Each opens its (view-only) manager
+// panel directly. Admin does NOT create branches/agents (RLS-gated to the
+// distributor role), so there are no "Create New" actions here.
+const NETWORK_SUB = [
   {
-    id: 'view-branches',
-    label: 'View Existing Branches',
+    id: 'distributor',
+    label: 'Distributors',
+    desc: 'Network operators across the platform',
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
+        <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75"/>
+        <circle cx="12" cy="3" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
+        <circle cx="12" cy="21" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
+        <circle cx="3" cy="12" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
+        <circle cx="21" cy="12" r="1.5" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M12 4.5v4.5M12 15v4.5M4.5 12H9M15 12h4.5" stroke="currentColor" strokeWidth="1.5"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'branches',
+    label: 'Branches',
     desc: 'Manage and monitor all branches',
     icon: (
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
@@ -208,12 +189,9 @@ const BRANCH_SUB = [
       </svg>
     ),
   },
-];
-
-const AGENT_SUB = [
   {
-    id: 'view-agents',
-    label: 'View Existing Agents',
+    id: 'agents',
+    label: 'Agents',
     desc: 'Manage and monitor all agents',
     icon: (
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
@@ -226,33 +204,21 @@ const AGENT_SUB = [
   },
 ];
 
-const SUBSCRIBER_SUB = [
-  {
-    id: 'view-subscribers',
-    label: 'View Existing Subscribers',
-    desc: 'Browse and manage all subscribers',
-    icon: (
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
-        <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.75" />
-        <path d="M5 21v-1a7 7 0 0114 0v1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-];
-
 export default function AdminSidebar() {
   const [hovered, setHovered] = useState(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  // The "Distributor Network" group flyout (Distributors / Branches / Agents).
+  const [networkMenuOpen, setNetworkMenuOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
   const {
     reset,
-    branchMenuOpen, setBranchMenuOpen, createBranchOpen, setCreateBranchOpen,
-    viewBranchesOpen, setViewBranchesOpen, agentMenuOpen, setAgentMenuOpen,
-    viewAgentsOpen, setViewAgentsOpen, subscriberMenuOpen, setSubscriberMenuOpen,
+    createBranchOpen, setCreateBranchOpen,
+    viewBranchesOpen, setViewBranchesOpen,
+    viewAgentsOpen, setViewAgentsOpen,
     viewSubscribersOpen, setViewSubscribersOpen, setDrillTargetBranchId,
-    setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen, commissionsOpen,
-    setCommissionsOpen, settingsOpen, setSettingsOpen, viewTicketsOpen, setViewTicketsOpen,
+    setDrillTargetAgentId, viewReportsOpen, setViewReportsOpen,
+    settingsOpen, setSettingsOpen, viewTicketsOpen, setViewTicketsOpen,
   } = useDashboard();
   const {
     viewDistributorsOpen, setViewDistributorsOpen, createDistributorOpen, setCreateDistributorOpen,
@@ -260,129 +226,96 @@ export default function AdminSidebar() {
     closeAllPanels: adminCloseAllPanels,
   } = useAdminPanel();
 
-  // True platform totals power the submenu count labels (single RPC call,
-  // 5-min staleTime). Uses get_platform_overview so the subscriber count is the
-  // platform total (incl. employer-onboarded), not the agent-tree-only rollup.
+  // True platform totals power the flyout count labels (single RPC call, 5-min
+  // staleTime). Uses get_platform_overview so the counts are platform totals.
   const { data: platform } = usePlatformOverview();
+  const distributorCount = formatCount(platform?.distributors ?? 0);
   const branchCount = formatCount(platform?.branches ?? 0);
   const agentCount = formatCount(platform?.agents ?? 0);
-  const subscriberCount = formatCount(platform?.totalSubscribers ?? 0);
 
   const active = useMemo(() => {
-    if (viewDistributorsOpen || createDistributorOpen) return 'distributors';
+    if (viewDistributorsOpen || createDistributorOpen || viewBranchesOpen
+        || createBranchOpen || viewAgentsOpen || networkMenuOpen) return 'distributor-network';
     if (viewEmployersOpen || createEmployerOpen) return 'employers';
     if (viewTicketsOpen) return 'tickets';
     if (viewReportsOpen) return 'reports';
-    if (commissionsOpen) return 'commissions';
     if (settingsOpen) return 'settings';
-    if (branchMenuOpen) return 'branches';
-    if (agentMenuOpen) return 'agents';
-    if (subscriberMenuOpen) return 'subscribers';
+    if (viewSubscribersOpen) return 'subscribers';
     return 'overview';
   }, [
-    viewDistributorsOpen, createDistributorOpen, viewEmployersOpen, createEmployerOpen,
-    viewTicketsOpen, viewReportsOpen, commissionsOpen, settingsOpen,
-    branchMenuOpen, agentMenuOpen, subscriberMenuOpen,
+    viewDistributorsOpen, createDistributorOpen, viewBranchesOpen, createBranchOpen,
+    viewAgentsOpen, networkMenuOpen, viewEmployersOpen, createEmployerOpen,
+    viewTicketsOpen, viewReportsOpen, settingsOpen, viewSubscribersOpen,
   ]);
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
 
-  const panelClosedAt = useRef(0);
-  const prevBranchPanel = useRef(false);
-  const prevAgentPanel = useRef(false);
-  const prevSubscriberPanel = useRef(false);
-
-  useEffect(() => {
-    const wasBranchOpen = prevBranchPanel.current;
-    const wasAgentOpen = prevAgentPanel.current;
-    const wasSubscriberOpen = prevSubscriberPanel.current;
-    const isBranchOpen = createBranchOpen || viewBranchesOpen;
-    const isAgentOpen = viewAgentsOpen;
-    const isSubscriberOpen = viewSubscribersOpen;
-    prevBranchPanel.current = isBranchOpen;
-    prevAgentPanel.current = isAgentOpen;
-    prevSubscriberPanel.current = isSubscriberOpen;
-    if ((wasBranchOpen && !isBranchOpen) || (wasAgentOpen && !isAgentOpen) || (wasSubscriberOpen && !isSubscriberOpen)) {
-      panelClosedAt.current = Date.now();
-    }
-  }, [createBranchOpen, viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen]);
-
-  const anyMenuOpen = branchMenuOpen || agentMenuOpen || subscriberMenuOpen || moreOpen;
+  const anyMenuOpen = networkMenuOpen || moreOpen;
   useEffect(() => {
     if (!anyMenuOpen) return;
     const handler = () => {
       if (moreOpen) closeMore();
-      if (Date.now() - panelClosedAt.current >= 500) {
-        if (branchMenuOpen && !createBranchOpen && !viewBranchesOpen) setBranchMenuOpen(false);
-        if (agentMenuOpen && !viewAgentsOpen) setAgentMenuOpen(false);
-        if (subscriberMenuOpen && !viewSubscribersOpen) setSubscriberMenuOpen(false);
-      }
+      // The network flyout is a launcher (a child click already closes it), so an
+      // outside click closes it.
+      if (networkMenuOpen) setNetworkMenuOpen(false);
     };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
-  }, [anyMenuOpen, moreOpen, closeMore, branchMenuOpen, agentMenuOpen, subscriberMenuOpen, createBranchOpen, viewBranchesOpen, viewAgentsOpen, viewSubscribersOpen, setBranchMenuOpen, setAgentMenuOpen, setSubscriberMenuOpen]);
+  }, [anyMenuOpen, moreOpen, closeMore, networkMenuOpen]);
 
   function handleClick(id) {
     setMoreOpen(false);
 
-    // Admin-exclusive panels (Distributors / Employers). Collapse the reused
-    // distributor-shell panels + submenus so only one slide-in shows at a time.
-    if (id === 'distributors' || id === 'employers') {
-      setBranchMenuOpen(false);
-      setAgentMenuOpen(false);
-      setSubscriberMenuOpen(false);
+    // Distributor Network group — toggle the flyout. Close sibling surfaces, but
+    // NOT the group's own child panels (those are reachable from the flyout).
+    if (id === 'distributor-network') {
+      setViewSubscribersOpen(false);
+      setViewEmployersOpen(false);
+      setCreateEmployerOpen(false);
       setViewReportsOpen(false);
-      setCommissionsOpen(false);
       setViewTicketsOpen(false);
       setSettingsOpen(false);
-      if (id === 'distributors') {
-        setViewEmployersOpen(false);
-        setCreateEmployerOpen(false);
-        setViewDistributorsOpen(true);
-      } else {
-        setViewDistributorsOpen(false);
-        setCreateDistributorOpen(false);
-        setViewEmployersOpen(true);
-      }
+      setNetworkMenuOpen((prev) => !prev);
       return;
     }
 
-    // Any reused-shell action closes the admin panels first.
-    adminCloseAllPanels();
+    // Employers (its own channel) — open the admin Employers panel, close the
+    // network group + every other entity view.
+    if (id === 'employers') {
+      setNetworkMenuOpen(false);
+      setViewSubscribersOpen(false);
+      setViewReportsOpen(false);
+      setViewTicketsOpen(false);
+      setSettingsOpen(false);
+      setViewDistributorsOpen(false);
+      setCreateDistributorOpen(false);
+      setViewBranchesOpen(false);
+      setCreateBranchOpen(false);
+      setViewAgentsOpen(false);
+      setViewEmployersOpen(true);
+      return;
+    }
 
-    if (id === 'branches') {
-      setAgentMenuOpen(false);
-      setSubscriberMenuOpen(false);
-      setViewReportsOpen(false);
-      setCommissionsOpen(false);
-      setViewTicketsOpen(false);
-      setBranchMenuOpen((prev) => !prev);
-      return;
-    }
-    if (id === 'agents') {
-      setBranchMenuOpen(false);
-      setSubscriberMenuOpen(false);
-      setViewReportsOpen(false);
-      setCommissionsOpen(false);
-      setViewTicketsOpen(false);
-      setAgentMenuOpen((prev) => !prev);
-      return;
-    }
+    // Any other action closes the group flyout + every entity panel first.
+    setNetworkMenuOpen(false);
+    adminCloseAllPanels(); // distributor + employer admin panels
+    setViewBranchesOpen(false);
+    setCreateBranchOpen(false);
+    setViewAgentsOpen(false);
+
+    // Subscribers — open the manager directly (no intermediate menu), mirroring
+    // how Employers opens its panel.
     if (id === 'subscribers') {
-      setBranchMenuOpen(false);
-      setAgentMenuOpen(false);
       setViewReportsOpen(false);
-      setCommissionsOpen(false);
       setViewTicketsOpen(false);
-      setSubscriberMenuOpen((prev) => !prev);
+      setViewSubscribersOpen(true);
       return;
     }
-    setBranchMenuOpen(false);
-    setAgentMenuOpen(false);
-    setSubscriberMenuOpen(false);
+
+    // Everything below leaves the subscriber view; close it.
+    setViewSubscribersOpen(false);
     if (id === 'settings') {
       setViewReportsOpen(false);
-      setCommissionsOpen(false);
       setViewTicketsOpen(false);
       setSettingsOpen(true);
       return;
@@ -397,48 +330,41 @@ export default function AdminSidebar() {
       setViewTicketsOpen(false);
       reset();
     }
-    if (id === 'commissions') {
-      setViewReportsOpen(false);
-      setViewTicketsOpen(false);
-      setCommissionsOpen(true);
-      return;
-    }
     if (id === 'reports') {
-      setCommissionsOpen(false);
       setViewTicketsOpen(false);
       setViewReportsOpen(true);
       return;
     }
     if (id === 'tickets') {
       setViewReportsOpen(false);
-      setCommissionsOpen(false);
       setViewTicketsOpen(true);
       return;
     }
     setViewReportsOpen(false);
-    setCommissionsOpen(false);
     setViewTicketsOpen(false);
   }
 
-  function handleBranchSub(subId) {
-    if (subId === 'view-branches') {
-      setCreateBranchOpen(false);
+  // A Distributor Network child opens its view-only manager panel, exclusive
+  // within the group, and closes the launcher flyout.
+  function handleNetworkSub(subId) {
+    adminCloseAllPanels(); // distributor + employer admin panels
+    setCreateBranchOpen(false);
+    setViewBranchesOpen(false);
+    setViewAgentsOpen(false);
+    setViewSubscribersOpen(false);
+    setViewReportsOpen(false);
+    setViewTicketsOpen(false);
+    setSettingsOpen(false);
+    if (subId === 'distributor') {
+      setViewDistributorsOpen(true);
+    } else if (subId === 'branches') {
       setDrillTargetBranchId(null);
       setViewBranchesOpen(true);
-    }
-  }
-
-  function handleAgentSub(subId) {
-    if (subId === 'view-agents') {
+    } else if (subId === 'agents') {
       setDrillTargetAgentId(null);
       setViewAgentsOpen(true);
     }
-  }
-
-  function handleSubscriberSub(subId) {
-    if (subId === 'view-subscribers') {
-      setViewSubscribersOpen(true);
-    }
+    setNetworkMenuOpen(false);
   }
 
   return (
@@ -457,17 +383,15 @@ export default function AdminSidebar() {
             <button
               className={styles.navBtn}
               data-active={active === item.id}
-              onClick={(e) => { if (item.id === 'branches' || item.id === 'agents' || item.id === 'subscribers') e.stopPropagation(); handleClick(item.id); }}
+              onClick={(e) => { if (item.id === 'distributor-network') e.stopPropagation(); handleClick(item.id); }}
               onMouseEnter={() => setHovered(item.id)}
               onMouseLeave={() => setHovered(null)}
               title={item.label}
               aria-label={item.label}
-              {...(item.id === 'branches' ? { 'aria-expanded': branchMenuOpen } : {})}
-              {...(item.id === 'agents' ? { 'aria-expanded': agentMenuOpen } : {})}
-              {...(item.id === 'subscribers' ? { 'aria-expanded': subscriberMenuOpen } : {})}
+              {...(item.id === 'distributor-network' ? { 'aria-expanded': networkMenuOpen } : {})}
             >
               <span className={styles.iconWrap}>{item.icon}</span>
-              {hovered === item.id && !branchMenuOpen && !agentMenuOpen && !subscriberMenuOpen && (
+              {hovered === item.id && !networkMenuOpen && (
                 <motion.span
                   className={styles.tooltip}
                   initial={{ opacity: 0, x: -4 }}
@@ -479,10 +403,10 @@ export default function AdminSidebar() {
               )}
             </button>
 
-            {/* Branch submenu flyout */}
-            {item.id === 'branches' && (
+            {/* Distributor Network group flyout — Distributors / Branches / Agents */}
+            {item.id === 'distributor-network' && (
               <AnimatePresence>
-                {branchMenuOpen && (
+                {networkMenuOpen && (
                   <motion.div
                     className={styles.subMenu}
                     initial={{ opacity: 0, x: -8, scale: 0.96 }}
@@ -493,18 +417,21 @@ export default function AdminSidebar() {
                   >
                     <span className={styles.subMenuArrow} />
                     <div className={styles.subMenuHeader}>
-                      <span className={styles.subMenuTitle}>Branches</span>
-                      <span className={styles.subMenuCount}>{branchCount}</span>
+                      <span className={styles.subMenuTitle}>Distributor Network</span>
                     </div>
                     <div className={styles.subMenuDivider} />
-                    {BRANCH_SUB.map((sub, i) => {
-                      const isActive = sub.id === 'view-branches' && viewBranchesOpen;
+                    {NETWORK_SUB.map((sub, i) => {
+                      const isActive = (sub.id === 'distributor' && viewDistributorsOpen)
+                        || (sub.id === 'branches' && viewBranchesOpen)
+                        || (sub.id === 'agents' && viewAgentsOpen);
+                      const count = sub.id === 'distributor' ? distributorCount
+                        : sub.id === 'branches' ? branchCount : agentCount;
                       return (
                         <motion.button
                           key={sub.id}
                           className={styles.subMenuItem}
                           data-active={isActive}
-                          onClick={() => handleBranchSub(sub.id)}
+                          onClick={() => handleNetworkSub(sub.id)}
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.2, delay: 0.06 * (i + 1), ease: EASE_OUT_EXPO }}
@@ -514,92 +441,7 @@ export default function AdminSidebar() {
                             <span className={styles.subMenuLabel}>{sub.label}</span>
                             <span className={styles.subMenuDesc}>{sub.desc}</span>
                           </div>
-                        </motion.button>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            )}
-
-            {/* Agent submenu flyout */}
-            {item.id === 'agents' && (
-              <AnimatePresence>
-                {agentMenuOpen && (
-                  <motion.div
-                    className={styles.subMenu}
-                    initial={{ opacity: 0, x: -8, scale: 0.96 }}
-                    animate={{ opacity: 1, x: 0, scale: 1 }}
-                    exit={{ opacity: 0, x: -8, scale: 0.96 }}
-                    transition={{ duration: 0.22, ease: EASE_OUT_EXPO }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <span className={styles.subMenuArrow} />
-                    <div className={styles.subMenuHeader}>
-                      <span className={styles.subMenuTitle}>Agents</span>
-                      <span className={styles.subMenuCount}>{agentCount}</span>
-                    </div>
-                    <div className={styles.subMenuDivider} />
-                    {AGENT_SUB.map((sub, i) => {
-                      const isActive = sub.id === 'view-agents' && viewAgentsOpen;
-                      return (
-                        <motion.button
-                          key={sub.id}
-                          className={styles.subMenuItem}
-                          data-active={isActive}
-                          onClick={() => handleAgentSub(sub.id)}
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.2, delay: 0.06 * (i + 1), ease: EASE_OUT_EXPO }}
-                        >
-                          <span className={styles.subMenuIcon}>{sub.icon}</span>
-                          <div className={styles.subMenuText}>
-                            <span className={styles.subMenuLabel}>{sub.label}</span>
-                            <span className={styles.subMenuDesc}>{sub.desc}</span>
-                          </div>
-                        </motion.button>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            )}
-
-            {/* Subscriber submenu flyout */}
-            {item.id === 'subscribers' && (
-              <AnimatePresence>
-                {subscriberMenuOpen && (
-                  <motion.div
-                    className={styles.subMenu}
-                    initial={{ opacity: 0, x: -8, scale: 0.96 }}
-                    animate={{ opacity: 1, x: 0, scale: 1 }}
-                    exit={{ opacity: 0, x: -8, scale: 0.96 }}
-                    transition={{ duration: 0.22, ease: EASE_OUT_EXPO }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <span className={styles.subMenuArrow} />
-                    <div className={styles.subMenuHeader}>
-                      <span className={styles.subMenuTitle}>Subscribers</span>
-                      <span className={styles.subMenuCount}>{subscriberCount}</span>
-                    </div>
-                    <div className={styles.subMenuDivider} />
-                    {SUBSCRIBER_SUB.map((sub, i) => {
-                      const isActive = sub.id === 'view-subscribers' && viewSubscribersOpen;
-                      return (
-                        <motion.button
-                          key={sub.id}
-                          className={styles.subMenuItem}
-                          data-active={isActive}
-                          onClick={() => handleSubscriberSub(sub.id)}
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.2, delay: 0.06 * (i + 1), ease: EASE_OUT_EXPO }}
-                        >
-                          <span className={styles.subMenuIcon}>{sub.icon}</span>
-                          <div className={styles.subMenuText}>
-                            <span className={styles.subMenuLabel}>{sub.label}</span>
-                            <span className={styles.subMenuDesc}>{sub.desc}</span>
-                          </div>
+                          <span className={styles.subMenuCount} style={{ marginLeft: 'auto' }}>{count}</span>
                         </motion.button>
                       );
                     })}
@@ -646,7 +488,7 @@ export default function AdminSidebar() {
             key={item.id}
             className={styles.mobileBtn}
             data-active={active === item.id}
-            onClick={() => handleClick(item.id)}
+            onClick={(e) => { if (item.id === 'distributor-network') e.stopPropagation(); handleClick(item.id); }}
             aria-label={item.label}
           >
             <span className={styles.iconWrap}>{item.icon}</span>

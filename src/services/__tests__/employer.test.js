@@ -85,6 +85,23 @@ describe('employer service — real (Supabase) branch', () => {
     });
   });
 
+  describe('setEmployerStatus → set_employer_status (admin, 0060)', () => {
+    it('passes p_employer_id / p_status and returns the detach summary', async () => {
+      supabaseMock.__queueRpc('set_employer_status', {
+        data: { id: 'emp-001', status: 'inactive', membersDetached: 16 }, error: null,
+      });
+      const res = await svc.setEmployerStatus('emp-001', 'inactive');
+      expect(res).toEqual({ id: 'emp-001', status: 'inactive', membersDetached: 16 });
+      const call = supabaseMock.__getRpcCalls('set_employer_status').at(-1);
+      expect(call.args.p_employer_id).toBe('emp-001');
+      expect(call.args.p_status).toBe('inactive');
+    });
+    it('throws on RPC error', async () => {
+      supabaseMock.__queueRpc('set_employer_status', { data: null, error: { message: 'permission denied' } });
+      await expect(svc.setEmployerStatus('emp-001', 'inactive')).rejects.toMatchObject({ message: 'permission denied' });
+    });
+  });
+
   describe('getEmployees → subscribers WHERE employer_id', () => {
     it('selects subscribers filtered by employer_id and maps the member shape', async () => {
       supabaseMock.__queueFrom('subscribers', {

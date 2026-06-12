@@ -17,9 +17,24 @@
 
 .head {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 var(--space-5) var(--space-2);
+}
+
+/* Title + role badge sit on one row; the subtitle drops below (matches the
+   mobile Settings hero, which carries the same "Manage your profile…" line). */
+.headTop {
+  display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: 0 var(--space-5) var(--space-2);
+}
+
+.subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  margin: 0;
 }
 
 .title {

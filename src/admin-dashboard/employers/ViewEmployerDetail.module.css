@@ -1,0 +1,303 @@
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  Admin Employer DETAIL body — mirrors the branch detail design language       */
+/*  (ViewBranches.module.css): status badge + glass KPI grid + glass contact /   */
+/*  info cards + a polished member roster. Panel chrome (backdrop / panel /       */
+/*  header / body scroll) stays in the shared adminPanels.module.css; this module */
+/*  owns only the detail body so it can't collide with that file's .row /         */
+/*  .statusPill / .metric / .list rules.                                          */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Body wrapper — NO padding: the surrounding adminPanels `.body` already pads
+   and owns the scroll. We only stack + space the sections here. */
+.detailContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ── Status badge ──────────────────────────────────────────────────────────── */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 0.3rem 0.75rem;
+  border-radius: var(--radius-full);
+  width: fit-content;
+}
+
+.statusBadge[data-status='active'] {
+  background: rgba(46, 139, 87, 0.08);
+  color: var(--color-status-good);
+}
+
+.statusBadge[data-status='inactive'] {
+  background: rgba(220, 53, 69, 0.08);
+  color: var(--color-status-poor);
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.statusDot[data-status='good'] {
+  background: var(--color-status-good);
+  box-shadow: 0 0 6px rgba(46, 139, 87, 0.4);
+}
+
+.statusDot[data-status='poor'] {
+  background: var(--color-status-poor);
+  box-shadow: 0 0 6px rgba(220, 53, 69, 0.4);
+}
+
+/* ── KPI row (2×2) ─────────────────────────────────────────────────────────── */
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+}
+
+/* ── Section containers ────────────────────────────────────────────────────── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-indigo);
+  letter-spacing: -0.02em;
+}
+
+/* ── Contact card (glass) ──────────────────────────────────────────────────── */
+.adminCard {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78) 0%, rgba(246, 247, 251, 0.72) 100%);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-top-color: rgba(255, 255, 255, 0.85);
+  border-left-color: rgba(255, 255, 255, 0.75);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  box-shadow:
+    0 2px 8px color-mix(in srgb, var(--color-indigo) 4%, transparent),
+    0 1px 0 rgba(255, 255, 255, 0.6) inset;
+}
+
+.adminAvatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-soft) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--color-indigo) 20%, transparent);
+}
+
+.adminDetails {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.adminName {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-slate);
+  letter-spacing: -0.01em;
+}
+
+.adminRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+}
+
+.adminRowIcon {
+  display: flex;
+  color: var(--color-indigo-soft);
+  opacity: 0.6;
+}
+
+.adminRowText {
+  color: var(--color-slate);
+  font-weight: 500;
+  word-break: break-word;
+}
+
+/* ── Info card (Scheme Summary) ────────────────────────────────────────────── */
+.infoCard {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78) 0%, rgba(246, 247, 251, 0.72) 100%);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-top-color: rgba(255, 255, 255, 0.85);
+  border-left-color: rgba(255, 255, 255, 0.75);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow:
+    0 2px 8px color-mix(in srgb, var(--color-indigo) 4%, transparent),
+    0 1px 0 rgba(255, 255, 255, 0.6) inset;
+}
+
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-indigo) 5%, transparent);
+}
+
+.infoRow:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.infoLabel {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.infoValue {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  font-weight: 500;
+  text-align: right;
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Member roster (presentational glass rows) ─────────────────────────────── */
+.memberList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.memberItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-top-color: rgba(255, 255, 255, 0.75);
+  border-radius: var(--radius-md);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.72) 0%, rgba(246, 247, 251, 0.65) 100%);
+  backdrop-filter: blur(8px);
+  box-shadow:
+    0 1px 4px color-mix(in srgb, var(--color-indigo) 4%, transparent),
+    0 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+
+.memberAvatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-soft) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-indigo) 18%, transparent);
+}
+
+.memberInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.memberName {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-slate);
+  letter-spacing: -0.01em;
+}
+
+.memberMeta {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 2px;
+}
+
+.memberStatus {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.memberStatus[data-status='active'] {
+  background: var(--color-status-good);
+}
+
+.memberStatus[data-status='inactive'] {
+  background: var(--color-status-poor);
+}
+
+.memberValue {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-indigo);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* ── Mobile ────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .adminCard {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}

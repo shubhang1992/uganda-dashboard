@@ -1,7 +1,9 @@
 import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { useCurrentEntity, useChildren, useTopBranch, useSearch, useEntityMetrics, useChildrenMetrics } from '../../hooks/useEntity';
+import { useDataScope } from '../../contexts/DataScopeContext';
+import { SCOPES } from '../../constants/scopes';
+import { useCurrentEntity, useChildren, useTopBranch, useSearch, useEntityMetrics, useChildrenMetrics, useEmployerGeoRollup } from '../../hooks/useEntity';
 import { useEntityCommissionSummary } from '../../hooks/useCommission';
 import { CHILD_LEVEL } from '../../constants/levels';
 import { EASE_OUT_EXPO as EASE } from '../../utils/motion';
@@ -275,10 +277,14 @@ const StarIcon = () => (
   </svg>
 );
 
-export function TimePeriodCard({ metrics, level, parentId, onMetricClick }) {
+export function TimePeriodCard({ metrics, level, parentId, onMetricClick, topEntity, topEntityLabel = 'Top Branch' }) {
   const [activeIdx, setActiveIdx] = useState(2); // default: This Month
   const period = PERIODS[activeIdx].key;
+  // `topEntity` (employer scope) overrides the distributor top-branch lookup. The
+  // employer caller passes null level/parentId so this admin query stays disabled.
   const { data: topBranch } = useTopBranch(level, parentId);
+  const topPerformer = topEntity !== undefined ? topEntity : topBranch;
+  const isCustomTop = topEntity !== undefined;
 
   const data = {
     today: {
@@ -355,11 +361,11 @@ export function TimePeriodCard({ metrics, level, parentId, onMetricClick }) {
             change={d.withdrawChange}
             onClick={onMetricClick ? () => onMetricClick('withdrawals-payouts') : undefined}
           />
-          {topBranch && (
+          {topPerformer && (
             <MetricRow
               variant="branch" icon={<StarIcon />}
-              value={topBranch.name} label={`Top Branch · ${formatUGX(topBranch.contribution)}`}
-              onClick={onMetricClick ? () => onMetricClick('branch-performance') : undefined}
+              value={topPerformer.name} label={`${topEntityLabel} · ${formatUGX(topPerformer.contribution)}`}
+              onClick={!isCustomTop && onMetricClick ? () => onMetricClick('branch-performance') : undefined}
             />
           )}
         </motion.div>
@@ -368,7 +374,103 @@ export function TimePeriodCard({ metrics, level, parentId, onMetricClick }) {
   );
 }
 
-export default function OverlayPanel() {
+/**
+ * District-level Branches | Employers bifurcation (admin data-scope only). Reuses
+ * the TimePeriodCard tab chrome (`.periodTab`) inside a fill section so it slots
+ * into the panel's scroll area. Branches tab = the drillable agent-tree branches;
+ * Employers tab = the per-district employer leaf list (terminal — not drillable).
+ */
+function DistrictBifurcation({ branches, employers, getBranchSubCount, onDrillBranch, onEmployerSelect, expanded, onExpandToggle }) {
+  const [activeIdx, setActiveIdx] = useState(0); // default: Branches
+  const TABS = [
+    { key: 'branches', label: 'Branches', count: branches.length },
+    { key: 'employers', label: 'Employers', count: employers.length },
+  ];
+  const active = TABS[activeIdx].key;
+
+  return (
+    <div className={styles.section} data-fill="true" data-expanded={expanded ? 'true' : undefined}>
+      <div className={styles.sectionHeader} data-static="true">
+        <div className={styles.bifurcationTabs} role="tablist">
+          {TABS.map((t, i) => (
+            <button
+              key={t.key}
+              className={styles.periodTab}
+              data-active={i === activeIdx}
+              role="tab"
+              aria-selected={i === activeIdx}
+              onClick={() => setActiveIdx(i)}
+            >
+              {t.label} ({t.count})
+            </button>
+          ))}
+        </div>
+        {onExpandToggle && (
+          <button
+            className={styles.expandBtn}
+            onClick={onExpandToggle}
+            aria-label={expanded ? 'Collapse list' : 'Expand list'}
+            aria-pressed={!!expanded}
+          >
+            <ExpandIcon expanded={expanded} />
+          </button>
+        )}
+      </div>
+      <div className={styles.sectionBody}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={active}
+            className={styles.entityList}
+            initial={{ opacity: 0, x: activeIdx ? 8 : -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: activeIdx ? -8 : 8 }}
+            transition={{ duration: 0.15, ease: EASE }}
+          >
+            {active === 'branches' ? (
+              branches.map((child) => {
+                const isChildActive = child.active !== false;
+                return (
+                  <button key={child.id} className={styles.entityBtn} data-inactive={!isChildActive} onClick={() => onDrillBranch(child.id)}>
+                    <div className={styles.statusRow}>
+                      <span className={styles.statusLabel}>{child.name}</span>
+                      {isChildActive ? (
+                        <span className={styles.statusCount}>{formatNumber(getBranchSubCount(child))} subscribers</span>
+                      ) : (
+                        <span className={styles.inactiveTag}>Inactive</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })
+            ) : employers.length > 0 ? (
+              employers.map((emp) => (
+                onEmployerSelect ? (
+                  <button key={emp.id} className={styles.entityBtn} onClick={() => onEmployerSelect(emp.id)}>
+                    <div className={styles.statusRow}>
+                      <span className={styles.employerName}>{emp.name}</span>
+                      <span className={styles.statusCount}>{formatNumber(emp.subscribers)} subscribers</span>
+                    </div>
+                  </button>
+                ) : (
+                  <div key={emp.id} className={styles.employerRow}>
+                    <div className={styles.statusRow}>
+                      <span className={styles.employerName}>{emp.name}</span>
+                      <span className={styles.statusCount}>{formatNumber(emp.subscribers)} subscribers</span>
+                    </div>
+                  </div>
+                )
+              ))
+            ) : (
+              <div className={styles.emptyHint}>No employers in this district</div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+export default function OverlayPanel({ onEmployerSelect } = {}) {
   const isMobile = useIsMobile();
   const { level, selectedIds, drillDown, drillUp, reset, branchMenuOpen, agentMenuOpen, subscriberMenuOpen, setViewReportsOpen, setReportContext, setCommissionsOpen } = useDashboard();
   const [listExpanded, setListExpanded] = useState(false);
@@ -392,6 +494,24 @@ export default function OverlayPanel() {
     () => children.map((c) => ({ ...c, metrics: childrenMetrics[c.id] ?? c.metrics })),
     [children, childrenMetrics],
   );
+
+  // Admin data-scope filter. `employerAware` is false outside the admin shell (no
+  // DataScopeProvider) — so the distributor role keeps today's Branches-only list
+  // and never fires the admin-only employer query (enabled === false).
+  const { scope, employerAware } = useDataScope();
+  const { data: geo } = useEmployerGeoRollup(employerAware);
+  const districtGeo = useMemo(() => geo?.byDistrict ?? {}, [geo]);
+
+  // Per-child subscriber count, re-scoped by the filter. Employer geography only
+  // exists for region-level children (districts); for every other level / the
+  // distributor scope this is just the distributor agent-tree count (unchanged).
+  const childSubCount = useCallback((child) => {
+    const dist = child.metrics?.totalSubscribers || 0;
+    const emp = displayLevel === 'region' ? (districtGeo[child.id]?.subscribers ?? 0) : 0;
+    if (scope === SCOPES.DISTRIBUTORS) return dist;
+    if (scope === SCOPES.EMPLOYERS) return emp;
+    return dist + emp;
+  }, [scope, displayLevel, districtGeo]);
 
   const openReport = useCallback((reportId) => {
     setReportContext(reportId);
@@ -437,7 +557,21 @@ export default function OverlayPanel() {
     return null;
   }
 
-  const isInactive = currentEntity.active === false;
+  // Employer geography for the CURRENT entity (admin region/district drill only).
+  // Powers the scope-aware hero AUM + adaptive counts row below. Null for the
+  // distributor role (employerAware false), so its hero/counts stay unchanged.
+  const empGeo = !employerAware ? null
+    : displayLevel === 'region'   ? geo?.byRegion?.[parentId]
+    : displayLevel === 'district' ? geo?.byDistrict?.[parentId]
+    : null;
+
+  const rawInactive = currentEntity.active === false;
+  // A distributor-inactive district that nonetheless has employers should still
+  // render (employer accounts live outside the agent tree) — but only under the
+  // admin Employers/All scope.
+  const isInactive = rawInactive
+    && !(employerAware && scope !== SCOPES.DISTRIBUTORS && (empGeo?.employers ?? 0) > 0);
+
   // Metrics priority:
   //   1. entityMetrics — live RPC rollup from get_entity_metrics_rollup
   //   2. currentEntity.metrics — mock seed (full) or EMPTY_METRICS (Supabase)
@@ -450,6 +584,29 @@ export default function OverlayPanel() {
     ? { ...baseMetrics, ...entityMetrics }
     : baseMetrics;
   const aum = metrics ? (metrics.aum || metrics.totalContributions) : 0;
+
+  // ── Admin scope-derived hero/counts values (gated on employerAware) ─────────
+  // Distributor totals come from the agent-tree rollup; employer totals from the
+  // geo rollup. The filter picks distributor / employer / sum. Contributions,
+  // withdrawals, agents, branches, coverage have NO employer equivalent.
+  const distSubs = metrics?.totalSubscribers || 0;
+  const distActiveCount = Math.round(distSubs * ((metrics?.activeRate || 0) / 100));
+  const empSubs = empGeo?.subscribers ?? 0;
+  const empActiveCount = empGeo?.active ?? 0;
+  const empCount = empGeo?.employers ?? 0;
+  const isEmpScope = scope === SCOPES.EMPLOYERS;
+  const isDistScope = scope === SCOPES.DISTRIBUTORS;
+  const scopedSubs = isDistScope ? distSubs : isEmpScope ? empSubs : distSubs + empSubs;
+  const scopedActiveCount = isDistScope ? distActiveCount : isEmpScope ? empActiveCount : distActiveCount + empActiveCount;
+  const scopedAum = isDistScope ? (metrics?.aum || 0) : isEmpScope ? (empGeo?.aum ?? 0) : (metrics?.aum || 0) + (empGeo?.aum ?? 0);
+  const scopedActiveRate = scopedSubs > 0 ? Math.round((scopedActiveCount / scopedSubs) * 100) : 0;
+  // Hero AUM + activity bar inputs — scope-aware for admin, untouched otherwise.
+  const heroAum = employerAware ? scopedAum : aum;
+  const barSubs = employerAware ? scopedSubs : (metrics?.totalSubscribers || 0);
+  const barActiveRate = employerAware ? scopedActiveRate : (metrics?.activeRate || 0);
+  // Hide the contributions/withdrawals footer under the Employers scope (no
+  // employer per-region contribution figures exist).
+  const showMoneyFooter = !employerAware || scope !== SCOPES.EMPLOYERS;
 
   // Slide is driven by CSS `transform: translateX(...)` (GPU-accelerated) on
   // the `.panel` class via a `data-offset` attribute; previously this animated
@@ -504,7 +661,7 @@ export default function OverlayPanel() {
               </div>
             )}
             <div className={styles.heroTop}>
-              <span className={styles.aumValue}>{formatUGX(aum)}</span>
+              <span className={styles.aumValue}>{formatUGX(heroAum)}</span>
               <span className={styles.aumLabel}>Assets Under Management</span>
               {entityMetricsError && (
                 <span className={styles.metricsErrorBadge} role="status">
@@ -512,56 +669,102 @@ export default function OverlayPanel() {
                 </span>
               )}
             </div>
-            <div className={styles.heroStats}>
-              <div className={styles.stat}>
-                <span className={styles.statNum}>{formatUGX(metrics.totalContributions)}</span>
-                <span className={styles.statLabel}>Contributions</span>
+            {showMoneyFooter && (
+              <div className={styles.heroStats}>
+                <div className={styles.stat}>
+                  <span className={styles.statNum}>{formatUGX(metrics.totalContributions)}</span>
+                  <span className={styles.statLabel}>Contributions</span>
+                </div>
+                <div className={styles.statDivider} />
+                <div className={styles.stat}>
+                  <span className={styles.statNum}>{formatUGX(metrics.totalWithdrawals)}</span>
+                  <span className={styles.statLabel}>Withdrawals</span>
+                </div>
               </div>
-              <div className={styles.statDivider} />
-              <div className={styles.stat}>
-                <span className={styles.statNum}>{formatUGX(metrics.totalWithdrawals)}</span>
-                <span className={styles.statLabel}>Withdrawals</span>
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* Entity counts + activity bar */}
+          {/* Entity counts + activity bar. The admin drill (employerAware) re-frames
+              the tiles per the data-scope filter; the distributor role + the
+              Distributors scope keep today's Subscribers/Agents/Branches/Coverage. */}
           <div className={styles.countsBlock}>
             <div className={styles.countRow}>
-              <button className={styles.countItem} data-clickable onClick={() => openReport('all-subscribers')}>
-                <span className={styles.countNum}>{formatNumber(metrics.totalSubscribers || 0)}</span>
-                <span className={styles.countLabel}>Subscribers</span>
-              </button>
-              <button className={styles.countItem} data-clickable onClick={() => openReport('all-agents')}>
-                <span className={styles.countNum}>{metrics.totalAgents ?? 0}</span>
-                <span className={styles.countLabel}>Agents</span>
-              </button>
-              <button className={styles.countItem} data-clickable onClick={() => openReport('all-branches')}>
-                <span className={styles.countNum}>{metrics.totalBranches ?? 0}</span>
-                <span className={styles.countLabel}>Branches</span>
-              </button>
-              <div className={styles.countItem}>
-                <span className={styles.countNum}>{metrics.coverageRate || 0}%</span>
-                <span className={styles.countLabel}>Coverage</span>
-              </div>
+              {(!employerAware || isDistScope) ? (
+                <>
+                  <button className={styles.countItem} data-clickable onClick={() => openReport('all-subscribers')}>
+                    <span className={styles.countNum}>{formatNumber(metrics.totalSubscribers || 0)}</span>
+                    <span className={styles.countLabel}>Subscribers</span>
+                  </button>
+                  <button className={styles.countItem} data-clickable onClick={() => openReport('all-agents')}>
+                    <span className={styles.countNum}>{metrics.totalAgents ?? 0}</span>
+                    <span className={styles.countLabel}>Agents</span>
+                  </button>
+                  <button className={styles.countItem} data-clickable onClick={() => openReport('all-branches')}>
+                    <span className={styles.countNum}>{metrics.totalBranches ?? 0}</span>
+                    <span className={styles.countLabel}>Branches</span>
+                  </button>
+                  <div className={styles.countItem}>
+                    <span className={styles.countNum}>{metrics.coverageRate || 0}%</span>
+                    <span className={styles.countLabel}>Coverage</span>
+                  </div>
+                </>
+              ) : isEmpScope ? (
+                <>
+                  <div className={styles.countItem}>
+                    <span className={styles.countNum}>{formatNumber(empCount)}</span>
+                    <span className={styles.countLabel}>Employers</span>
+                  </div>
+                  <button className={styles.countItem} data-clickable onClick={() => openReport('all-subscribers')}>
+                    <span className={styles.countNum}>{formatNumber(scopedSubs)}</span>
+                    <span className={styles.countLabel}>Subscribers</span>
+                  </button>
+                  <div className={styles.countItem}>
+                    <span className={styles.countNum}>{scopedActiveRate}%</span>
+                    <span className={styles.countLabel}>Active</span>
+                  </div>
+                  <div className={styles.countItem}>
+                    <span className={styles.countNum}>{formatUGX(scopedAum)}</span>
+                    <span className={styles.countLabel}>AUM</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button className={styles.countItem} data-clickable onClick={() => openReport('all-subscribers')}>
+                    <span className={styles.countNum}>{formatNumber(scopedSubs)}</span>
+                    <span className={styles.countLabel}>Subscribers</span>
+                  </button>
+                  <div className={styles.countItem}>
+                    <span className={styles.countNum}>{formatNumber(empCount)}</span>
+                    <span className={styles.countLabel}>Employers</span>
+                  </div>
+                  <button className={styles.countItem} data-clickable onClick={() => openReport('all-branches')}>
+                    <span className={styles.countNum}>{metrics.totalBranches ?? 0}</span>
+                    <span className={styles.countLabel}>Branches</span>
+                  </button>
+                  <div className={styles.countItem}>
+                    <span className={styles.countNum}>{scopedActiveRate}%</span>
+                    <span className={styles.countLabel}>Active</span>
+                  </div>
+                </>
+              )}
             </div>
             <div className={styles.activityInline}>
               <div className={styles.activityBarTrack}>
-                <div className={styles.activityBarFill} style={{ width: `${metrics.activeRate}%` }} />
+                <div className={styles.activityBarFill} style={{ width: `${barActiveRate}%` }} />
               </div>
               <div className={styles.activityLabels}>
                 <span className={styles.activityActive}>
-                  {formatNumber((metrics.totalSubscribers || 0) * (metrics.activeRate / 100))} active
+                  {formatNumber(barSubs * (barActiveRate / 100))} active
                 </span>
                 <span className={styles.activityInactive}>
-                  {formatNumber((metrics.totalSubscribers || 0) * ((100 - metrics.activeRate) / 100))} inactive
+                  {formatNumber(barSubs * ((100 - barActiveRate) / 100))} inactive
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Commission summary */}
-          {commissionSummary && commissionSummary.countTotal > 0 && (
+          {/* Commission summary — distributor role only; removed from the admin drill. */}
+          {!employerAware && commissionSummary && commissionSummary.countTotal > 0 && (
             <button className={styles.commissionBlock} onClick={() => setCommissionsOpen(true)}>
               <div className={styles.commissionHeader}>
                 <span className={styles.commissionTitle}>Commissions</span>
@@ -586,9 +789,11 @@ export default function OverlayPanel() {
 
           {/* Time-period highlights: Today / This Week / This Month.
               Animates out when the child list is expanded so the list can
-              absorb the freed vertical space. */}
+              absorb the freed vertical space. Hidden under the admin Employers
+              scope — the series is distributor agent-tree data (no employer
+              time-series), matching the country card. */}
           <AnimatePresence initial={false}>
-            {!listExpanded && (
+            {!listExpanded && !(employerAware && isEmpScope) && (
               <motion.div
                 key="period-card"
                 initial={{ opacity: 0, height: 0, marginTop: 0 }}
@@ -602,36 +807,54 @@ export default function OverlayPanel() {
             )}
           </AnimatePresence>
 
-          {/* Region/child list */}
-          {childrenWithMetrics.length > 0 && nextLevel && (
-            <CollapsibleSection
-              title={LEVEL_LABELS[nextLevel] || 'Items'}
-              count={childrenWithMetrics.length}
-              defaultOpen={false}
-              fill
+          {/* District drill-down (admin): always-on Branches | Employers bifurcation
+              so employer accounts — which live outside the agent→branch tree — are
+              visible at the district level. Clicking an employer opens its detail
+              panel (employers are a terminal leaf — no further map drill). */}
+          {displayLevel === 'district' && employerAware && nextLevel ? (
+            <DistrictBifurcation
+              key={`bifurcation-${parentId}`}
+              branches={childrenWithMetrics}
+              employers={districtGeo[parentId]?.list ?? []}
+              getBranchSubCount={childSubCount}
+              onDrillBranch={(id) => drillDown(nextLevel, id)}
+              onEmployerSelect={onEmployerSelect}
               expanded={listExpanded}
               onExpandToggle={() => setListExpanded((v) => !v)}
-              key={`children-${displayLevel}-${parentId}`}
-            >
-              <div className={styles.entityList}>
-                {childrenWithMetrics.map((child) => {
-                  const isChildActive = child.active !== false;
-                  const subCount = child.metrics?.totalSubscribers || 0;
-                  return (
-                    <button key={child.id} className={styles.entityBtn} data-inactive={!isChildActive} onClick={() => drillDown(nextLevel, child.id)}>
-                      <div className={styles.statusRow}>
-                        <span className={styles.statusLabel}>{child.name}</span>
-                        {isChildActive ? (
-                          <span className={styles.statusCount}>{formatNumber(subCount)} subscribers</span>
-                        ) : (
-                          <span className={styles.inactiveTag}>No branches</span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </CollapsibleSection>
+            />
+          ) : (
+            /* Region/child list — per-child count re-scoped (district children merge
+               employer geography; distributor scope / other levels are unchanged). */
+            childrenWithMetrics.length > 0 && nextLevel && (
+              <CollapsibleSection
+                title={LEVEL_LABELS[nextLevel] || 'Items'}
+                count={childrenWithMetrics.length}
+                defaultOpen={false}
+                fill
+                expanded={listExpanded}
+                onExpandToggle={() => setListExpanded((v) => !v)}
+                key={`children-${displayLevel}-${parentId}`}
+              >
+                <div className={styles.entityList}>
+                  {childrenWithMetrics.map((child) => {
+                    const isChildActive = child.active !== false;
+                    const subCount = childSubCount(child);
+                    return (
+                      <button key={child.id} className={styles.entityBtn} data-inactive={!isChildActive} onClick={() => drillDown(nextLevel, child.id)}>
+                        <div className={styles.statusRow}>
+                          <span className={styles.statusLabel}>{child.name}</span>
+                          {isChildActive ? (
+                            <span className={styles.statusCount}>{formatNumber(subCount)} subscribers</span>
+                          ) : (
+                            <span className={styles.inactiveTag}>No branches</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </CollapsibleSection>
+            )
           )}
           </>}
     </motion.div>

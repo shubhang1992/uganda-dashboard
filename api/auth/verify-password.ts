@@ -28,6 +28,10 @@ import {
   resolveSubscriber,
 } from './_lib/personas.js';
 import { buildAuthResponseDto, buildJwtClaims } from './_lib/claims.js';
+import {
+  isEntityDeactivated,
+  ACCOUNT_DEACTIVATED_RESPONSE,
+} from './_lib/entity-status.js';
 
 const VALID_ROLES = new Set<JwtRole>([
   'subscriber',
@@ -160,6 +164,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       entityId = resolved.entityId;
       name = resolved.name;
+    }
+
+    // Enforce deactivation AFTER the bcrypt compare above — a wrong password on
+    // a deactivated account still returns 401 invalid_password; only a CORRECT
+    // password on a deactivated distributor / branch / agent / employer reaches
+    // here and is turned away with 403. Shared with verify-otp via
+    // `_lib/entity-status.ts`; non-fatal on lookup error / missing row.
+    if (await isEntityDeactivated(supabaseAdmin, typedRole, entityId)) {
+      res.status(403).json(ACCOUNT_DEACTIVATED_RESPONSE);
+      return;
     }
 
     await touchLastLogin(canonicalPhone, typedRole);

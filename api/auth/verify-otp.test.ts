@@ -560,6 +560,127 @@ describe('POST /api/auth/verify-otp', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Deactivation gate (H1) — a deactivated agent / branch / distributor /
+  // employer cannot authenticate. Subscriber + admin are never gated. The gate
+  // adds a `.from(<entityTable>).select('status').eq('id',…).maybeSingle()`
+  // call after identity resolution; we queue its result per entity table.
+  // -------------------------------------------------------------------------
+
+  it.each([
+    ['agent', 'a-001', 'agents'],
+    ['branch', 'b-kam-015', 'branches'],
+    ['distributor', 'd-001', 'distributors'],
+    ['employer', 'emp-001', 'employers'],
+  ] as const)(
+    'returns 403 account_deactivated for an inactive %s',
+    async (role, fallbackId, entityTable) => {
+      // demo_personas miss → fallback id; the entity status row is inactive.
+      queueFrom('demo_personas', { data: null, error: null });
+      queueFrom(entityTable, { data: { status: 'inactive' }, error: null });
+
+      await call(
+        makeReq({
+          body: { phone: '+256700000001', otp: '123456', role },
+        }),
+        res,
+      );
+      expect(res.__getStatus(), `${role}/${fallbackId}`).toBe(403);
+      expect(res.__getPayload()).toEqual({
+        code: 'account_deactivated',
+        message:
+          'This account has been deactivated. Please contact support to reactivate it.',
+      });
+      // Gate fires before the users upsert — no JWT minted for a blocked login.
+      expect(signJwtMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it('proceeds to 200 when the entity status is active', async () => {
+    queueFrom('demo_personas', {
+      data: { entity_id: 'a-042', label: 'Active Agent' },
+      error: null,
+    });
+    queueFrom('agents', { data: { status: 'active' }, error: null });
+    queueFrom('users', { data: { password_hash: null }, error: null });
+
+    await call(
+      makeReq({
+        body: { phone: '+256777247884', otp: '123456', role: 'agent' },
+      }),
+      res,
+    );
+    expect(res.__getStatus()).toBe(200);
+    expect((res.__getPayload() as { user: { agentId: string } }).user.agentId).toBe('a-042');
+  });
+
+  it('never gates a subscriber (no entity status lookup blocks it)', async () => {
+    // No `subscribers`-table status row is queued; the gate must not block.
+    queueFrom('subscribers', {
+      data: { id: 's-0001', name: 'Brian' },
+      error: null,
+    });
+    queueFrom('users', { data: { password_hash: null }, error: null });
+
+    await call(
+      makeReq({
+        body: { phone: '+256777247884', otp: '123456', role: 'subscriber' },
+      }),
+      res,
+    );
+    expect(res.__getStatus()).toBe(200);
+    expect((res.__getPayload() as { user: { subscriberId: string } }).user.subscriberId).toBe('s-0001');
+  });
+
+  it('never gates an admin (admin has no status concept)', async () => {
+    queueFrom('demo_personas', { data: null, error: null });
+    queueFrom('users', { data: { password_hash: null }, error: null });
+
+    await call(
+      makeReq({
+        body: { phone: '+256700000001', otp: '123456', role: 'admin' },
+      }),
+      res,
+    );
+    expect(res.__getStatus()).toBe(200);
+    expect((res.__getPayload() as { user: { adminId: string } }).user.adminId).toBe('admin-001');
+  });
+
+  it('treats a status-lookup error as non-fatal (login proceeds, 200)', async () => {
+    queueFrom('demo_personas', { data: null, error: null });
+    // A real Supabase error on the status read must NOT block the demo login.
+    queueFrom('distributors', {
+      data: null,
+      error: { code: '42501', message: 'permission denied' },
+    });
+    queueFrom('users', { data: { password_hash: null }, error: null });
+
+    await call(
+      makeReq({
+        body: { phone: '+256700000001', otp: '123456', role: 'distributor' },
+      }),
+      res,
+    );
+    expect(res.__getStatus()).toBe(200);
+    expect((res.__getPayload() as { user: { distributorId: string } }).user.distributorId).toBe('d-001');
+  });
+
+  it('treats a missing entity row (maybeSingle null) as non-fatal (200)', async () => {
+    queueFrom('demo_personas', { data: null, error: null });
+    // No row for the fallback id — must not block (data: null, error: null).
+    queueFrom('agents', { data: null, error: null });
+    queueFrom('users', { data: { password_hash: null }, error: null });
+
+    await call(
+      makeReq({
+        body: { phone: '+256700000001', otp: '123456', role: 'agent' },
+      }),
+      res,
+    );
+    expect(res.__getStatus()).toBe(200);
+    expect((res.__getPayload() as { user: { agentId: string } }).user.agentId).toBe('a-001');
+  });
+
+  // -------------------------------------------------------------------------
   // DB error on the users upsert → 500 db_error (opaque; no leaked DB detail).
   // -------------------------------------------------------------------------
 

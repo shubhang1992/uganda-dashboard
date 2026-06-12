@@ -131,37 +131,89 @@ export const MEMBERS = Object.freeze([
   makeMember({ id: 'empe-014', name: 'Diana Nabirye', phone: '+256700100014', email: 'diana.nabirye@nilebreweries.demo', gender: 'female', age: 28, nin: 'CF28030055667N', occupation: 'Lab Analyst', monthlyContribution: 90000, monthsActive: 10, joinedDate: dateDaysAgo(300) }),
   makeMember({ id: 'empe-015', name: 'Robert Ssempala', phone: '+256700100015', email: 'robert.ssempala@nilebreweries.demo', gender: 'male', age: 55, nin: 'CM55020077889O', occupation: 'Warehouse Hand', monthlyContribution: 60000, monthsActive: 36, status: 'suspended', joinedDate: dateDaysAgo(1700) }),
   makeMember({ id: 'empe-016', name: 'Juliet Akello', phone: '+256700100016', email: 'juliet.akello@nilebreweries.demo', gender: 'female', age: 30, nin: 'CF30070099001P', occupation: 'Customer Service', monthlyContribution: 70000, monthsActive: 8, joinedDate: dateDaysAgo(240) }),
+  // Recent hires (`recentHire`) — drive the admin Employers-scope "New Members"
+  // today/week/month trend. Anchored to _demo_now() (2026-05-18) via days-ago-from-
+  // MOCK_NOW (MOCK_NOW = _demo_now + 8d): day 8 = today/this-week, 12 = last week,
+  // 21 = earlier this month, 41 = last month. monthsActive:1 → a small starting
+  // balance. EXCLUDED from the back-dated contribution history (ACTIVE_MEMBERS
+  // filter) so they have no transactions pre-dating their join.
+  makeMember({ id: 'empe-017', name: 'Aisha Nakimuli', phone: '+256700100017', email: 'aisha.nakimuli@nilebreweries.demo', gender: 'female', age: 26, nin: 'CF26010044556Q', occupation: 'Junior Accountant', monthlyContribution: 75000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(8) }),
+  makeMember({ id: 'empe-018', name: 'Tom Bwambale', phone: '+256700100018', email: 'tom.bwambale@nilebreweries.demo', gender: 'male', age: 23, nin: 'CM23050066778R', occupation: 'Machine Operator', monthlyContribution: 60000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(8) }),
+  makeMember({ id: 'empe-019', name: 'Grace Apio', phone: '+256700100019', email: 'grace.apio@nilebreweries.demo', gender: 'female', age: 29, nin: 'CF29080011223S', occupation: 'Quality Inspector', monthlyContribution: 85000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(12) }),
+  makeMember({ id: 'empe-020', name: 'Daniel Okot', phone: '+256700100020', email: 'daniel.okot@nilebreweries.demo', gender: 'male', age: 34, nin: 'CM34030099001T', occupation: 'Shift Supervisor', monthlyContribution: 110000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(21) }),
+  makeMember({ id: 'empe-021', name: 'Lydia Nansubuga', phone: '+256700100021', email: 'lydia.nansubuga@nilebreweries.demo', gender: 'female', age: 27, nin: 'CF27110033445U', occupation: 'Logistics Clerk', monthlyContribution: 70000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(41) }),
 ]);
 
-const ACTIVE_MEMBERS = MEMBERS.filter((m) => m.status === 'active');
+// Recent hires are excluded from the back-dated contribution history below — they
+// have no transactions pre-dating their join (their balance is the monthsActive:1
+// starting amount). They still count toward headcount / active / AUM / New Members.
+const ACTIVE_MEMBERS = MEMBERS.filter((m) => m.status === 'active' && !m.recentHire);
 
 // ─── Member contribution transactions (own + employer history) ───────────────
-// A compact 3-month history per active member: their own monthly saving and the
-// employer match, so the member detail + subscriber dashboard show both sources.
+// A recent contribution history per active member: their own monthly saving + the
+// employer match. The trends RPCs anchor on the FROZEN public._demo_now()
+// (2026-05-18), so the sample dates are EXPLICIT UTC dates landing in those
+// windows — NOT isoDaysAgo, whose MOCK_NOW + local-timezone basis shifts the UTC
+// calendar day across machines (it dropped the "today" sample to 05-17 on a
+// UTC+5:30 host). Windows: 05-18 = today + this week, 05-14 = last week, 05-05 =
+// earlier this month, 04-15 = last month, 03-15 = two months ago. Midday (T12:00Z)
+// keeps date_trunc('day') timezone-stable. The employer match posts the SAME day
+// as the own contribution (one payroll run); contribution_run_id is null (the runs
+// history is seeded separately).
+const SAMPLE_DATES = ['2026-05-18', '2026-05-14', '2026-05-05', '2026-04-15', '2026-03-15'];
+const atMidday = (d) => `${d}T12:00:00.000Z`;
+
 function buildMemberTransactions() {
   const txns = [];
   ACTIVE_MEMBERS.forEach((m) => {
-    [25, 55, 85].forEach((daysAgo, i) => {
+    SAMPLE_DATES.forEach((d, i) => {
       const own = round(m.monthlyContribution);
       txns.push({
         id: `t-own-${m.id}-${i + 1}`, subscriberId: m.id, type: 'contribution', source: 'own',
-        amount: own, date: isoDaysAgo(daysAgo), method: 'MTN Mobile Money',
+        amount: own, date: atMidday(d), method: 'MTN Mobile Money',
         retirementAmount: round(own * 0.8), emergencyAmount: own - round(own * 0.8), contributionRunId: null,
       });
       const emp = employerMatch(m.monthlyContribution);
       if (emp > 0) {
         txns.push({
           id: `t-emp-${m.id}-${i + 1}`, subscriberId: m.id, type: 'contribution', source: 'employer',
-          amount: emp, date: isoDaysAgo(daysAgo - 1), method: 'Bank transfer',
-          retirementAmount: round(emp * 0.8), emergencyAmount: emp - round(emp * 0.8),
-          contributionRunId: `run-00${3 - i}`,
+          amount: emp, date: atMidday(d), method: 'Bank transfer',
+          retirementAmount: round(emp * 0.8), emergencyAmount: emp - round(emp * 0.8), contributionRunId: null,
         });
       }
     });
   });
   return txns;
 }
-export const MEMBER_TRANSACTIONS = Object.freeze(buildMemberTransactions());
+
+// ─── Member withdrawals ──────────────────────────────────────────────────────
+// A handful of withdrawals (negative amount, source 'own') on high-balance members
+// so the Employers-scope Withdrawals trend is non-zero with finite deltas. Days
+// chosen for: today/this-week (8), last week (12 → prev-week delta), this month
+// (21), last month (41 → prev-month delta). Each is ≪ the member's balance, and —
+// matching the platform's stock/flow model (AUM is the authored balance snapshot;
+// withdrawals are an independent flow, exactly like the 5k-subscriber seed) — these
+// do NOT mutate subscriber_balances.
+function buildMemberWithdrawals() {
+  const wd = (id, subscriberId, amount, dateStr, method) => ({
+    id, subscriberId, type: 'withdrawal', source: 'own', amount: -Math.abs(amount),
+    date: atMidday(dateStr), method,
+    retirementAmount: -round(Math.abs(amount) * 0.8),
+    emergencyAmount: -(Math.abs(amount) - round(Math.abs(amount) * 0.8)),
+    contributionRunId: null,
+  });
+  return [
+    wd('t-wd-empe-001-1', 'empe-001', 150000, '2026-05-18', 'MTN Mobile Money'), // today + this week
+    wd('t-wd-empe-008-1', 'empe-008', 60000,  '2026-05-14', 'MTN Mobile Money'), // last week  (prev-week delta)
+    wd('t-wd-empe-005-1', 'empe-005', 120000, '2026-05-05', 'Bank transfer'),    // this month
+    wd('t-wd-empe-003-1', 'empe-003', 90000,  '2026-04-15', 'MTN Mobile Money'), // last month (prev-month delta)
+  ];
+}
+
+export const MEMBER_TRANSACTIONS = Object.freeze([
+  ...buildMemberTransactions(),
+  ...buildMemberWithdrawals(),
+]);
 
 // ─── Employer contribution runs (history headers) ────────────────────────────
 // Each monthly run posts the employer match to every active member.

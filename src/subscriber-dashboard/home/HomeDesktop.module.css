@@ -1,0 +1,104 @@
+/* HomeDesktop — >=1024px subscriber Home tab-root.
+   Renders inside SubscriberDesktopShell's centred wide .page column (max-width
+   1240px, horizontal padding already applied by the shell), so this module only
+   owns vertical rhythm, the KPI tile row, and the reused-widget grid. Mirrors
+   the agent HomeDesktop module. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-8) 0;
+}
+
+/* ── Heading (plain h1 — tab-root, no back, no hero dome) ─────────────── */
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-indigo-soft);
+  margin: 0;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+  margin: 0;
+}
+
+.subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  margin: 0;
+}
+
+/* ── Metric tile row (4 across on desktop) ───────────────────────────────
+   The indigo PRIMARY balance tile leads, then three accent-railed supporting
+   tiles. Drops to 2-up if the column narrows so tiles wrap rather than crush;
+   at that width the primary tile spans the full row to keep its emphasis. */
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+@media (max-width: 1160px) {
+  .kpiRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .primaryTile {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ── Widget grid (reuses the shipped Home widgets) ───────────────────────
+   2-up base. Full-width rows (TopUp action bar, Co-Pilot, Employer benefits)
+   span both columns; Policies + Activity pair on the final row. Each cell is a
+   flex column so the paired cards grow to align bottoms. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+@media (max-width: 1160px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.grid > * {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.grid > * > * {
+  flex: 1 1 auto;
+}
+
+.slotFull {
+  grid-column: 1 / -1;
+}
+
+/* Heading line inside the balance growth InfoTip bubble. */
+.tipHead {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 2px;
+}

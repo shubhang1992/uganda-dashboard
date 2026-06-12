@@ -1,10 +1,12 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 
 import { useDashboard } from '../contexts/DashboardContext';
 import { useAdminPanel } from '../contexts/AdminPanelContext';
-import { usePlatformOverview, useEntityMetrics, useChildren, useChildrenMetrics } from '../hooks/useEntity';
-import { useEntityCommissionSummary } from '../hooks/useCommission';
+import { useDataScope } from '../contexts/DataScopeContext';
+import { SCOPES } from '../constants/scopes';
+import { usePlatformOverview, useEntityMetrics, useChildren, useChildrenMetrics, useEmployerGeoRollup, useEmployerActivityRollup } from '../hooks/useEntity';
+import { PillChip, PillChipGroup } from '../components/PillChip';
 // Reuse the distributor overlay's polished sub-components (search, trends,
 // collapsible list) + its CSS so the admin Summary card is pixel-identical and
 // fits the same fixed-height panel — only the metrics are re-framed for admin.
@@ -14,6 +16,11 @@ import { formatUGX, formatNumber } from '../utils/currency';
 import ov from '../dashboard/overlay/OverlayPanel.module.css';
 import styles from './AdminCountryOverview.module.css';
 
+// Scoped money: render a legitimate 0 as "UGX 0" (not the "—" that compact
+// formatUGX returns for non-positive values — correct for a never-zero hero AUM,
+// but wrong for a scoped metric, e.g. employer withdrawals, that is honestly 0).
+const money0 = (n) => (Number(n) > 0 ? formatUGX(n) : 'UGX 0');
+
 /**
  * Admin country-level Summary card. Replaces the distributor OverlayPanel at
  * level==='country' so the admin sees a TRUE platform picture:
@@ -21,28 +28,54 @@ import styles from './AdminCountryOverview.module.css';
  *     5,000-vs-5,017 undercount (the country rollup walks the agent tree only);
  *   - leads with Distributors + Employers (the admin's domain), not agents/branches.
  * Layout mirrors the distributor card's footprint (header, hero, one counts row +
- * activity bar, a thin meta line, commissions, trends, regions) so it fits the
+ * activity bar, a thin meta line, trends, regions) so it fits the
  * fixed-height `.panel` without clipping. Deeper drill (region→agent) still uses
  * the distributor OverlayPanel.
  */
 export default function AdminCountryOverview() {
-  const { drillDown, setViewReportsOpen, setReportContext, setCommissionsOpen } = useDashboard();
+  const { drillDown, setViewReportsOpen, setReportContext } = useDashboard();
   const { setViewDistributorsOpen, setViewEmployersOpen } = useAdminPanel();
+  const { scope, setScope } = useDataScope();
 
   const { data: overview, isError } = usePlatformOverview();
   // Country rollup still powers the Today/Week/Month trend card + per-region counts.
   const { data: periodMetrics } = useEntityMetrics('country', 'ug');
   const { data: regions = [] } = useChildren('country', 'ug');
   const { data: regionMetrics = {} } = useChildrenMetrics('country', 'ug');
-  const { data: commissionSummary } = useEntityCommissionSummary('country', 'ug');
+  // Employer-channel geography — merged into the per-region counts under the
+  // Employers / All scopes (the distributor rollup above excludes employer subs).
+  const { data: geo } = useEmployerGeoRollup();
+  // Employer-channel Today/Week/Month activity — only fetched under the Employers
+  // scope (where the trends strip swaps to it). 0059, admin-gated.
+  const { data: employerActivity } = useEmployerActivityRollup(scope === SCOPES.EMPLOYERS);
 
   const o = overview ?? {};
-  const total = o.totalSubscribers ?? 0;
+  // Channel headcounts — drive the acquisition card (shown only in the ALL scope).
   const viaDist = o.subscribersViaDistributor ?? 0;
   const viaEmp = o.subscribersViaEmployer ?? 0;
   const direct = o.subscribersDirect ?? 0;
-  const active = o.activeSubscribers ?? 0;
-  const inactive = o.inactiveSubscribers ?? 0;
+
+  // Headline metrics re-scoped by the filter: ALL = platform totals; Distributors /
+  // Employers = the matching byChannel slice (zeros until the RPC resolves). Derives
+  // from the stable `overview` query result (not the per-render `o`/`ch` literals).
+  const scoped = useMemo(() => {
+    const ovr = overview ?? {};
+    const byCh = ovr.byChannel ?? {};
+    if (scope === SCOPES.DISTRIBUTORS) return byCh.distributor ?? {};
+    if (scope === SCOPES.EMPLOYERS) return byCh.employer ?? {};
+    return {
+      subscribers: ovr.totalSubscribers,
+      active: ovr.activeSubscribers,
+      inactive: ovr.inactiveSubscribers,
+      aum: ovr.aum,
+      contributions: ovr.totalContributions,
+      withdrawals: ovr.totalWithdrawals,
+    };
+  }, [scope, overview]);
+
+  const total = scoped.subscribers ?? 0;
+  const active = scoped.active ?? 0;
+  const inactive = scoped.inactive ?? 0;
   const activeRate = total > 0 ? Math.round((active / total) * 100) : 0;
 
   const openReport = useCallback((reportId) => {
@@ -65,21 +98,30 @@ export default function AdminCountryOverview() {
         <GlobalSearch onNavigate={handleSearchNavigate} />
       </div>
 
+      {/* Data-scope filter — re-scopes every headline metric below + the per-region
+          counts (and the map drill-down's district list counts) by acquisition
+          channel. All = distributor + employer combined. */}
+      <PillChipGroup label="Data scope" layout="row" className={styles.scopeFilter}>
+        <PillChip selected={scope === SCOPES.ALL} onClick={() => setScope(SCOPES.ALL)}>All data</PillChip>
+        <PillChip selected={scope === SCOPES.DISTRIBUTORS} onClick={() => setScope(SCOPES.DISTRIBUTORS)}>Distributors</PillChip>
+        <PillChip selected={scope === SCOPES.EMPLOYERS} onClick={() => setScope(SCOPES.EMPLOYERS)}>Employers</PillChip>
+      </PillChipGroup>
+
       {/* AUM hero (platform-wide) */}
       <div className={ov.hero}>
         <div className={ov.heroTop}>
-          <span className={ov.aumValue}>{formatUGX(o.aum ?? 0)}</span>
+          <span className={ov.aumValue}>{money0(scoped.aum ?? 0)}</span>
           <span className={ov.aumLabel}>Assets Under Management</span>
           {isError && <span className={ov.metricsErrorBadge} role="status">Metrics unavailable</span>}
         </div>
         <div className={ov.heroStats}>
           <div className={ov.stat}>
-            <span className={ov.statNum}>{formatUGX(o.totalContributions ?? 0)}</span>
+            <span className={ov.statNum}>{money0(scoped.contributions ?? 0)}</span>
             <span className={ov.statLabel}>Contributions</span>
           </div>
           <div className={ov.statDivider} />
           <div className={ov.stat}>
-            <span className={ov.statNum}>{formatUGX(o.totalWithdrawals ?? 0)}</span>
+            <span className={ov.statNum}>{money0(scoped.withdrawals ?? 0)}</span>
             <span className={ov.statLabel}>Withdrawals</span>
           </div>
         </div>
@@ -117,63 +159,68 @@ export default function AdminCountryOverview() {
         </div>
       </div>
 
-      {/* Thin meta line: subscriber acquisition channels + network size. Makes the
-          employer share explicit (the 5,000-vs-5,017 fix) in one compact row. */}
-      <div className={styles.metaLine}>
-        <span className={styles.metaItem}>
-          <span className={styles.metaDot} data-kind="dist" />
-          <strong>{formatNumber(viaDist)}</strong> via distributors
-        </span>
-        <span className={styles.metaItem}>
-          <span className={styles.metaDot} data-kind="emp" />
-          <strong>{formatNumber(viaEmp)}</strong> via employers
-        </span>
-        {direct > 0 && (
-          <span className={styles.metaItem}>
-            <span className={styles.metaDot} data-kind="direct" />
-            <strong>{formatNumber(direct)}</strong> direct
-          </span>
-        )}
-        <span className={styles.metaSep}>·</span>
-        <span className={styles.metaItem}>{formatNumber(o.agents ?? 0)} agents</span>
-        <span className={styles.metaItem}>{formatNumber(o.branches ?? 0)} branches</span>
-      </div>
-
-      {/* Commissions (platform-wide) */}
-      {commissionSummary && commissionSummary.countTotal > 0 && (
-        <button className={ov.commissionBlock} onClick={() => setCommissionsOpen(true)}>
-          <div className={ov.commissionHeader}>
-            <span className={ov.commissionTitle}>Commissions</span>
-            <span className={ov.commissionRate}>{commissionSummary.settlementRate}% settled</span>
-          </div>
-          <div className={ov.commissionBar}>
-            <div className={ov.commissionBarFill} data-status="settled" style={{ flex: commissionSummary.countPaid }} />
-            <div className={ov.commissionBarFill} data-status="due" style={{ flex: commissionSummary.countDue }} />
-          </div>
-          <div className={ov.commissionStats}>
-            <span className={ov.commissionStat}>
-              <span className={ov.commissionDot} data-status="settled" />
-              {formatUGX(commissionSummary.totalPaid)}
+      {/* Subscriber acquisition channels — a curved stat card mirroring the
+          counts block (display number + micro uppercase label, hairline
+          dividers) with a per-channel colour dot. Makes the employer share
+          explicit (the 5,000-vs-5,017 fix). Shown only in the All-data scope —
+          under a single-channel scope the headline already represents it. */}
+      {scope === SCOPES.ALL && (
+        <div className={styles.channelCard}>
+          <div className={styles.channel}>
+            <span className={styles.channelValue}>
+              <span className={styles.channelDot} data-kind="dist" />
+              <span className={styles.channelNum}>{formatNumber(viaDist)}</span>
             </span>
-            <span className={ov.commissionStat}>
-              <span className={ov.commissionDot} data-status="due" />
-              {formatUGX(commissionSummary.totalDue)}
-            </span>
+            <span className={styles.channelLabel}>via distributors</span>
           </div>
-        </button>
+          <div className={styles.channel}>
+            <span className={styles.channelValue}>
+              <span className={styles.channelDot} data-kind="emp" />
+              <span className={styles.channelNum}>{formatNumber(viaEmp)}</span>
+            </span>
+            <span className={styles.channelLabel}>via employers</span>
+          </div>
+          {direct > 0 && (
+            <div className={styles.channel}>
+              <span className={styles.channelValue}>
+                <span className={styles.channelDot} data-kind="direct" />
+                <span className={styles.channelNum}>{formatNumber(direct)}</span>
+              </span>
+              <span className={styles.channelLabel}>direct</span>
+            </div>
+          )}
+        </div>
       )}
 
-      {/* Today / Week / Month trends */}
-      {periodMetrics && (
-        <TimePeriodCard metrics={periodMetrics} level="country" parentId="ug" onMetricClick={openReport} />
-      )}
+      {/* Today / Week / Month trends. Distributor / All scopes use the agent-tree
+          country series + Top Branch. The Employers scope swaps in the employer-
+          channel series (0059) + Top Employer (rows non-clickable — the drill-down
+          reports are distributor-oriented). */}
+      {scope === SCOPES.EMPLOYERS
+        ? employerActivity && (
+            <TimePeriodCard
+              metrics={employerActivity}
+              level={null}
+              parentId={null}
+              topEntity={employerActivity.topEmployer ?? null}
+              topEntityLabel="Top Employer"
+            />
+          )
+        : periodMetrics && (
+            <TimePeriodCard metrics={periodMetrics} level="country" parentId="ug" onMetricClick={openReport} />
+          )}
 
-      {/* Geographic distribution — distributor network by region (drill-down) */}
+      {/* Geographic distribution by region (drill-down). Per-region count is
+          re-scoped: distributor rollup, employer geo rollup, or their sum. */}
       {regions.length > 0 && (
         <CollapsibleSection title="Regions" count={regions.length} defaultOpen={false} fill>
           <div className={ov.entityList}>
             {regions.map((r) => {
-              const subs = regionMetrics[r.id]?.totalSubscribers ?? 0;
+              const distSubs = regionMetrics[r.id]?.totalSubscribers ?? 0;
+              const empSubs = geo?.byRegion?.[r.id]?.subscribers ?? 0;
+              const subs = scope === SCOPES.DISTRIBUTORS ? distSubs
+                : scope === SCOPES.EMPLOYERS ? empSubs
+                : distSubs + empSubs;
               return (
                 <button key={r.id} className={ov.entityBtn} onClick={() => drillDown('region', r.id)}>
                   <div className={ov.statusRow}>

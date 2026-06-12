@@ -337,6 +337,46 @@ export function useCreateEmployer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['allEmployersMetrics'] });
       queryClient.invalidateQueries({ queryKey: ['platformOverview'] });
+      // A new employer shifts the employer geo rollup + the activity strip's
+      // top-employer / counts (Platform Overview scope filter).
+      queryClient.invalidateQueries({ queryKey: ['employerGeoRollup'] });
+      queryClient.invalidateQueries({ queryKey: ['employerActivityRollup'] });
+    },
+  });
+}
+
+/**
+ * Admin: deactivate / reactivate an employer (set_employer_status, 0060). On
+ * 'inactive' the RPC detaches all members (employer_id → NULL, → self-onboarded).
+ * Optimistically patches the admin rollup entry; invalidates every employer +
+ * platform read the detach moves.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useSetEmployerStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }) => employer.setEmployerStatus(id, status),
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['allEmployersMetrics'] });
+      const prevList = queryClient.getQueryData(['allEmployersMetrics']);
+      queryClient.setQueryData(['allEmployersMetrics'], (old) =>
+        Array.isArray(old) ? old.map((e) => (e.id === id ? { ...e, status } : e)) : old,
+      );
+      return { prevList };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prevList !== undefined) {
+        queryClient.setQueryData(['allEmployersMetrics'], ctx.prevList);
+      }
+    },
+    onSettled: (_data, _err, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['allEmployersMetrics'] });
+      queryClient.invalidateQueries({ queryKey: ['platformOverview'] });
+      queryClient.invalidateQueries({ queryKey: ['employerGeoRollup'] });
+      queryClient.invalidateQueries({ queryKey: ['employerActivityRollup'] });
+      queryClient.invalidateQueries({ queryKey: ['employer', id] });
+      queryClient.invalidateQueries({ queryKey: ['employees', id] });
+      queryClient.invalidateQueries({ queryKey: ['employerMetrics', id] });
     },
   });
 }

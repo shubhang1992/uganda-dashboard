@@ -4,15 +4,22 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { formatUGX, formatNumber } from '../../utils/currency';
+import { useAuth } from '../../contexts/AuthContext';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
-import { useAgentSubscribers } from '../../hooks/useAgent';
+import { useEntity } from '../../hooks/useEntity';
+import { useCountUp } from '../../hooks/useCountUp';
+import { useAgentSubscribers, useAgentContributions } from '../../hooks/useAgent';
 import { useAgentCommissionDetail } from '../../hooks/useCommission';
-import { computeAgentHomeSummary } from './agentHomeSummary';
-import KpiCard from '../../dashboard/shared/KpiCard';
-import PortfolioCard from './widgets/PortfolioCard';
-import CommissionsSnapshotCard from './widgets/CommissionsSnapshotCard';
+import {
+  computeAgentHomeSummary,
+  deriveMonthAnchors,
+  isOnboardedSince,
+  pendingContributors,
+  monthRangeIso,
+} from './agentHomeSummary';
+import MetricTile from '../../dashboard/shared/MetricTile';
+import QuickActions from './widgets/QuickActions';
 import CoPilotWidget from './widgets/CoPilotWidget';
-import NotificationCenterCard from '../../components/notifications/NotificationCenterCard';
 import styles from './HomeDesktop.module.css';
 
 const stagger = {
@@ -24,26 +31,20 @@ const item = {
   animate: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE_OUT_EXPO } },
 };
 
-// KPI glyphs. Stroke-only line icons (indigo by default, tinted per-tile by
-// KpiCard's nth-child rules), kept aria-hidden — the visible label carries the
-// meaning. Sized to KpiCard's 34px icon box.
-const SubscribersIcon = (
-  <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
-    <circle cx="7.5" cy="6.5" r="3" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M2 17c0-2.8 2.5-4.5 5.5-4.5S13 14.2 13 17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M14 4.2a3 3 0 010 5.6M15.5 12.6c1.8.5 3 1.9 3 3.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
+function hourGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  return 'evening';
+}
+
+// KPI glyphs — stroke-only line icons, aria-hidden (the label carries meaning),
+// sized to the MetricTile 36px icon chip. One per monthly metric, matching the
+// mobile MonthlyDataCard tiles.
 const VolumeIcon = (
   <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
     <path d="M3 14l4-4 3 3 6-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M16 6h-4M16 6v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const EarnedIcon = (
-  <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
-    <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M12.5 7.5c-.6-.9-1.6-1.3-2.7-1.3-1.5 0-2.6.8-2.6 2 0 2.7 5.4 1.3 5.4 4 0 1.3-1.2 2.1-2.8 2.1-1.2 0-2.2-.4-2.8-1.4M10 5v10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 const OwedIcon = (
@@ -53,76 +54,142 @@ const OwedIcon = (
     <path d="M5.5 10h.01M14.5 10h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
   </svg>
 );
+const OnboardedIcon = (
+  <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
+    <circle cx="8" cy="7" r="3" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M2.5 17c0-2.8 2.4-4.5 5.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M15 11v5M17.5 13.5h-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+const PendingIcon = (
+  <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
+    <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M10 6v4l2.5 1.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+// Primary-tile glyph — a stacked-layers mark reading as "the whole book".
+const PortfolioIcon = (
+  <svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20" fill="none">
+    <path d="M10 2.5l7 3.5-7 3.5-7-3.5 7-3.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M3 10l7 3.5 7-3.5M3 13.5l7 3.5 7-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 /**
  * HomeDesktop — the ≥1024px agent Home tab-root.
  *
- * Tab-root, so the page body owns a PLAIN <h1> (no back chevron, no hero dome —
- * those belong to PageHeader on sub-pages). The desktop top bar renders no <h1>.
+ * Mirrors the SHIPPED MOBILE Home one-for-one so the two viewports never drift:
+ *   • a Total-contributions hero (the desktop equivalent of the PulseCard dome —
+ *     lifetime UGX headline + subscribers · active%),
+ *   • a 4-tile monthly metric row that reproduces MonthlyDataCard EXACTLY —
+ *     same labels, same shared selectors, same drill-down routes (Monthly
+ *     contribution volume → /contributions, Commissions owed → /commissions,
+ *     Onboarded this month → /onboarded-this-month, Yet to contribute →
+ *     /yet-to-contribute),
+ *   • QuickActions (Onboard / View subscribers) and the Co-Pilot — the same
+ *     widgets the mobile Home renders.
  *
- * The shipped mobile Home (HeroCapsule dome + stacked widgets) is left
- * untouched; this is a wider surface: a KPI tile row sourced from the SAME
- * shared selector (computeAgentHomeSummary) the mobile PulseCard reads, so every
- * figure matches the dome, above a responsive grid that REUSES the existing
- * PortfolioCard / CommissionsSnapshotCard / NotificationCenterCard / CoPilotWidget
- * widgets (each owns its own loading state; React Query dedupes the shared
- * fetches across the dome's selector + the reused widgets).
+ * The previous desktop fork showed a different, book-centric metric set
+ * (PortfolioCard "Your subscriber book" + active-vs-dormant, a Commissions
+ * snapshot, a NotificationCenter, and an Earned KPI) that the mobile Home no
+ * longer leads with. This rebuild brings desktop back in line with the phone.
  *
- * NOTE (E2E contract): the KPI label string "Monthly contribution volume" MUST
- * stay present and visible — the smoke spec asserts getByText on it (on mobile
- * it lives on MonthlyDataCard's stat label, since the dome now headlines TOTAL
- * contributions instead).
+ * E2E contract: the KPI label "Monthly contribution volume" MUST stay present —
+ * the agent smoke spec asserts getByText on it at the 1440×900 desktop viewport.
  */
 export default function HomeDesktop() {
   const { agentId } = useAgentScope();
   const reduceMotion = useReducedMotion();
   const itemVariants = reduceMotion ? undefined : item;
 
+  const { user } = useAuth();
+  const { data: agent } = useEntity('agent', agentId);
   const { data: subscribers = [], isLoading: subsLoading } = useAgentSubscribers(agentId);
-  const { data: commissionDetail, isLoading: commLoading } = useAgentCommissionDetail(agentId);
+  const { data: detail } = useAgentCommissionDetail(agentId);
 
-  // Single shared selector — same inputs, same math as the mobile PulseCard, so
-  // the KPI figures equal the dome's. `total`/`monthly`/`commissionsTotal` come
-  // straight from it; `totalDue` mirrors CommissionsSnapshotCard's fallback.
-  const summary = useMemo(
-    () => computeAgentHomeSummary(subscribers, commissionDetail),
-    [subscribers, commissionDetail],
+  // "This month" window derived from the book's latest dates (CLAUDE.md §4 — no
+  // demo-clock import), identical to MonthlyDataCard, so "yet to contribute"
+  // matches the Contributions drill-down exactly.
+  const { onboardStart, contribStart } = useMemo(
+    () => deriveMonthAnchors(subscribers),
+    [subscribers],
   );
+  const range = useMemo(() => monthRangeIso(contribStart), [contribStart]);
+  const { data: contributions = [] } = useAgentContributions(
+    agentId,
+    subscribers.length ? range : {},
+  );
+
+  // All figures share the SAME selectors as the mobile dome + MonthlyDataCard.
+  const summary = useMemo(() => {
+    const { monthly, total, activePct } = computeAgentHomeSummary(subscribers, null);
+    let lifetime = 0;
+    for (const s of subscribers) lifetime += s.totalContributions || 0;
+    const onboardedThisMonth = subscribers.filter((s) => isOnboardedSince(s, onboardStart)).length;
+    const pendingContribution = pendingContributors(subscribers, contributions).length;
+    return { monthly, total, activePct, lifetime, onboardedThisMonth, pendingContribution };
+  }, [subscribers, contributions, onboardStart]);
+
+  // Owed mirrors CommissionsSnapshotCard / MonthlyDataCard's fallback verbatim.
   const totalDue = useMemo(() => {
-    const due = commissionDetail?.dueTransactions || [];
-    return commissionDetail?.totalDue ?? due.reduce((sum, c) => sum + (c.amount || 0), 0);
-  }, [commissionDetail]);
+    const due = detail?.dueTransactions || [];
+    return detail?.totalDue ?? due.reduce((sum, c) => sum + (c.amount || 0), 0);
+  }, [detail]);
 
   const subsResolving = subsLoading && subscribers.length === 0;
-  const commResolving = commLoading && !commissionDetail;
+  const hasLifetime = Number.isFinite(summary.lifetime) && summary.lifetime > 0;
+  const dueCount = (detail?.dueTransactions || []).length;
+  const totalLabel = formatNumber(summary.total);
 
+  // Lifetime count-up for the primary tile — useCountUp returns 0 under reduced
+  // motion (run=false), so snap to the resolved lifetime in that case.
+  const lifetimeCounted = useCountUp(summary.lifetime, 1100, !reduceMotion);
+  const lifetimeDisplay = hasLifetime
+    ? formatUGX(reduceMotion ? summary.lifetime : lifetimeCounted, { compact: false })
+    : '—';
+
+  const firstName = (user?.name || agent?.name || 'there').split(' ')[0];
+  const greeting = `Good ${hourGreeting()}, ${firstName}`;
+
+  // 4 monthly metrics — same labels + drill-down routes as MonthlyDataCard.
+  // Accent is explicit per tile (not :nth-child) because each tile is wrapped in
+  // a <Link>; an explicit accent keeps the tints correct under the wrapper.
   const kpis = [
     {
-      key: 'subscribers',
-      icon: SubscribersIcon,
-      label: 'Subscribers',
-      value: subsResolving ? '—' : formatNumber(summary.total),
-    },
-    {
-      key: 'monthly',
+      key: 'volume',
       icon: VolumeIcon,
-      // EXACT string — E2E contract. Do not reword.
+      accent: 'indigo',
       label: 'Monthly contribution volume',
       value: subsResolving ? '—' : formatUGX(summary.monthly),
-    },
-    {
-      key: 'earned',
-      icon: EarnedIcon,
-      label: 'Earned',
-      value: commResolving ? '—' : formatUGX(summary.commissionsTotal),
-      to: '/dashboard/commissions/earned',
+      context: 'This month',
+      to: '/dashboard/contributions',
     },
     {
       key: 'owed',
       icon: OwedIcon,
-      label: 'Owed',
-      value: commResolving ? '—' : formatUGX(totalDue),
-      to: '/dashboard/commissions/owed',
+      accent: 'teal',
+      label: 'Commissions owed',
+      value: formatUGX(totalDue),
+      context: dueCount > 0 ? `${formatNumber(dueCount)} pending` : 'All settled',
+      to: '/dashboard/commissions',
+    },
+    {
+      key: 'onboarded',
+      icon: OnboardedIcon,
+      accent: 'lavender',
+      label: 'Onboarded this month',
+      value: subsResolving ? '—' : formatNumber(summary.onboardedThisMonth),
+      context: subsResolving ? null : `of ${totalLabel} total`,
+      to: '/dashboard/onboarded-this-month',
+    },
+    {
+      key: 'pending',
+      icon: PendingIcon,
+      accent: 'green',
+      label: 'Yet to contribute',
+      value: subsResolving ? '—' : formatNumber(summary.pendingContribution),
+      context: subsResolving ? null : `of ${totalLabel} total`,
+      to: '/dashboard/yet-to-contribute',
     },
   ];
 
@@ -135,47 +202,57 @@ export default function HomeDesktop() {
     >
       <motion.header variants={itemVariants} className={styles.head}>
         <p className={styles.eyebrow}>Your portfolio</p>
-        <h1 className={styles.title}>Home</h1>
-        <p className={styles.subtitle}>A snapshot of your book, contributions and commissions.</p>
+        <h1 className={styles.title}>{greeting}</h1>
       </motion.header>
 
+      {/* Total-contributions primary tile — the desktop equivalent of the mobile
+          dome: the lifetime UGX headline (count-up) + subscribers · active% row. */}
+      <motion.div variants={itemVariants}>
+        <MetricTile
+          variant="primary"
+          icon={PortfolioIcon}
+          label="Total contributions"
+          value={lifetimeDisplay}
+          statRow={hasLifetime ? (
+            <>
+              <span>
+                <strong>{totalLabel}</strong> subscriber{summary.total === 1 ? '' : 's'}
+              </span>
+              <span className={styles.heroDot} aria-hidden="true" />
+              <span>
+                <strong>{summary.activePct}%</strong> active
+              </span>
+            </>
+          ) : null}
+        />
+      </motion.div>
+
       <motion.div variants={itemVariants} className={styles.kpiRow}>
-        {kpis.map((kpi) =>
-          kpi.to ? (
-            <Link key={kpi.key} to={kpi.to} className={styles.kpiLink}>
-              <KpiCard
-                icon={kpi.icon}
-                label={kpi.label}
-                value={kpi.value}
-                className={styles.kpiTile}
-              />
-            </Link>
-          ) : (
-            <KpiCard
-              key={kpi.key}
+        {kpis.map((kpi) => (
+          <Link
+            key={kpi.key}
+            to={kpi.to}
+            className={styles.kpiLink}
+            aria-label={`${kpi.label}: ${kpi.value}`}
+          >
+            <MetricTile
+              accent={kpi.accent}
               icon={kpi.icon}
               label={kpi.label}
               value={kpi.value}
-              className={styles.kpiTile}
+              context={kpi.context}
             />
-          ),
-        )}
+          </Link>
+        ))}
       </motion.div>
 
-      <div className={styles.grid}>
-        <motion.div variants={itemVariants} className={styles.slotPortfolio}>
-          <PortfolioCard agentId={agentId} />
-        </motion.div>
-        <motion.div variants={itemVariants} className={styles.slotCommissions}>
-          <CommissionsSnapshotCard agentId={agentId} />
-        </motion.div>
-        <motion.div variants={itemVariants} className={styles.slotNotifications}>
-          <NotificationCenterCard role="agent" entityId={agentId} />
-        </motion.div>
-        <motion.div variants={itemVariants} className={styles.slotCopilot}>
-          <CoPilotWidget agentId={agentId} />
-        </motion.div>
-      </div>
+      <motion.div variants={itemVariants} className={styles.slotActions}>
+        <QuickActions />
+      </motion.div>
+
+      <motion.div variants={itemVariants} className={styles.slotCopilot}>
+        <CoPilotWidget agentId={agentId} />
+      </motion.div>
     </motion.div>
   );
 }

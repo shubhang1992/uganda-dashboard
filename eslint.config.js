@@ -50,6 +50,7 @@ export default defineConfig([
           'useDashboard',
           'useDashboardNav',
           'useDashboardPanel',
+          'useDataScope',
           'useEmployerScope',
           'useEmployerPanel',
           'useSignIn',

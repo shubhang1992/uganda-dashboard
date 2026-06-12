@@ -1,0 +1,182 @@
+/* MetricTile — desktop Home metric surfaces (subscriber + agent only).
+   A filled-indigo PRIMARY focal metric and an elevated glass SECONDARY tile with
+   an explicit accent rail. Used ONLY by the two desktop Home roots; the shared
+   KpiCard (every other dashboard) is left exactly as shipped. */
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* ── Secondary: elevated glass + signature left accent rail ─────────────── */
+.secondary {
+  background: linear-gradient(150deg, #fff 0%, var(--color-cloud) 100%);
+  border: 1px solid var(--color-lavender);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--color-indigo) 5%, transparent),
+    0 10px 24px -18px color-mix(in srgb, var(--color-indigo) 32%, transparent);
+  transition: transform 0.2s var(--ease-out-expo), box-shadow 0.2s var(--ease-out-expo);
+}
+
+/* Left accent rail — the tile's signature cue. Decorative (the label/value carry
+   the meaning), so it never stands alone as information. */
+.secondary::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--tile-accent, var(--color-indigo));
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  transition: width 0.2s var(--ease-out-expo);
+}
+
+.secondary:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 2px 4px color-mix(in srgb, var(--color-indigo) 6%, transparent),
+    0 20px 38px -18px color-mix(in srgb, var(--color-indigo) 40%, transparent);
+}
+
+.secondary:hover::before {
+  width: 6px;
+}
+
+/* Accent map — explicit + wrap-order-independent (replaces KpiCard's :nth-child,
+   which the agent <Link> wrappers used to defeat). */
+.accent_indigo {
+  --tile-accent: var(--color-indigo);
+  --tile-tint: 41, 40, 103;
+}
+.accent_teal {
+  --tile-accent: var(--color-teal);
+  --tile-tint: 47, 143, 157;
+}
+.accent_lavender {
+  --tile-accent: var(--color-indigo-soft);
+  --tile-tint: 94, 99, 168;
+}
+.accent_green {
+  --tile-accent: var(--color-green);
+  --tile-tint: 46, 139, 87;
+}
+
+.secondary .iconChip {
+  background: rgba(var(--tile-tint), 0.1);
+  color: var(--tile-accent);
+}
+
+/* ── Primary: filled indigo focal metric ───────────────────────────────── */
+.primary {
+  background: var(--gradient-hero);
+  color: var(--color-white);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Soft corner glow — depth without ornamentation. */
+.glow {
+  position: absolute;
+  top: -45%;
+  right: -18%;
+  width: 60%;
+  height: 150%;
+  background: radial-gradient(circle, rgba(217, 220, 242, 0.22) 0%, transparent 64%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.primary .iconChip {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--color-white);
+}
+
+/* ── Shared inner bits ──────────────────────────────────────────────────── */
+.iconChip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-3);
+}
+
+.label {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 0.4rem;
+}
+.secondary .label {
+  color: var(--color-gray);
+}
+.primary .label {
+  color: var(--color-on-indigo-muted);
+}
+
+.value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.secondary .value {
+  font-size: var(--text-2xl);
+  color: var(--color-indigo);
+}
+.primary .value {
+  font-size: clamp(1.625rem, 2.4vw, 2.375rem);
+  color: var(--color-white);
+  margin-bottom: 2px;
+}
+
+/* Secondary context sub-line — pinned to the bottom so tiles of differing
+   content height align their context to one baseline. */
+.context {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Primary stat row — units · invested · growth (subscriber) or
+   subscribers · active (agent). Mirrors the mobile HeroCapsule statRow. */
+.statRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-on-indigo-muted);
+  font-variant-numeric: tabular-nums;
+}
+.statRow strong {
+  color: var(--color-white);
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .secondary {
+    transition: none;
+  }
+  .secondary:hover {
+    transform: none;
+  }
+  .secondary:hover::before {
+    width: 4px;
+  }
+}

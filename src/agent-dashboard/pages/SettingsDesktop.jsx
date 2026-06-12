@@ -98,8 +98,11 @@ export default function SettingsDesktop() {
   return (
     <div className={styles.page}>
       <header className={styles.head}>
-        <h1 className={styles.title}>Settings</h1>
-        <span className={styles.headBadge}>Agent</span>
+        <div className={styles.headTop}>
+          <h1 className={styles.title}>Settings</h1>
+          <span className={styles.headBadge}>Agent</span>
+        </div>
+        <p className={styles.subtitle}>Manage your profile and security</p>
       </header>
 
       <form className={styles.form} onSubmit={handleSave} noValidate>
