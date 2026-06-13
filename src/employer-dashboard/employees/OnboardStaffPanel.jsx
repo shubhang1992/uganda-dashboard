@@ -193,7 +193,7 @@ export default function OnboardStaffPanel({ splitMode = false }) {
       return { fullName, phone, email, compensation, valid: !error, error };
     });
     if (mapped.length === 0) {
-      setErr('That file had no rows. Use the template’s columns: Full name, Phone, Email.');
+      setErr('That file had no rows. Use the template’s columns: Full name, Phone, Email, Monthly compensation (UGX).');
       return;
     }
     setParsed({ fileName: file.name, rows: mapped });
@@ -341,7 +341,7 @@ export default function OnboardStaffPanel({ splitMode = false }) {
           <>
             <p className={styles.note}>
               Onboard many members at once: download the template, fill one row per member
-              (full name, phone, email), then upload it to review and onboard.
+              (full name, phone, email, monthly compensation), then upload it to review and onboard.
             </p>
             <button type="button" className={styles.outlineBtn} onClick={downloadTemplate}>
               {DownloadIcon}<span>Download Excel template</span>

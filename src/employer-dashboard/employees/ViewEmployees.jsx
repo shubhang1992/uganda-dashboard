@@ -281,7 +281,7 @@ export default function ViewEmployees({ splitMode = false }) {
                 <div className={styles.tableWrap} role="table" aria-label="Member roster">
                   <div className={styles.tableHead} role="row">
                     <span role="columnheader" className={styles.colName}>Member</span>
-                    <span role="columnheader" className={styles.colMode}>Saving / mo</span>
+                    <span role="columnheader" className={styles.colMode}>Compensation / mo</span>
                     <span role="columnheader" className={styles.colSplit}>Joined</span>
                     <span role="columnheader" className={styles.colStatus}>Status</span>
                   </div>
@@ -300,7 +300,7 @@ export default function ViewEmployees({ splitMode = false }) {
                           </button>
                         </span>
                         <span className={styles.colMode} role="cell">
-                          {formatUGX(emp.monthlyContribution, { compact: false })}
+                          {formatUGX(emp.compensation, { compact: false })}
                         </span>
                         <span className={styles.colSplit} role="cell">
                           {emp.joinedDate ? String(emp.joinedDate).slice(0, 10) : '—'}
