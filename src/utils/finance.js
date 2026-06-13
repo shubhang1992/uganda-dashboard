@@ -150,3 +150,59 @@ export function amtToSlider(a, min, max) {
   const lo = Math.log(min), hi = Math.log(max);
   return ((Math.log(Math.max(a, min)) - lo) / (hi - lo)) * 100;
 }
+
+/** Clamp `n` into the inclusive range [lo, hi]. */
+function clamp(n, lo, hi) {
+  return Math.min(hi, Math.max(lo, n));
+}
+
+/** Whole months elapsed since an ISO date string; `fallback` if absent/invalid. */
+function monthsSince(dateStr, fallback) {
+  if (!dateStr) return fallback;
+  const then = new Date(dateStr).getTime();
+  if (Number.isNaN(then)) return fallback;
+  const months = (Date.now() - then) / (1000 * 60 * 60 * 24 * 30.44);
+  return months > 0 ? months : fallback;
+}
+
+/** Small deterministic djb2 string hash, always returned as a non-negative int. */
+function hashString(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i += 1) {
+    h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+  }
+  return h;
+}
+
+/**
+ * Derive a believable "amount invested" + investment growth for a subscriber.
+ *
+ * The demo has no real cost basis — every contribution buys units at the fixed
+ * 1,000 UGX price, so `total_balance` equals total contributed and raw growth is
+ * always zero. To give the dashboards a meaningful "invested vs grown" story we
+ * discount the current balance back over the member's tenure at the app's own
+ * assumed return (`MONTHLY_RATE` — the same rate `calcFV` projects forward),
+ * i.e. invested = what would have compounded up to today's balance.
+ *
+ * Deterministic per subscriber (no `Math.random`), so figures stay stable across
+ * renders and never disagree between the mobile PulseCard and desktop HomeDesktop.
+ *
+ * @param {{ netBalance?: number, registeredDate?: string, id?: string }} subscriber
+ * @returns {{ invested: number, growth: number, growthPct: number }}
+ */
+export function deriveInvestmentGrowth(subscriber) {
+  const balance = Number(subscriber?.netBalance) || 0;
+  if (balance <= 0) return { invested: 0, growth: 0, growthPct: 0 };
+
+  // Tenure (months) from registration, fallback 18mo, plus a small stable
+  // per-subscriber jitter so equal-tenure members don't show identical growth.
+  const base = monthsSince(subscriber?.registeredDate, 18);
+  const jitter = (hashString(String(subscriber?.id ?? '')) % 7) - 3; // -3..+3
+  const tenureMonths = clamp(base + jitter, 3, 36);
+
+  const factor = Math.pow(1 + MONTHLY_RATE, tenureMonths);
+  const invested = Math.round(balance / factor);
+  const growth = balance - invested;
+  const growthPct = invested > 0 ? (growth / invested) * 100 : 0;
+  return { invested, growth, growthPct };
+}

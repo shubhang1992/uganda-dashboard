@@ -102,3 +102,97 @@
   letter-spacing: -0.01em;
   margin-bottom: 2px;
 }
+
+/* ── Savings-split tile (Retirement vs Emergency in one card) ─────────────
+   A proportional bar (teal retirement / lavender emergency) over a two-row
+   legend. Rendered as MetricTile children, so it inherits the tile chrome. */
+.split {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.splitBar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--color-cloud);
+}
+.splitSegRet { background: var(--color-teal); }
+.splitSegEmer { background: var(--color-indigo-soft); }
+
+.splitLegend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.splitLegend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+}
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.dotRet { background: var(--color-teal); }
+.dotEmer { background: var(--color-indigo-soft); }
+.splitName {
+  color: var(--color-indigo);
+  font-weight: 600;
+}
+.splitVal {
+  margin-left: auto;
+  color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Insurance "Add cover" CTA (shown only when no cover is configured) ────
+   The whole tile is the hit target — a reset <button> wrapping a MetricTile,
+   mirroring the agent Home's "wrap the tile to navigate" pattern. */
+.coverCta {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+.coverCta:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 2px;
+}
+.coverCtaBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+.coverCtaAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-lg);
+  color: var(--color-green);
+}
+.coverCtaHint {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+}

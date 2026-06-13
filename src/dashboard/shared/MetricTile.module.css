@@ -150,6 +150,10 @@
   color: var(--color-gray);
   font-variant-numeric: tabular-nums;
 }
+/* On the filled-indigo primary tile the muted sub-line needs the on-indigo tone. */
+.primary .context {
+  color: var(--color-on-indigo-muted);
+}
 
 /* Primary stat row — units · invested · growth (subscriber) or
    subscribers · active (agent). Mirrors the mobile HeroCapsule statRow. */
@@ -167,6 +171,15 @@
 .statRow strong {
   color: var(--color-white);
   font-weight: 700;
+}
+/* Secondary tiles carry the statRow too (the "Amount invested" tile's
+   units + growth row), so re-tone it for the light glass surface. The growth
+   pill keeps its own inline green/amber colour, which reads on white. */
+.secondary .statRow {
+  color: var(--color-gray);
+}
+.secondary .statRow strong {
+  color: var(--color-indigo);
 }
 
 @media (prefers-reduced-motion: reduce) {

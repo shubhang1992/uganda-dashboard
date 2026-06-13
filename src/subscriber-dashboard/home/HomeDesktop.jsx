@@ -1,7 +1,9 @@
+import { useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { formatUGX } from '../../utils/currency';
+import { deriveInvestmentGrowth } from '../../utils/finance';
 import { useCountUp } from '../../hooks/useCountUp';
 import InfoTip from '../../components/InfoTip';
 import MetricTile from '../../dashboard/shared/MetricTile';
@@ -31,16 +33,17 @@ const BalanceIcon = (
     <path d="M2.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
   </svg>
 );
-const RetirementIcon = (
+const InvestedIcon = (
   <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
-    <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M10 5.5V10l3 1.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <ellipse cx="10" cy="5.5" rx="5.5" ry="2.25" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M4.5 5.5v4c0 1.24 2.46 2.25 5.5 2.25s5.5-1.01 5.5-2.25v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M4.5 9.5v4c0 1.24 2.46 2.25 5.5 2.25s5.5-1.01 5.5-2.25v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
   </svg>
 );
-const EmergencyIcon = (
+const SplitIcon = (
   <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
-    <path d="M10 2.5l5.5 2.2v3.6c0 3.6-2.3 6.4-5.5 7.7-3.2-1.3-5.5-4.1-5.5-7.7V4.7L10 2.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    <path d="M10 7v3.4M8.3 8.7h3.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <rect x="3" y="6" width="5.5" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+    <rect x="11.5" y="9.5" width="5.5" height="5.5" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
   </svg>
 );
 const CoverIcon = (
@@ -64,12 +67,14 @@ const CoverIcon = (
  * loading / error states (HomePage owns those).
  */
 export default function HomeDesktop({ subscriber }) {
+  const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
   const itemVariants = reduceMotion ? undefined : item;
 
   const sub = subscriber || {};
   const net = sub.netBalance || 0;
   const cover = sub.insurance?.cover || 0;
+  const hasCover = cover > 0;
 
   // Balance count-up + growth — mirrors the mobile PulseCard's selectors exactly
   // so desktop and phone never disagree. useCountUp returns 0 under reduced
@@ -78,9 +83,9 @@ export default function HomeDesktop({ subscriber }) {
   const balanceDisplay = formatUGX(reduceMotion ? net : counted, { compact: false });
 
   const units = sub.unitsHeld || 0;
-  const netInvested = Math.max(0, (sub.totalContributions || 0) - (sub.totalWithdrawals || 0));
-  const growth = net - netInvested;
-  const growthPct = netInvested > 0 ? (growth / netInvested) * 100 : 0;
+  // Invested principal + growth are derived (the demo has no real cost basis);
+  // the same helper feeds the mobile PulseCard so the two never disagree.
+  const { invested, growth, growthPct } = deriveInvestmentGrowth(sub);
 
   // Retirement / Emergency are the two pots that sum to net balance
   // (data-model: netBalance = retirementBalance + emergencyBalance), so a
@@ -93,47 +98,58 @@ export default function HomeDesktop({ subscriber }) {
     ? (premium > 0 ? `Active · ${formatUGX(premium)}/mo` : 'Active cover')
     : 'Not active';
 
-  const balanceStatRow = (
+  const investedStatRow = (
     <>
       <span>
         <strong>{units.toLocaleString('en-UG', { maximumFractionDigits: 2 })}</strong> units
       </span>
-      {netInvested > 0 && (
+      {growth > 0 && (
         <InfoTip
-          style={{ color: growth >= 0 ? 'var(--color-positive)' : 'var(--color-amber)' }}
+          style={{ color: 'var(--color-green)' }}
           content={(
             <>
               <b className={styles.tipHead}>Investment growth</b>
               <span>
-                How your balance compares to what you&rsquo;ve put in — net
-                contributions of {formatUGX(netInvested, { compact: false })}.
+                How your balance compares with what you&rsquo;ve put in — about{' '}
+                {formatUGX(invested, { compact: false })} contributed.
               </span>
             </>
           )}
         >
-          {growth >= 0 ? '+' : '−'}{Math.abs(growthPct).toFixed(1)}% growth
+          +{growthPct.toFixed(1)}% growth
         </InfoTip>
       )}
     </>
   );
 
-  const supporting = [
-    {
-      key: 'retirement', icon: RetirementIcon, accent: 'teal',
-      label: 'Retirement', value: formatUGX(sub.retirementBalance || 0),
-      context: net > 0 ? `${retPct}% of balance` : 'Long-term pension',
-    },
-    {
-      key: 'emergency', icon: EmergencyIcon, accent: 'lavender',
-      label: 'Emergency', value: formatUGX(sub.emergencyBalance || 0),
-      context: net > 0 ? `${emerPct}% of balance` : 'Short-term savings',
-    },
-    {
-      key: 'cover', icon: CoverIcon, accent: 'green',
-      label: 'Insurance cover', value: cover > 0 ? formatUGX(cover) : '—',
-      context: coverContext,
-    },
-  ];
+  // Retirement + Emergency are the two pots that sum to net balance, now shown
+  // together as one split card (a proportional bar + a per-pot legend).
+  const retirement = sub.retirementBalance || 0;
+  const emergency = sub.emergencyBalance || 0;
+  const splitBody = net > 0 ? (
+    <div className={styles.split}>
+      <div
+        className={styles.splitBar}
+        role="img"
+        aria-label={`Retirement ${retPct}%, Emergency ${emerPct}%`}
+      >
+        <span className={styles.splitSegRet} style={{ width: `${retPct}%` }} />
+        <span className={styles.splitSegEmer} style={{ width: `${emerPct}%` }} />
+      </div>
+      <ul className={styles.splitLegend}>
+        <li>
+          <span className={`${styles.dot} ${styles.dotRet}`} aria-hidden="true" />
+          <span className={styles.splitName}>Retirement</span>
+          <span className={styles.splitVal}>{formatUGX(retirement)} · {retPct}%</span>
+        </li>
+        <li>
+          <span className={`${styles.dot} ${styles.dotEmer}`} aria-hidden="true" />
+          <span className={styles.splitName}>Emergency</span>
+          <span className={styles.splitVal}>{formatUGX(emergency)} · {emerPct}%</span>
+        </li>
+      </ul>
+    </div>
+  ) : null;
 
   const firstName = (sub.name || '').trim().split(' ')[0];
 
@@ -151,24 +167,64 @@ export default function HomeDesktop({ subscriber }) {
       </motion.header>
 
       <motion.div variants={itemVariants} className={styles.kpiRow}>
+        {/* 1 · Total balance — the hero figure on its own */}
         <MetricTile
           variant="primary"
           icon={BalanceIcon}
           label="Total balance"
           value={net > 0 ? balanceDisplay : '—'}
-          statRow={net > 0 ? balanceStatRow : null}
+          context={net > 0 ? 'Across retirement & emergency' : 'Start saving to grow your pot'}
           className={styles.primaryTile}
         />
-        {supporting.map((m) => (
+
+        {/* 2 · Amount invested — what you put in, carrying units + growth */}
+        <MetricTile
+          accent="indigo"
+          icon={InvestedIcon}
+          label="Amount invested"
+          value={net > 0 ? formatUGX(invested) : '—'}
+          statRow={net > 0 ? investedStatRow : null}
+        />
+
+        {/* 3 · Retirement vs Emergency split */}
+        <MetricTile
+          accent="teal"
+          icon={SplitIcon}
+          label="Savings split"
+          context={net > 0 ? null : 'Long-term + short-term savings'}
+        >
+          {splitBody}
+        </MetricTile>
+
+        {/* 4 · Insurance cover — the figure, or an Add-cover CTA when unconfigured */}
+        {hasCover ? (
           <MetricTile
-            key={m.key}
-            accent={m.accent}
-            icon={m.icon}
-            label={m.label}
-            value={m.value}
-            context={m.context}
+            accent="green"
+            icon={CoverIcon}
+            label="Insurance cover"
+            value={formatUGX(cover)}
+            context={coverContext}
           />
-        ))}
+        ) : (
+          <button
+            type="button"
+            className={styles.coverCta}
+            onClick={() => navigate('/dashboard/settings/insurance')}
+            aria-label="Add insurance cover"
+          >
+            <MetricTile accent="green" icon={CoverIcon} label="Insurance cover">
+              <div className={styles.coverCtaBody}>
+                <span className={styles.coverCtaAction}>
+                  Add cover
+                  <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+                    <path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <span className={styles.coverCtaHint}>Protect your family from UGX 2,000/mo</span>
+              </div>
+            </MetricTile>
+          </button>
+        )}
       </motion.div>
 
       <div className={styles.grid}>
