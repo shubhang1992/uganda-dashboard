@@ -206,3 +206,35 @@ export function deriveInvestmentGrowth(subscriber) {
   const growthPct = invested > 0 ? (growth / invested) * 100 : 0;
   return { invested, growth, growthPct };
 }
+
+/**
+ * Split a member's contributed principal into own-vs-employer for the
+ * employer-benefits card.
+ *
+ * Root cause this fixes: the card used to SUM the `transactions` feed, but the
+ * seed only ever wrote a handful of contribution rows per member (e.g. 5 months
+ * for a 21-month member), so that sum sat far below the member's real
+ * `total_balance` snapshot — the card's "total contributed" (1.05M) flatly
+ * contradicted the hero balance (4.41M). The two were never the same source.
+ *
+ * Instead we split the SAME derived principal the hero shows
+ * (`deriveInvestmentGrowth().invested`) by the member's real employer-match
+ * ratio, so `own + employer === invested === balance − growth` and every surface
+ * agrees. The raw breakdown is consulted only for the ratio, never the totals.
+ *
+ * @param {{ netBalance?: number, registeredDate?: string, id?: string }} subscriber
+ * @param {{ own?: number, employer?: number }} [breakdown] raw per-source sums — used only for the ratio
+ * @returns {{ own: number, employer: number, total: number }}
+ */
+export function deriveEmployerSplit(subscriber, breakdown) {
+  const { invested } = deriveInvestmentGrowth(subscriber);
+  const rawOwn = Number(breakdown?.own) || 0;
+  const rawEmployer = Number(breakdown?.employer) || 0;
+  const rawTotal = rawOwn + rawEmployer;
+  // Preserve the member's real match ratio; fall back to a 1/3 employer share
+  // (a common 2:1 member-to-employer top-up) when no contribution rows exist yet.
+  const employerShare = rawTotal > 0 ? rawEmployer / rawTotal : 1 / 3;
+  const employer = Math.round(invested * employerShare);
+  const own = Math.max(0, invested - employer);
+  return { own, employer, total: own + employer };
+}
