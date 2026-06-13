@@ -175,10 +175,10 @@ describe('employer service — real (Supabase) branch', () => {
   describe('updateMemberCompensation → update_employer_member_compensation (v2, 0062)', () => {
     it('passes p_subscriber_id / p_compensation and returns the updated row', async () => {
       supabaseMock.__queueRpc('update_employer_member_compensation', {
-        data: { id: 's-1', compensation: 1500000, updated: true }, error: null,
+        data: { id: 's-1', compensation: 1500000, updated: 1 }, error: null,
       });
       const res = await svc.updateMemberCompensation('emp-001', 's-1', 1500000);
-      expect(res).toMatchObject({ id: 's-1', compensation: 1500000, updated: true });
+      expect(res).toMatchObject({ id: 's-1', compensation: 1500000, updated: 1 });
       const call = supabaseMock.__getRpcCalls('update_employer_member_compensation').at(-1);
       expect(call.args.p_subscriber_id).toBe('s-1');
       expect(call.args.p_compensation).toBe(1500000);
@@ -487,9 +487,9 @@ describe('employer service — mock-fallback branch (IS_SUPABASE_ENABLED=false)'
     expect(CFG.mode).toBe('co-contribution');
     expect(result.employeeTotal).toBeGreaterThan(0);
     expect(result.employerTotal).toBeGreaterThan(0);
-    // Suspended members are skipped.
-    const suspended = MEMBERS.filter((m) => m.status === 'suspended');
-    expect(result.skipped.filter((s) => s.reason === 'suspended')).toHaveLength(suspended.length);
+    // Suspended members are excluded from the run entirely (parity with the live SQL
+    // `WHERE is_active`), so they never appear in skipped[] — only zero_contribution can.
+    expect(result.skipped.some((s) => s.reason === 'suspended')).toBe(false);
   });
 
   it('writes the correct two-leg per-member transactions (own + employer) for the run', async () => {
@@ -524,7 +524,7 @@ describe('employer service — mock-fallback branch (IS_SUPABASE_ENABLED=false)'
   it('updateMemberCompensation updates the member compensation override (mock)', async () => {
     const target = ACTIVE[0];
     const res = await svc.updateMemberCompensation('emp-001', target.id, 1750000);
-    expect(res).toMatchObject({ id: target.id, compensation: 1750000, updated: true });
+    expect(res).toMatchObject({ id: target.id, compensation: 1750000, updated: 1 });
     const member = await svc.getEmployee(target.id);
     expect(member.compensation).toBe(1750000);
   });

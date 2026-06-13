@@ -239,7 +239,7 @@ function _mockSubmitEmployerRun(employerId, { periodLabel, method, nonce } = {})
   const skipped = [];
 
   for (const m of mockMembers()) {
-    if (m.status !== 'active') { skipped.push({ subscriberId: m.id, reason: 'suspended' }); continue; }
+    if (m.status !== 'active') { continue; } // excluded — parity with SQL `WHERE is_active`; not reported in skipped[]
     const comp = Number(m.compensation ?? 0);
     let employeeLeg = 0;
     let employerLeg = 0;
@@ -747,14 +747,14 @@ export async function removeEmployee(employerId, employeeId) {
  * @param {string} employerId
  * @param {string} subscriberId  the member's subscriber id
  * @param {number} compensation  monthly compensation in UGX (>= 0)
- * @returns {Promise<{ id:string, compensation:number, updated:boolean }>}
+ * @returns {Promise<{ id:string, compensation:number, updated:number }>}
  */
 export async function updateMemberCompensation(employerId, subscriberId, compensation) {
   if (!subscriberId) throw new Error('Missing subscriber id');
   const comp = Number(compensation);
   if (!IS_SUPABASE_ENABLED) {
     readMemberSession(subscriberId).compensationOverride = Math.max(0, comp || 0);
-    return { id: subscriberId, compensation: Math.max(0, comp || 0), updated: true };
+    return { id: subscriberId, compensation: Math.max(0, comp || 0), updated: 1 };
   }
   const { data, error } = await supabase.rpc('update_employer_member_compensation', {
     p_subscriber_id: subscriberId,

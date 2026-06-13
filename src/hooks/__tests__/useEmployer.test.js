@@ -206,7 +206,7 @@ describe('useEmployer hooks — mutations + invalidation', () => {
   });
 
   it('useUpdateMemberCompensation (v2, 0062) passes (employerId, employeeId, compensation) and invalidates the roster + metrics + open detail', async () => {
-    employer.updateMemberCompensation.mockResolvedValue({ id: 's-1', compensation: 1500000, updated: true });
+    employer.updateMemberCompensation.mockResolvedValue({ id: 's-1', compensation: 1500000, updated: 1 });
     const { queryClient, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
     const { result } = renderHook(() => useUpdateMemberCompensation('emp-001'), { wrapper: Wrapper });
