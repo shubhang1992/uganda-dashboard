@@ -31,6 +31,7 @@ vi.mock('../../services/employer', () => ({
   applyGroupInsurance: vi.fn(),
   removeEmployee: vi.fn(),
   submitContributionRun: vi.fn(),
+  updateMemberCompensation: vi.fn(),
   getAllEmployersMetrics: vi.fn(),
   createEmployer: vi.fn(),
   setEmployerStatus: vi.fn(),
@@ -47,6 +48,7 @@ const {
   useCancelInvite,
   useRunContribution,
   useRemoveEmployee,
+  useUpdateMemberCompensation,
   useUpdateEmployerProfile,
   useAllEmployersMetrics,
   useCreateEmployer,
@@ -200,6 +202,22 @@ describe('useEmployer hooks — mutations + invalidation', () => {
 
     expect(employer.removeEmployee).toHaveBeenCalledWith('emp-001', 's-1');
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['employees', 'emp-001'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['employee'] });
+  });
+
+  it('useUpdateMemberCompensation (v2, 0062) passes (employerId, employeeId, compensation) and invalidates the roster + metrics + open detail', async () => {
+    employer.updateMemberCompensation.mockResolvedValue({ id: 's-1', compensation: 1500000, updated: 1 });
+    const { queryClient, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const { result } = renderHook(() => useUpdateMemberCompensation('emp-001'), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ employeeId: 's-1', compensation: 1500000 });
+    });
+
+    expect(employer.updateMemberCompensation).toHaveBeenCalledWith('emp-001', 's-1', 1500000);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['employees', 'emp-001'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['employerMetrics', 'emp-001'] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['employee'] });
   });
 

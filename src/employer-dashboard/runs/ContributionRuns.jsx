@@ -43,23 +43,33 @@ const WIZARD_STEPS = [
 ];
 
 /**
- * Client mirror of the server's per-member employer contribution — DISPLAY
- * ONLY. Reads the COMPANY config (Issue 2), not a per-member config:
- *   co-contribution: employer matches matchPct% of the member's own saving, capped.
- *   employer-only:   a fixed monthly amount.
+ * Client mirror of the server's per-member TWO-LEG contribution — DISPLAY ONLY.
+ * Reads the COMPANY config (Issue 2) + the member's `compensation` (the v2
+ * driver field), mirroring `_mockSubmitEmployerRun` / `submit_employer_*`:
+ *   co-contribution: employeeLeg = round(comp * employeePct/100)
+ *                    employerLeg = round(employeeLeg * employerMatchPct/100)
+ *   employer-only:   employeeLeg = 0
+ *                    percent → employerLeg = round(comp * employerPct/100)
+ *                    fixed   → employerLeg = round(employerAmount)
+ * Returns BOTH legs so the wizard can surface employee / employer / grand.
  */
-function previewEmployerAmount(member, cfg) {
+function previewMemberLegs(member, cfg) {
   const mode = cfg?.mode ?? 'employer-only';
-  let amt;
+  const comp = Number(member?.compensation ?? 0);
+  let employeeLeg = 0;
+  let employerLeg = 0;
   if (mode === 'co-contribution') {
-    amt = round(Number(member?.monthlyContribution ?? 0) * Number(cfg?.matchPct ?? 0) / 100);
-    if (cfg?.maxContribution != null && cfg.maxContribution !== '') {
-      amt = Math.min(amt, round(Number(cfg.maxContribution)));
-    }
+    employeeLeg = round(comp * Number(cfg?.employeePct ?? 0) / 100);
+    employerLeg = round(employeeLeg * Number(cfg?.employerMatchPct ?? 0) / 100);
   } else {
-    amt = round(Number(cfg?.employerAmount ?? 0));
+    employeeLeg = 0;
+    if (cfg?.employerBasis === 'percent') {
+      employerLeg = round(comp * Number(cfg?.employerPct ?? 0) / 100);
+    } else {
+      employerLeg = round(Number(cfg?.employerAmount ?? 0));
+    }
   }
-  return amt;
+  return { employeeLeg, employerLeg };
 }
 
 function defaultPeriodLabel() {
@@ -189,10 +199,15 @@ function HistoryView({ employerId, onOpenRun, onNewRun }) {
   );
 }
 
-/** Employer + grand totals shown on each history card + the detail header. */
+/** Employee + employer + grand totals shown on each history card + the detail
+    header. Grand = employer + employee under the v2 two-leg model. */
 function RunTotals({ run }) {
   return (
     <span className={styles.runTotals}>
+      <span className={styles.totalChip}>
+        <span className={styles.totalChipLabel}>Employee</span>
+        <span className={styles.totalChipValue}>{formatUGX(run.employeeTotal)}</span>
+      </span>
       <span className={styles.totalChip}>
         <span className={styles.totalChipLabel}>Employer</span>
         <span className={styles.totalChipValue}>{formatUGX(run.employerTotal)}</span>
@@ -221,6 +236,15 @@ function RunDetailView({ runId }) {
 
   const { run, lines = [] } = data;
 
+  // A committed v2 run posts up to TWO transactions per member (source 'own' =>
+  // employee leg, source 'employer' => employer leg). Group the flat line list
+  // by member IN THE COMPONENT (the service stays a thin map) so each member is
+  // ONE row with separate Employee / Employer columns, and the header counts
+  // DISTINCT members (lines.length would double-count two-leg members). Derived
+  // inline (after the loading/error early-returns) — keep it out of a hook so we
+  // don't violate the rules-of-hooks ordering against those guards.
+  const memberRows = groupLinesByMember(lines);
+
   return (
     <>
       <div className={styles.detailHeader}>
@@ -231,32 +255,36 @@ function RunDetailView({ runId }) {
           </span>
         </div>
         <p className={styles.detailSub}>
-          {formatDate(run.runAt)} · {formatNumber(lines.length)} {lines.length === 1 ? 'member' : 'members'}
+          {formatDate(run.runAt)} · {formatNumber(memberRows.length)} {memberRows.length === 1 ? 'member' : 'members'}
         </p>
         <RunTotals run={run} />
       </div>
 
-      {lines.length === 0 ? (
+      {memberRows.length === 0 ? (
         <EmptyState kind="no-data" title="No line items" body="This run funded no members." />
       ) : (
         <div className={styles.lineTable} role="table" aria-label="Run line items">
           <div className={styles.lineHead} role="row">
             <span role="columnheader" className={styles.colEmp}>Member</span>
+            <span role="columnheader" className={styles.colNum}>Employee</span>
             <span role="columnheader" className={styles.colNum}>Employer</span>
             <span role="columnheader" className={styles.colSplit}>Ret / Emg</span>
             <span role="columnheader" className={styles.colMethod}>Method</span>
           </div>
           <ul className={styles.lineBody}>
-            {lines.map((line) => (
-              <li key={line.id} role="row" className={styles.lineRow}>
-                <span role="cell" className={styles.colEmp}>{line.memberName || line.subscriberId}</span>
+            {memberRows.map((row) => (
+              <li key={row.subscriberId} role="row" className={styles.lineRow}>
+                <span role="cell" className={styles.colEmp}>{row.memberName || row.subscriberId}</span>
+                <span role="cell" className={styles.colNum}>
+                  {formatUGX(row.employeeAmount, { compact: false })}
+                </span>
                 <span role="cell" className={styles.colNum} data-strong="true">
-                  {formatUGX(line.amount, { compact: false })}
+                  {formatUGX(row.employerAmount, { compact: false })}
                 </span>
                 <span role="cell" className={styles.colSplit}>
-                  {formatUGX(line.retirementAmount, { compact: false })} / {formatUGX(line.emergencyAmount, { compact: false })}
+                  {formatUGX(row.retirementAmount, { compact: false })} / {formatUGX(row.emergencyAmount, { compact: false })}
                 </span>
-                <span role="cell" className={styles.colMethod}>{line.method || '—'}</span>
+                <span role="cell" className={styles.colMethod}>{row.method || '—'}</span>
               </li>
             ))}
           </ul>
@@ -264,6 +292,38 @@ function RunDetailView({ runId }) {
       )}
     </>
   );
+}
+
+/**
+ * Collapse a run's flat line list (up to two source rows per member) into one
+ * row per DISTINCT member, summing the legs by source and the ret/emg split.
+ * Preserves first-seen order. Pure — no service change.
+ */
+function groupLinesByMember(lines) {
+  const byMember = new Map();
+  for (const line of lines) {
+    const key = line.subscriberId;
+    let row = byMember.get(key);
+    if (!row) {
+      row = {
+        subscriberId: key,
+        memberName: line.memberName ?? null,
+        employeeAmount: 0,
+        employerAmount: 0,
+        retirementAmount: 0,
+        emergencyAmount: 0,
+        method: line.method ?? null,
+      };
+      byMember.set(key, row);
+    }
+    if (line.source === 'employer') row.employerAmount += Number(line.amount ?? 0);
+    else row.employeeAmount += Number(line.amount ?? 0);
+    row.retirementAmount += Number(line.retirementAmount ?? 0);
+    row.emergencyAmount += Number(line.emergencyAmount ?? 0);
+    if (!row.memberName && line.memberName) row.memberName = line.memberName;
+    if (!row.method && line.method) row.method = line.method;
+  }
+  return [...byMember.values()];
 }
 
 // =============================================================================
@@ -290,18 +350,21 @@ function NewRunWizard({ employerId, addToast, onDone, onCancel }) {
   const activeEmployees = useMemo(() => employees.filter((e) => e.status === 'active'), [employees]);
   const suspendedCount = employees.length - activeEmployees.length;
 
-  // Live preview totals (client mirror of the server math — DISPLAY ONLY).
+  // Live preview totals (client mirror of the server TWO-LEG math — DISPLAY
+  // ONLY). A member is "funded" when EITHER leg is non-zero; grand = sum of both.
   const preview = useMemo(() => {
     let employerTotal = 0;
+    let employeeTotal = 0;
     let funded = 0;
     for (const emp of activeEmployees) {
-      const amt = previewEmployerAmount(emp, config);
-      if (amt > 0) {
-        employerTotal += amt;
+      const { employeeLeg, employerLeg } = previewMemberLegs(emp, config);
+      if (employeeLeg > 0 || employerLeg > 0) {
+        employeeTotal += employeeLeg;
+        employerTotal += employerLeg;
         funded += 1;
       }
     }
-    return { employerTotal, funded };
+    return { employerTotal, employeeTotal, grandTotal: employerTotal + employeeTotal, funded };
   }, [activeEmployees, config]);
 
   const isPending = runContribution.isPending;
@@ -388,13 +451,21 @@ function NewRunWizard({ employerId, addToast, onDone, onCancel }) {
 
           <div className={styles.previewPanel} aria-live="polite">
             <p className={styles.previewTitle}>
-              Estimated employer contribution for {formatNumber(preview.funded)} active {preview.funded === 1 ? 'member' : 'members'}
+              Estimated contribution for {formatNumber(preview.funded)} active {preview.funded === 1 ? 'member' : 'members'}
             </p>
             <p className={styles.previewNote}>Advisory preview — the server re-derives final figures on submit.</p>
             <div className={styles.previewGrid}>
-              <div className={styles.previewCell} data-grand="true">
+              <div className={styles.previewCell}>
+                <span className={styles.previewCellLabel}>Employee total</span>
+                <span className={styles.previewCellValue}>{formatUGX(preview.employeeTotal, { compact: false })}</span>
+              </div>
+              <div className={styles.previewCell}>
                 <span className={styles.previewCellLabel}>Employer total</span>
                 <span className={styles.previewCellValue}>{formatUGX(preview.employerTotal, { compact: false })}</span>
+              </div>
+              <div className={styles.previewCell} data-grand="true">
+                <span className={styles.previewCellLabel}>Grand total</span>
+                <span className={styles.previewCellValue}>{formatUGX(preview.grandTotal, { compact: false })}</span>
               </div>
             </div>
           </div>
@@ -418,9 +489,17 @@ function NewRunWizard({ employerId, addToast, onDone, onCancel }) {
                 <dt>Method</dt>
                 <dd>{method}</dd>
               </div>
-              <div className={styles.summaryItem} data-grand="true">
+              <div className={styles.summaryItem}>
+                <dt>Employee total</dt>
+                <dd>{formatUGX(preview.employeeTotal, { compact: false })}</dd>
+              </div>
+              <div className={styles.summaryItem}>
                 <dt>Employer total</dt>
                 <dd>{formatUGX(preview.employerTotal, { compact: false })}</dd>
+              </div>
+              <div className={styles.summaryItem} data-grand="true">
+                <dt>Grand total</dt>
+                <dd>{formatUGX(preview.grandTotal, { compact: false })}</dd>
               </div>
             </dl>
             <p className={styles.confirmNote}>

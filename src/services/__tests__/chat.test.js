@@ -220,7 +220,9 @@ describe('getEmployerChatResponse — local, truthful employer copilot', () => {
   const CTX = {
     headcount: 16, active: 15, inactive: 1, participationPct: 94,
     pendingKyc: 2, pendingNames: ['Achint Rao', 'Bea Okello'],
-    fundingLabel: 'Co-contribution — matches 50% of each member’s saving',
+    // v2 (migration 0062): companyFundingLabel() now describes the two-leg model
+    // as "<employeePct>% of pay + <employerMatchPct>% employer match".
+    fundingLabel: 'Co-contribution — 10% of pay + 50% employer match',
     coverLabel: 'UGX 15,000,000', totalContributions: 8000000, lastRunLabel: 'May 2026',
   };
 

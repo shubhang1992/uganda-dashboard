@@ -27,10 +27,6 @@
 }
 .title { margin: 0; font-size: 1rem; font-weight: 800; letter-spacing: -0.02em; }
 
-.total { display: flex; flex-direction: column; gap: 0.1rem; }
-.totalLabel { font-size: 0.78rem; color: rgba(255, 255, 255, 0.7); }
-.totalValue { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em; }
-
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
 .splitCell {
   display: flex;

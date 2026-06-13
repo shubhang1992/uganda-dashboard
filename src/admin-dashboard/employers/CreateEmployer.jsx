@@ -9,10 +9,7 @@ import styles from '../adminPanels.module.css';
 
 const EMPTY = {
   name: '', sector: '', registrationNo: '', district: '',
-  contactName: '', contactPhone: '', contactEmail: '', payrollCadence: 'monthly',
-  // Funding model (§7d-2): collected up-front so an admin-created employer is
-  // born with a usable default_contribution_config rather than `{}`.
-  fundingMode: 'co-contribution', matchPct: '50', maxContribution: '', employerAmount: '',
+  contactName: '', contactPhone: '', contactEmail: '',
 };
 
 /**
@@ -74,31 +71,6 @@ export default function CreateEmployer() {
       return;
     }
 
-    // Build a non-empty funding config from the funding-model section so the
-    // created employer can immediately run contributions (§7d-2). Insurance is
-    // company-wide off by default and configured later in employer Settings.
-    let defaultContributionConfig;
-    if (form.fundingMode === 'co-contribution') {
-      const matchPct = Number(form.matchPct);
-      const maxContribution = form.maxContribution === '' ? null : Number(form.maxContribution);
-      if (!(matchPct >= 0 && matchPct <= 100)) {
-        fail('Match % must be between 0 and 100.');
-        return;
-      }
-      if (maxContribution != null && !(maxContribution >= 0)) {
-        fail('Maximum contribution must be 0 or more (or blank for no cap).');
-        return;
-      }
-      defaultContributionConfig = { mode: 'co-contribution', matchPct, maxContribution };
-    } else {
-      const employerAmount = Number(form.employerAmount);
-      if (!(employerAmount >= 0) || !Number.isFinite(employerAmount)) {
-        fail('Amount per member must be 0 or more.');
-        return;
-      }
-      defaultContributionConfig = { mode: 'employer-only', employerAmount };
-    }
-
     try {
       await createEmployer.mutateAsync({
         name: form.name.trim(),
@@ -108,8 +80,6 @@ export default function CreateEmployer() {
         contactName: form.contactName.trim() || null,
         contactPhone: form.contactPhone.trim() || null,
         contactEmail: form.contactEmail.trim() || null,
-        payrollCadence: form.payrollCadence || null,
-        defaultContributionConfig,
       });
       addToast('success', `Employer "${form.name.trim()}" created.`);
       setCreateEmployerOpen(false);
@@ -207,30 +177,15 @@ export default function CreateEmployer() {
                   </div>
                 </div>
 
-                <div className={styles.row2}>
-                  <div className={styles.field}>
-                    <label className={styles.label} htmlFor="ce-reg">Registration no.</label>
-                    <input
-                      id="ce-reg"
-                      className={styles.input}
-                      value={form.registrationNo}
-                      onChange={(e) => update('registrationNo', e.target.value)}
-                      placeholder="Company reg. number"
-                    />
-                  </div>
-                  <div className={styles.field}>
-                    <label className={styles.label} htmlFor="ce-cadence">Payroll cadence</label>
-                    <select
-                      id="ce-cadence"
-                      className={styles.input}
-                      value={form.payrollCadence}
-                      onChange={(e) => update('payrollCadence', e.target.value)}
-                    >
-                      <option value="monthly">Monthly</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="quarterly">Quarterly</option>
-                    </select>
-                  </div>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="ce-reg">Registration no.</label>
+                  <input
+                    id="ce-reg"
+                    className={styles.input}
+                    value={form.registrationNo}
+                    onChange={(e) => update('registrationNo', e.target.value)}
+                    placeholder="Company reg. number"
+                  />
                 </div>
 
                 <div className={styles.field}>
@@ -268,58 +223,6 @@ export default function CreateEmployer() {
                     />
                   </div>
                 </div>
-
-                <div className={styles.field}>
-                  <label className={styles.label} htmlFor="ce-funding-mode">Funding model</label>
-                  <select
-                    id="ce-funding-mode"
-                    className={styles.input}
-                    value={form.fundingMode}
-                    onChange={(e) => update('fundingMode', e.target.value)}
-                  >
-                    <option value="co-contribution">Co-contribution (match a % of each member's saving)</option>
-                    <option value="employer-only">Employer-only (fixed amount per member)</option>
-                  </select>
-                </div>
-
-                {form.fundingMode === 'co-contribution' ? (
-                  <div className={styles.row2}>
-                    <div className={styles.field}>
-                      <label className={styles.label} htmlFor="ce-match-pct">Match %</label>
-                      <input
-                        id="ce-match-pct"
-                        className={styles.input}
-                        value={form.matchPct}
-                        onChange={(e) => update('matchPct', e.target.value)}
-                        placeholder="e.g. 50"
-                        inputMode="numeric"
-                      />
-                    </div>
-                    <div className={styles.field}>
-                      <label className={styles.label} htmlFor="ce-max-contribution">Cap per member (UGX)</label>
-                      <input
-                        id="ce-max-contribution"
-                        className={styles.input}
-                        value={form.maxContribution}
-                        onChange={(e) => update('maxContribution', e.target.value)}
-                        placeholder="Blank for no cap"
-                        inputMode="numeric"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className={styles.field}>
-                    <label className={styles.label} htmlFor="ce-employer-amount">Employer amount per member (UGX)</label>
-                    <input
-                      id="ce-employer-amount"
-                      className={styles.input}
-                      value={form.employerAmount}
-                      onChange={(e) => update('employerAmount', e.target.value)}
-                      placeholder="e.g. 50000"
-                      inputMode="numeric"
-                    />
-                  </div>
-                )}
 
                 <div className={styles.formActions}>
                   <button type="button" className={styles.cancelBtn} onClick={() => setCreateEmployerOpen(false)} disabled={submitting}>

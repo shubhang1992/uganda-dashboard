@@ -1,7 +1,7 @@
 // Pure employee-analytics derivation for the employer Analytics view. Takes the
 // roster (from `useEmployees`) + the pre-aggregated `useEmployerMetrics`, and
-// returns KPIs + chart-ready distributions (gender, age, status, monthly saving,
-// occupation, headcount growth, coverage). Also builds the rows/columns for the
+// returns KPIs + chart-ready distributions (gender, age, status, monthly
+// compensation, occupation, headcount growth, coverage). Also builds the rows/columns for the
 // CSV / Excel downloads. No React, no data imports — unit-testable in isolation.
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -48,7 +48,10 @@ export function deriveEmployeeAnalytics(employees = [], insConfig = {}) {
   const ages = roster.map((e) => Number(e.age)).filter((a) => Number.isFinite(a) && a > 0);
   const avgAge = ages.length ? Math.round(ages.reduce((s, a) => s + a, 0) / ages.length) : 0;
 
-  const totalMonthly = roster.reduce((s, e) => s + (Number(e.monthlyContribution) || 0), 0);
+  // v2: members no longer self-set a saving amount — `compensation` is the
+  // driver field (it powers contribution runs), so the "monthly" KPIs/bucket
+  // now reflect monthly compensation, not the vestigial monthlyContribution.
+  const totalMonthly = roster.reduce((s, e) => s + (Number(e.compensation) || 0), 0);
   const avgMonthly = total ? Math.round(totalMonthly / total) : 0;
 
   // Gender — largest slice first.
@@ -73,11 +76,14 @@ export function deriveEmployeeAnalytics(employees = [], insConfig = {}) {
     { key: 'suspended', name: 'Inactive', value: suspended },
   ];
 
-  // Monthly saving — fixed UGX buckets.
+  // Monthly compensation — fixed UGX buckets (v2: compensation drives runs).
+  // The returned key stays `saving` so consumers (EmployerReports, tests) keep
+  // their stable object-key contract; only the underlying value source and the
+  // UI-facing labels move from monthlyContribution → compensation.
   const saving = SAVING_BUCKETS.map((b) => ({
     key: b.key,
     value: roster.filter((e) => {
-      const m = Number(e.monthlyContribution) || 0;
+      const m = Number(e.compensation) || 0;
       return m >= b.min && m <= b.max;
     }).length,
   }));
@@ -140,6 +146,9 @@ export function buildRosterExport(employees = []) {
   // block), so a per-row cover/status would misrepresent the model. The
   // own/employer/total contribution columns are likewise dropped — they're
   // mock-only fields that `mapMember` never populates from live Supabase.
+  // v2: `compensation` is a real Supabase column (NOT NULL DEFAULT 0) and the
+  // driver field for contribution runs, so it replaces the vestigial
+  // monthlyContribution as the "Monthly compensation" column.
   const columns = [
     { key: 'name', label: 'Name' },
     { key: 'phone', label: 'Phone' },
@@ -149,7 +158,7 @@ export function buildRosterExport(employees = []) {
     { key: 'occupation', label: 'Occupation' },
     { key: 'status', label: 'Status' },
     { key: 'kyc', label: 'KYC' },
-    { key: 'monthlyContribution', label: 'Monthly saving (UGX)' },
+    { key: 'compensation', label: 'Monthly compensation (UGX)' },
     { key: 'joinedDate', label: 'Joined' },
   ];
   const rows = employees.map((e) => ({
@@ -161,7 +170,7 @@ export function buildRosterExport(employees = []) {
     occupation: e.occupation ?? '',
     status: titleCase(e.status),
     kyc: titleCase(e.kycStatus),
-    monthlyContribution: Number(e.monthlyContribution) || 0,
+    compensation: Number(e.compensation) || 0,
     joinedDate: e.joinedDate ? String(e.joinedDate).slice(0, 10) : '',
   }));
   return { rows, columns };
@@ -186,7 +195,7 @@ export function buildSummaryExport(analytics) {
   push('Gender', analytics.gender);
   push('Age', analytics.age, 'key');
   push('Status', analytics.status);
-  push('Monthly saving', analytics.saving, 'key');
+  push('Monthly compensation', analytics.saving, 'key');
   push('Occupation', analytics.occupation, 'label');
 
   // Company-wide group insurance — a single summary block, never per-member.

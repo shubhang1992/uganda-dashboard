@@ -7,6 +7,8 @@ import {
   calcFV,
   sliderToAmt,
   amtToSlider,
+  deriveInvestmentGrowth,
+  deriveEmployerSplit,
   FREQUENCY,
 } from '../finance';
 
@@ -214,6 +216,63 @@ describe('finance utils', () => {
       const amt = sliderToAmt(50, 1000, 1000000);
       const back = sliderToAmt(amtToSlider(amt, 1000, 1000000), 1000, 1000000);
       expect(back).toBe(amt);
+    });
+  });
+
+  // Grace Nakato's live row (empe-002): 4.41M balance, registered 2024-08-24.
+  // These two helpers are the single source of truth that keeps the subscriber
+  // hero, the desktop KPI tiles, and the employer-benefits split all agreeing.
+  describe('deriveInvestmentGrowth()', () => {
+    it('returns all-zero for a non-positive / missing balance', () => {
+      expect(deriveInvestmentGrowth({ netBalance: 0 })).toEqual({ invested: 0, growth: 0, growthPct: 0 });
+      expect(deriveInvestmentGrowth({ netBalance: -100 })).toEqual({ invested: 0, growth: 0, growthPct: 0 });
+      expect(deriveInvestmentGrowth(null)).toEqual({ invested: 0, growth: 0, growthPct: 0 });
+    });
+
+    it('discounts the balance so invested < balance and balance === invested + growth', () => {
+      const { invested, growth, growthPct } = deriveInvestmentGrowth({
+        netBalance: 4410000, registeredDate: '2024-08-24', id: 'empe-002',
+      });
+      expect(invested).toBeGreaterThan(0);
+      expect(invested).toBeLessThan(4410000);     // there's a real "growth" story to tell
+      expect(invested + growth).toBe(4410000);    // internally coherent with the hero figure
+      expect(growthPct).toBeGreaterThan(0);
+    });
+
+    it('is deterministic across calls (no Math.random)', () => {
+      const sub = { netBalance: 2000000, registeredDate: '2025-01-01', id: 'x-1' };
+      expect(deriveInvestmentGrowth(sub)).toEqual(deriveInvestmentGrowth(sub));
+    });
+  });
+
+  describe('deriveEmployerSplit()', () => {
+    const sub = { netBalance: 4410000, registeredDate: '2024-08-24', id: 'empe-002' };
+
+    it('ties the split to the hero principal, NOT the sparsely-seeded raw feed', () => {
+      const { invested } = deriveInvestmentGrowth(sub);
+      // Raw feed summed to 1.05M (5 own + 5 employer rows) while the balance was
+      // 4.41M — the mismatch this fix removes. The split now sums to `invested`.
+      const { own, employer, total } = deriveEmployerSplit(sub, { own: 700000, employer: 350000 });
+      expect(own + employer).toBe(invested);
+      expect(total).toBe(invested);
+      expect(invested).toBeGreaterThan(1050000);
+    });
+
+    it('preserves the member real own:employer ratio (1/3 employer here)', () => {
+      const { own, employer } = deriveEmployerSplit(sub, { own: 700000, employer: 350000 });
+      expect(employer / (own + employer)).toBeCloseTo(1 / 3, 5);
+    });
+
+    it('falls back to a 1/3 employer share when no contribution rows exist', () => {
+      const noFeed = deriveEmployerSplit(sub, undefined);
+      const zeroFeed = deriveEmployerSplit(sub, { own: 0, employer: 0 });
+      expect(noFeed.employer / noFeed.total).toBeCloseTo(1 / 3, 5);
+      expect(zeroFeed.employer / zeroFeed.total).toBeCloseTo(1 / 3, 5);
+    });
+
+    it('returns all-zero for a member with no balance', () => {
+      expect(deriveEmployerSplit({ netBalance: 0 }, { own: 0, employer: 0 }))
+        .toEqual({ own: 0, employer: 0, total: 0 });
     });
   });
 });

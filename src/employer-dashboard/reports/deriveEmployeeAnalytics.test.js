@@ -7,11 +7,14 @@ import {
   titleCase,
 } from './deriveEmployeeAnalytics';
 
+// v2 (migration 0062): the driver field is `compensation` (monthly UGX), NOT a
+// self-set saving amount. The analytics "monthly" KPIs + the saving buckets now
+// derive from compensation, so every fixture carries a compensation figure.
 const ROSTER = [
-  { name: 'Aml Driver', gender: 'male', age: 22, status: 'active', kycStatus: 'complete', insuranceStatus: 'active', monthlyContribution: 40000, occupation: 'Driver', joinedDate: '2025-01-15', netBalance: 100000, ownContributions: 90000, employerContributions: 10000, totalContributions: 100000 },
-  { name: 'Bea Acct', gender: 'female', age: 30, status: 'active', kycStatus: 'pending', insuranceStatus: 'inactive', monthlyContribution: 75000, occupation: 'Accountant', joinedDate: '2025-01-20', netBalance: 200000 },
-  { name: 'Cyr Driver', gender: 'male', age: 41, status: 'suspended', kycStatus: 'complete', insuranceStatus: 'active', monthlyContribution: 120000, occupation: 'Driver', joinedDate: '2025-03-10', netBalance: 300000 },
-  { name: 'Dot Mgr', gender: 'female', age: 58, status: 'active', kycStatus: 'incomplete', insuranceStatus: 'inactive', monthlyContribution: 220000, occupation: 'Manager', joinedDate: '2025-03-12', netBalance: 400000 },
+  { name: 'Aml Driver', gender: 'male', age: 22, status: 'active', kycStatus: 'complete', insuranceStatus: 'active', compensation: 40000, occupation: 'Driver', joinedDate: '2025-01-15', netBalance: 100000, ownContributions: 90000, employerContributions: 10000, totalContributions: 100000 },
+  { name: 'Bea Acct', gender: 'female', age: 30, status: 'active', kycStatus: 'pending', insuranceStatus: 'inactive', compensation: 75000, occupation: 'Accountant', joinedDate: '2025-01-20', netBalance: 200000 },
+  { name: 'Cyr Driver', gender: 'male', age: 41, status: 'suspended', kycStatus: 'complete', insuranceStatus: 'active', compensation: 120000, occupation: 'Driver', joinedDate: '2025-03-10', netBalance: 300000 },
+  { name: 'Dot Mgr', gender: 'female', age: 58, status: 'active', kycStatus: 'incomplete', insuranceStatus: 'inactive', compensation: 220000, occupation: 'Manager', joinedDate: '2025-03-12', netBalance: 400000 },
 ];
 
 const find = (arr, key, val) => arr.find((d) => d[key] === val);
@@ -24,7 +27,8 @@ describe('deriveEmployeeAnalytics', () => {
     expect(a.kpis.active).toBe(3);
     expect(a.kpis.suspended).toBe(1);
     expect(a.kpis.avgAge).toBe(38); // (22+30+41+58)/4 = 37.75 → 38
-    expect(a.kpis.totalMonthly).toBe(455000);
+    // v2: totalMonthly/avgMonthly are now summed from `compensation`.
+    expect(a.kpis.totalMonthly).toBe(455000); // 40000+75000+120000+220000
     expect(a.kpis.avgMonthly).toBe(113750);
     expect(a.kpis.activePct).toBe(75);
     // Per-member insurance is no longer surfaced — coverage is company-wide.
@@ -63,7 +67,7 @@ describe('deriveEmployeeAnalytics', () => {
     expect(find(a.status, 'key', 'suspended').value).toBe(1);
   });
 
-  it('bucketises monthly saving', () => {
+  it('bucketises monthly compensation (key stays `saving` for the stable contract)', () => {
     expect(find(a.saving, 'key', '<50k').value).toBe(1);
     expect(find(a.saving, 'key', '50–100k').value).toBe(1);
     expect(find(a.saving, 'key', '100–150k').value).toBe(1);
@@ -95,8 +99,14 @@ describe('export builders', () => {
   it('buildRosterExport maps every member to labelled columns', () => {
     const { rows, columns } = buildRosterExport(ROSTER);
     expect(columns.find((c) => c.key === 'kyc')).toBeTruthy();
+    // v2: `compensation` (a real Supabase column) is the "Monthly compensation"
+    // column, replacing the vestigial monthlyContribution.
+    const compCol = columns.find((c) => c.key === 'compensation');
+    expect(compCol).toBeTruthy();
+    expect(compCol.label).toBe('Monthly compensation (UGX)');
+    expect(columns.find((c) => c.key === 'monthlyContribution')).toBeUndefined();
     expect(rows).toHaveLength(4);
-    expect(rows[0]).toMatchObject({ gender: 'Male', status: 'Active', kyc: 'Complete' });
+    expect(rows[0]).toMatchObject({ gender: 'Male', status: 'Active', kyc: 'Complete', compensation: 40000 });
     // Per-member insurance + mock-only contribution columns are intentionally gone.
     for (const key of ['insurance', 'insuranceCover', 'ownContributions', 'employerContributions', 'totalContributions']) {
       expect(columns.find((c) => c.key === key)).toBeUndefined();
@@ -123,6 +133,11 @@ describe('export builders', () => {
     const genderRows = rows.filter((r) => r.metric === 'Gender');
     expect(genderRows.length).toBe(a.gender.length);
     expect(genderRows[0].percent).toMatch(/%$/);
+    // v2: the compensation distribution is surfaced under the "Monthly
+    // compensation" metric (the `saving` analytics key), not "Monthly saving".
+    const compRows = rows.filter((r) => r.metric === 'Monthly compensation');
+    expect(compRows.length).toBe(a.saving.length);
+    expect(rows.filter((r) => r.metric === 'Monthly saving')).toHaveLength(0);
     // Company group-cover block is appended (shows "Not set up" with no config).
     const coverRows = rows.filter((r) => r.metric === 'Group cover');
     expect(coverRows.length).toBeGreaterThan(0);

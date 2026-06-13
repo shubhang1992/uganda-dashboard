@@ -1,12 +1,21 @@
-// Employer service tests — UNIFIED MODEL (0043–0045). The employer's staff are
-// tagged subscribers; funding is a single company-wide config (Issue 2) applied
-// by submit_employer_contribution_run (employer-source transactions).
+// Employer service tests — UNIFIED MODEL (0043–0045) + CONTRIBUTION MODEL v2
+// (migration 0062). The employer's staff are tagged subscribers; funding is a
+// single company-wide config (Issue 2) applied by submit_employer_contribution_run
+// (own + employer-source transactions).
+//
+// v2 TWO-LEG run math (per ACTIVE member, derived from `compensation`):
+//   co-contribution: employeeLeg = round(comp × employeePct/100)
+//                    employerLeg = round(employeeLeg × employerMatchPct/100)  (NO cap)
+//   employer-only:   employeeLeg = 0; percent → round(comp × employerPct/100),
+//                    fixed → round(employerAmount)
+// Each leg > 0 posts a transaction (employee leg source:'own', employer leg
+// source:'employer'). grandTotal = employerTotal + employeeTotal; linesCreated
+// counts DISTINCT funded members. NO commission side-effects.
 //
 // Two branches, mirroring subscriber.test.js:
 //   * real (Supabase) branch — asserts the RPC/select call SHAPE.
 //   * mock-fallback branch (VITE_USE_SUPABASE=false) — exercises the roster +
-//     the employer-run math (match % of each member's own saving, capped),
-//     suspended skips, and nonce idempotency. NO commission side-effects.
+//     the two-leg employer-run math, suspended skips, and nonce idempotency.
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { makeSupabaseMock } from '../../test/supabaseMock';
@@ -29,13 +38,33 @@ const round = (n) => Math.round(n);
 const CFG = EMPLOYER.defaultContributionConfig;
 const ACTIVE = MEMBERS.filter((m) => m.status === 'active');
 
-/** Expected employer match for one member under the company config. */
-function expectedMatch(m) {
-  let amt = round(Number(m.monthlyContribution) * (CFG.matchPct ?? 0) / 100);
-  if (CFG.maxContribution != null) amt = Math.min(amt, round(CFG.maxContribution));
-  return amt;
+/**
+ * Expected two-leg contribution for one member under the company config (v2),
+ * mirroring submit_employer_contribution_run / the employer-service mock EXACTLY.
+ * Derived from the member's `compensation`, NOT a self-set saving amount.
+ */
+function expectedLegs(m) {
+  const comp = Number(m.compensation ?? 0);
+  const mode = CFG.mode ?? 'employer-only';
+  let employeeLeg = 0;
+  let employerLeg = 0;
+  if (mode === 'co-contribution') {
+    employeeLeg = round(comp * Number(CFG.employeePct ?? 0) / 100);
+    employerLeg = round(employeeLeg * Number(CFG.employerMatchPct ?? 0) / 100);
+  } else {
+    employeeLeg = 0;
+    if (CFG.employerBasis === 'percent') employerLeg = round(comp * Number(CFG.employerPct ?? 0) / 100);
+    else employerLeg = round(Number(CFG.employerAmount ?? 0));
+  }
+  return { employeeLeg, employerLeg };
 }
-const EXPECTED_EMPLOYER_TOTAL = ACTIVE.reduce((s, m) => s + expectedMatch(m), 0);
+const EXPECTED_EMPLOYER_TOTAL = ACTIVE.reduce((s, m) => s + expectedLegs(m).employerLeg, 0);
+const EXPECTED_EMPLOYEE_TOTAL = ACTIVE.reduce((s, m) => s + expectedLegs(m).employeeLeg, 0);
+// Distinct members funded = active members with at least one non-zero leg.
+const EXPECTED_FUNDED = ACTIVE.filter((m) => {
+  const { employeeLeg, employerLeg } = expectedLegs(m);
+  return employeeLeg > 0 || employerLeg > 0;
+}).length;
 
 // =============================================================================
 // Real (Supabase) branch — call shape
@@ -140,6 +169,24 @@ describe('employer service — real (Supabase) branch', () => {
       const res = await svc.removeEmployee('emp-001', 's-1');
       expect(res).toMatchObject({ id: 's-1', removed: true });
       expect(supabaseMock.__getRpcCalls('remove_employer_member').length).toBe(1);
+    });
+  });
+
+  describe('updateMemberCompensation → update_employer_member_compensation (v2, 0062)', () => {
+    it('passes p_subscriber_id / p_compensation and returns the updated row', async () => {
+      supabaseMock.__queueRpc('update_employer_member_compensation', {
+        data: { id: 's-1', compensation: 1500000, updated: 1 }, error: null,
+      });
+      const res = await svc.updateMemberCompensation('emp-001', 's-1', 1500000);
+      expect(res).toMatchObject({ id: 's-1', compensation: 1500000, updated: 1 });
+      const call = supabaseMock.__getRpcCalls('update_employer_member_compensation').at(-1);
+      expect(call.args.p_subscriber_id).toBe('s-1');
+      expect(call.args.p_compensation).toBe(1500000);
+    });
+
+    it('throws on RPC error', async () => {
+      supabaseMock.__queueRpc('update_employer_member_compensation', { data: null, error: { message: 'permission denied' } });
+      await expect(svc.updateMemberCompensation('emp-001', 's-1', 1000)).rejects.toMatchObject({ message: 'permission denied' });
     });
   });
 
@@ -331,14 +378,17 @@ describe('employer service — real (Supabase) branch', () => {
       });
     });
 
-    it('defaults optional fields to null / {} when omitted', async () => {
+    it('defaults optional fields to null when omitted (v2: no cadence / config args)', async () => {
       supabaseMock.__queueRpc('create_employer', { data: { id: 'emp-new-2', name: 'Minimal Co' }, error: null });
       await svc.createEmployer({ name: 'Minimal Co' });
       const call = supabaseMock.__getRpcCalls('create_employer').at(-1);
       expect(call.args.p_sector).toBeNull();
       expect(call.args.p_registration_no).toBeNull();
-      expect(call.args.p_payroll_cadence).toBeNull();
-      expect(call.args.p_default_contribution_config).toEqual({});
+      // v2 (migration 0062): the admin UI no longer sends cadence/config — the
+      // RPC still accepts them (defaulting server-side), but the client must NOT
+      // pass them. funding is driven entirely by per-member `compensation`.
+      expect('p_payroll_cadence' in call.args).toBe(false);
+      expect('p_default_contribution_config' in call.args).toBe(false);
     });
 
     it('throws when the RPC returns an error (non-admin caller)', async () => {
@@ -426,15 +476,57 @@ describe('employer service — mock-fallback branch (IS_SUPABASE_ENABLED=false)'
     expect(pending.length).toBe(2);
   });
 
-  it('submitContributionRun posts the employer match to every active member', async () => {
+  it('submitContributionRun posts BOTH legs (own + employer) to every active member (v2 two-leg)', async () => {
     const result = await svc.submitContributionRun('emp-001', { periodLabel: 'May 2026', method: 'Bank transfer', nonce: 'run-1' });
-    expect(result.linesCreated).toBe(ACTIVE.length);
+    // linesCreated = DISTINCT funded members (not transaction rows).
+    expect(result.linesCreated).toBe(EXPECTED_FUNDED);
     expect(result.employerTotal).toBe(EXPECTED_EMPLOYER_TOTAL);
-    expect(result.grandTotal).toBe(EXPECTED_EMPLOYER_TOTAL);
-    expect(result.employeeTotal).toBe(0);
-    // Suspended members are skipped.
-    const suspended = MEMBERS.filter((m) => m.status === 'suspended');
-    expect(result.skipped.filter((s) => s.reason === 'suspended')).toHaveLength(suspended.length);
+    expect(result.employeeTotal).toBe(EXPECTED_EMPLOYEE_TOTAL);
+    expect(result.grandTotal).toBe(EXPECTED_EMPLOYER_TOTAL + EXPECTED_EMPLOYEE_TOTAL);
+    // The seeded company config is co-contribution, so BOTH legs are non-zero.
+    expect(CFG.mode).toBe('co-contribution');
+    expect(result.employeeTotal).toBeGreaterThan(0);
+    expect(result.employerTotal).toBeGreaterThan(0);
+    // Suspended members are excluded from the run entirely (parity with the live SQL
+    // `WHERE is_active`), so they never appear in skipped[] — only zero_contribution can.
+    expect(result.skipped.some((s) => s.reason === 'suspended')).toBe(false);
+  });
+
+  it('writes the correct two-leg per-member transactions (own + employer) for the run', async () => {
+    const result = await svc.submitContributionRun('emp-001', { periodLabel: 'May 2026', method: 'Bank transfer', nonce: 'run-legs' });
+    const { run, lines } = await svc.getContributionRun(result.runId);
+    expect(run.id).toBe(result.runId);
+
+    // A funded co-contribution member gets exactly two lines: own + employer.
+    const sample = ACTIVE.find((m) => {
+      const { employeeLeg, employerLeg } = expectedLegs(m);
+      return employeeLeg > 0 && employerLeg > 0;
+    });
+    const memberLines = lines.filter((l) => l.subscriberId === sample.id);
+    expect(memberLines).toHaveLength(2);
+
+    const { employeeLeg, employerLeg } = expectedLegs(sample);
+    const ownLine = memberLines.find((l) => l.source === 'own');
+    const employerLine = memberLines.find((l) => l.source === 'employer');
+    expect(ownLine.amount).toBe(employeeLeg);
+    expect(employerLine.amount).toBe(employerLeg);
+    // Each leg is split by the member's retirementPct (default 80), rounding ONCE.
+    const retPct = Number(sample.contributionSchedule?.retirementPct ?? 80);
+    expect(ownLine.retirementAmount).toBe(round(employeeLeg * retPct / 100));
+    expect(ownLine.emergencyAmount).toBe(employeeLeg - round(employeeLeg * retPct / 100));
+    expect(employerLine.retirementAmount).toBe(round(employerLeg * retPct / 100));
+    expect(employerLine.emergencyAmount).toBe(employerLeg - round(employerLeg * retPct / 100));
+    // Both legs carry the run id and no agent commission (employer source).
+    expect(ownLine.contributionRunId).toBe(result.runId);
+    expect(employerLine.contributionRunId).toBe(result.runId);
+  });
+
+  it('updateMemberCompensation updates the member compensation override (mock)', async () => {
+    const target = ACTIVE[0];
+    const res = await svc.updateMemberCompensation('emp-001', target.id, 1750000);
+    expect(res).toMatchObject({ id: target.id, compensation: 1750000, updated: 1 });
+    const member = await svc.getEmployee(target.id);
+    expect(member.compensation).toBe(1750000);
   });
 
   it('is idempotent — replaying the same nonce returns the prior result', async () => {

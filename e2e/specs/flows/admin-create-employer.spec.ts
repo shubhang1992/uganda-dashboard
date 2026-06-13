@@ -1,22 +1,24 @@
-// Flow spec: an admin creates an employer (with a co-contribution funding model)
+// Flow spec: an admin creates an employer from name/sector (+ profile fields)
 // and it appears in the platform Employers list.
 //
 // Closes audit §7b.8 / F2-07 ("≥1 admin flow") + §7b.5 (admin create-employer
 // write surface untested at every layer). Admin create-employer is write-flow
 // #17 (RPC create_employer, SECURITY DEFINER, gated on app_role='admin' — §4a.1).
 //
-// The "funding model A5" called for is the §4a A5 / co-contribution model
-// (CreateEmployer's default fundingMode='co-contribution' + a Match %). Building
-// a non-empty defaultContributionConfig means the created employer can run
-// contributions immediately (CreateEmployer §7d-2 rationale).
+// CONTRIBUTION MODEL v2 (migration 0062): the admin no longer sets a payroll
+// cadence or a default contribution config when creating an employer. Funding is
+// driven entirely by each member's monthly `compensation` (set on the roster) +
+// the company-wide config the employer manages in its own Settings — NOT at
+// admin-create time. So this spec posts ONLY the company profile fields the form
+// still carries (name, sector, district, registration no., contact details).
 //
 // What this exercises:
 //   1. Admin persona auth via storageState (no UI login).
 //   2. Sidebar → Employers → "New" launches the CreateEmployer panel.
-//   3. Fill the company name + the co-contribution funding model (Match %).
+//   3. Fill the company name + sector (the form's profile fields).
 //   4. "Create employer" fires the real create_employer RPC.
 //   5. It appears — re-open the Employers panel; the new name is listed.
-//   6. DB verify — the employers row exists with the funding config.
+//   6. DB verify — the employers row exists with the posted profile fields.
 //   7. Cleanup — delete the row by name.
 //
 // Mirrors distributor-create-branch.spec.ts: storageState auth, waitForResponse
@@ -34,13 +36,11 @@ type EmployerRow = {
   id: string;
   name: string;
   sector: string | null;
-  default_contribution_config: { mode?: string; matchPct?: number } | null;
 };
 
 test.describe('admin → create employer (UI + DB)', () => {
   const employerName = `E2E Employer ${Date.now()}`;
   const sector = 'Manufacturing';
-  const matchPct = '50'; // A5 co-contribution funding model.
 
   test.afterEach(async () => {
     // Auto-clean the inserted employer by name so re-runs don't accumulate
@@ -73,12 +73,9 @@ test.describe('admin → create employer (UI + DB)', () => {
     // CreateEmployer renders <h2>New Employer</h2>.
     await expect(page.getByRole('heading', { name: /new employer/i, level: 2 })).toBeVisible();
 
-    // ── Fill company name + co-contribution funding model (A5) ────────────────
+    // ── Fill the company profile fields (v2: no funding mode / match %) ───────
     await page.locator('#ce-name').fill(employerName);
     await page.locator('#ce-sector').fill(sector);
-    // Funding model — co-contribution is the default; set it explicitly + Match %.
-    await page.locator('#ce-funding-mode').selectOption('co-contribution');
-    await page.locator('#ce-match-pct').fill(matchPct);
 
     // ── Submit → create_employer RPC ──────────────────────────────────────────
     const submitBtn = page.getByRole('button', { name: /^create employer$/i });
@@ -102,17 +99,14 @@ test.describe('admin → create employer (UI + DB)', () => {
     ).toBeVisible();
     await expect(page.getByText(employerName).first()).toBeVisible({ timeout: 15_000 });
 
-    // ── DB verify — the employers row exists with the funding config ──────────
+    // ── DB verify — the employers row exists with the posted profile fields ───
     expect(await rowExists('employers', { name: employerName })).toBe(true);
     const row = await getRow<EmployerRow>('employers', { name: employerName });
     expect(row, `inserted employer row should exist for name ${employerName}`).not.toBeNull();
     expect(row!.sector).toBe(sector);
-    // The A5 co-contribution config landed.
-    expect(row!.default_contribution_config?.mode).toBe('co-contribution');
-    expect(Number(row!.default_contribution_config?.matchPct)).toBe(Number(matchPct));
     // eslint-disable-next-line no-console
     console.log(
-      `[db] employers row inserted: id=${row!.id} name=${row!.name} fundingMode=${row!.default_contribution_config?.mode}`,
+      `[db] employers row inserted: id=${row!.id} name=${row!.name} sector=${row!.sector}`,
     );
   });
 });

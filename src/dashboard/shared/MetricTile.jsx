@@ -31,6 +31,7 @@ function MetricTile({
   value,
   context,   // secondary: muted sub-line (string or node)
   statRow,   // primary: arbitrary node rendered under the value
+  children,  // optional rich body (e.g. a split bar, a CTA) under the value
   className = '',
 }) {
   const isPrimary = variant === 'primary';
@@ -48,7 +49,8 @@ function MetricTile({
       {isPrimary && <span className={styles.glow} aria-hidden="true" />}
       {icon && <div className={styles.iconChip}>{icon}</div>}
       <div className={styles.label}>{label}</div>
-      <div className={styles.value}>{value}</div>
+      {value != null && <div className={styles.value}>{value}</div>}
+      {children}
       {statRow && <div className={styles.statRow}>{statRow}</div>}
       {context != null && <div className={styles.context}>{context}</div>}
     </div>

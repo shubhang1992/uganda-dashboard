@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useReducedMotion } from 'framer-motion';
 import { formatUGX } from '../../../utils/currency';
+import { deriveInvestmentGrowth } from '../../../utils/finance';
 
 import { useCountUp } from '../../../hooks/useCountUp';
 import HeroCapsule from '../../../components/HeroCapsule';
@@ -17,11 +18,9 @@ export default function PulseCard({ subscriber }) {
   const counted = useCountUp(balance, 1100, !reduce);
 
   const units = subscriber?.unitsHeld || 0;
-  const totalContributed = subscriber?.totalContributions || 0;
-  const totalWithdrawn = subscriber?.totalWithdrawals || 0;
-  const netInvested = Math.max(0, totalContributed - totalWithdrawn);
-  const growth = balance - netInvested;
-  const growthPct = netInvested > 0 ? (growth / netInvested) * 100 : 0;
+  // Invested principal + growth are derived (the demo has no real cost basis);
+  // shared with desktop HomeDesktop so the two surfaces never disagree.
+  const { invested: netInvested, growth, growthPct } = deriveInvestmentGrowth(subscriber);
 
   // useCountUp returns 0 when run is false (reduced-motion), so snap to the
   // resolved balance in that case instead of showing a stuck "0".

@@ -202,6 +202,8 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 | totalWithdrawals | number | Stored | Total withdrawn (0-15% of totalContributions in mock) |
 | registeredDate | string | Stored | ISO date `YYYY-MM-DD`. Distribution: 25% in 2024, 45% in 2025, 30% in 2026 Jan-Mar |
 | productsHeld | string[] | Stored | 1-3 pension products held |
+| employerId | string \| null | Stored | FK → `employers(id)` when the subscriber is an employer-tagged staff member; NULL for individual subscribers |
+| compensation | number | Stored | **`compensation NUMERIC NOT NULL DEFAULT 0` (migration 0062)** — total monthly compensation (UGX). The driver field for the employer's two-leg contribution run. For employer members it is the source of truth (their `contributionSchedule.amount` is 0; `monthlyContribution` is vestigial); individual subscribers stay at 0 |
 
 ### Relationships
 - Parent: Agent
@@ -220,6 +222,7 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 - **Age distribution** (weighted): 18-25 (2x), 26-35 (4x), 36-45 (3x), 46-55 (2x), 56-70 (1x).
 - **Active status** in mock: 60-95% probability per subscriber. UNCLEAR — confirm: what defines "active" in production? (contributing in last N months?)
 - **Products** are multi-hold — subscriber can hold 1-3 products simultaneously.
+- **Employer members (contribution model v2, `0062`).** When `employerId` is set, the member's pension is funded by the employer's two-leg contribution run computed from `compensation` — NOT a self-set saving amount (so `contributionSchedule.amount = 0`, `monthlyContribution` is vestigial). A co-contribution run posts an **`own`** employee leg (`source='own'`) **and** an **`employer`** leg (`source='employer'`) to `transactions`, both with `agent_id` NULL (no commission) and `contribution_run_id` set; an employer-only run posts only the `employer` leg. The employer sets/edits `compensation` via `update_employer_member_compensation` (RPC, 0062).
 
 ---
 
@@ -237,7 +240,7 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 | contactName / contactPhone / contactEmail | string | Stored | Primary HR/admin contact |
 | district | string | Stored | Operating district — **free text**, NOT an FK. The admin Platform Overview employer geo rollup (`get_employer_geo_rollup`, 0058) places the employer on the map by resolving `district = districts.name` (case-insensitive) → `region_id`; unmatched text buckets under `'unmapped'`. |
 | payrollCadence | string | Stored | `"monthly"` \| `"weekly"` \| … |
-| defaultContributionConfig | object (JSONB) | Stored | The template a new run starts from. Shape `{ mode, matchPct, maxContribution }` (co-contribution) or `{ mode, employerPct }` (employer-only), plus company-wide group-insurance fields `insuranceEnabled` (boolean) + `groupCoverAmount` that apply to **both** modes — see [Contribution Config shape](#contribution-config-shape) |
+| defaultContributionConfig | object (JSONB) | Stored | The single company-wide funding template a run applies to every member. **CONTRIBUTION MODEL v2 (migration 0062):** co-contribution = `{ mode:'co-contribution', employeePct, employerMatchPct }` (NO `maxContribution`); employer-only = `{ mode:'employer-only', employerBasis:'fixed', employerAmount }` or `{ …, employerBasis:'percent', employerPct }`; plus company-wide group-insurance fields `insuranceEnabled` (boolean) + `groupCoverAmount` that ride along on **both** modes — see [Contribution Config shape](#contribution-config-shape) |
 | createdAt / updatedAt | timestamptz | Stored | Row timestamps (`updated_at` maintained inline by the `0035` RPCs — no shared trigger) |
 
 ### Relationships
@@ -329,39 +332,39 @@ Each entity references its parent via `parentId`. Metrics roll up from subscribe
 
 #### Contribution Config shape
 
-`contribution_config` (per-employee) and `default_contribution_config` (employer-level template) share one JSONB shape, with two `mode` variants (funder-redesign — `0038`):
+> **CONTRIBUTION MODEL v2 (migration 0062 — LIVE).** The live model is the **compensation-driven, two-leg** model below. The earlier funder-redesign (`0038`) match-of-self-saving shape (`matchPct`/`maxContribution`) is migrated away — `0062`'s demo reshape rewrites every `default_contribution_config` to the new keys (carrying any old `matchPct` into `employerMatchPct`).
+
+The single company-wide `default_contribution_config` JSONB has these `mode` / `employerBasis` variants:
 
 ```jsonc
-// co-contribution: the employer MATCHES a % of the employee's own monthly saving
+// co-contribution: the employee leg is a % of the member's compensation, and the
+// employer leg is a % MATCH of that employee leg (NO cap)
 {
   "mode": "co-contribution",
-  "matchPct": 50,             // employer matches this % of the employee's monthlyContribution
-  "maxContribution": 80000    // optional UGX cap on the employer top-up; null/'' = uncapped
+  "employeePct": 10,          // employee leg = round(compensation * employeePct/100)
+  "employerMatchPct": 50      // employer leg = round(employeeLeg * employerMatchPct/100)
 }
 
-// employer-only: employer funds a % of salary
-{
-  "mode": "employer-only",
-  "employerPct": 8            // % of salary funded by the employer
-}
+// employer-only, fixed: a flat UGX employer amount per member
+{ "mode": "employer-only", "employerBasis": "fixed",   "employerAmount": 50000 }
+
+// employer-only, percent: a % of the member's compensation
+{ "mode": "employer-only", "employerBasis": "percent", "employerPct": 10 }
 
 // group insurance is a company-wide TRUE/FALSE config carried on
 // default_contribution_config alongside the mode fields above (BOTH modes —
-// it is independent of the funding mode; see Business Rules)
+// independent of the funding mode; see Business Rules)
 {
   "insuranceEnabled": true,   // company-wide group life on/off
   "groupCoverAmount": 5000000 // flat group life cover (UGX) applied roster-wide via apply_group_insurance
 }
 ```
 
-**Match formula (co-contribution, `0038`)** — re-derived server-side per run (client amounts are advisory):
-`employee_half = round(monthlyContribution)` (the employee's own saving);
-`employer_half = round(employee_half * matchPct / 100)`, then `min(employer_half, round(maxContribution))` when the cap is set;
-`gross = employer_half + employee_half`; split by `contributionSchedule` (`retirement = round(gross * retirementPct/100)`, `emergency = gross − retirement`).
+**Two-leg run math (`submit_employer_contribution_run`, `0062`)** — re-derived server-side per ACTIVE member from `compensation` (`comp`) + the member's `retirement_pct` (`retPct`, default 80):
+- **co-contribution:** `employeeLeg = round(comp * employeePct/100)`; `employerLeg = round(employeeLeg * employerMatchPct/100)`.
+- **employer-only:** `employeeLeg = 0`; `employerBasis='percent' → employerLeg = round(comp * employerPct/100)`, else `employerLeg = round(employerAmount)`.
 
-**Employer-only** is unchanged: `employer_half = employerAmount ?? round(salary * employerPct / 100)`, `employee_half = 0`.
-
-**Dual-read legacy fallback.** A `co-contribution` row carrying the OLD keys (`employerPct`/`employeePct`, no `matchPct`) falls back to the pre-redesign salary-based math (`employer_half = employerAmount ?? round(salary*employerPct/100)`, `employee_half = employeeAmount ?? round(salary*employeePct/100)`) so an un-migrated live row never zeroes out during cutover. Both `0037` (`monthlyContribution` column) and `0038` (the match-model RPC body) are now **applied to the live Singapore DB** (cutover 2026-06-05). The dual-read fallback remains for any legacy rows that predate the column.
+For each leg `> 0` the run posts ONE `transactions` row: the **employee leg as `source:'own'`** and the **employer leg as `source:'employer'`**, both `agent_id` NULL (no commission) and `contribution_run_id` set. Each leg is split by `retPct`, rounding ONCE: `retirement = round(leg * retPct/100)`, `emergency = leg − retirement`. A member is skipped only when BOTH legs are 0. So a **co-contribution run posts up to two transactions per member** (an `own` employee leg + an `employer` leg); an employer-only run posts only the `employer` leg. The header carries `employer_total` (Σ employer legs), `employee_total` (Σ employee legs), and `grand_total = employer_total + employee_total`. Applied + verified on the live Singapore DB.
 
 #### Contribution Schedule shape
 

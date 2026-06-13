@@ -65,9 +65,12 @@ function deriveMetrics(metrics, employees) {
   };
 }
 
-/** A member "contributes" if they have a non-zero own monthly saving. */
+/** A member "contributes" if they have a non-zero monthly compensation — the
+    v2 driver field. Compensation > 0 means a run will fund them (employee
+    and/or employer leg), so they count toward participation. (The old
+    `monthlyContribution` is vestigial for employer members and now ~0.) */
 function contributesSomething(emp) {
-  return Number(emp.monthlyContribution ?? 0) > 0;
+  return Number(emp.compensation ?? 0) > 0;
 }
 
 /* ── Insights (Copilot strip) ───────────────────────────────────────────────── */
@@ -398,7 +401,7 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
         <div className={styles.metricsSection}>
           {/* Centrepiece — total contributions to date */}
           <button type="button" className={`${styles.centrepiece} ${styles.metricCard}`} onClick={() => openPanel('runs')}>
-            <span className={styles.metricLabel}>Total contributions to date</span>
+            <span className={styles.metricLabel}>Total contributions to date (employee + employer)</span>
             <motion.span className={styles.centreValue}
               initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3, ease: EASE_OUT_EXPO }}>

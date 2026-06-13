@@ -150,3 +150,91 @@ export function amtToSlider(a, min, max) {
   const lo = Math.log(min), hi = Math.log(max);
   return ((Math.log(Math.max(a, min)) - lo) / (hi - lo)) * 100;
 }
+
+/** Clamp `n` into the inclusive range [lo, hi]. */
+function clamp(n, lo, hi) {
+  return Math.min(hi, Math.max(lo, n));
+}
+
+/** Whole months elapsed since an ISO date string; `fallback` if absent/invalid. */
+function monthsSince(dateStr, fallback) {
+  if (!dateStr) return fallback;
+  const then = new Date(dateStr).getTime();
+  if (Number.isNaN(then)) return fallback;
+  const months = (Date.now() - then) / (1000 * 60 * 60 * 24 * 30.44);
+  return months > 0 ? months : fallback;
+}
+
+/** Small deterministic djb2 string hash, always returned as a non-negative int. */
+function hashString(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i += 1) {
+    h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+  }
+  return h;
+}
+
+/**
+ * Derive a believable "amount invested" + investment growth for a subscriber.
+ *
+ * The demo has no real cost basis — every contribution buys units at the fixed
+ * 1,000 UGX price, so `total_balance` equals total contributed and raw growth is
+ * always zero. To give the dashboards a meaningful "invested vs grown" story we
+ * discount the current balance back over the member's tenure at the app's own
+ * assumed return (`MONTHLY_RATE` — the same rate `calcFV` projects forward),
+ * i.e. invested = what would have compounded up to today's balance.
+ *
+ * Deterministic per subscriber (no `Math.random`), so figures stay stable across
+ * renders and never disagree between the mobile PulseCard and desktop HomeDesktop.
+ *
+ * @param {{ netBalance?: number, registeredDate?: string, id?: string }} subscriber
+ * @returns {{ invested: number, growth: number, growthPct: number }}
+ */
+export function deriveInvestmentGrowth(subscriber) {
+  const balance = Number(subscriber?.netBalance) || 0;
+  if (balance <= 0) return { invested: 0, growth: 0, growthPct: 0 };
+
+  // Tenure (months) from registration, fallback 18mo, plus a small stable
+  // per-subscriber jitter so equal-tenure members don't show identical growth.
+  const base = monthsSince(subscriber?.registeredDate, 18);
+  const jitter = (hashString(String(subscriber?.id ?? '')) % 7) - 3; // -3..+3
+  const tenureMonths = clamp(base + jitter, 3, 36);
+
+  const factor = Math.pow(1 + MONTHLY_RATE, tenureMonths);
+  const invested = Math.round(balance / factor);
+  const growth = balance - invested;
+  const growthPct = invested > 0 ? (growth / invested) * 100 : 0;
+  return { invested, growth, growthPct };
+}
+
+/**
+ * Split a member's contributed principal into own-vs-employer for the
+ * employer-benefits card.
+ *
+ * Root cause this fixes: the card used to SUM the `transactions` feed, but the
+ * seed only ever wrote a handful of contribution rows per member (e.g. 5 months
+ * for a 21-month member), so that sum sat far below the member's real
+ * `total_balance` snapshot — the card's "total contributed" (1.05M) flatly
+ * contradicted the hero balance (4.41M). The two were never the same source.
+ *
+ * Instead we split the SAME derived principal the hero shows
+ * (`deriveInvestmentGrowth().invested`) by the member's real employer-match
+ * ratio, so `own + employer === invested === balance − growth` and every surface
+ * agrees. The raw breakdown is consulted only for the ratio, never the totals.
+ *
+ * @param {{ netBalance?: number, registeredDate?: string, id?: string }} subscriber
+ * @param {{ own?: number, employer?: number }} [breakdown] raw per-source sums — used only for the ratio
+ * @returns {{ own: number, employer: number, total: number }}
+ */
+export function deriveEmployerSplit(subscriber, breakdown) {
+  const { invested } = deriveInvestmentGrowth(subscriber);
+  const rawOwn = Number(breakdown?.own) || 0;
+  const rawEmployer = Number(breakdown?.employer) || 0;
+  const rawTotal = rawOwn + rawEmployer;
+  // Preserve the member's real match ratio; fall back to a 1/3 employer share
+  // (a common 2:1 member-to-employer top-up) when no contribution rows exist yet.
+  const employerShare = rawTotal > 0 ? rawEmployer / rawTotal : 1 / 3;
+  const employer = Math.round(invested * employerShare);
+  const own = Math.max(0, invested - employer);
+  return { own, employer, total: own + employer };
+}
