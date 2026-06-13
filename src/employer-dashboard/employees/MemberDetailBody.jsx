@@ -6,8 +6,15 @@
 // member's name, status badge, Back, Remove) is owned by ViewEmployees; this
 // component is just the body. All data via hooks; never imports `employerSeed`.
 
+import { useState } from 'react';
 import { useEmployerScope } from '../../contexts/EmployerScopeContext';
-import { useEmployee, useEmployeeContributions, useEmployer } from '../../hooks/useEmployer';
+import {
+  useEmployee,
+  useEmployeeContributions,
+  useEmployer,
+  useUpdateMemberCompensation,
+} from '../../hooks/useEmployer';
+import { useToast } from '../../contexts/ToastContext';
 import { formatUGX } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 import SkeletonRow from '../../components/SkeletonRow';
@@ -15,6 +22,28 @@ import ErrorCard from '../../components/feedback/ErrorCard';
 import EmptyState from '../../components/EmptyState';
 import { companyFundingLabel } from './fundingLabel';
 import styles from './MemberDetailBody.module.css';
+
+const round = (n) => Math.round(Number(n) || 0);
+
+// Per-member two-leg run math (DB contract, migration 0062). Returns the monthly
+// employee + employer legs derived from the company-wide config and this
+// member's compensation — mirrors `_mockSubmitEmployerRun` so the preview the
+// employer sees here matches what a run will actually post.
+function deriveLegs(config, compensation) {
+  const cfg = config ?? {};
+  const comp = Number(compensation) || 0;
+  if (cfg.mode === 'co-contribution') {
+    const employeeLeg = round((comp * Number(cfg.employeePct ?? 0)) / 100);
+    const employerLeg = round((employeeLeg * Number(cfg.employerMatchPct ?? 0)) / 100);
+    return { employeeLeg, employerLeg };
+  }
+  // employer-only
+  const employerLeg =
+    cfg.employerBasis === 'percent'
+      ? round((comp * Number(cfg.employerPct ?? 0)) / 100)
+      : round(Number(cfg.employerAmount ?? 0));
+  return { employeeLeg: 0, employerLeg };
+}
 
 export default function MemberDetailBody({ employeeId }) {
   const { employerId } = useEmployerScope();
@@ -28,6 +57,13 @@ export default function MemberDetailBody({ employeeId }) {
     refetch: refetchTx,
   } = useEmployeeContributions(employeeId);
   const { data: employer } = useEmployer(employerId);
+  const updateCompensation = useUpdateMemberCompensation(employerId);
+  const { addToast } = useToast();
+
+  // Inline compensation edit (mirrors ViewEmployees' remove-member wiring: a
+  // local edit state + a non-optimistic mutate that toasts + invalidates).
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
 
   const isCold = isLoading && !employee;
 
@@ -40,6 +76,40 @@ export default function MemberDetailBody({ employeeId }) {
   if (isCold) return <SkeletonRow count={6} label="Loading member" />;
   if (isError) return <ErrorCard title="We couldn't load this member" message={error} onRetry={refetch} />;
   if (!employee) return <EmptyState kind="no-data" title="Member not found" body="This record may have been removed." />;
+
+  // Compensation drives the run (0062); members no longer self-set a saving
+  // amount (`monthlyContribution` is vestigial). Show the derived monthly legs
+  // so the employer sees what a run will post for this member.
+  const compensation = Number(employee.compensation) || 0;
+  const { employeeLeg, employerLeg } = deriveLegs(employer?.defaultContributionConfig, compensation);
+
+  function startEdit() {
+    setDraft(String(compensation));
+    setEditing(true);
+  }
+  function cancelEdit() {
+    setEditing(false);
+    setDraft('');
+  }
+  function saveEdit() {
+    if (updateCompensation.isPending) return;
+    const next = Number(draft);
+    if (draft === '' || !Number.isFinite(next) || next < 0) {
+      addToast('error', 'Enter a monthly compensation of 0 or more (UGX).');
+      return;
+    }
+    updateCompensation.mutate(
+      { employeeId: employee.id, compensation: next },
+      {
+        onSuccess: () => {
+          addToast('success', `Updated ${employee.name.split(' ')[0]}'s monthly compensation.`);
+          setEditing(false);
+          setDraft('');
+        },
+        onError: (err) => addToast('error', err?.message || 'Could not update compensation.'),
+      },
+    );
+  }
 
   return (
     <div className={styles.sections}>
@@ -64,7 +134,53 @@ export default function MemberDetailBody({ employeeId }) {
       <section className={styles.section} aria-labelledby="sched-h">
         <h3 id="sched-h" className={styles.sectionTitle}>Contribution plan</h3>
         <dl className={styles.defs}>
-          <Def label="Own monthly saving" value={formatUGX(employee.monthlyContribution, { compact: false })} />
+          {/* Monthly compensation — the run driver (0062), with inline edit. */}
+          <div className={styles.def}>
+            <dt className={styles.defLabel}>Monthly compensation</dt>
+            <dd className={styles.defValue}>
+              {editing ? (
+                <span className={styles.compEdit}>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1000"
+                    className={styles.compInput}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    aria-label="Monthly compensation in UGX"
+                    autoFocus
+                    disabled={updateCompensation.isPending}
+                  />
+                  <button
+                    type="button"
+                    className={styles.compSave}
+                    onClick={saveEdit}
+                    disabled={updateCompensation.isPending}
+                  >
+                    {updateCompensation.isPending ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.compCancel}
+                    onClick={cancelEdit}
+                    disabled={updateCompensation.isPending}
+                  >
+                    Cancel
+                  </button>
+                </span>
+              ) : (
+                <span className={styles.compEdit}>
+                  {formatUGX(compensation, { compact: false })}
+                  <button type="button" className={styles.compEditBtn} onClick={startEdit}>
+                    Edit
+                  </button>
+                </span>
+              )}
+            </dd>
+          </div>
+          <Def label="Employee contribution / mo" value={formatUGX(employeeLeg, { compact: false })} />
+          <Def label="Employer contribution / mo" value={formatUGX(employerLeg, { compact: false })} />
           <Def label="Company funding" value={companyFundingLabel(employer?.defaultContributionConfig)} />
           <Def
             label="Retirement / Emergency"

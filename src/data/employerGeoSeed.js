@@ -29,8 +29,10 @@ function dobForAge(age) {
 }
 
 // Each company's staff are real subscribers tagged with employer_id (agent_id
-// NULL). Balance = own (monthly × months) + a flat 50% employer match, split
-// 80/20 retirement/emergency — the same identity the primary employer uses.
+// NULL). Historical balance = own (monthly × months) + a flat 50% employer match,
+// split 80/20 retirement/emergency. CONTRIBUTION MODEL v2 (migration 0062): each
+// member also carries `compensation` (monthly UGX) — the new run driver — mirroring
+// the migration backfill (greatest(monthly × 10, 500000)).
 function makeMember(employer, p, idx) {
   const monthly = p.monthly ?? 0;
   const months = p.monthsActive ?? 12;
@@ -41,6 +43,7 @@ function makeMember(employer, p, idx) {
   const seq = String(idx + 1).padStart(2, '0');
   return {
     id: `${employer.id}-e${seq}`,
+    compensation: Math.max(round(monthly * 10), 500000),
     name: p.name,
     email: null,
     phone: p.phone,
@@ -157,7 +160,7 @@ export const EXTRA_EMPLOYERS = Object.freeze(EMPLOYER_DEFS.map((e) => Object.fre
   districtId: e.districtId,
   regionId: e.regionId,
   payrollCadence: 'monthly',
-  defaultContributionConfig: { mode: 'co-contribution', matchPct: 50, maxContribution: 200000, insuranceEnabled: false },
+  defaultContributionConfig: { mode: 'co-contribution', employeePct: 10, employerMatchPct: 50, insuranceEnabled: false },
 })));
 
 // Flat list of all extra members (tagged subscribers) across every employer.

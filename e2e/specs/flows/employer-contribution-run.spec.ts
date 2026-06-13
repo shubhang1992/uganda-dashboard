@@ -42,6 +42,9 @@ type RunRow = {
   employer_id: string;
   period_label: string | null;
   status: string;
+  employer_total: number;
+  employee_total: number;
+  grand_total: number;
 };
 
 test.describe('employer → contribution run (UI → RPC → DB)', () => {
@@ -136,9 +139,21 @@ test.describe('employer → contribution run (UI → RPC → DB)', () => {
     });
     expect(row, `inserted run row should exist for period ${periodLabel}`).not.toBeNull();
     expect(row!.status, 'a recorded run is completed').toBe('completed');
+
+    // ── v2 two-leg assertion (migration 0062) ─────────────────────────────────
+    // The demo employer (emp-001) is on the co-contribution model, so a run posts
+    // BOTH an employee leg (source='own') and an employer leg (source='employer').
+    // The header therefore carries a positive employee_total, and the grand_total
+    // is the exact sum of the two legs.
+    const employerTotal = Number(row!.employer_total);
+    const employeeTotal = Number(row!.employee_total);
+    const grandTotal = Number(row!.grand_total);
+    expect(employeeTotal, 'co-contribution run records a positive employee leg').toBeGreaterThan(0);
+    expect(employerTotal, 'co-contribution run records a positive employer leg').toBeGreaterThan(0);
+    expect(grandTotal, 'grand_total = employer_total + employee_total').toBe(employerTotal + employeeTotal);
     // eslint-disable-next-line no-console
     console.log(
-      `[db] contribution_runs row inserted: id=${row!.id} period=${row!.period_label} status=${row!.status}`,
+      `[db] contribution_runs row inserted: id=${row!.id} period=${row!.period_label} status=${row!.status} employer=${employerTotal} employee=${employeeTotal} grand=${grandTotal}`,
     );
   });
 });

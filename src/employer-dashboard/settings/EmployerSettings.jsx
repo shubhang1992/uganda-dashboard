@@ -199,22 +199,28 @@ export default function EmployerSettings({ splitMode = false }) {
 function SettingsBody({ tab, settingsOpen, employer, employerId, addToast }) {
   const updateProfile = useUpdateEmployerProfile(employerId);
 
-  // Dual-read seed: prefer the NEW keys (matchPct / maxContribution /
-  // groupCoverAmount) and fall back to the legacy %-pair so an un-migrated
-  // config still populates sensibly. Blank UGX fields stay '' (= no cap / no
-  // cover) so the inputs render empty rather than "0". `insuranceEnabled` /
-  // `groupCoverAmount` are part of this single draft so the Pension and
+  // Contribution-model v2 seed (migration 0062): compensation-driven, two-leg
+  // math. Prefer the NEW keys and fall back to the legacy shape so an
+  // un-migrated config still populates sensibly:
+  //   • employerBasis — fixed | percent. Inferred from a legacy `employerAmount`
+  //     (=> fixed) when not explicitly set.
+  //   • employerMatchPct — co-contribution employer match; legacy `matchPct`.
+  // The old `maxContribution` cap is GONE in v2. `insuranceEnabled` /
+  // `groupCoverAmount` ride along on this single draft so the Pension and
   // Insurance tabs edit the SAME state.
   const initial = useMemo(() => {
     const cfg = employer?.defaultContributionConfig ?? {};
     const coverRaw = cfg.groupCoverAmount;
     return {
       mode: cfg.mode ?? 'co-contribution',
-      matchPct: cfg.matchPct ?? 50,
-      maxContribution: cfg.maxContribution ?? '',
-      // Employer-only is now a FIXED monthly amount per member (members are
-      // subscribers with no salary) — Issue 2 / unified model.
+      // Employer-only: fixed UGX amount OR a % of compensation.
+      employerBasis: cfg.employerBasis ?? (cfg.employerAmount != null ? 'fixed' : 'percent'),
       employerAmount: cfg.employerAmount ?? 50000,
+      employerPct: cfg.employerPct ?? 10,
+      // Co-contribution: employee % of compensation + employer match % of the
+      // employee leg (no cap in v2).
+      employeePct: cfg.employeePct ?? 10,
+      employerMatchPct: cfg.employerMatchPct ?? cfg.matchPct ?? 50,
       // Group insurance is a company-wide TRUE/FALSE config, independent of
       // funding mode. Back-compat: an un-migrated config with a positive cover
       // is treated as enabled so existing employers keep their cover.
@@ -260,40 +266,57 @@ function SettingsBody({ tab, settingsOpen, employer, employerId, addToast }) {
       return;
     }
 
-    // Build the mode-specific config; the insurance fields ride along on both
-    // modes so the company-wide setting is persisted either way.
+    // Build the mode-specific config per the contribution-model v2 DB CONTRACT
+    // (migration 0062). The insurance fields ride along on both modes so the
+    // company-wide setting is persisted either way. No `maxContribution` cap.
     let defaultContributionConfig;
     if (isCo) {
-      const matchPct = Number(draft.matchPct);
-      const maxContribution =
-        draft.maxContribution === '' ? null : Number(draft.maxContribution);
-      if (!(matchPct >= 0 && matchPct <= 100)) {
-        setErr('Match % must be between 0 and 100.');
+      const employeePct = Number(draft.employeePct);
+      const employerMatchPct = Number(draft.employerMatchPct);
+      if (!(employeePct >= 0 && employeePct <= 100)) {
+        setErr('Employee contribution % must be between 0 and 100.');
         return;
       }
-      if (maxContribution != null && !(maxContribution >= 0)) {
-        setErr('Maximum contribution must be 0 or more (or blank for no cap).');
+      if (!(employerMatchPct >= 0 && employerMatchPct <= 100)) {
+        setErr('Employer match % must be between 0 and 100.');
         return;
       }
       defaultContributionConfig = {
         mode: 'co-contribution',
-        matchPct,
-        maxContribution,
+        employeePct,
+        employerMatchPct,
         insuranceEnabled,
         groupCoverAmount: cover,
       };
     } else {
-      const employerAmount = Number(draft.employerAmount);
-      if (!(employerAmount >= 0) || !Number.isFinite(employerAmount)) {
-        setErr('Amount per member must be 0 or more.');
-        return;
+      const employerBasis = draft.employerBasis === 'percent' ? 'percent' : 'fixed';
+      if (employerBasis === 'percent') {
+        const employerPct = Number(draft.employerPct);
+        if (!(employerPct >= 0 && employerPct <= 100)) {
+          setErr('Employer contribution % must be between 0 and 100.');
+          return;
+        }
+        defaultContributionConfig = {
+          mode: 'employer-only',
+          employerBasis: 'percent',
+          employerPct,
+          insuranceEnabled,
+          groupCoverAmount: cover,
+        };
+      } else {
+        const employerAmount = Number(draft.employerAmount);
+        if (!(employerAmount >= 0) || !Number.isFinite(employerAmount)) {
+          setErr('Amount per member must be 0 or more.');
+          return;
+        }
+        defaultContributionConfig = {
+          mode: 'employer-only',
+          employerBasis: 'fixed',
+          employerAmount,
+          insuranceEnabled,
+          groupCoverAmount: cover,
+        };
       }
-      defaultContributionConfig = {
-        mode: 'employer-only',
-        employerAmount,
-        insuranceEnabled,
-        groupCoverAmount: cover,
-      };
     }
     setErr('');
 
@@ -630,17 +653,34 @@ function PensionContributionTab({
   setGroupCover,
 }) {
   const isCo = draft.mode === 'co-contribution';
+  const isPercent = draft.employerBasis === 'percent';
 
-  // Illustrative previews — display-only; runs re-derive per member.
-  //  • Co mode reads off an EXAMPLE member monthly saving (the match base).
-  //  • Employer-only is a fixed monthly amount per member.
-  const EXAMPLE_MONTHLY = 100000;
-  const coPreview = useMemo(() => {
-    const capSet = draft.maxContribution !== '' && draft.maxContribution != null;
-    const uncapped = round(EXAMPLE_MONTHLY * (Number(draft.matchPct) || 0) / 100);
-    const match = capSet ? Math.min(uncapped, round(Number(draft.maxContribution))) : uncapped;
-    return { match, capped: capSet && uncapped > match };
-  }, [draft.matchPct, draft.maxContribution]);
+  // Illustrative preview — display-only; runs re-derive per member from each
+  // member's own compensation. Walks the contribution-model v2 two-leg math
+  // (migration 0062) off an EXAMPLE monthly compensation.
+  //  • co-contribution: employeeLeg = comp*employeePct/100;
+  //                     employerLeg = employeeLeg*employerMatchPct/100.
+  //  • employer-only/percent: employerLeg = comp*employerPct/100 (no employee leg).
+  //  • employer-only/fixed:   employerLeg = employerAmount (no employee leg).
+  const EXAMPLE_COMP = 1000000;
+  const preview = useMemo(() => {
+    if (isCo) {
+      const employeeLeg = round(EXAMPLE_COMP * (Number(draft.employeePct) || 0) / 100);
+      const employerLeg = round(employeeLeg * (Number(draft.employerMatchPct) || 0) / 100);
+      return { employeeLeg, employerLeg, total: employeeLeg + employerLeg };
+    }
+    const employerLeg = isPercent
+      ? round(EXAMPLE_COMP * (Number(draft.employerPct) || 0) / 100)
+      : round(Number(draft.employerAmount) || 0);
+    return { employeeLeg: 0, employerLeg, total: employerLeg };
+  }, [
+    isCo,
+    isPercent,
+    draft.employeePct,
+    draft.employerMatchPct,
+    draft.employerPct,
+    draft.employerAmount,
+  ]);
 
   return (
     <form className={styles.form} onSubmit={saveConfig} noValidate>
@@ -677,7 +717,26 @@ function PensionContributionTab({
       {isCo ? (
         <div className={styles.fieldRow}>
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="emp-default-match">Match %</label>
+            <label className={styles.label} htmlFor="emp-default-employee-pct">Employee contribution (% of compensation)</label>
+            <input
+              id="emp-default-employee-pct"
+              className={styles.input}
+              type="number"
+              min="0"
+              max="100"
+              step="0.5"
+              value={draft.employeePct}
+              onChange={(e) => {
+                setDraft((d) => ({ ...d, employeePct: e.target.value }));
+                if (err) setErr('');
+              }}
+            />
+            <span className={styles.hint}>
+              Each member contributes this % of their monthly compensation.
+            </span>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="emp-default-match">Employer match (% of the employee contribution)</label>
             <input
               id="emp-default-match"
               className={styles.input}
@@ -685,71 +744,94 @@ function PensionContributionTab({
               min="0"
               max="100"
               step="0.5"
-              value={draft.matchPct}
+              value={draft.employerMatchPct}
               onChange={(e) => {
-                setDraft((d) => ({ ...d, matchPct: e.target.value }));
+                setDraft((d) => ({ ...d, employerMatchPct: e.target.value }));
                 if (err) setErr('');
               }}
             />
             <span className={styles.hint}>
-              You match this % of each employee&apos;s own monthly contribution.
+              You match this % of each member&apos;s own contribution.
             </span>
           </div>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="emp-default-max">Maximum contribution (UGX)</label>
-            <input
-              id="emp-default-max"
-              className={styles.input}
-              type="number"
-              min="0"
-              step="1000"
-              value={draft.maxContribution}
-              placeholder="No cap"
-              onChange={(e) => {
-                setDraft((d) => ({ ...d, maxContribution: e.target.value }));
-                if (err) setErr('');
-              }}
-            />
-            <span className={styles.hint}>Optional — caps the employer top-up per employee.</span>
-          </div>
         </div>
       ) : (
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="emp-default-er">Amount per member / month (UGX)</label>
-          <input
-            id="emp-default-er"
-            className={styles.input}
-            type="number"
-            min="0"
-            step="1000"
-            value={draft.employerAmount}
-            onChange={(e) => {
-              setDraft((d) => ({ ...d, employerAmount: e.target.value }));
-              if (err) setErr('');
-            }}
-          />
-          <span className={styles.hint}>The employer contributes this fixed amount to each member every month.</span>
-        </div>
+        <>
+          <fieldset className={styles.fieldset}>
+            <legend className={styles.legend}>Employer contribution basis</legend>
+            <div className={styles.radioRow}>
+              <label className={styles.radio}>
+                <input
+                  type="radio"
+                  name="emp-default-basis"
+                  checked={!isPercent}
+                  onChange={() => { setDraft((d) => ({ ...d, employerBasis: 'fixed' })); if (err) setErr(''); }}
+                />
+                Fixed amount
+              </label>
+              <label className={styles.radio}>
+                <input
+                  type="radio"
+                  name="emp-default-basis"
+                  checked={isPercent}
+                  onChange={() => { setDraft((d) => ({ ...d, employerBasis: 'percent' })); if (err) setErr(''); }}
+                />
+                % of compensation
+              </label>
+            </div>
+          </fieldset>
+
+          {isPercent ? (
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="emp-default-er-pct">Employer contribution (% of compensation)</label>
+              <input
+                id="emp-default-er-pct"
+                className={styles.input}
+                type="number"
+                min="0"
+                max="100"
+                step="0.5"
+                value={draft.employerPct}
+                onChange={(e) => {
+                  setDraft((d) => ({ ...d, employerPct: e.target.value }));
+                  if (err) setErr('');
+                }}
+              />
+              <span className={styles.hint}>The employer contributes this % of each member&apos;s monthly compensation.</span>
+            </div>
+          ) : (
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="emp-default-er">Amount per member / month (UGX)</label>
+              <input
+                id="emp-default-er"
+                className={styles.input}
+                type="number"
+                min="0"
+                step="1000"
+                value={draft.employerAmount}
+                onChange={(e) => {
+                  setDraft((d) => ({ ...d, employerAmount: e.target.value }));
+                  if (err) setErr('');
+                }}
+              />
+              <span className={styles.hint}>The employer contributes this fixed amount to each member every month.</span>
+            </div>
+          )}
+        </>
       )}
 
-      {isCo ? (
-        <div className={styles.preview} aria-live="polite">
-          <span className={styles.previewLabel}>
-            If an employee saves {formatUGX(EXAMPLE_MONTHLY, { compact: false })}/mo
-          </span>
-          <div className={styles.previewRow}>
-            <span>You add: <strong>{formatUGX(coPreview.match, { compact: false })}</strong>{coPreview.capped ? ' (capped)' : ''}</span>
-            <span>Total: <strong>{formatUGX(EXAMPLE_MONTHLY + coPreview.match, { compact: false })}</strong></span>
-          </div>
+      <div className={styles.preview} aria-live="polite">
+        <span className={styles.previewLabel}>
+          On example monthly compensation of {formatUGX(EXAMPLE_COMP, { compact: false })}
+        </span>
+        <div className={styles.previewRow}>
+          {isCo && (
+            <span>Employee contributes: <strong>{formatUGX(preview.employeeLeg, { compact: false })}</strong></span>
+          )}
+          <span>Employer contributes: <strong>{formatUGX(preview.employerLeg, { compact: false })}</strong></span>
+          <span>Total: <strong>{formatUGX(preview.total, { compact: false })}</strong></span>
         </div>
-      ) : (
-        <div className={styles.preview} aria-live="polite">
-          <span className={styles.previewLabel}>Each member, every month</span>
-          <div className={styles.previewRow}>
-            <span>You contribute: <strong>{formatUGX(Number(draft.employerAmount) || 0, { compact: false })}</strong></span>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Group insurance — a company-wide TRUE/FALSE config, independent of the
           funding mode above. Same <GroupInsuranceFieldset> rendered on the

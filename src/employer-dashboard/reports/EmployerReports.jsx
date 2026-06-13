@@ -178,8 +178,8 @@ export default function EmployerReports({ splitMode = false }) {
             <Kpi label="Active" value={formatNumber(a.kpis.active)} sub={`${a.kpis.activePct}% of staff`} />
             <Kpi label="Inactive" value={formatNumber(a.kpis.suspended)} />
             <Kpi label="Avg age" value={a.kpis.avgAge ? `${a.kpis.avgAge} yrs` : '—'} />
-            <Kpi label="Avg saving / mo" value={formatUGX(a.kpis.avgMonthly)} />
-            <Kpi label="Monthly funding" value={formatUGX(a.kpis.totalMonthly)} />
+            <Kpi label="Avg compensation / mo" value={formatUGX(a.kpis.avgMonthly)} />
+            <Kpi label="Total compensation / mo" value={formatUGX(a.kpis.totalMonthly)} />
             <Kpi label="Group cover" value={a.coverage.enabled ? formatUGX(a.coverage.cover) : 'Off'} sub={a.coverage.enabled ? 'All staff' : 'Not set up'} />
           </div>
 
@@ -221,7 +221,7 @@ export default function EmployerReports({ splitMode = false }) {
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard id="an-saving" title="Monthly saving" sub="Staff by monthly contribution" hasData={a.saving.some((d) => d.value > 0)} ariaLabel={`Monthly saving distribution: ${describe(a.saving, 'key')}`}>
+            <ChartCard id="an-saving" title="Monthly compensation" sub="Staff by monthly compensation" hasData={a.saving.some((d) => d.value > 0)} ariaLabel={`Monthly compensation distribution: ${describe(a.saving, 'key')}`}>
               <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <BarChart data={a.saving} margin={{ top: 8, right: 8, left: -16, bottom: 4 }}>
                   <CartesianGrid stroke={PALETTE.gridLine} vertical={false} />

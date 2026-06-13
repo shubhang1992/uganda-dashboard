@@ -278,6 +278,29 @@ export function useRemoveEmployee(employerId) {
 }
 
 /**
+ * Mutation: update a member's monthly compensation (the two-leg run driver,
+ * migration 0062). NON-optimistic — the RPC validates + is the source of truth.
+ * On success it invalidates the SAME reads `useRemoveEmployee` does: the roster
+ * (`['employees', employerId]`), the hero counts (`['employerMetrics',
+ * employerId]`), and every cached single employee (`['employee']`) so an open
+ * detail panel refreshes too.
+ * @param {string} employerId
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useUpdateMemberCompensation(employerId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ employeeId, compensation }) =>
+      employer.updateMemberCompensation(employerId, employeeId, compensation),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees', employerId] });
+      queryClient.invalidateQueries({ queryKey: ['employerMetrics', employerId] });
+      queryClient.invalidateQueries({ queryKey: ['employee'] });
+    },
+  });
+}
+
+/**
  * Mutation: submit a contribution run. NON-optimistic — the server re-derives
  * every figure and is the source of truth. On success, invalidates every read
  * the run could have moved: the roster, the drilled-in employee, the run

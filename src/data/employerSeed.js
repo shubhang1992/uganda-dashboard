@@ -35,8 +35,11 @@ function dobForAge(age) {
 }
 
 // ─── Employer (B2B account) ──────────────────────────────────────────────────
-// ONE company-wide contribution model (Issue 2): the employer matches 50% of
-// each member's own monthly saving, capped at UGX 200,000.
+// ONE company-wide contribution model (Issue 2). CONTRIBUTION MODEL v2 (migration
+// 0062): funding is driven by each member's monthly `compensation`, NOT a saving
+// amount. Co-contribution: the employee leg = compensation × employeePct, and the
+// employer leg = employeeLeg × employerMatchPct (NO cap). The insurance keys
+// (insuranceEnabled / groupCoverAmount) ride along unchanged.
 export const EMPLOYER = Object.freeze({
   id: 'emp-001',
   name: 'Nile Breweries Demo Ltd',
@@ -48,9 +51,10 @@ export const EMPLOYER = Object.freeze({
   district: 'Kampala',
   districtId: 'd-kampala',
   payrollCadence: 'monthly',
-  // Co-contribution funding + company-wide group life cover (all-or-nothing: every
-  // member is covered at the same flat amount, or none are).
-  defaultContributionConfig: { mode: 'co-contribution', matchPct: 50, maxContribution: 200000, insuranceEnabled: true, groupCoverAmount: 15000000 },
+  // Co-contribution funding (v2): employee saves 10% of compensation, employer
+  // matches 50% of that leg. Plus company-wide group life cover (all-or-nothing:
+  // every member is covered at the same flat amount, or none are).
+  defaultContributionConfig: { mode: 'co-contribution', employeePct: 10, employerMatchPct: 50, insuranceEnabled: true, groupCoverAmount: 15000000 },
 });
 
 // Flat group life cover applied uniformly to EVERY member (the all-or-nothing
@@ -62,28 +66,55 @@ export const EMPLOYER_DEMO_PHONE = '+256700000031';
 
 const COMPANY = EMPLOYER.defaultContributionConfig;
 
-/** Employer match for one member under the company config (match mode). */
-function employerMatch(monthly) {
-  let amt = round(Number(monthly) * (COMPANY.matchPct ?? 0) / 100);
-  if (COMPANY.maxContribution != null) amt = Math.min(amt, round(COMPANY.maxContribution));
-  return amt;
+// ─── TWO-LEG run math (CONTRIBUTION MODEL v2, migration 0062) ─────────────────
+// Both legs are derived from a member's monthly `compensation` + the company-wide
+// config, mirroring `submit_employer_contribution_run` / the employer-service mock
+// EXACTLY:
+//   co-contribution: employeeLeg = round(comp × employeePct/100)
+//                    employerLeg = round(employeeLeg × employerMatchPct/100)
+//   employer-only:   employeeLeg = 0;
+//                    percent → employerLeg = round(comp × employerPct/100)
+//                    fixed   → employerLeg = round(employerAmount)
+/** Per-run contribution legs for one member under a config (defaults to COMPANY). */
+function memberLegs(comp, cfg = COMPANY) {
+  const c = Number(comp ?? 0);
+  const mode = cfg.mode ?? 'employer-only';
+  let employeeLeg = 0;
+  let employerLeg = 0;
+  if (mode === 'co-contribution') {
+    employeeLeg = round(c * Number(cfg.employeePct ?? 0) / 100);
+    employerLeg = round(employeeLeg * Number(cfg.employerMatchPct ?? 0) / 100);
+  } else {
+    employeeLeg = 0;
+    if (cfg.employerBasis === 'percent') {
+      employerLeg = round(c * Number(cfg.employerPct ?? 0) / 100);
+    } else {
+      employerLeg = round(Number(cfg.employerAmount ?? 0));
+    }
+  }
+  return { employeeLeg, employerLeg };
 }
 
 // ─── Members (tagged subscribers) ────────────────────────────────────────────
 // 16 staff onboarded by the employer = real subscribers (agent_id NULL). Each
-// member's balances are internally consistent with the company match model:
-//   ownContributions     = monthlyContribution × monthsActive
-//   employerContributions = employerMatch(monthly) × monthsActive
-//   netBalance           = own + employer  (split 80/20 retirement/emergency)
+// member's balances are internally consistent with the two-leg model run for
+// `monthsActive` periods:
+//   ownContributions      = employeeLeg(comp) × monthsActive
+//   employerContributions = employerLeg(comp) × monthsActive
+//   netBalance            = own + employer  (split per retirementPct, default 80)
+// Employer members do NOT self-set a saving amount — `contributionSchedule.amount`
+// is 0; `compensation` drives everything (monthlyContribution is vestigial).
 const DEFAULT_SPLIT = { retirementPct: 80, emergencyPct: 20, frequency: 'monthly' };
 
 function makeMember(p) {
-  const monthly = p.monthlyContribution ?? 0;
+  const comp = p.compensation ?? 0;
   const months = p.monthsActive ?? 12;
-  const own = round(monthly * months);
-  const employer = round(employerMatch(monthly) * months);
+  const retPct = DEFAULT_SPLIT.retirementPct;
+  const { employeeLeg, employerLeg } = memberLegs(comp);
+  const own = round(employeeLeg * months);
+  const employer = round(employerLeg * months);
   const net = own + employer;
-  const retirement = round(net * 0.8);
+  const retirement = round(net * retPct / 100);
   const emergency = net - retirement;
   return {
     employerId: EMPLOYER.id,
@@ -102,7 +133,8 @@ function makeMember(p) {
     insuranceStatus: 'active',
     insuranceRenewalDate: dateDaysAgo(-180),
     dob: p.dob ?? dobForAge(p.age ?? 30),
-    contributionSchedule: { ...DEFAULT_SPLIT, amount: monthly },
+    // Compensation drives funding; the saving amount is 0 for employer members.
+    contributionSchedule: { ...DEFAULT_SPLIT, amount: 0 },
     ownContributions: own,
     employerContributions: employer,
     totalContributions: net,
@@ -114,34 +146,34 @@ function makeMember(p) {
 }
 
 export const MEMBERS = Object.freeze([
-  makeMember({ id: 'empe-001', name: 'Brian Okello', phone: '+256700100001', email: 'brian.okello@nilebreweries.demo', gender: 'male', age: 38, nin: 'CM38010012345A', occupation: 'Plant Manager', monthlyContribution: 210000, monthsActive: 30, joinedDate: dateDaysAgo(900) }),
-  makeMember({ id: 'empe-002', name: 'Grace Nakato', phone: '+256700100002', email: 'grace.nakato@nilebreweries.demo', gender: 'female', age: 31, nin: 'CF31050067890B', occupation: 'Accountant', monthlyContribution: 140000, monthsActive: 21, joinedDate: dateDaysAgo(640) }),
-  makeMember({ id: 'empe-003', name: 'Samuel Otim', phone: '+256700100003', email: 'samuel.otim@nilebreweries.demo', gender: 'male', age: 45, nin: 'CM45030011223C', occupation: 'Logistics Lead', monthlyContribution: 100000, monthsActive: 36, joinedDate: dateDaysAgo(1100) }),
-  makeMember({ id: 'empe-004', name: 'Esther Aciro', phone: '+256700100004', email: 'esther.aciro@nilebreweries.demo', gender: 'female', age: 27, nin: 'CF27110033445D', occupation: 'QA Technician', monthlyContribution: 80000, monthsActive: 14, joinedDate: dateDaysAgo(420) }),
-  makeMember({ id: 'empe-005', name: 'Joseph Mukasa', phone: '+256700100005', email: 'joseph.mukasa@nilebreweries.demo', gender: 'male', age: 52, nin: 'CM52070055667E', occupation: 'Maintenance Supervisor', monthlyContribution: 120000, monthsActive: 36, joinedDate: dateDaysAgo(1500) }),
-  makeMember({ id: 'empe-006', name: 'Florence Atim', phone: '+256700100006', email: 'florence.atim@nilebreweries.demo', gender: 'female', age: 34, nin: 'CF34020077889F', occupation: 'HR Officer', monthlyContribution: 132000, monthsActive: 24, joinedDate: dateDaysAgo(720) }),
-  makeMember({ id: 'empe-007', name: 'David Wanyama', phone: '+256700100007', email: 'david.wanyama@nilebreweries.demo', gender: 'male', age: 29, nin: 'CM29090099001G', occupation: 'Sales Rep', monthlyContribution: 95000, monthsActive: 12, joinedDate: dateDaysAgo(360) }),
-  makeMember({ id: 'empe-008', name: 'Rebecca Namusoke', phone: '+256700100008', email: 'rebecca.namusoke@nilebreweries.demo', gender: 'female', age: 41, nin: 'CF41040022334H', occupation: 'Procurement Officer', monthlyContribution: 160000, monthsActive: 32, joinedDate: dateDaysAgo(980) }),
-  makeMember({ id: 'empe-009', name: 'Isaac Tumusiime', phone: '+256700100009', email: 'isaac.tumusiime@nilebreweries.demo', gender: 'male', age: 36, nin: 'CM36060044556I', occupation: 'IT Support', monthlyContribution: 105000, monthsActive: 18, joinedDate: dateDaysAgo(560) }),
-  makeMember({ id: 'empe-010', name: 'Mary Auma', phone: '+256700100010', email: 'mary.auma@nilebreweries.demo', gender: 'female', age: 24, nin: 'CF24120066778J', occupation: 'Admin Assistant', monthlyContribution: 65000, monthsActive: 6, joinedDate: dateDaysAgo(180) }),
-  makeMember({ id: 'empe-011', name: 'Peter Sserwadda', phone: '+256700100011', email: 'peter.sserwadda@nilebreweries.demo', gender: 'male', age: 48, nin: 'CM48080088990K', occupation: 'Security Lead', monthlyContribution: 90000, monthsActive: 36, joinedDate: dateDaysAgo(1320) }),
-  makeMember({ id: 'empe-012', name: 'Sarah Kobusingye', phone: '+256700100012', email: 'sarah.kobusingye@nilebreweries.demo', gender: 'female', age: 33, nin: 'CF33100011002L', occupation: 'Marketing Coordinator', monthlyContribution: 115000, monthsActive: 22, joinedDate: dateDaysAgo(660) }),
+  makeMember({ id: 'empe-001', name: 'Brian Okello', phone: '+256700100001', email: 'brian.okello@nilebreweries.demo', gender: 'male', age: 38, nin: 'CM38010012345A', occupation: 'Plant Manager', compensation: 2100000, monthsActive: 30, joinedDate: dateDaysAgo(900) }),
+  makeMember({ id: 'empe-002', name: 'Grace Nakato', phone: '+256700100002', email: 'grace.nakato@nilebreweries.demo', gender: 'female', age: 31, nin: 'CF31050067890B', occupation: 'Accountant', compensation: 1400000, monthsActive: 21, joinedDate: dateDaysAgo(640) }),
+  makeMember({ id: 'empe-003', name: 'Samuel Otim', phone: '+256700100003', email: 'samuel.otim@nilebreweries.demo', gender: 'male', age: 45, nin: 'CM45030011223C', occupation: 'Logistics Lead', compensation: 1000000, monthsActive: 36, joinedDate: dateDaysAgo(1100) }),
+  makeMember({ id: 'empe-004', name: 'Esther Aciro', phone: '+256700100004', email: 'esther.aciro@nilebreweries.demo', gender: 'female', age: 27, nin: 'CF27110033445D', occupation: 'QA Technician', compensation: 800000, monthsActive: 14, joinedDate: dateDaysAgo(420) }),
+  makeMember({ id: 'empe-005', name: 'Joseph Mukasa', phone: '+256700100005', email: 'joseph.mukasa@nilebreweries.demo', gender: 'male', age: 52, nin: 'CM52070055667E', occupation: 'Maintenance Supervisor', compensation: 1200000, monthsActive: 36, joinedDate: dateDaysAgo(1500) }),
+  makeMember({ id: 'empe-006', name: 'Florence Atim', phone: '+256700100006', email: 'florence.atim@nilebreweries.demo', gender: 'female', age: 34, nin: 'CF34020077889F', occupation: 'HR Officer', compensation: 1320000, monthsActive: 24, joinedDate: dateDaysAgo(720) }),
+  makeMember({ id: 'empe-007', name: 'David Wanyama', phone: '+256700100007', email: 'david.wanyama@nilebreweries.demo', gender: 'male', age: 29, nin: 'CM29090099001G', occupation: 'Sales Rep', compensation: 950000, monthsActive: 12, joinedDate: dateDaysAgo(360) }),
+  makeMember({ id: 'empe-008', name: 'Rebecca Namusoke', phone: '+256700100008', email: 'rebecca.namusoke@nilebreweries.demo', gender: 'female', age: 41, nin: 'CF41040022334H', occupation: 'Procurement Officer', compensation: 1600000, monthsActive: 32, joinedDate: dateDaysAgo(980) }),
+  makeMember({ id: 'empe-009', name: 'Isaac Tumusiime', phone: '+256700100009', email: 'isaac.tumusiime@nilebreweries.demo', gender: 'male', age: 36, nin: 'CM36060044556I', occupation: 'IT Support', compensation: 1050000, monthsActive: 18, joinedDate: dateDaysAgo(560) }),
+  makeMember({ id: 'empe-010', name: 'Mary Auma', phone: '+256700100010', email: 'mary.auma@nilebreweries.demo', gender: 'female', age: 24, nin: 'CF24120066778J', occupation: 'Admin Assistant', compensation: 650000, monthsActive: 6, joinedDate: dateDaysAgo(180) }),
+  makeMember({ id: 'empe-011', name: 'Peter Sserwadda', phone: '+256700100011', email: 'peter.sserwadda@nilebreweries.demo', gender: 'male', age: 48, nin: 'CM48080088990K', occupation: 'Security Lead', compensation: 900000, monthsActive: 36, joinedDate: dateDaysAgo(1320) }),
+  makeMember({ id: 'empe-012', name: 'Sarah Kobusingye', phone: '+256700100012', email: 'sarah.kobusingye@nilebreweries.demo', gender: 'female', age: 33, nin: 'CF33100011002L', occupation: 'Marketing Coordinator', compensation: 1150000, monthsActive: 22, joinedDate: dateDaysAgo(660) }),
   // Suspended (skipped by runs).
-  makeMember({ id: 'empe-013', name: 'Henry Kato', phone: '+256700100013', email: 'henry.kato@nilebreweries.demo', gender: 'male', age: 39, nin: 'CM39050033445M', occupation: 'Driver', monthlyContribution: 55000, monthsActive: 28, status: 'suspended', joinedDate: dateDaysAgo(840) }),
-  makeMember({ id: 'empe-014', name: 'Diana Nabirye', phone: '+256700100014', email: 'diana.nabirye@nilebreweries.demo', gender: 'female', age: 28, nin: 'CF28030055667N', occupation: 'Lab Analyst', monthlyContribution: 90000, monthsActive: 10, joinedDate: dateDaysAgo(300) }),
-  makeMember({ id: 'empe-015', name: 'Robert Ssempala', phone: '+256700100015', email: 'robert.ssempala@nilebreweries.demo', gender: 'male', age: 55, nin: 'CM55020077889O', occupation: 'Warehouse Hand', monthlyContribution: 60000, monthsActive: 36, status: 'suspended', joinedDate: dateDaysAgo(1700) }),
-  makeMember({ id: 'empe-016', name: 'Juliet Akello', phone: '+256700100016', email: 'juliet.akello@nilebreweries.demo', gender: 'female', age: 30, nin: 'CF30070099001P', occupation: 'Customer Service', monthlyContribution: 70000, monthsActive: 8, joinedDate: dateDaysAgo(240) }),
+  makeMember({ id: 'empe-013', name: 'Henry Kato', phone: '+256700100013', email: 'henry.kato@nilebreweries.demo', gender: 'male', age: 39, nin: 'CM39050033445M', occupation: 'Driver', compensation: 550000, monthsActive: 28, status: 'suspended', joinedDate: dateDaysAgo(840) }),
+  makeMember({ id: 'empe-014', name: 'Diana Nabirye', phone: '+256700100014', email: 'diana.nabirye@nilebreweries.demo', gender: 'female', age: 28, nin: 'CF28030055667N', occupation: 'Lab Analyst', compensation: 900000, monthsActive: 10, joinedDate: dateDaysAgo(300) }),
+  makeMember({ id: 'empe-015', name: 'Robert Ssempala', phone: '+256700100015', email: 'robert.ssempala@nilebreweries.demo', gender: 'male', age: 55, nin: 'CM55020077889O', occupation: 'Warehouse Hand', compensation: 600000, monthsActive: 36, status: 'suspended', joinedDate: dateDaysAgo(1700) }),
+  makeMember({ id: 'empe-016', name: 'Juliet Akello', phone: '+256700100016', email: 'juliet.akello@nilebreweries.demo', gender: 'female', age: 30, nin: 'CF30070099001P', occupation: 'Customer Service', compensation: 700000, monthsActive: 8, joinedDate: dateDaysAgo(240) }),
   // Recent hires (`recentHire`) — drive the admin Employers-scope "New Members"
   // today/week/month trend. Anchored to _demo_now() (2026-05-18) via days-ago-from-
   // MOCK_NOW (MOCK_NOW = _demo_now + 8d): day 8 = today/this-week, 12 = last week,
   // 21 = earlier this month, 41 = last month. monthsActive:1 → a small starting
   // balance. EXCLUDED from the back-dated contribution history (ACTIVE_MEMBERS
   // filter) so they have no transactions pre-dating their join.
-  makeMember({ id: 'empe-017', name: 'Aisha Nakimuli', phone: '+256700100017', email: 'aisha.nakimuli@nilebreweries.demo', gender: 'female', age: 26, nin: 'CF26010044556Q', occupation: 'Junior Accountant', monthlyContribution: 75000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(8) }),
-  makeMember({ id: 'empe-018', name: 'Tom Bwambale', phone: '+256700100018', email: 'tom.bwambale@nilebreweries.demo', gender: 'male', age: 23, nin: 'CM23050066778R', occupation: 'Machine Operator', monthlyContribution: 60000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(8) }),
-  makeMember({ id: 'empe-019', name: 'Grace Apio', phone: '+256700100019', email: 'grace.apio@nilebreweries.demo', gender: 'female', age: 29, nin: 'CF29080011223S', occupation: 'Quality Inspector', monthlyContribution: 85000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(12) }),
-  makeMember({ id: 'empe-020', name: 'Daniel Okot', phone: '+256700100020', email: 'daniel.okot@nilebreweries.demo', gender: 'male', age: 34, nin: 'CM34030099001T', occupation: 'Shift Supervisor', monthlyContribution: 110000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(21) }),
-  makeMember({ id: 'empe-021', name: 'Lydia Nansubuga', phone: '+256700100021', email: 'lydia.nansubuga@nilebreweries.demo', gender: 'female', age: 27, nin: 'CF27110033445U', occupation: 'Logistics Clerk', monthlyContribution: 70000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(41) }),
+  makeMember({ id: 'empe-017', name: 'Aisha Nakimuli', phone: '+256700100017', email: 'aisha.nakimuli@nilebreweries.demo', gender: 'female', age: 26, nin: 'CF26010044556Q', occupation: 'Junior Accountant', compensation: 750000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(8) }),
+  makeMember({ id: 'empe-018', name: 'Tom Bwambale', phone: '+256700100018', email: 'tom.bwambale@nilebreweries.demo', gender: 'male', age: 23, nin: 'CM23050066778R', occupation: 'Machine Operator', compensation: 600000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(8) }),
+  makeMember({ id: 'empe-019', name: 'Grace Apio', phone: '+256700100019', email: 'grace.apio@nilebreweries.demo', gender: 'female', age: 29, nin: 'CF29080011223S', occupation: 'Quality Inspector', compensation: 850000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(12) }),
+  makeMember({ id: 'empe-020', name: 'Daniel Okot', phone: '+256700100020', email: 'daniel.okot@nilebreweries.demo', gender: 'male', age: 34, nin: 'CM34030099001T', occupation: 'Shift Supervisor', compensation: 1100000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(21) }),
+  makeMember({ id: 'empe-021', name: 'Lydia Nansubuga', phone: '+256700100021', email: 'lydia.nansubuga@nilebreweries.demo', gender: 'female', age: 27, nin: 'CF27110033445U', occupation: 'Logistics Clerk', compensation: 700000, monthsActive: 1, recentHire: true, joinedDate: dateDaysAgo(41) }),
 ]);
 
 // Recent hires are excluded from the back-dated contribution history below — they
@@ -150,35 +182,41 @@ export const MEMBERS = Object.freeze([
 const ACTIVE_MEMBERS = MEMBERS.filter((m) => m.status === 'active' && !m.recentHire);
 
 // ─── Member contribution transactions (own + employer history) ───────────────
-// A recent contribution history per active member: their own monthly saving + the
-// employer match. The trends RPCs anchor on the FROZEN public._demo_now()
-// (2026-05-18), so the sample dates are EXPLICIT UTC dates landing in those
-// windows — NOT isoDaysAgo, whose MOCK_NOW + local-timezone basis shifts the UTC
-// calendar day across machines (it dropped the "today" sample to 05-17 on a
-// UTC+5:30 host). Windows: 05-18 = today + this week, 05-14 = last week, 05-05 =
-// earlier this month, 04-15 = last month, 03-15 = two months ago. Midday (T12:00Z)
-// keeps date_trunc('day') timezone-stable. The employer match posts the SAME day
-// as the own contribution (one payroll run); contribution_run_id is null (the runs
-// history is seeded separately).
+// CONTRIBUTION MODEL v2 (migration 0062): a recent two-leg contribution history per
+// active member — the employee leg (source:'own') + the employer leg (source:
+// 'employer'), both derived from the member's `compensation` via `memberLegs`. The
+// trends RPCs anchor on the FROZEN public._demo_now() (2026-05-18), so the sample
+// dates are EXPLICIT UTC dates landing in those windows — NOT isoDaysAgo, whose
+// MOCK_NOW + local-timezone basis shifts the UTC calendar day across machines (it
+// dropped the "today" sample to 05-17 on a UTC+5:30 host). Windows: 05-18 = today +
+// this week, 05-14 = last week, 05-05 = earlier this month, 04-15 = last month,
+// 03-15 = two months ago. Midday (T12:00Z) keeps date_trunc('day') timezone-stable.
+// Both legs post the SAME day (one payroll run); each leg is split by the member's
+// retirementPct (default 80), rounding ONCE. contribution_run_id is null (the runs
+// history is seeded separately). A member with BOTH legs 0 contributes no rows.
 const SAMPLE_DATES = ['2026-05-18', '2026-05-14', '2026-05-05', '2026-04-15', '2026-03-15'];
 const atMidday = (d) => `${d}T12:00:00.000Z`;
 
 function buildMemberTransactions() {
   const txns = [];
   ACTIVE_MEMBERS.forEach((m) => {
+    const retPct = Number(m.contributionSchedule?.retirementPct ?? 80);
+    const { employeeLeg, employerLeg } = memberLegs(m.compensation);
     SAMPLE_DATES.forEach((d, i) => {
-      const own = round(m.monthlyContribution);
-      txns.push({
-        id: `t-own-${m.id}-${i + 1}`, subscriberId: m.id, type: 'contribution', source: 'own',
-        amount: own, date: atMidday(d), method: 'MTN Mobile Money',
-        retirementAmount: round(own * 0.8), emergencyAmount: own - round(own * 0.8), contributionRunId: null,
-      });
-      const emp = employerMatch(m.monthlyContribution);
-      if (emp > 0) {
+      if (employeeLeg > 0) {
+        const ret = round(employeeLeg * retPct / 100);
+        txns.push({
+          id: `t-own-${m.id}-${i + 1}`, subscriberId: m.id, type: 'contribution', source: 'own',
+          amount: employeeLeg, date: atMidday(d), method: 'MTN Mobile Money',
+          retirementAmount: ret, emergencyAmount: employeeLeg - ret, contributionRunId: null,
+        });
+      }
+      if (employerLeg > 0) {
+        const ret = round(employerLeg * retPct / 100);
         txns.push({
           id: `t-emp-${m.id}-${i + 1}`, subscriberId: m.id, type: 'contribution', source: 'employer',
-          amount: emp, date: atMidday(d), method: 'Bank transfer',
-          retirementAmount: round(emp * 0.8), emergencyAmount: emp - round(emp * 0.8), contributionRunId: null,
+          amount: employerLeg, date: atMidday(d), method: 'Bank transfer',
+          retirementAmount: ret, emergencyAmount: employerLeg - ret, contributionRunId: null,
         });
       }
     });
@@ -216,12 +254,20 @@ export const MEMBER_TRANSACTIONS = Object.freeze([
 ]);
 
 // ─── Employer contribution runs (history headers) ────────────────────────────
-// Each monthly run posts the employer match to every active member.
+// CONTRIBUTION MODEL v2 (migration 0062): each monthly run posts BOTH legs to every
+// active member. employerTotal = Σ employerLeg, employeeTotal = Σ employeeLeg, and
+// grandTotal = employerTotal + employeeTotal (matches submit_employer_contribution_run).
 function buildRun(id, periodLabel, daysAgo) {
-  const employerTotal = ACTIVE_MEMBERS.reduce((s, m) => s + employerMatch(m.monthlyContribution), 0);
+  let employerTotal = 0;
+  let employeeTotal = 0;
+  ACTIVE_MEMBERS.forEach((m) => {
+    const { employeeLeg, employerLeg } = memberLegs(m.compensation);
+    employeeTotal += employeeLeg;
+    employerTotal += employerLeg;
+  });
   return {
     id, employerId: EMPLOYER.id, periodLabel, status: 'completed',
-    employerTotal, employeeTotal: 0, grandTotal: employerTotal, runAt: isoDaysAgo(daysAgo),
+    employerTotal, employeeTotal, grandTotal: employerTotal + employeeTotal, runAt: isoDaysAgo(daysAgo),
   };
 }
 export const CONTRIBUTION_RUNS = Object.freeze([

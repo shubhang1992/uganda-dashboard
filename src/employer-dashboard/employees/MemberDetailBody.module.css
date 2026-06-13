@@ -76,6 +76,79 @@
   color: var(--color-gray);
 }
 
+/* ── Inline compensation edit (run driver, migration 0062) ───────────────────── */
+.compEdit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.compEditBtn {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-indigo);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.compEditBtn:hover {
+  color: color-mix(in srgb, var(--color-indigo) 80%, black);
+}
+
+.compInput {
+  width: 7.5rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-indigo) 22%, transparent);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-slate);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.compInput:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 1px;
+}
+
+.compSave,
+.compCancel {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.compSave {
+  border: 1px solid var(--color-indigo);
+  background: var(--color-indigo);
+  color: #fff;
+}
+
+.compCancel {
+  border: 1px solid color-mix(in srgb, var(--color-indigo) 22%, transparent);
+  background: transparent;
+  color: var(--color-gray);
+}
+
+.compSave:disabled,
+.compCancel:disabled,
+.compInput:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ── Contribution history list ─────────────────────────────────────────────── */
 .txList {
   list-style: none;

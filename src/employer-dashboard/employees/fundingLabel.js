@@ -8,11 +8,11 @@ import { formatUGX } from '../../utils/currency';
 export function companyFundingLabel(config) {
   if (!config) return 'Company funding: not set';
   if (config.mode === 'co-contribution') {
-    const cap =
-      config.maxContribution != null && config.maxContribution !== ''
-        ? ` (cap ${formatUGX(config.maxContribution, { compact: false })})`
-        : '';
-    return `Co-contribution — matches ${Number(config.matchPct ?? 0)}% of each member's saving${cap}`;
+    return `Co-contribution — ${Number(config.employeePct ?? 0)}% of pay + ${Number(config.employerMatchPct ?? 0)}% employer match`;
+  }
+  // employer-only (the default mode)
+  if (config.employerBasis === 'percent') {
+    return `Employer-only — ${Number(config.employerPct ?? 0)}% of compensation`;
   }
   return `Employer-only — ${formatUGX(config.employerAmount ?? 0, { compact: false })} per member / month`;
 }

@@ -1237,6 +1237,9 @@ async function main() {
         { name: 'district_id', type: 'text' },
         { name: 'is_active', type: 'boolean' },
         { name: 'registered_date', type: 'date' },
+        // CONTRIBUTION MODEL v2 (migration 0062): monthly compensation (UGX) — the
+        // driver field. submit_employer_contribution_run derives both legs from it.
+        { name: 'compensation', type: 'numeric' },
       ],
       [
         MEMBERS.map((m) => m.id),
@@ -1254,6 +1257,7 @@ async function main() {
         MEMBERS.map((m) => m.districtId ?? 'd-kampala'),
         MEMBERS.map((m) => m.status !== 'suspended'),
         MEMBERS.map((m) => toDateStr(m.joinedDate)),
+        MEMBERS.map((m) => m.compensation ?? 0),       // v2 driver field
       ],
       'id'
     );
@@ -1303,6 +1307,8 @@ async function main() {
           { name: 'district_id', type: 'text' },
           { name: 'is_active', type: 'boolean' },
           { name: 'registered_date', type: 'date' },
+          // CONTRIBUTION MODEL v2 (migration 0062): monthly compensation (UGX).
+          { name: 'compensation', type: 'numeric' },
         ],
         [
           EXTRA_MEMBERS.map((m) => m.id),
@@ -1320,6 +1326,7 @@ async function main() {
           EXTRA_MEMBERS.map((m) => m.districtId),
           EXTRA_MEMBERS.map((m) => m.isActive),
           EXTRA_MEMBERS.map((m) => toDateStr(m.joinedDate)),
+          EXTRA_MEMBERS.map((m) => m.compensation ?? 0),  // v2 driver field
         ],
         'id'
       );

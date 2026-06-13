@@ -20,16 +20,17 @@ import styles from './OnboardStaffPanel.module.css';
 
 const PHONE_RE = /^(\+?256)?[0-9]{9}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const EMPTY = { fullName: '', phone: '', email: '' };
+const EMPTY = { fullName: '', phone: '', email: '', compensation: '' };
 
 const TEMPLATE_COLUMNS = [
   { key: 'fullName', label: 'Full name' },
   { key: 'phone', label: 'Phone' },
   { key: 'email', label: 'Email' },
+  { key: 'compensation', label: 'Monthly compensation (UGX)' },
 ];
 const TEMPLATE_EXAMPLES = [
-  { fullName: 'Jane Akello', phone: '+256700000001', email: 'jane.akello@example.com' },
-  { fullName: 'John Okello', phone: '+256700000002', email: 'john.okello@example.com' },
+  { fullName: 'Jane Akello', phone: '+256700000001', email: 'jane.akello@example.com', compensation: 800000 },
+  { fullName: 'John Okello', phone: '+256700000002', email: 'john.okello@example.com', compensation: 650000 },
 ];
 
 const DownloadIcon = (
@@ -55,18 +56,21 @@ function pick(row, ...names) {
   return '';
 }
 
-function rowError(fullName, phone, email) {
+function rowError(fullName, phone, email, compensation) {
   if (fullName.length < 2) return 'Name missing';
   if (!PHONE_RE.test(phone)) return 'Invalid phone';
   if (!EMAIL_RE.test(email)) return 'Invalid email';
+  const comp = Number(compensation);
+  if (compensation === '' || !Number.isFinite(comp) || comp < 0) return 'Invalid compensation';
   return '';
 }
 
-function toPrefill({ fullName, phone, email }) {
+function toPrefill({ fullName, phone, email, compensation }) {
   return {
     fullName: fullName.trim(),
     phone: parseUGPhoneLocal(phone.trim()) || phone.trim(),
     email: email.trim(),
+    compensation: Number(compensation) || 0,
   };
 }
 
@@ -119,6 +123,8 @@ export default function OnboardStaffPanel({ splitMode = false }) {
     if (form.fullName.trim().length < 2) return 'Enter the member’s full name.';
     if (!PHONE_RE.test(form.phone.trim())) return 'Enter a valid Uganda phone (9 digits, optional +256).';
     if (!EMAIL_RE.test(form.email.trim())) return 'Enter the member’s email — the invite link goes there.';
+    const comp = Number(form.compensation);
+    if (form.compensation === '' || !Number.isFinite(comp) || comp < 0) return 'Enter the member’s monthly compensation (UGX, 0 or more).';
     return '';
   }
 
@@ -182,8 +188,9 @@ export default function OnboardStaffPanel({ splitMode = false }) {
       const fullName = pick(r, 'full name', 'name', 'fullname');
       const phone = pick(r, 'phone', 'phone number', 'mobile');
       const email = pick(r, 'email', 'email address', 'e-mail');
-      const error = rowError(fullName, phone, email);
-      return { fullName, phone, email, valid: !error, error };
+      const compensation = pick(r, 'monthly compensation (ugx)', 'monthly compensation', 'compensation', 'salary');
+      const error = rowError(fullName, phone, email, compensation);
+      return { fullName, phone, email, compensation, valid: !error, error };
     });
     if (mapped.length === 0) {
       setErr('That file had no rows. Use the template’s columns: Full name, Phone, Email.');
@@ -261,7 +268,7 @@ export default function OnboardStaffPanel({ splitMode = false }) {
         <div className={styles.reviewWrap}>
           <table className={styles.reviewTable}>
             <thead>
-              <tr><th>#</th><th>Name</th><th>Phone</th><th>Email</th><th>Status</th></tr>
+              <tr><th>#</th><th>Name</th><th>Phone</th><th>Email</th><th>Compensation (UGX)</th><th>Status</th></tr>
             </thead>
             <tbody>
               {parsed.rows.map((r, i) => (
@@ -270,6 +277,7 @@ export default function OnboardStaffPanel({ splitMode = false }) {
                   <td>{r.fullName || '—'}</td>
                   <td>{r.phone || '—'}</td>
                   <td className={styles.reviewEmail}>{r.email || '—'}</td>
+                  <td>{r.compensation || '—'}</td>
                   <td>
                     {r.valid
                       ? <span className={styles.ok}>Ready</span>
@@ -317,6 +325,9 @@ export default function OnboardStaffPanel({ splitMode = false }) {
             </Field>
             <Field label="Email (the invite link is shared here)">
               <input className={styles.input} value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="name@example.com" inputMode="email" />
+            </Field>
+            <Field label="Monthly compensation (UGX)">
+              <input className={styles.input} value={form.compensation} onChange={(e) => set('compensation', e.target.value)} placeholder="e.g. 800000" inputMode="numeric" type="number" min="0" />
             </Field>
             {err && <p className={styles.err} role="alert">{err}</p>}
             <div className={styles.footer}>

@@ -114,7 +114,7 @@ describe('atomic employer config save — updateEmployerProfile insurance fold',
     supabaseMock.__queueRpc('update_employer_profile', { data: EMPLOYER_ROW, error: null });
 
     await svc.updateEmployerProfile({
-      defaultContributionConfig: { mode: 'co-contribution', matchPct: 50, insuranceEnabled: true, groupCoverAmount: 3000000 },
+      defaultContributionConfig: { mode: 'co-contribution', employeePct: 10, employerMatchPct: 50, insuranceEnabled: true, groupCoverAmount: 3000000 },
       insuranceEnabled: true,
       groupCover: '3000000',
     });

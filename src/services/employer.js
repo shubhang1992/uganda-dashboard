@@ -93,6 +93,7 @@ export function mapMember(row) {
     isActive: row.is_active !== false,
     status: row.is_active === false ? 'suspended' : 'active',
     joinedDate: row.registered_date ?? row.created_at ?? null,
+    compensation: Number(row.compensation ?? 0),
     monthlyContribution: Number(sched?.amount ?? 0),
     contributionSchedule: sched
       ? {
@@ -167,6 +168,7 @@ function readMemberSession(id) {
       ownDelta: 0,
       employerDelta: 0,
       insuranceOverride: null,
+      compensationOverride: null,
     });
   }
   return _mockMemberMutations.get(id);
@@ -183,6 +185,7 @@ function applyMemberMutations(m) {
   };
   return {
     ...m,
+    compensation: s.compensationOverride != null ? s.compensationOverride : (m.compensation ?? 0),
     retirementBalance: Math.max(0, (m.retirementBalance || 0) + s.balanceDelta.retirement),
     emergencyBalance: Math.max(0, (m.emergencyBalance || 0) + s.balanceDelta.emergency),
     netBalance: Math.max(0, (m.netBalance || 0) + s.balanceDelta.net),
@@ -209,65 +212,123 @@ function mockRuns() {
   return [..._mockRuns, ...seedRuns];
 }
 
-/** Mock employer run — posts an employer-source contribution per active member. */
+/**
+ * Mock employer run — TWO-LEG contribution model (migration 0062). For each
+ * ACTIVE member it derives the legs from the member's `compensation` and the
+ * company-wide config, mirroring `submit_employer_contribution_run` EXACTLY:
+ *   co-contribution: employeeLeg = round(comp * employeePct/100)
+ *                    employerLeg = round(employeeLeg * employerMatchPct/100)
+ *   employer-only:   employeeLeg = 0
+ *                    percent → employerLeg = round(comp * employerPct/100)
+ *                    fixed   → employerLeg = round(employerAmount)
+ * Each leg > 0 posts a transaction (employee leg source:'own', employer leg
+ * source:'employer'), split by the member's retirementPct (default 80) rounding
+ * ONCE. A member with BOTH legs 0 is skipped (`zero_contribution`).
+ * `linesCreated` counts DISTINCT funded members; `grandTotal` = employerTotal +
+ * employeeTotal.
+ */
 function _mockSubmitEmployerRun(employerId, { periodLabel, method, nonce } = {}) {
   if (nonce && _mockNonceResults.has(nonce)) return _mockNonceResults.get(nonce);
   const cfg = { ...EMPLOYER.defaultContributionConfig, ...(_mockEmployerOverride?.defaultContributionConfig ?? {}) };
   const mode = cfg.mode ?? 'employer-only';
   const runId = `run-mock-${nonce ?? mockRuns().length + 1}`;
   let employerTotal = 0;
-  let lines = 0;
+  let employeeTotal = 0;
+  let lines = 0; // DISTINCT members funded
+  let txnSeq = 0; // transaction-row counter (for unique mock ids)
   const skipped = [];
 
   for (const m of mockMembers()) {
     if (m.status !== 'active') { skipped.push({ subscriberId: m.id, reason: 'suspended' }); continue; }
-    let amt;
+    const comp = Number(m.compensation ?? 0);
+    let employeeLeg = 0;
+    let employerLeg = 0;
     if (mode === 'co-contribution') {
-      amt = round(Number(m.monthlyContribution ?? 0) * Number(cfg.matchPct ?? 0) / 100);
-      if (cfg.maxContribution != null && cfg.maxContribution !== '') {
-        amt = Math.min(amt, round(Number(cfg.maxContribution)));
-      }
+      employeeLeg = round(comp * Number(cfg.employeePct ?? 0) / 100);
+      employerLeg = round(employeeLeg * Number(cfg.employerMatchPct ?? 0) / 100);
     } else {
-      amt = round(Number(cfg.employerAmount ?? 0));
+      employeeLeg = 0;
+      if (cfg.employerBasis === 'percent') {
+        employerLeg = round(comp * Number(cfg.employerPct ?? 0) / 100);
+      } else {
+        employerLeg = round(Number(cfg.employerAmount ?? 0));
+      }
     }
-    if (amt <= 0) { skipped.push({ subscriberId: m.id, reason: 'zero_contribution' }); continue; }
+    if (employeeLeg <= 0 && employerLeg <= 0) {
+      skipped.push({ subscriberId: m.id, reason: 'zero_contribution' });
+      continue;
+    }
 
     const retPct = Number(m.contributionSchedule?.retirementPct ?? 80);
-    const retirement = round(amt * retPct / 100);
-    const emergency = amt - retirement;
     const s = readMemberSession(m.id);
-    s.balanceDelta.retirement += retirement;
-    s.balanceDelta.emergency += emergency;
-    s.balanceDelta.net += amt;
-    s.balanceDelta.units += amt / EMPLOYER_UNIT_PRICE;
-    s.employerDelta += amt;
-    _mockTxns.unshift({
-      id: `t-mock-${runId}-${lines + 1}`,
-      subscriberId: m.id,
-      type: 'contribution',
-      source: 'employer',
-      amount: amt,
-      date: currentTime().toISOString(),
-      method: method ?? null,
-      retirementAmount: retirement,
-      emergencyAmount: emergency,
-      contributionRunId: runId,
-    });
-    employerTotal += amt;
-    lines += 1;
+
+    if (employeeLeg > 0) {
+      const retirement = round(employeeLeg * retPct / 100);
+      const emergency = employeeLeg - retirement;
+      s.balanceDelta.retirement += retirement;
+      s.balanceDelta.emergency += emergency;
+      s.balanceDelta.net += employeeLeg;
+      s.balanceDelta.units += employeeLeg / EMPLOYER_UNIT_PRICE;
+      s.ownDelta += employeeLeg;
+      _mockTxns.unshift({
+        id: `t-mock-${runId}-${++txnSeq}`,
+        subscriberId: m.id,
+        type: 'contribution',
+        source: 'own',
+        amount: employeeLeg,
+        date: currentTime().toISOString(),
+        method: method ?? null,
+        retirementAmount: retirement,
+        emergencyAmount: emergency,
+        contributionRunId: runId,
+      });
+      employeeTotal += employeeLeg;
+    }
+
+    if (employerLeg > 0) {
+      const retirement = round(employerLeg * retPct / 100);
+      const emergency = employerLeg - retirement;
+      s.balanceDelta.retirement += retirement;
+      s.balanceDelta.emergency += emergency;
+      s.balanceDelta.net += employerLeg;
+      s.balanceDelta.units += employerLeg / EMPLOYER_UNIT_PRICE;
+      s.employerDelta += employerLeg;
+      _mockTxns.unshift({
+        id: `t-mock-${runId}-${++txnSeq}`,
+        subscriberId: m.id,
+        type: 'contribution',
+        source: 'employer',
+        amount: employerLeg,
+        date: currentTime().toISOString(),
+        method: method ?? null,
+        retirementAmount: retirement,
+        emergencyAmount: emergency,
+        contributionRunId: runId,
+      });
+      employerTotal += employerLeg;
+    }
+
+    lines += 1; // this member was funded (at least one leg posted)
   }
 
   let finalRunId = runId;
   if (lines > 0) {
     _mockRuns = [
       { id: runId, employerId, periodLabel: periodLabel ?? null, status: 'completed',
-        employerTotal, employeeTotal: 0, grandTotal: employerTotal, runAt: currentTime().toISOString() },
+        employerTotal, employeeTotal, grandTotal: employerTotal + employeeTotal, runAt: currentTime().toISOString() },
       ..._mockRuns,
     ];
   } else {
     finalRunId = null;
   }
-  const result = { runId: finalRunId, linesCreated: lines, employerTotal, employeeTotal: 0, grandTotal: employerTotal, skipped };
+  const result = {
+    runId: finalRunId,
+    linesCreated: lines,
+    employerTotal,
+    employeeTotal,
+    grandTotal: employerTotal + employeeTotal,
+    skipped,
+  };
   if (nonce) _mockNonceResults.set(nonce, result);
   return result;
 }
@@ -471,8 +532,7 @@ export async function getEmployerMetrics() {
  * DEFINER RPC (0049), which RAISEs for any app_role other than 'admin'.
  * @param {{name: string, sector?: string, registrationNo?: string,
  *   contactName?: string, contactPhone?: string, contactEmail?: string,
- *   district?: string, payrollCadence?: string,
- *   defaultContributionConfig?: object}} payload
+ *   district?: string}} payload
  * @returns {Promise<Object>} the newly-inserted, mapped employer row
  */
 export async function createEmployer(payload) {
@@ -501,8 +561,6 @@ export async function createEmployer(payload) {
     p_contact_phone: payload.contactPhone ?? null,
     p_contact_email: payload.contactEmail ?? null,
     p_district: payload.district ?? null,
-    p_payroll_cadence: payload.payrollCadence ?? null,
-    p_default_contribution_config: payload.defaultContributionConfig ?? {},
   });
   if (error) throw error;
   return mapEmployer(data);
@@ -584,6 +642,7 @@ export async function createSubscriberFromEmployerOnboard(employerId, payload, n
       isActive: true,
       status: 'active',
       joinedDate: currentTime().toISOString().slice(0, 10),
+      compensation: Number(payload?.compensation) || 0,
       monthlyContribution: 0,
       contributionSchedule: null,
       retirementBalance: 0,
@@ -673,6 +732,33 @@ export async function removeEmployee(employerId, employeeId) {
   }
   const { data, error } = await supabase.rpc('remove_employer_member', {
     p_subscriber_id: employeeId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Update a member's monthly compensation (UGX) — the driver field for the
+ * two-leg contribution run (migration 0062). Employer-gated SECURITY DEFINER
+ * RPC (`update_employer_member_compensation`); validates `>= 0`. Scoped to the
+ * caller's own roster (the RPC enforces the `employerId` claim; the mock keys
+ * by id). Setting compensation does NOT post a contribution — it only changes
+ * what the NEXT run will fund.
+ * @param {string} employerId
+ * @param {string} subscriberId  the member's subscriber id
+ * @param {number} compensation  monthly compensation in UGX (>= 0)
+ * @returns {Promise<{ id:string, compensation:number, updated:boolean }>}
+ */
+export async function updateMemberCompensation(employerId, subscriberId, compensation) {
+  if (!subscriberId) throw new Error('Missing subscriber id');
+  const comp = Number(compensation);
+  if (!IS_SUPABASE_ENABLED) {
+    readMemberSession(subscriberId).compensationOverride = Math.max(0, comp || 0);
+    return { id: subscriberId, compensation: Math.max(0, comp || 0), updated: true };
+  }
+  const { data, error } = await supabase.rpc('update_employer_member_compensation', {
+    p_subscriber_id: subscriberId,
+    p_compensation: comp,
   });
   if (error) throw error;
   return data;
