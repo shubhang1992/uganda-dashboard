@@ -47,7 +47,7 @@ See `CLAUDE.md` for the slim entry index, `BACKEND.md` for SQL/RPC/RLS detail, a
 | `npm run build` | Production Vite build |
 | `npm run preview` | Serve the built bundle |
 | `npm run lint` | ESLint 9 flat config |
-| `npm test` | Vitest one-shot (707 tests at last sync) |
+| `npm test` | Vitest one-shot (1221 tests across 76 files at last sync) |
 | `npm run test:watch` | Vitest watch |
 | `npm run test:coverage` | Vitest + v8 coverage — requires `npm i -D @vitest/coverage-v8` (currently NOT installed, see §17) |
 | `npm run test:e2e` | Playwright suite (`:smoke`, `:flows`, `:headed`, `:ui`) — see `.claude/skills/qa.md` |

@@ -90,8 +90,11 @@ export default function HomeDesktop({ subscriber }) {
   // Retirement / Emergency are the two pots that sum to net balance
   // (data-model: netBalance = retirementBalance + emergencyBalance), so a
   // share-of-balance figure is exact rather than an approximation.
+  // Round retirement directly, then derive emergency as its COMPLEMENT so the
+  // two labels always sum to exactly 100 — rounding each independently can
+  // produce 99% or 101% (e.g. 83.5% / 16.5% → 84 + 17 = 101).
   const retPct = net > 0 ? Math.round(((sub.retirementBalance || 0) / net) * 100) : 0;
-  const emerPct = net > 0 ? Math.round(((sub.emergencyBalance || 0) / net) * 100) : 0;
+  const emerPct = net > 0 ? 100 - retPct : 0;
 
   const premium = sub.insurance?.premiumMonthly || 0;
   const coverContext = cover > 0

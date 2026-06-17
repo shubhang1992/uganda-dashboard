@@ -35,6 +35,10 @@ import {
   validatePasswordShape,
   verifyPassword,
 } from './_lib/password.js';
+import {
+  isEntityDeactivated,
+  ACCOUNT_DEACTIVATED_RESPONSE,
+} from './_lib/entity-status.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // B13: every response path on this auth route must be uncacheable. Set the
@@ -61,6 +65,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     claims = await verifyJwt(token);
   } catch {
     res.status(401).json({ code: 'unauthorized' });
+    return;
+  }
+
+  // Deactivation gate (H1): a distributor / branch / agent / employer that an
+  // admin deactivated (migration 0060) must NOT be able to rotate its password,
+  // even while holding a still-valid pre-deactivation 24h JWT. Mirror the
+  // verify-otp / verify-password check — the entity ID lives in `claims.sub`
+  // (== the role-scoped *Id claim per `buildJwtClaims`). Subscriber + admin are
+  // never gated (absent from STATUS_TABLE) and the lookup is non-fatal, so this
+  // only turns away a confirmed-inactive entity.
+  if (await isEntityDeactivated(supabaseAdmin, claims.app_role, claims.sub)) {
+    res.status(403).json(ACCOUNT_DEACTIVATED_RESPONSE);
     return;
   }
 

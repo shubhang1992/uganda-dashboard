@@ -26,9 +26,6 @@ function dateDaysAgo(days) {
   const d = new Date(MOCK_NOW.getTime() - days * DAY_MS);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-function isoDaysAgo(days) {
-  return new Date(MOCK_NOW.getTime() - days * DAY_MS).toISOString();
-}
 /** YYYY-MM-DD birth date for a given age (demo-stable, mid-year). */
 function dobForAge(age) {
   return `${MOCK_NOW.getFullYear() - age}-06-15`;
@@ -181,48 +178,69 @@ export const MEMBERS = Object.freeze([
 // starting amount). They still count toward headcount / active / AUM / New Members.
 const ACTIVE_MEMBERS = MEMBERS.filter((m) => m.status === 'active' && !m.recentHire);
 
-// ─── Member contribution transactions (own + employer history) ───────────────
-// CONTRIBUTION MODEL v2 (migration 0062): a recent two-leg contribution history per
-// active member — the employee leg (source:'own') + the employer leg (source:
-// 'employer'), both derived from the member's `compensation` via `memberLegs`. The
-// trends RPCs anchor on the FROZEN public._demo_now() (2026-05-18), so the sample
-// dates are EXPLICIT UTC dates landing in those windows — NOT isoDaysAgo, whose
-// MOCK_NOW + local-timezone basis shifts the UTC calendar day across machines (it
-// dropped the "today" sample to 05-17 on a UTC+5:30 host). Windows: 05-18 = today +
-// this week, 05-14 = last week, 05-05 = earlier this month, 04-15 = last month,
-// 03-15 = two months ago. Midday (T12:00Z) keeps date_trunc('day') timezone-stable.
-// Both legs post the SAME day (one payroll run); each leg is split by the member's
-// retirementPct (default 80), rounding ONCE. contribution_run_id is null (the runs
-// history is seeded separately). A member with BOTH legs 0 contributes no rows.
-const SAMPLE_DATES = ['2026-05-18', '2026-05-14', '2026-05-05', '2026-04-15', '2026-03-15'];
+// ─── Member contribution history + run headers (linked) ──────────────────────
+// CONTRIBUTION MODEL v2 (migration 0062): each payroll date is recorded as one
+// contribution RUN that posts BOTH legs — the employee leg (source:'own') + the
+// employer leg (source:'employer'), derived from the member's `compensation` via
+// `memberLegs` — to every active member, each split by the member's retirementPct
+// (default 80, rounding ONCE). Every leg carries its run's `contributionRunId`,
+// and each run header's totals are the Σ of its own legs, so the run drill-down
+// reconciles to its members (audit 2026-06-16: previously the legs were untagged
+// → run detail showed "0 members"). A member with BOTH legs 0 contributes no rows.
+//
+// The five dates double as the Employers-scope trend windows (today / this week /
+// last week / this month / last month), anchored on the FROZEN public._demo_now()
+// (2026-05-18). They are EXPLICIT UTC dates at midday (T12:00Z) so date_trunc('day')
+// stays timezone-stable across machines (a MOCK_NOW + local-tz basis dropped the
+// "today" sample to 05-17 on a UTC+5:30 host). run-001 oldest … run-005 newest, so
+// an ORDER BY run_at DESC lists the newest run first (leaderboard reads runs[0]).
+const RUN_DATES = [
+  { id: 'run-001', date: '2026-03-15', periodLabel: 'March 2026 payroll' },
+  { id: 'run-002', date: '2026-04-15', periodLabel: 'April 2026 payroll' },
+  { id: 'run-003', date: '2026-05-05', periodLabel: 'May 2026 payroll' },
+  { id: 'run-004', date: '2026-05-14', periodLabel: 'May 2026 mid-cycle' },
+  { id: 'run-005', date: '2026-05-18', periodLabel: 'May 2026 latest' },
+];
 const atMidday = (d) => `${d}T12:00:00.000Z`;
 
-function buildMemberTransactions() {
+// Build the tagged legs and their run headers in one pass so each run's
+// employer/employee/grand totals are exactly the Σ of its own posted legs.
+function buildContributionHistory() {
   const txns = [];
-  ACTIVE_MEMBERS.forEach((m) => {
-    const retPct = Number(m.contributionSchedule?.retirementPct ?? 80);
-    const { employeeLeg, employerLeg } = memberLegs(m.compensation);
-    SAMPLE_DATES.forEach((d, i) => {
+  const runs = [];
+  RUN_DATES.forEach(({ id: runId, date, periodLabel }, i) => {
+    let employeeTotal = 0;
+    let employerTotal = 0;
+    ACTIVE_MEMBERS.forEach((m) => {
+      const retPct = Number(m.contributionSchedule?.retirementPct ?? 80);
+      const { employeeLeg, employerLeg } = memberLegs(m.compensation);
       if (employeeLeg > 0) {
         const ret = round(employeeLeg * retPct / 100);
         txns.push({
           id: `t-own-${m.id}-${i + 1}`, subscriberId: m.id, type: 'contribution', source: 'own',
-          amount: employeeLeg, date: atMidday(d), method: 'MTN Mobile Money',
-          retirementAmount: ret, emergencyAmount: employeeLeg - ret, contributionRunId: null,
+          amount: employeeLeg, date: atMidday(date), method: 'MTN Mobile Money',
+          retirementAmount: ret, emergencyAmount: employeeLeg - ret, contributionRunId: runId,
         });
+        employeeTotal += employeeLeg;
       }
       if (employerLeg > 0) {
         const ret = round(employerLeg * retPct / 100);
         txns.push({
           id: `t-emp-${m.id}-${i + 1}`, subscriberId: m.id, type: 'contribution', source: 'employer',
-          amount: employerLeg, date: atMidday(d), method: 'Bank transfer',
-          retirementAmount: ret, emergencyAmount: employerLeg - ret, contributionRunId: null,
+          amount: employerLeg, date: atMidday(date), method: 'Bank transfer',
+          retirementAmount: ret, emergencyAmount: employerLeg - ret, contributionRunId: runId,
         });
+        employerTotal += employerLeg;
       }
     });
+    runs.push({
+      id: runId, employerId: EMPLOYER.id, periodLabel, status: 'completed',
+      employerTotal, employeeTotal, grandTotal: employeeTotal + employerTotal, runAt: atMidday(date),
+    });
   });
-  return txns;
+  return { txns, runs };
 }
+const _history = buildContributionHistory();
 
 // ─── Member withdrawals ──────────────────────────────────────────────────────
 // A handful of withdrawals (negative amount, source 'own') on high-balance members
@@ -249,33 +267,15 @@ function buildMemberWithdrawals() {
 }
 
 export const MEMBER_TRANSACTIONS = Object.freeze([
-  ...buildMemberTransactions(),
+  ..._history.txns,
   ...buildMemberWithdrawals(),
 ]);
 
-// ─── Employer contribution runs (history headers) ────────────────────────────
-// CONTRIBUTION MODEL v2 (migration 0062): each monthly run posts BOTH legs to every
-// active member. employerTotal = Σ employerLeg, employeeTotal = Σ employeeLeg, and
-// grandTotal = employerTotal + employeeTotal (matches submit_employer_contribution_run).
-function buildRun(id, periodLabel, daysAgo) {
-  let employerTotal = 0;
-  let employeeTotal = 0;
-  ACTIVE_MEMBERS.forEach((m) => {
-    const { employeeLeg, employerLeg } = memberLegs(m.compensation);
-    employeeTotal += employeeLeg;
-    employerTotal += employerLeg;
-  });
-  return {
-    id, employerId: EMPLOYER.id, periodLabel, status: 'completed',
-    employerTotal, employeeTotal, grandTotal: employerTotal + employeeTotal, runAt: isoDaysAgo(daysAgo),
-  };
-}
-export const CONTRIBUTION_RUNS = Object.freeze([
-  buildRun('run-001', 'February 2026', 105),
-  buildRun('run-002', 'March 2026', 75),
-  buildRun('run-003', 'April 2026', 35),
-  buildRun('run-004', 'May 2026', 5),
-]);
+// ─── Employer contribution runs (history headers, linked to the legs above) ──
+// Built in buildContributionHistory() so each header's employer/employee/grand
+// totals equal the Σ of its own tagged legs — mirroring submit_employer_
+// contribution_run's two-leg math, and letting the run drill-down resolve members.
+export const CONTRIBUTION_RUNS = Object.freeze(_history.runs.map((r) => Object.freeze(r)));
 
 // ─── Leaderboard competitors (demo-only) ─────────────────────────────────────
 // Invented peer employers; "you" = the newest run's grandTotal is spliced in by
