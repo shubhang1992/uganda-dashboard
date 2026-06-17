@@ -379,6 +379,71 @@ describe('POST /api/auth/change-password', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Deactivation gate (H1) — a deactivated distributor / branch / agent /
+  // employer holding a still-valid pre-deactivation JWT must NOT be able to
+  // rotate its password. The gate runs right after JWT verify (before the
+  // users lookup), so no `users` row need be queued.
+  // -------------------------------------------------------------------------
+
+  it('returns 403 account_deactivated when the JWT entity is deactivated', async () => {
+    // A distributor whose status row is 'inactive'. `isEntityDeactivated`
+    // looks up the `distributors` table by id and finds status: 'inactive'.
+    verifyJwtMock.mockResolvedValueOnce({
+      iss: 'upensions',
+      sub: 'd-001',
+      role: 'authenticated',
+      app_role: 'distributor',
+      phone: '+256700000001',
+      distributorId: 'd-001',
+      aud: 'authenticated',
+      iat: 1700000000,
+      exp: 1700086400,
+    });
+    queueFrom('distributors', { data: { status: 'inactive' }, error: null });
+
+    await call(
+      withBearer(
+        makeReq({
+          body: {
+            currentPassword: 'OldPass123',
+            newPassword: 'NewPass123',
+          },
+        }),
+        'good-token',
+      ),
+      res,
+    );
+
+    expect(res.__getStatus()).toBe(403);
+    expect(res.__getPayload()).toEqual({
+      code: 'account_deactivated',
+      message:
+        'This account has been deactivated. Please contact support to reactivate it.',
+    });
+    expect(res.__headers['Cache-Control']).toBe('no-store');
+    // Gate fires before the users lookup/update — no password rotation happens.
+    expect(updateCalls.filter((c) => c.table === 'users')).toHaveLength(0);
+  });
+
+  it('does not gate a subscriber (status lookup short-circuits, rotation proceeds)', async () => {
+    // Default JWT claims are a subscriber — subscriber is never gated even if a
+    // (notional) status row existed. Confirms the rotation still completes 200.
+    queueFrom('users', { data: { password_hash: null }, error: null });
+    queueUpdate('users', { data: null, error: null });
+
+    await call(
+      withBearer(
+        makeReq({ body: { newPassword: 'Demo1234' } }),
+        'good-token',
+      ),
+      res,
+    );
+
+    expect(res.__getStatus()).toBe(200);
+    expect(res.__getPayload()).toEqual({ ok: true, hasPassword: true });
+  });
+
+  // -------------------------------------------------------------------------
   // DB errors
   // -------------------------------------------------------------------------
 

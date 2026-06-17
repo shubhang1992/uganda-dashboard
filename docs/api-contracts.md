@@ -24,7 +24,7 @@ All 14 API routes return errors as JSON in the form:
 { "code": "snake_case_reason", "message": "optional human string" }
 ```
 
-`code` is always present and machine-stable. `message` is optional and only set when the body carries useful operator context (e.g. a propagated Supabase error code). The frontend's `services/api.js` fetch wrapper raises an `Error` with `.code` and `.status` set so callers can branch on `err.code === 'invalid_otp'` etc. See `BACKEND.md §3` for the full vocabulary.
+`code` is always present and machine-stable. `message` is optional and only set when the body carries a useful customer-facing or operator string (e.g. the `403 account_deactivated` body). **Note:** `db_error` is now a **bare `{ code: 'db_error' }`** with no `message` — the Supabase-`error.code`-in-`message` detail it used to attach was removed in commit `1a5c370` (the Supabase error is logged server-side instead). The frontend's `services/api.js` fetch wrapper raises an `Error` with `.code` and `.status` set so callers can branch on `err.code === 'invalid_otp'` etc. See `BACKEND.md §3` for the full vocabulary.
 
 ### 1.2 Auth header
 
@@ -71,7 +71,7 @@ Validates OTP shape, resolves role-scoped entity ID via `demo_personas` (falling
 
 - **Body:** `{ phone: string, otp: string (6 digits), role: JwtRole, password?: string }`
 - **Response 200:** `{ token: string, user: { id, phone, role, name?, hasPassword: boolean, subscriberId?|agentId?|branchId?|distributorId? } }`
-- **Errors:** `400 invalid_otp | password_required | password_too_short | password_too_long | password_too_weak`, `500 db_error`
+- **Errors:** `400 invalid_otp | password_required | password_too_short | password_too_long | password_too_weak`, `403 account_deactivated` (resolved agent/branch/distributor/employer has `status='inactive'` — migration `0060`; gate added commit `b73e577`, shared helper `api/auth/_lib/entity-status.ts`; subscribers + admin never gated), `500 db_error` (bare `{ code }`)
 - **Source:** `api/auth/verify-otp.ts`
 
 #### `POST /api/auth/verify-password`
@@ -79,7 +79,7 @@ Password sign-in companion to `verify-otp`. Looks up the `users(phone, role)` ro
 
 - **Body:** `{ phone: string, role: JwtRole, password: string }`
 - **Response 200:** same shape as `verify-otp`, with `hasPassword: true`.
-- **Errors:** `400 invalid_request`, `401 password_not_set | invalid_password | role_mismatch`, `500 db_error`
+- **Errors:** `400 invalid_request`, `401 password_not_set | invalid_password | role_mismatch`, `403 account_deactivated` (correct password on a deactivated agent/branch/distributor/employer — `status='inactive'`, migration `0060`; checked AFTER the bcrypt compare so a wrong password still returns `401 invalid_password`), `500 db_error` (bare `{ code }`)
 - **Source:** `api/auth/verify-password.ts`
 
 #### `POST /api/auth/change-password`

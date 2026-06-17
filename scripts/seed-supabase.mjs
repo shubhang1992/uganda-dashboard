@@ -421,6 +421,7 @@ async function main() {
         { name: 'rank', type: 'integer' },
         { name: 'district_rank', type: 'integer' },
         { name: 'district_branch_count', type: 'integer' },
+        { name: 'distributor_id', type: 'text' },
       ],
       [
         branches.map((b) => b.id),
@@ -436,6 +437,11 @@ async function main() {
         branches.map((b) => b.rank ?? null),
         branches.map((b) => b.districtRank ?? null),
         branches.map((b) => b.districtBranchCount ?? null),
+        // Migration 0060: the entire 316-branch agent tree belongs to the
+        // singleton national distributor d-001 (d-002 owns nothing). Without
+        // this column the admin "Deactivate distributor" cascade no-ops — the
+        // 0060 backfill set it on live, but a reseed previously dropped it.
+        branches.map((b) => b.distributorId ?? 'd-001'),
       ],
       'id'
     );
@@ -750,6 +756,26 @@ async function main() {
         // The mock field is `reference`; the schema column is `txn_ref`.
         txRefs.push(t.reference ?? null);
         txBuckets.push(t.bucket ?? null);
+      }
+      // Opening-balance reconciliation (audit 2026-06-16): `netBalance` is an
+      // authored snapshot reflecting full tenure, but only a recent window of
+      // contributions is seeded — so SUM(transactions) was ≈1/5 of the balance.
+      // Add one "brought-forward" contribution dated at registration so the
+      // subscriber's ledger sums exactly to total_balance (and, since the rollup
+      // sums all contribution rows, platform totalContributions ≈ AUM).
+      const _seededSum = (s.transactions ?? []).reduce((acc, t) => acc + Number(t.amount || 0), 0);
+      const _opening = Math.round(Number(s.netBalance ?? 0) - _seededSum);
+      if (_opening !== 0) {
+        txIds.push(`tx-${s.id}-open`);
+        txSubIds.push(s.id);
+        txAgentIds.push(s.parentId);
+        txTypes.push('contribution');
+        txAmounts.push(_opening);
+        txDates.push(toTimestamptz(s.registeredDate ?? s.transactions?.[s.transactions.length - 1]?.date ?? '2024-01-01'));
+        txStatuses.push('settled');
+        txMethods.push('Opening balance');
+        txRefs.push('OPENING');
+        txBuckets.push(null);
       }
     }
     await bulkInsert(
@@ -1426,6 +1452,27 @@ async function main() {
     // The employer-source rows link to their contribution_runs header via
     // contribution_run_id (seeded above). Triggers are off (replica mode), so
     // these do NOT re-bump the directly-seeded subscriber_balances.
+    //
+    // Opening-balance reconciliation (audit 2026-06-16): a member's balance is an
+    // authored snapshot; only a recent window of run legs (and, for the geo
+    // employers, none at all) is seeded. Add one brought-forward own-source
+    // contribution per member so SUM(their transactions) == total_balance.
+    const _allMembers = [...MEMBERS, ...EXTRA_MEMBERS];
+    const memberOpenings = _allMembers.map((m) => {
+      const sum = MEMBER_TRANSACTIONS
+        .filter((t) => t.subscriberId === m.id)
+        .reduce((acc, t) => acc + Number(t.amount || 0), 0);
+      const residual = Math.round(Number(m.netBalance ?? 0) - sum);
+      if (residual === 0) return null;
+      const retPct = Number(m.contributionSchedule?.retirementPct ?? 80);
+      const ret = Math.round(residual * retPct / 100);
+      return {
+        id: `t-open-${m.id}`, subscriberId: m.id, type: 'contribution', source: 'own',
+        amount: residual, date: m.joinedDate ?? '2024-01-01', method: 'Opening balance',
+        retirementAmount: ret, emergencyAmount: residual - ret, contributionRunId: null,
+      };
+    }).filter(Boolean);
+    const MEMBER_TX_ALL = [...MEMBER_TRANSACTIONS, ...memberOpenings];
     console.log('• member transactions…');
     await bulkInsert(
       client,
@@ -1444,17 +1491,17 @@ async function main() {
         { name: 'contribution_run_id', type: 'text' },
       ],
       [
-        MEMBER_TRANSACTIONS.map((t) => t.id),
-        MEMBER_TRANSACTIONS.map((t) => t.subscriberId),
-        MEMBER_TRANSACTIONS.map((t) => t.type ?? 'contribution'),
-        MEMBER_TRANSACTIONS.map((t) => t.source ?? 'own'),
-        MEMBER_TRANSACTIONS.map((t) => t.amount ?? 0),
-        MEMBER_TRANSACTIONS.map((t) => toTimestamptz(t.date)),
-        MEMBER_TRANSACTIONS.map(() => 'settled'),
-        MEMBER_TRANSACTIONS.map((t) => t.method ?? null),
-        MEMBER_TRANSACTIONS.map((t) => t.retirementAmount ?? null),
-        MEMBER_TRANSACTIONS.map((t) => t.emergencyAmount ?? null),
-        MEMBER_TRANSACTIONS.map((t) => t.contributionRunId ?? null),
+        MEMBER_TX_ALL.map((t) => t.id),
+        MEMBER_TX_ALL.map((t) => t.subscriberId),
+        MEMBER_TX_ALL.map((t) => t.type ?? 'contribution'),
+        MEMBER_TX_ALL.map((t) => t.source ?? 'own'),
+        MEMBER_TX_ALL.map((t) => t.amount ?? 0),
+        MEMBER_TX_ALL.map((t) => toTimestamptz(t.date)),
+        MEMBER_TX_ALL.map(() => 'settled'),
+        MEMBER_TX_ALL.map((t) => t.method ?? null),
+        MEMBER_TX_ALL.map((t) => t.retirementAmount ?? null),
+        MEMBER_TX_ALL.map((t) => t.emergencyAmount ?? null),
+        MEMBER_TX_ALL.map((t) => t.contributionRunId ?? null),
       ],
       'id'
     );

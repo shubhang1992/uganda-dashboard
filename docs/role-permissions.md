@@ -189,12 +189,12 @@ All slide-in panels use `splitMode={true}`:
 
 ## Role 4: Employer (`employer`) — BUILT
 
-> A B2B account managing a **standalone** staff roster. Employees are a new `employees` table **outside** the agent→subscriber hierarchy — they are NOT `subscribers` and generate **NO agent commissions**. The employer funds staff pension via "contribution runs" (employer-only or employer+employee co-contribution per employee). Backend: migrations `0034` (schema + RLS) / `0035` (RPCs); scoped by the `employerId` JWT claim.
+> A B2B account managing a staff roster. **UNIFIED MODEL (migrations `0043`–`0045`):** an employer's staff ARE `subscribers` — real subscriber rows tagged via `subscribers.employer_id` (they get a subscriber identity + dashboard login). The standalone `employees` and `contribution_run_lines` tables that the original `0034` design used were **DROPPED by migration `0045`**; employer money now rides the normal `transactions` ledger (`transactions.source = 'employer'` + `transactions.contribution_run_id`, `agent_id` NULL ⇒ **NO agent commission**). Onboarding **shipped** as the invite-based KYC flow (`0046`/`0047`) — it is **no longer a "deferred placeholder."** The employer funds staff pension via **contribution runs** under the **compensation-driven two-leg model** (`0062`): the company-wide `employers.default_contribution_config` is applied to every tagged member, each leg derived from the member's `compensation`. Backend: migrations `0043`/`0044` (unification + RPCs), `0045` (retire `employees`), `0046`/`0047` (invite-based onboarding), `0048` (remove member), `0062` (contribution model v2); scoped by the `employerId` JWT claim.
 
 ### Dashboard Access
 - **Has dashboard:** Yes
 - **Dashboard shell:** `EmployerDashboardShell` (desktop-first, mirrors the Branch admin shell — indigo hero + icon-rail sidebar + slide-in panels; NOT the mobile-first routed Subscriber/Agent pattern)
-- **Sidebar items:** Overview, Employees, Contribution Runs, Insurance, Reports, Support; footer Settings + Log out; plus an "Onboard staff" entry (deferred placeholder)
+- **Sidebar items:** Overview, Employees, Contribution Runs, Insurance, Reports, Support; footer Settings + Log out; plus an "Onboard staff" entry (SHIPPED — invite-based KYC flow, `0046`/`0047`)
 - **Scope provider:** `EmployerScopeProvider` injects `employerId` (from `user.employerId`); `MissingEmployerIdScreen` if absent
 
 ### Pages/Views Accessible
@@ -202,12 +202,12 @@ All slide-in panels use `splitMode={true}`:
 |------|--------|-------|
 | Overview | Full | `EmployerHealthScore` hero (scheme-health/participation gauge, KPIs, activity, alerts, copilot) + notifications + operations |
 | Employees (roster) | Scoped | Own staff only; search + status filter. Row → detail panel with balances, schedule, contribution history, insurance, nominees + a contribution-config editor + insurance editor |
-| Contribution Runs | Scoped | History list → run detail (per-employee employer/employee/total lines) + new-run wizard (select staff → period + method + live preview → confirm). **No commission side-effects.** |
-| Insurance / Benefits | Scoped | Company-wide oversight: covered count · total premium · per-employee cover/status; editing reuses the employee insurance editor |
+| Contribution Runs | Scoped | History list → run detail (per-member employer/employee/total legs) + new-run wizard (period + method + live preview → confirm). The run applies the **company-wide** `default_contribution_config` (two-leg, compensation-driven; `0062`) to every active tagged member — posts to the normal `transactions` ledger (`source='employer'`/`'own'`, `agent_id` NULL). **No commission side-effects.** |
+| Insurance / Benefits | Scoped | Company-wide oversight: covered count · total premium · per-member cover/status. Insurance is a **company-wide all-or-nothing** config (`insuranceEnabled`/`groupCoverAmount` on `default_contribution_config`); per-member `insuranceCover`/`insuranceStatus` are vestigial fields driven by the group config |
 | Reports | Scoped | 4 reports — staff roster · contribution-runs summary · employer-vs-employee funding breakdown · staff balance growth (CSV/print) |
 | Support | Scoped | Employer↔platform tickets — the employer **raises and replies** (composer); per-employee↔agent threading deferred |
 | Settings | Full | Company profile + company-level default contribution config + password |
-| Onboard staff | Disabled | "Coming soon" placeholder (Phase 9) |
+| Onboard staff | Full | Invite-based KYC flow (single + Excel bulk) — `create_employer_invite` (`0047`) mints a pending invite; the invitee completes KYC via `create_subscriber_from_employer_invite`, becoming a tagged subscriber |
 
 ### Data Scope
 - **Visibility:** Own employer record + own staff roster + own contribution runs + own support tickets
@@ -217,18 +217,18 @@ All slide-in panels use `splitMode={true}`:
 ### Actions (CRUD)
 | Action | Permission | Scope |
 |--------|-----------|-------|
-| View own roster + run history + metrics | Read | Own employer (`useEmployees` / `useContributionRuns` / `useEmployerMetrics`) |
-| Submit a contribution run | Create | Own active staff (`useRunContribution` → `submit_contribution_run`; server re-derives amounts, nonce-idempotent, balances on `employees`) |
-| Edit employee contribution config | Update | Own staff (`update_employee_contribution_config`) |
-| Edit employee insurance | Update | Own staff (`update_employee_insurance`) |
-| Update company profile + default config | Update | Own employer (`update_employer_profile`) |
+| View own roster + run history + metrics | Read | Own employer — reads over **tagged subscribers** (`employer_id` = caller's `employerId`) + own `contribution_runs` (`useEmployees` / `useContributionRuns` / `useEmployerMetrics`) |
+| Submit a contribution run | Create | Own active tagged members (`useRunContribution` → **`submit_employer_contribution_run`**, `0062`; server derives both legs from each member's `compensation` via the company-wide config, nonce-idempotent, posts to the normal `transactions` ledger with `source='employer'`/`'own'`, `agent_id` NULL ⇒ no commission) |
+| Edit a member's compensation | Update | Own tagged members (`update_employer_member_compensation`, `0062` — the driver field for the two-leg run) |
+| Update company profile + company-wide default config (incl. group insurance) | Update | Own employer (`update_employer_profile`; `0056` folded group-cover application into the same atomic write) |
+| Onboard staff | Create | Own employer — invite-based KYC (`create_employer_invite` `0047`; completed via `create_subscriber_from_employer_invite`, minting a tagged subscriber with `agent_id` NULL ⇒ no commission) |
+| Remove a member from the company | Update | Own tagged members (`remove_employer_member`, `0048` — un-tags `employer_id → NULL`; `is_active` untouched, the person continues as an individual saver) |
 | Change own password | Update | Own user |
 | Raise / reply to support tickets | Create | Own employer↔platform threads |
-| Onboard staff | — | Deferred placeholder (Phase 9) |
-| View commissions | — | **None** — employees generate no commissions |
+| View commissions | — | **None** — employer-funded contributions carry `agent_id` NULL ⇒ generate no commissions |
 
 ### Scoping Implementation
-`EmployerScopeProvider` injects `employerId` into context; reads route through `useEmployer*` hooks → `src/services/employer.js`. Under Supabase, the 5 `0034` tables each carry one SELECT policy scoped by `auth.jwt() ->> 'employerId'` (run-lines via an EXISTS join to the parent run), so a read only ever returns the caller's own rows. **Writes go through the `0035` SECURITY DEFINER RPCs** (no client write policies), each re-checking ownership against the `employerId` claim. `submit_contribution_run` writes employer balances inline to `employees` and is forbidden from touching `transactions`/`subscriber_balances`/`commissions`. See `BACKEND.md §8`/§10.1 + `docs/data-model.md`.
+`EmployerScopeProvider` injects `employerId` into context; reads route through `useEmployer*` hooks → `src/services/employer.js`. Under the unified model the roster lives in `subscribers` (tagged `employer_id`), so employer reads are scoped by the **`subscribers`/`transactions` RLS** plus the employer-family SELECT policies (`employers`, `contribution_runs`, `employer_invites`) keyed on `auth.jwt() ->> 'employerId'` — a read only ever returns the caller's own members + runs. **Writes go through the employer SECURITY DEFINER RPCs** (`0044`/`0048`/`0056`/`0062`; no client write policies), each re-checking ownership against the `employerId` claim. **`submit_employer_contribution_run`** (`0062`) derives both legs from each member's `compensation` and posts to the normal `transactions` ledger (`source='employer'`/`'own'`, `agent_id` NULL) — the balance trigger does the math; it writes no commissions. See `BACKEND.md §8`/§10.1 + `docs/data-model.md`.
 
 ---
 
@@ -286,7 +286,7 @@ The agent is now a pure observer of commissions. Lines auto-generate as `due` on
 ### Pages/Views Accessible
 | View | Access | Notes |
 |------|--------|-------|
-| National Overview (map) | Full | Country→region→district→branch→agent drill-down + platform KPIs (AUM, subscribers, agents, branches) |
+| National Overview (map) | Full | Country→region→district→branch→agent drill-down + platform KPIs (AUM, subscribers, agents, branches). **Platform scope filter (All / Distributors / Employers)** partitions the overview card + the activity strip by channel (`get_platform_overview`'s `byChannel` split, `0058`; `get_employer_activity_rollup`, `0059`); the district drill-down bifurcates into `[Branches \| Employers]` tabs, with employers placed on the map via `get_employer_geo_rollup` (`0058`) |
 | Distributors | Full | Slide-in list of all distributors + platform KPI strip; **+ New Distributor** create form (`ViewDistributors` / `CreateDistributor`) |
 | Employers | Full | Slide-in list of all employers with per-employer rollup (members/active/AUM/contributed/insured); **+ New Employer** create form (`ViewEmployers` / `CreateEmployer`) |
 | Branches / Agents / Subscribers / Reports / Commissions / Support / Settings | Full | Reused distributor panels, unscoped (platform-wide) |
@@ -301,10 +301,14 @@ The agent is now a pure observer of commissions. Lines auto-generate as `due` on
 | View all platform data | Read | Everything (map, branches, agents, subscribers, commissions, reports) |
 | Create distributor | Create | `create_distributor` RPC (admin-gated SECURITY DEFINER, `0049`) |
 | Create employer | Create | `create_employer` RPC (admin-gated SECURITY DEFINER, `0049`) |
-| View all-employers rollup | Read | `get_all_employers_metrics` RPC (admin-gated, `0049`) |
+| View all-employers rollup | Read | `get_all_employers_metrics` RPC (admin-gated, `0049`; re-emitted by `0060` to add each employer's `status`) |
+| Deactivate / reactivate a distributor | Update | `set_distributor_status` RPC (admin-gated SECURITY DEFINER, `0060`) — flips the distributor + its branches + its agents between `active`/`inactive`; on deactivate also detaches every subscriber under the distributor's agent tree (`agent_id → NULL`; `is_active` untouched) |
+| Deactivate / reactivate an employer | Update | `set_employer_status` RPC (admin-gated SECURITY DEFINER, `0060`) — flips `employers.status`; on deactivate detaches every member (`employer_id → NULL`) |
+| Filter platform overview by channel | Read | All / Distributors / Employers scope filter (`get_platform_overview` `byChannel`, `0058`; `get_employer_activity_rollup`, `0059`; `get_employer_geo_rollup`, `0058`) |
 | Reused distributor actions (create branch, settle commissions, etc.) | As distributor | Inherited from the reused panels |
 
-> **Demo scope:** no audit-log / compliance / KYC-queue / user-management features (intentional — see `CLAUDE.md §10a`). Admin is **view + create** for distributors/employers; edit/suspend can be added later (`updateDistributor` / `updateEmployerProfile` already exist).
+> **Enforcement of deactivation:** a deactivated agent/branch/distributor/employer cannot obtain a JWT (login gate in `verify-otp`/`verify-password` via `_lib/entity-status.ts` → `403 account_deactivated`), and a deactivated employer cannot admit new members or submit contribution runs (BEFORE-INSERT/UPDATE triggers, `0060`/`0061`).
+> **Demo scope:** no audit-log / compliance / KYC-queue / user-management features (intentional — see `CLAUDE.md §10a`). Admin is **view + create + deactivate/reactivate** for distributors/employers.
 
 ---
 
@@ -316,7 +320,7 @@ The agent is now a pure observer of commissions. Lines auto-generate as `due` on
 | branch | Own branch + own agents + own subscribers (+ read-only of the singleton `distributors` row for attribution) | Own branch's commissions (read-only) | 8 reports, branch-scoped |
 | agent | Own record + own subscribers (+ read-only of the singleton `distributors` row) | Own commissions (read-only — Earned / Owed) | Client-side analytics over own portfolio |
 | subscriber | Own record only (+ read-only of the singleton `distributors` row) | None | 5 own-account reports (transactions, contributions, withdrawals, insurance, annual) |
-| employer | Own employer + own standalone staff roster + own contribution runs (no access to subscribers/agents/branches) | None (employees generate no commissions) | 4 own-org reports (staff roster, runs summary, funding breakdown, balance growth) |
+| employer | Own employer + own tagged-subscriber roster (`subscribers.employer_id`) + own contribution runs (no access to other employers' members, agents, or branches) | None (employer-funded contributions carry `agent_id` NULL ⇒ no commissions) | 4 own-org reports (staff roster, runs summary, funding breakdown, balance growth) |
 | admin | All entities, all levels (incl. all distributors + all employers) | All commissions | All reports, all scopes |
 
 ### Scoping Implementation
@@ -325,7 +329,7 @@ The agent is now a pure observer of commissions. Lines auto-generate as `due` on
 - **Branch:** `BranchScopeProvider` injects `branchId` into context. Report views check `useBranchScope()` and filter data accordingly. Commission endpoints receive `branchId` parameter.
 - **Agent:** `AgentScopeProvider` injects `agentId`. `useAgentSubscribers(agentId)` and commission hooks scope automatically. The auth `user.agentId` comes from the backend's `verifyOtp` response — the client no longer injects it.
 - **Subscriber:** `useCurrentSubscriber()` resolves from authenticated phone (server-side); subscriber is the implicit "self" in every endpoint under `/api/subscribers/me/*`.
-- **Employer:** `EmployerScopeProvider` injects `employerId` from the auth session (the `employerId` JWT claim). The 5 `0034` tables auto-scope every read via one SELECT policy keyed on `auth.jwt() ->> 'employerId'`; writes go through the `0035` RPCs, which re-check ownership.
+- **Employer:** `EmployerScopeProvider` injects `employerId` from the auth session (the `employerId` JWT claim). Under the unified model (`0043`–`0045`) the roster lives in `subscribers` (tagged `employer_id`); reads auto-scope via the `subscribers`/`transactions` RLS + the employer-family SELECT policies keyed on `auth.jwt() ->> 'employerId'`; writes go through the employer SECURITY DEFINER RPCs (`0044`/`0048`/`0056`/`0062`), which re-check ownership.
 - **Admin:** No scoping — `*_select_admin` RLS policies (migration `0049`) mirror the distributor "see-everything" grants plus admin SELECT on the employer family. Writes (create distributor/employer) go through admin-gated SECURITY DEFINER RPCs. No scope provider — the admin shell reuses the distributor map/panels directly.
 
 ### Backend Enforcement

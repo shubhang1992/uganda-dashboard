@@ -341,8 +341,9 @@ function SettingsBody({ tab, settingsOpen, employer, employerId, addToast }) {
 
   const saving = updateProfile.isPending;
 
-  // The Pension and Insurance tabs share the lifted insurance handlers so the
-  // <GroupInsuranceFieldset> is a single source of truth across both.
+  // Insurance is configured only on the Insurance tab; these lifted handlers
+  // drive its <GroupInsuranceFieldset>, editing the same shared draft so its
+  // values ride along on the one atomic saveConfig.
   const setInsuranceEnabled = (on) => {
     setDraft((d) => ({ ...d, insuranceEnabled: on }));
     if (err) setErr('');
@@ -383,8 +384,6 @@ function SettingsBody({ tab, settingsOpen, employer, employerId, addToast }) {
             setErr={setErr}
             saving={saving}
             saveConfig={saveConfig}
-            setInsuranceEnabled={setInsuranceEnabled}
-            setGroupCover={setGroupCover}
           />
         )}
       </div>
@@ -638,8 +637,9 @@ function ProfileTab({ employer, employerId, addToast }) {
 
 // =============================================================================
 // Tab 2 — Pension contribution (the company-wide funding template a run starts
-// from) + the shared group-insurance fieldset. The draft + saveConfig seam are
-// owned by SettingsBody; this tab is presentational over the funding-mode slice.
+// from). The draft + saveConfig seam are owned by SettingsBody; this tab is
+// presentational over the funding-mode slice. Group insurance lives on its own
+// Insurance tab (Tab 3), not here.
 // =============================================================================
 
 function PensionContributionTab({
@@ -649,8 +649,6 @@ function PensionContributionTab({
   setErr,
   saving,
   saveConfig,
-  setInsuranceEnabled,
-  setGroupCover,
 }) {
   const isCo = draft.mode === 'co-contribution';
   const isPercent = draft.employerBasis === 'percent';
@@ -832,16 +830,6 @@ function PensionContributionTab({
           <span>Total: <strong>{formatUGX(preview.total, { compact: false })}</strong></span>
         </div>
       </div>
-
-      {/* Group insurance — a company-wide TRUE/FALSE config, independent of the
-          funding mode above. Same <GroupInsuranceFieldset> rendered on the
-          Insurance tab, bound to the SAME draft (single source of truth). */}
-      <GroupInsuranceFieldset
-        enabled={draft.insuranceEnabled}
-        coverAmount={draft.groupCoverAmount}
-        onToggle={setInsuranceEnabled}
-        onCoverChange={setGroupCover}
-      />
 
       {err && <p className={styles.error} role="alert">{err}</p>}
 

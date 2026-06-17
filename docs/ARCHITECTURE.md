@@ -382,14 +382,14 @@ Two layers, each catching a different class of regression. The cleanup sprint mo
 | **Unit** | Vitest 4.1.4 + jsdom + `src/test/supabaseMock.js` | `src/**/__tests__/`, `src/**/*.test.{js,jsx}`, `api/**/*.test.ts` | Service shape contracts, util correctness, hook caching, component primitives, API route handlers, mock-branch parity |
 | **E2E** | Playwright; service-role fixtures in `e2e/fixtures/db.ts`; auth fixtures in `e2e/.auth/` | `e2e/specs/{smoke,flows,regression,db}/` | Real-browser flows: signup → contribute → withdraw; commission settlement (`due → paid`) end-to-end; cross-laptop demo loops |
 
-### 7.1 Unit layer — 707 tests across 40 files
+### 7.1 Unit layer — 1221 tests across 76 files
 
-After the Phase 2 sprint:
+Current suite (`npx vitest run`):
 
 ```
 $ npm test
- Test Files  40 passed (40)
-      Tests  707 passed (707)
+ Test Files  76 passed (76)
+      Tests  1221 passed (1221)
 ```
 
 That is ~**491 new unit tests added across the cleanup**. Coverage delta is broken out per Phase-2 commit:
