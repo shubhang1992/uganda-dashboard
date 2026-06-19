@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { isValidUGPhone } from '../../utils/phone';
+import { isValidUGPhone, parseUGPhoneLocal } from '../../utils/phone';
 import styles from './PhoneEntry.module.css';
 import modalStyles from '../SignInModal.module.css';
 
@@ -45,7 +45,11 @@ export default function PhoneEntry({ role, onSubmit, onBack, hideBadge = false, 
   }
 
   function handleChange(e) {
-    const val = e.target.value.replace(/\D/g, '').slice(0, 9);
+    // parseUGPhoneLocal strips a pasted country code ('+256'/'256') or national
+    // '0' prefix before taking the 9-digit local part — so pasting a full
+    // '+256 700 100 002' yields '700100002', not '256700100'. Fires on paste too
+    // (paste triggers onChange).
+    const val = parseUGPhoneLocal(e.target.value);
     setPhone(val);
     if (error) setError('');
   }

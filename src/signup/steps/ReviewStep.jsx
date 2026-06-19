@@ -5,6 +5,7 @@ import { EASE_OUT_EXPO } from '../../utils/motion';
 import { useAllEntities } from '../../hooks/useEntity';
 import { useSignup } from '../SignupContext';
 import { extractIdFields } from '../../services/kyc';
+import { parseUGPhoneLocal } from '../../utils/phone';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
 import styles from './Step.module.css';
 import own from './ReviewStep.module.css';
@@ -140,7 +141,7 @@ export default function ReviewStep({ onNext }) {
   }
 
   function handlePhone(e) {
-    const val = e.target.value.replace(/\D/g, '').slice(0, 9);
+    const val = parseUGPhoneLocal(e.target.value);
     signup.patch({ phone: val });
     if (errors.phone) setErrors((p) => ({ ...p, phone: '' }));
   }

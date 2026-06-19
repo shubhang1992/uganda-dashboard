@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
-import { isValidUGPhone } from '../../utils/phone';
+import { isValidUGPhone, parseUGPhoneLocal } from '../../utils/phone';
 import { useSignup } from '../SignupContext';
 import styles from './Step.module.css';
 import own from './BeneficiariesStep.module.css';
@@ -410,7 +410,7 @@ function BeneficiaryRow({ index, beneficiary, canRemove, onChange, onShareChange
               inputMode="numeric"
               className={styles.phoneInput}
               value={beneficiary.phone}
-              onChange={(e) => onChange({ phone: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+              onChange={(e) => onChange({ phone: parseUGPhoneLocal(e.target.value) })}
               placeholder="7XX XXX XXX"
               spellCheck={false}
             />

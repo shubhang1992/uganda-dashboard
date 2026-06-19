@@ -13,6 +13,56 @@
   gap: var(--space-5);
 }
 
+/* Column wrappers are transparent by default → sections flow in .step exactly
+   as before (single column). The "split" layout below promotes them to real
+   columns when there's room. */
+.inputsCol,
+.summaryCol {
+  display: contents;
+}
+
+/* ── Split layout (layout="split") ────────────────────────────────────────
+   Tighter spacing (shorter scroll even single-column, e.g. onboarding) + a
+   container query that goes 2-column once the form's own width allows it — so a
+   narrow container (the ~720px onboarding stage) safely stays single column. */
+.bodySplit {
+  container-type: inline-size;
+}
+
+.bodySplit .step {
+  gap: var(--space-4);
+}
+
+.bodySplit .section {
+  padding: var(--space-3) var(--space-4);
+}
+
+.bodySplit .inputsCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.bodySplit .summaryCol {
+  display: block;
+  min-width: 0;
+}
+
+@container (min-width: 860px) {
+  .bodySplit .step {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: start;
+  }
+
+  .bodySplit .summaryCol {
+    position: sticky;
+    top: var(--space-4);
+  }
+}
+
 .section {
   background: var(--color-white);
   border: 1px solid var(--color-lavender);
@@ -278,18 +328,6 @@
   cursor: pointer;
 }
 
-.splitBar {
-  display: flex;
-  height: 8px;
-  border-radius: var(--radius-full);
-  overflow: hidden;
-  background: var(--color-lavender);
-  margin-top: 8px;
-}
-
-.splitFillR { background: var(--color-indigo); }
-.splitFillE { background: var(--color-teal); }
-
 .bucketHelp {
   font-family: var(--font-body);
   font-size: 11.5px;
@@ -521,6 +559,41 @@
   font-size: 11px;
   color: rgba(217, 220, 242, 0.6);
 }
+
+/* ── Summary, light variant (split / desktop layout) ──────────────────────
+   In the desktop split layout the summary reads as a light v5 card (white
+   gradient + lavender hairline + indigo ink) rather than the saturated indigo
+   block used on the mobile single-column layout, so it fits the desktop
+   dashboard theme. Scoped to .bodySplit → the mobile summary is unchanged. */
+.bodySplit .summarySection {
+  background: linear-gradient(150deg, #fff 0%, var(--color-cloud) 100%);
+  color: var(--color-slate);
+  border: 1px solid var(--color-lavender);
+  box-shadow: var(--shadow-sm);
+}
+
+.bodySplit .summaryEyebrow { color: var(--color-gray); }
+.bodySplit .summaryCadence { color: var(--color-gray); }
+.bodySplit .summaryBig { color: var(--color-indigo); }
+
+.bodySplit .summaryRow {
+  color: var(--color-slate);
+  border-top-color: var(--color-lavender);
+}
+
+.bodySplit .summaryRow > span:last-child { color: var(--color-indigo); }
+
+.bodySplit .summaryDot[data-tone='retirement'] { background: var(--color-indigo); }
+.bodySplit .summaryDot[data-tone='emergency'] { background: var(--color-teal); }
+
+.bodySplit .projection {
+  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
+  border-color: var(--color-lavender);
+}
+
+.bodySplit .projLabel { color: var(--color-gray); }
+.bodySplit .projValue { color: var(--color-indigo); }
+.bodySplit .projNote { color: var(--color-gray); }
 
 /* ── Footer ───────────────────────────────────────────── */
 .footer {

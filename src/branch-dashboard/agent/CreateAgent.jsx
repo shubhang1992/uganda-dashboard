@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
-import { isValidUGPhone } from '../../utils/phone';
+import { isValidUGPhone, parseUGPhoneLocal } from '../../utils/phone';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
 import { useCreateAgent } from '../../hooks/useEntity';
@@ -115,7 +115,7 @@ export default function CreateAgent({ splitMode = false }) {
   }
 
   function handlePhoneChange(e) {
-    const val = e.target.value.replace(/\D/g, '').slice(0, 9);
+    const val = parseUGPhoneLocal(e.target.value);
     setPhone(val);
     if (errors.phone) setErrors((p) => ({ ...p, phone: '' }));
   }

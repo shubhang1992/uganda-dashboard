@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
-import { isValidUGPhone } from '../../utils/phone';
+import { isValidUGPhone, parseUGPhoneLocal } from '../../utils/phone';
 import { getInitials } from '../../utils/dashboard';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
@@ -431,7 +431,7 @@ export default function Settings({ splitMode = false }) {
                         inputMode="numeric"
                         value={phone}
                         onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, '').slice(0, 9);
+                          const val = parseUGPhoneLocal(e.target.value);
                           setPhone(val);
                           clearFieldError('phone');
                         }}
