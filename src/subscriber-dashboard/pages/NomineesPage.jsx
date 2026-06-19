@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
-import { isValidUGPhone } from '../../utils/phone';
+import { isValidUGPhone, parseUGPhoneLocal } from '../../utils/phone';
 import { getInitials } from '../../utils/dashboard';
 import { useCurrentSubscriber, useUpdateNominees, useSubscriberNominees } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
@@ -51,7 +51,7 @@ function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle
     if (clamped !== nominee.share) updateField('share', clamped);
   }
   function updatePhone(raw) {
-    const digits = raw.replace(/[^\d]/g, '').slice(0, 9);
+    const digits = parseUGPhoneLocal(raw);
     onChange({ ...nominee, phone: digits ? `${UG_PREFIX}${digits}` : '' });
   }
   const phoneDigits = (nominee.phone || '').replace(/^\+256/, '').replace(/\D/g, '');
@@ -143,7 +143,6 @@ function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle
                       value={phoneDigits}
                       onChange={(e) => updatePhone(e.target.value)}
                       placeholder="7X XXX XXXX"
-                      maxLength={9}
                       autoComplete="tel-national"
                     />
                   </div>

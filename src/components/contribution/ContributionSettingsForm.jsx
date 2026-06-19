@@ -52,13 +52,20 @@ export default function ContributionSettingsForm({
   submitLabel,
   cancelLabel = 'Cancel',
   showProjection = true,
+  // `layout="split"` tightens spacing and, when the form has room (a container
+  // query at ~860px), lays the inputs + live summary side-by-side to cut the
+  // long vertical scroll. Used by the agent's desktop schedule page + onboarding;
+  // left undefined elsewhere (e.g. the subscriber dashboard) so they're unchanged.
+  layout,
 }) {
   // State is initialized from `initial` once at mount. If the parent is
   // waiting on async data (e.g., a React Query fetch), it should pass a
   // stable `key` so the form remounts when `initial` first becomes available.
   const [frequency, setFrequency] = useState(normalizeFrequency(initial?.frequency));
   const [amountStr, setAmountStr] = useState(initial?.amount ? String(initial.amount) : '');
-  const [retirementPct, setRetirementPct] = useState(initial?.retirementPct ?? 80);
+  // Retirement must be at least 60% of the split (emergency caps at 40%), so
+  // clamp any lower stored/legacy value up to the floor when the form opens.
+  const [retirementPct, setRetirementPct] = useState(Math.max(60, initial?.retirementPct ?? 80));
   const [includeInsurance, setIncludeInsurance] = useState(Boolean(initial?.includeInsurance));
   const [touched, setTouched] = useState(Boolean(initial?.amount));
 
@@ -111,15 +118,18 @@ export default function ContributionSettingsForm({
     onSave(payload);
   }
 
+  const isSplit = layout === 'split';
+
   return (
     <>
-      <div className={styles.body}>
+      <div className={`${styles.body} ${isSplit ? styles.bodySplit : ''}`}>
         <motion.div
           className={styles.step}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
+          <div className={styles.inputsCol}>
           {/* 01 Frequency */}
           <section className={styles.section}>
             <div className={styles.sectionHead}>
@@ -197,6 +207,7 @@ export default function ContributionSettingsForm({
             <div className={styles.sectionHead}>
               <span className={styles.sectionIdx}>03</span>
               <h2 className={styles.sectionTitle}>Split your savings</h2>
+              <span className={styles.sectionAside}>Retirement ≥ 60%</span>
             </div>
             <div className={styles.splitHead}>
               <div className={styles.splitSide}>
@@ -210,19 +221,15 @@ export default function ContributionSettingsForm({
             </div>
             <input
               type="range"
-              min={0}
+              min={60}
               max={100}
               step={5}
               value={retirementPct}
               onChange={(e) => setRetirementPct(Number.parseInt(e.target.value, 10))}
               className={styles.slider}
-              style={{ '--pct': `${retirementPct}%` }}
+              style={{ '--pct': `${(retirementPct - 60) * 2.5}%` }}
               aria-label="Retirement percentage"
             />
-            <div className={styles.splitBar}>
-              <span className={styles.splitFillR} style={{ flexBasis: `${retirementPct}%` }} />
-              <span className={styles.splitFillE} style={{ flexBasis: `${emergencyPct}%` }} />
-            </div>
             <p className={styles.bucketHelp}>
               <span className={styles.bucketDot} data-tone="retirement" aria-hidden="true" />
               <strong>Retirement</strong> locked until age {RETIREMENT_AGE}
@@ -261,7 +268,9 @@ export default function ContributionSettingsForm({
               </span>
             </button>
           </section>
+          </div>
 
+          <div className={styles.summaryCol}>
           {/* Summary */}
           <section className={styles.summarySection}>
             <div className={styles.summaryHead}>
@@ -305,6 +314,7 @@ export default function ContributionSettingsForm({
               </div>
             )}
           </section>
+          </div>
         </motion.div>
       </div>
 

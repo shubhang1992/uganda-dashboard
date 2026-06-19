@@ -1,18 +1,19 @@
 // Employer dashboard smoke spec.
 //
-// Closes audit §7b.8 / F2-07 ("zero employer E2E"). The employer role is shipped
-// to production (PR #8) and had NO E2E gate at any layer. This mirrors
-// distributor-dashboard.spec.ts: storageState auth (the employer persona minted
-// by global-setup → fixtures/auth.ts), then assert the shell shell + its key
-// panels render without crashing into the ErrorBoundary fallback.
+// The employer desktop experience was rebuilt as a routed shell (the agent/
+// subscriber desktop redesign theme): a white collapsible rail
+// (EmployerSideNavDesktop) whose NavLinks route to full pages
+// (Overview / Employees / Contribution Runs / Insurance / Analytics / Support /
+// Settings) under a 3-column shell, with an "Ask AI" copilot + notification bell
+// top-right. This shell renders for viewports >= 1024px (useIsDesktop), and this
+// spec runs only in the desktop projects (chromium + webkit, 1440x900) — it is
+// NOT in the mobile projects' testMatch, so the OLD slide-in-panel shell (still
+// used < 1024px) is out of scope here.
 //
-// Employer shell (src/employer-dashboard/EmployerDashboardShell.jsx) is a
-// branch-style desktop shell: an icon-rail EmployerSidebar (aria-labelled nav
-// buttons: Overview, Employees, Contribution Runs, Insurance, Analytics, Support,
-// Settings) over a single <main> EmployerOverview. Each sidebar item opens ONE
-// slide-in panel (EmployerSlidePanel → role="dialog" aria-label={title} + an
-// <h2> title). "Employees" is a fly-out (View employees / Onboard an employee)
-// rather than a direct panel.
+// We assert: the shell mounts (no ErrorBoundary), the rail exposes the full nav
+// as links, each link routes to its page (URL + page heading), and the Ask-AI
+// copilot opens. storageState auth = the employer persona (global-setup →
+// fixtures/auth.ts).
 
 import { test, expect } from '@playwright/test';
 import { disableAnimations } from '../../fixtures/motion';
@@ -21,72 +22,76 @@ import { selectors } from '../../helpers/selectors';
 
 test.use({ storageState: storageStatePathFor('employer') });
 
+// Scope link lookups to the primary rail so page-body links (tiles, "Manage
+// cover", etc.) never shadow a nav assertion.
+const railLink = (page, name) =>
+  page.locator('aside[aria-label="Primary"]').getByRole('link', { name });
+
 test.describe('employer dashboard smoke', () => {
   test.beforeEach(async ({ page }) => {
     await disableAnimations(page);
     await page.goto('/dashboard');
-    // Let the overview data fetches settle so the error boundary (if any) has
-    // mounted by the time we inspect the page.
     await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
   });
 
-  test('main dashboard loads with the employer shell + sidebar visible', async ({ page }) => {
-    // Stay on /dashboard (EmployerDashboardShell, not redirected to /coming-soon
-    // by the role guard, nor to the missing-employer screen).
+  test('desktop shell + rail nav render', async ({ page }) => {
+    // Stay on /dashboard (employer role guard passed, employerId resolved → no
+    // missing-id screen, which renders no greeting).
     await expect(page).toHaveURL(/\/dashboard/);
-    // The overview hero greets the employer with "Welcome back, …" — a stable
-    // anchor that the employer shell mounted (and the employerId resolved, since
-    // the missing-id screen renders no greeting).
+    // The Overview page greets the employer with "Welcome back, …".
     await expect(page.getByText(/welcome back/i)).toBeVisible();
-    // The sidebar exposes the full nav set as aria-labelled buttons — a quick
-    // reachability check across the role's primary destinations.
-    await expect(page.getByRole('button', { name: /^overview$/i }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /^employees$/i }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /^contribution runs$/i }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /^insurance$/i }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /^analytics$/i }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /^support$/i }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /^settings$/i }).first()).toBeVisible();
+    // The rail exposes every primary destination as a NavLink.
+    await expect(railLink(page, /^overview$/i)).toBeVisible();
+    await expect(railLink(page, /^employees$/i)).toBeVisible();
+    await expect(railLink(page, /^contribution runs$/i)).toBeVisible();
+    await expect(railLink(page, /^insurance$/i)).toBeVisible();
+    await expect(railLink(page, /^analytics$/i)).toBeVisible();
+    // "Support" may carry an open-ticket count badge → accessible name "Support N".
+    await expect(railLink(page, /^support/i)).toBeVisible();
+    await expect(railLink(page, /^settings$/i)).toBeVisible();
   });
 
-  test('Contribution Runs panel opens', async ({ page }) => {
-    await page.getByRole('button', { name: /^contribution runs$/i }).first().click();
-    // ContributionRuns wraps EmployerSlidePanel with title "Contribution runs",
-    // rendered as role="dialog" aria-label="Contribution runs" + an <h2>.
-    await expect(
-      page.getByRole('dialog', { name: /contribution runs/i }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: /contribution runs/i, level: 2 }),
-    ).toBeVisible();
+  test('Employees route loads', async ({ page }) => {
+    await railLink(page, /^employees$/i).click();
+    await expect(page).toHaveURL(/\/dashboard\/employees$/);
+    await expect(page.getByRole('heading', { level: 1, name: /^employees$/i })).toBeVisible();
   });
 
-  test('View employees panel opens from the Employees fly-out', async ({ page }) => {
-    // Employees is a fly-out menu (role="menu" aria-label="Employees") → click it
-    // then pick "View employees".
-    await page.getByRole('button', { name: /^employees$/i }).first().click();
-    await page.getByRole('menuitem', { name: /view employees/i }).click();
-    // ViewEmployees renders inside an EmployerSlidePanel titled "Employees".
-    await expect(
-      page.getByRole('dialog', { name: /employees/i }),
-    ).toBeVisible();
+  test('Contribution Runs route loads', async ({ page }) => {
+    await railLink(page, /^contribution runs$/i).click();
+    await expect(page).toHaveURL(/\/dashboard\/runs$/);
+    await expect(page.getByRole('heading', { level: 1, name: /contribution runs/i })).toBeVisible();
   });
 
-  test('Insurance panel opens', async ({ page }) => {
-    await page.getByRole('button', { name: /^insurance$/i }).first().click();
-    // InsuranceBenefits wraps EmployerSlidePanel (role="dialog").
-    await expect(page.getByRole('dialog').first()).toBeVisible();
+  test('Insurance route loads', async ({ page }) => {
+    await railLink(page, /^insurance$/i).click();
+    await expect(page).toHaveURL(/\/dashboard\/insurance$/);
+    await expect(page.getByRole('heading', { level: 1, name: /^insurance$/i })).toBeVisible();
   });
 
-  test('Analytics (reports) panel opens', async ({ page }) => {
-    await page.getByRole('button', { name: /^analytics$/i }).first().click();
-    await expect(page.getByRole('dialog').first()).toBeVisible();
+  test('Analytics route loads', async ({ page }) => {
+    await railLink(page, /^analytics$/i).click();
+    await expect(page).toHaveURL(/\/dashboard\/analytics$/);
+    await expect(page.getByRole('heading', { level: 1, name: /^analytics$/i })).toBeVisible();
   });
 
-  test('Settings panel opens', async ({ page }) => {
-    // Settings sits in the bottom rail of the sidebar.
-    await page.getByRole('button', { name: /^settings$/i }).first().click();
-    await expect(page.getByRole('dialog').first()).toBeVisible();
+  test('Support route loads', async ({ page }) => {
+    await railLink(page, /^support/i).click();
+    await expect(page).toHaveURL(/\/dashboard\/support$/);
+    await expect(page.getByRole('heading', { level: 1, name: /^support$/i })).toBeVisible();
+  });
+
+  test('Settings route loads', async ({ page }) => {
+    await railLink(page, /^settings$/i).click();
+    await expect(page).toHaveURL(/\/dashboard\/settings/);
+    await expect(page.getByRole('heading', { level: 1, name: /^settings$/i })).toBeVisible();
+  });
+
+  test('Ask AI copilot opens', async ({ page }) => {
+    await page.getByRole('button', { name: /ask ai/i }).click();
+    // The copilot panel exposes an "AI assistant" region with a composer input.
+    await expect(page.getByRole('complementary', { name: /ai assistant/i })).toBeVisible();
+    await expect(page.getByPlaceholder(/ask about staff/i)).toBeVisible();
   });
 });

@@ -1,0 +1,55 @@
+/* EmployeesDesktop — page-specific atoms layered over the shared ui.module.css
+   library (toolrow, search, filters, table, note). Only the bits the mockup
+   needs that the shared sheet doesn't already provide live here. */
+
+/* Flex spacer that pushes the "Onboard employee" button to the right of the
+   toolrow (mirrors the mockup's .toolrow .grow). */
+.grow { flex: 1 1 auto; }
+
+/* Subtle in-line CTA on the pending-invites note → opens the Pending KYC panel.
+   Sits to the right of the note copy. */
+.noteCta {
+  margin-left: auto;
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  color: var(--color-amber, #D97706);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.noteCta:hover { text-decoration: underline; }
+.noteCta:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; }
+
+/* Whole-cell link wrapping the Member cell (avatar + name + phone) so the row
+   navigates to the member detail. Inherits colour so the avatar/name keep their
+   own tones. */
+.memberLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.memberLink:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; border-radius: var(--radius-sm); }
+
+/* Phone subline under the member name (mockup .t-name small). */
+.memberSub {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: var(--text-xs);
+  line-height: 1.2;
+  color: var(--color-gray);
+}
+
+/* Loading / empty state cell spanning the full table width. */
+.stateCell {
+  padding: var(--space-7) var(--space-5) !important;
+  text-align: center;
+  color: var(--color-gray);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+}

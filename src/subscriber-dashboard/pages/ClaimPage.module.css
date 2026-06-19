@@ -6,10 +6,85 @@
 }
 
 @media (min-width: 1024px) {
+  /* The form view renders the 2-column split on the full .pageWide (1240px)
+     canvas; the list / review / success views self-constrain to a narrow
+     reading column (flow.narrow). So the page must NOT re-cap its own width. */
   .page {
-    max-width: 640px;
-    margin: 0 auto;
+    max-width: none;
     padding-bottom: var(--space-8);
+  }
+}
+
+/* ── Desktop flat header (v5) — replaces the mobile hero dome >=1024px ─────── */
+.deskHead {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .deskHead {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-8) var(--space-4) 0;
+  }
+
+  .deskBack {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    margin-top: 2px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-lavender);
+    background: var(--color-white);
+    color: var(--color-indigo);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .deskBack:hover {
+    border-color: var(--color-indigo-soft);
+    background: var(--color-cloud);
+  }
+
+  .deskBack:focus-visible {
+    outline: 2px solid var(--color-indigo-soft);
+    outline-offset: 2px;
+  }
+
+  .deskHeadText {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .deskEyebrow {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-indigo-soft);
+    margin: 0;
+  }
+
+  .deskTitle {
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--color-indigo);
+    margin: 0;
+  }
+
+  .deskSubtitle {
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    color: var(--color-gray);
+    margin: 0;
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -616,4 +691,69 @@
   min-height: 52px;
   cursor: pointer;
   touch-action: manipulation;
+}
+
+/* ── Desktop v5 restyle (>=1024px) ────────────────────────────────────────────
+   Functional ~8px card corners + 1px hairlines, de-pilled CTAs (--radius-md),
+   square --radius-sm icon badge, and a measured indigo lift on the primary CTA.
+   Mobile rules above are untouched. */
+@media (min-width: 1024px) {
+  .section,
+  .emptyCoverCard,
+  .reviewCard,
+  .successStep {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .section {
+    padding: var(--space-5) var(--space-6);
+  }
+
+  /* De-pill the CTAs to the functional v5 corner. */
+  .primaryBtn,
+  .secondaryBtn,
+  .fileNewBtn {
+    border-radius: var(--radius-md);
+  }
+
+  .primaryBtn {
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+    transition: background 0.15s ease, transform 0.16s var(--ease-out-expo, ease), box-shadow 0.16s ease;
+  }
+
+  .primaryBtn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    background: var(--color-indigo-deep);
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--color-indigo) 30%, transparent);
+  }
+
+  .fileNewBtn:focus-visible,
+  .primaryBtn:focus-visible,
+  .secondaryBtn:focus-visible {
+    outline: 2px solid var(--color-indigo-soft);
+    outline-offset: 2px;
+  }
+
+  /* Square v5 icon badge (mobile uses a --radius-lg shield tile). */
+  .shieldIcon {
+    border-radius: var(--radius-sm);
+  }
+
+  /* Status chips stay pills (small status pills may keep --radius-full). The
+     past-claim rows pick up the functional corner + hairline to match cards. */
+  .claimRow {
+    border-radius: var(--radius-md);
+  }
+
+  .summaryRow,
+  .fileItem {
+    border: 1px solid var(--color-lavender);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .primaryBtn:hover:not(:disabled) {
+      transform: none;
+    }
+  }
 }

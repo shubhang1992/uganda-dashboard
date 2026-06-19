@@ -10,18 +10,26 @@ import styles from './QuickActions.module.css';
  * the home surface. Glyphs reuse the shared agentNav icon factories so they match
  * the nav rail; routes match the agent router (/dashboard/onboard, /subscribers).
  */
-export default function QuickActions() {
+export default function QuickActions({ variant = 'mobile' }) {
   const navigate = useNavigate();
+  const desktop = variant === 'desktop';
 
   return (
-    <div className={styles.row}>
+    <div className={`${styles.row} ${desktop ? styles.desktop : ''}`}>
       <button
         type="button"
         className={`${styles.cta} ${styles.primary}`}
         onClick={() => navigate('/dashboard/onboard')}
       >
         <span className={styles.icon} aria-hidden="true">{onboardIcon(22)}</span>
-        <span className={styles.label}>Onboard a new subscriber</span>
+        <span className={styles.body}>
+          <span className={styles.label}>
+            {desktop ? 'Sign up a new member' : 'Onboard a new subscriber'}
+          </span>
+          {desktop && (
+            <span className={styles.help}>Add someone new — we&rsquo;ll guide you</span>
+          )}
+        </span>
       </button>
 
       <button
@@ -30,7 +38,14 @@ export default function QuickActions() {
         onClick={() => navigate('/dashboard/subscribers')}
       >
         <span className={styles.icon} aria-hidden="true">{subscribersIcon(22)}</span>
-        <span className={styles.label}>View existing subscribers</span>
+        <span className={styles.body}>
+          <span className={styles.label}>
+            {desktop ? 'See your members' : 'View existing subscribers'}
+          </span>
+          {desktop && (
+            <span className={styles.help}>Browse everyone you&rsquo;ve signed up</span>
+          )}
+        </span>
       </button>
     </div>
   );

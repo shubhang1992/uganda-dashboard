@@ -7,129 +7,12 @@ import { formatDate } from '../../utils/date';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { getInitials } from '../../utils/dashboard';
 import PageHeader from '../../components/PageHeader';
+import SettingsDesktop from './SettingsDesktop';
+import { SECTIONS } from './settingsSections';
 import styles from './SettingsPage.module.css';
-
-const SECTIONS = [
-  {
-    id: 'profile',
-    icon: (
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-        <circle cx="12" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.6"/>
-        <path d="M5 20a7 7 0 0114 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      </svg>
-    ),
-    label: 'Profile',
-    helper: 'Name, phone, email',
-    to: '/dashboard/settings/profile',
-  },
-  {
-    id: 'nominees',
-    icon: (
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-        <circle cx="9" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.6"/>
-        <path d="M2 20a7 7 0 0114 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-        <path d="M16 11a3.5 3.5 0 110-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-        <path d="M22 18a5 5 0 00-7-4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      </svg>
-    ),
-    label: 'Nominees',
-    helper: 'Who inherits your savings',
-    to: '/dashboard/settings/nominees',
-  },
-  {
-    id: 'insurance',
-    icon: (
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-        <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
-        <path d="M9 12l2.2 2 3.8-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    ),
-    label: 'Insurance cover',
-    helper: 'Premium and policy level',
-    to: '/dashboard/settings/insurance',
-  },
-  {
-    id: 'schedule',
-    icon: (
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-        <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.6"/>
-        <path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      </svg>
-    ),
-    label: 'Contribution schedule',
-    helper: 'Frequency, amount, split',
-    to: '/dashboard/save/schedule',
-  },
-  {
-    id: 'reports',
-    icon: (
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-        <path d="M7 3h7l4 4v14a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
-        <path d="M13 3v5h5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
-        <path d="M9 13h6M9 17h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      </svg>
-    ),
-    label: 'Reports & statements',
-    helper: 'Certificates, statements, exports',
-    to: '/dashboard/reports',
-  },
-  {
-    id: 'agent',
-    icon: (
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-        <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.6"/>
-        <path d="M5 20a7 7 0 0114 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-        <path d="M17.5 5.5l1.8-1.8M19.5 9h2.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      </svg>
-    ),
-    label: 'Your agent',
-    helper: 'Contact and support details',
-    to: '/dashboard/agent',
-  },
-  {
-    id: 'help',
-    icon: (
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6"/>
-        <path d="M9.5 9.5a2.5 2.5 0 014.4 1.6c0 1.7-2.4 2-2.4 3.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-        <circle cx="11.9" cy="17" r="0.9" fill="currentColor"/>
-      </svg>
-    ),
-    label: 'Help',
-    helper: 'FAQs and getting in touch',
-    to: '/dashboard/help',
-  },
-  {
-    id: 'notifications',
-    icon: (
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-        <path d="M6 8a6 6 0 1112 0c0 7 3 7 3 9H3c0-2 3-2 3-9z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
-        <path d="M9 21a3 3 0 006 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      </svg>
-    ),
-    label: 'Notifications',
-    helper: 'SMS, email, push',
-    to: '/dashboard/settings/notifications',
-    soon: true,
-  },
-  {
-    id: 'security',
-    icon: (
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-        <rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.6"/>
-        <path d="M8 11V7a4 4 0 118 0v4" stroke="currentColor" strokeWidth="1.6"/>
-      </svg>
-    ),
-    label: 'Password & security',
-    helper: 'Set or change your password',
-    // Opens the shared <Settings /> slide-in panel (same component the
-    // distributor and branch shells use) — exposes the password card here
-    // since this routed page has no other surface for it.
-    panel: 'settings',
-  },
-];
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -137,6 +20,12 @@ export default function SettingsPage() {
   const { logout } = useAuth();
   const { setSettingsOpen } = useDashboard();
   const { data: sub } = useCurrentSubscriber();
+  const isDesktop = useIsDesktop();
+
+  // >=1024px gets the v5 desktop redesign (cards + tile grid); the mobile body
+  // below stays exactly as shipped. Forked here after the hooks so both layouts
+  // share the same data + rules-of-hooks stay satisfied.
+  if (isDesktop) return <SettingsDesktop />;
 
   const initials = getInitials(sub?.name || '');
   const insurance = sub?.insurance;
@@ -224,7 +113,7 @@ export default function SettingsPage() {
                   {s.soon && <span className={styles.soonBadge}>Soon</span>}
                   {!s.soon && (
                     <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10" className={styles.sectionArrow}>
-                      <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                      <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                     </svg>
                   )}
                 </button>
@@ -240,9 +129,9 @@ export default function SettingsPage() {
 
           <button type="button" className={styles.logoutBtn} onClick={handleLogout}>
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-              <polyline points="16,17 21,12 16,7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-              <line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+              <polyline points="16,17 21,12 16,7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+              <line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
             </svg>
             Sign out
           </button>

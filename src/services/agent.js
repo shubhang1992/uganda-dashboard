@@ -31,6 +31,7 @@ function mapAgentSubscriberRow(s) {
     ? s.subscriber_balances[0]
     : s.subscriber_balances;
   const history = Array.isArray(s.contribution_history) ? s.contribution_history : [];
+  const ins = Array.isArray(s.insurance_policies) ? s.insurance_policies[0] : s.insurance_policies;
 
   return {
     id: s.id,
@@ -63,6 +64,15 @@ function mapAgentSubscriberRow(s) {
     // No per-subscriber lifetime denorm — proxy from balance. See note above.
     totalContributions: Number(bal?.total_balance ?? 0),
     totalWithdrawals: 0,
+    // Life-cover policy, for the agent Home insurance card. RLS-filtered embed →
+    // null when the agent can't read the row; HomeDesktop treats null as uninsured.
+    insurance: ins
+      ? {
+          cover: Number(ins.cover) || 0,
+          premiumMonthly: Number(ins.premium_monthly) || 0,
+          status: ins.status || 'inactive',
+        }
+      : null,
   };
 }
 
@@ -103,6 +113,13 @@ export async function getAgentSubscriberList(agentId) {
           productsHeld: s.productsHeld,
           contributionSchedule: s.contributionSchedule,
           netBalance: s.netBalance,
+          insurance: s.insurance
+            ? {
+                cover: Number(s.insurance.cover) || 0,
+                premiumMonthly: Number(s.insurance.premiumMonthly) || 0,
+                status: s.insurance.status || 'inactive',
+              }
+            : null,
         };
       });
   }
@@ -121,7 +138,8 @@ export async function getAgentSubscriberList(agentId) {
         'registered_date, last_contribution_date, products_held, contribution_history, ' +
         'contribution_schedules(frequency, amount, retirement_pct, emergency_pct, ' +
         'include_insurance, insurance_choice_made, next_due_date), ' +
-        'subscriber_balances(total_balance, retirement_balance, emergency_balance)',
+        'subscriber_balances(total_balance, retirement_balance, emergency_balance), ' +
+        'insurance_policies(cover, premium_monthly, status)',
     )
     .eq('agent_id', agentId);
   if (error) throw error;

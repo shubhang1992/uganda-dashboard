@@ -1,0 +1,215 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding-bottom: var(--space-8);
+}
+
+.body {
+  flex: 1;
+  padding: var(--space-4) var(--space-4) var(--space-6);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Toolbar (select all + bulk nudge) ────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.selectAll {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 var(--space-3);
+  border: 1.5px solid var(--color-lavender);
+  border-radius: var(--radius-full);
+  background: var(--color-white);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-indigo);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.selectAll:focus-visible,
+.bulkNudge:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.toolbarCount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 0.6875rem;
+  color: var(--color-indigo-soft);
+}
+
+.bulkNudge {
+  height: 40px;
+  padding: 0 var(--space-5);
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.bulkNudge:active {
+  transform: scale(0.98);
+}
+
+.bulkNudge:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ── List ─────────────────────────────────────────────── */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+  border-radius: var(--radius-xl);
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  min-height: 64px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.row[data-selected='true'] {
+  border-color: var(--color-indigo-soft);
+  background: color-mix(in srgb, var(--color-indigo) 4%, var(--color-white));
+}
+
+.rowSelect {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  cursor: pointer;
+  padding: var(--space-2);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.checkbox {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 1.5px solid var(--color-lavender);
+  background: var(--color-white);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-white);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.checkbox[data-checked='true'] {
+  background: var(--color-indigo);
+  border-color: var(--color-indigo);
+}
+
+/* Keyboard focus on the visually-hidden input → ring on the faux checkbox. */
+.srOnly:focus-visible + .checkbox {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.rowBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowName {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-base);
+  letter-spacing: -0.01em;
+  color: var(--color-indigo);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowMeta {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-gray);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nudgeBtn {
+  flex: 0 0 auto;
+  height: 36px;
+  padding: 0 var(--space-4);
+  border: 1.5px solid var(--color-indigo);
+  border-radius: var(--radius-full);
+  background: var(--color-white);
+  color: var(--color-indigo);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.nudgeBtn:hover {
+  background: var(--color-indigo);
+  color: var(--color-white);
+}
+
+.nudgeBtn:active {
+  transform: scale(0.98);
+}
+
+.nudgeBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+@media (min-width: 1024px) {
+  .body {
+    max-width: 720px;
+    margin: 0 auto;
+    width: 100%;
+  }
+}

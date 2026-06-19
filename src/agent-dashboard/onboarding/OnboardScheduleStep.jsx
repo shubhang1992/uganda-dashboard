@@ -20,6 +20,7 @@ export default function OnboardScheduleStep({ onContinue, onCancel }) {
     <ContributionSettingsForm
       initial={signup.contributionSchedule || null}
       dob={signup.dob}
+      layout="split"
       onSave={handleSave}
       onCancel={onCancel}
       submitLabel="Save & continue"

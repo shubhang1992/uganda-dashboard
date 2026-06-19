@@ -90,11 +90,47 @@
   margin-top: 4px;
 }
 
+/* "Message subscriber" action — proactive outreach via the messaging platform
+   (NudgeSheet: WhatsApp / SMS / in-app), distinct from the reactive "View
+   tickets". Sits at the right edge of the profile card. */
+.messageBtn {
+  margin-left: auto;
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 var(--space-4);
+  border: 1.5px solid var(--color-indigo);
+  border-radius: var(--radius-full);
+  background: var(--color-white);
+  color: var(--color-indigo);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.messageBtn:hover {
+  background: var(--color-indigo);
+  color: var(--color-white);
+}
+
+.messageBtn:active { transform: scale(0.99); }
+
+.messageBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
 /* ── KPI grid (account balance lives here) ────────────── */
 .kpiRow {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 @media (min-width: 768px) {
@@ -129,6 +165,16 @@
   color: var(--color-indigo);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+}
+
+/* AA-safe darker green (~5.7:1 on white) for the insured value tone. */
+.kpiValue[data-tone='insured'] { color: #1f6b41; }
+.kpiValue[data-tone='muted'] { color: var(--color-gray); }
+
+.kpiHint {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--color-gray);
 }
 
 /* ── Section cards ────────────────────────────────────── */

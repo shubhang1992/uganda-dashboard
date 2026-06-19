@@ -16,7 +16,10 @@
    constrains the measure and centres it within the wide desktop main column. */
 .frame {
   width: 100%;
-  max-width: 700px;
+  /* Wide enough for the form's 2-column "split" layout (a container query in
+     ContributionSettingsForm activates at ~860px of body width); the form
+     centres + caps its own columns, so this just gives them room. */
+  max-width: 960px;
   margin: 0 auto;
   padding: 0 var(--space-4);
 }

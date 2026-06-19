@@ -4,7 +4,7 @@ import { useAllEntities, useCreateBranch } from '../../hooks/useEntity';
 import { useToast } from '../../contexts/ToastContext';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
-import { isValidUGPhone } from '../../utils/phone';
+import { isValidUGPhone, parseUGPhoneLocal } from '../../utils/phone';
 import { useDashboard } from '../../contexts/DashboardContext';
 import styles from './CreateBranch.module.css';
 
@@ -272,7 +272,7 @@ export default function CreateBranch() {
   }
 
   function handlePhoneChange(e) {
-    const val = e.target.value.replace(/\D/g, '').slice(0, 9);
+    const val = parseUGPhoneLocal(e.target.value);
     setAdminPhone(val);
     if (errors.adminPhone) setErrors((p) => ({ ...p, adminPhone: '' }));
   }

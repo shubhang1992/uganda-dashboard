@@ -27,7 +27,10 @@ import { getEmployerChatResponse } from '../../services/chat';
 import { useToast } from '../../contexts/ToastContext';
 import { useEmployerScope } from '../../contexts/EmployerScopeContext';
 import { useEmployerPanel } from '../../contexts/EmployerPanelContext';
-import { companyFundingLabel } from '../employees/fundingLabel';
+import {
+  deriveEmployerMetrics,
+  buildEmployerCopilotContext,
+} from './employerCopilotContext';
 import NotificationBell from '../../components/notifications/NotificationBell';
 import ScoreGauge from '../../components/ScoreGauge';
 import styles from './EmployerHealthScore.module.css';
@@ -36,42 +39,9 @@ import styles from './EmployerHealthScore.module.css';
    The funder hero leads with money + people, so the only derivations it needs
    are the staff-funded counts and the average contribution per head. The one
    subscriber-style figure still computed here is `participationRate`, used
-   solely by the Copilot strip's insight (a deliberate carry-over — the strip is
-   kept verbatim); none of the hero tiles surface it any longer. */
-function deriveMetrics(metrics, employees) {
-  const headcount = metrics.headcount || employees.length || 0;
-  const active = metrics.active || 0;
-  const totalContributions = metrics.totalContributions || 0;
-  // Average contribution per head across the whole roster (funder lens), guarded
-  // against a divide-by-zero on an empty company.
-  const avgContribution = headcount > 0 ? totalContributions / headcount : 0;
-
-  // "Participating" = active staff whose contribution config funds a non-zero
-  // amount (an active employer-only or co-contribution member). Suspended staff
-  // and zero-config rows don't count. Consumed only by the Copilot strip. The
-  // rate is taken against the ACTIVE staff base (not total headcount) — an
-  // inactive roster shouldn't read as "low participation". Guarded against a
-  // divide-by-zero when there are 0 active staff.
-  const contributing = employees.filter(
-    (e) => e.status === 'active' && contributesSomething(e),
-  ).length;
-  const participationRate = active > 0 ? (contributing / active) * 100 : 0;
-
-  return {
-    headcount,
-    active,
-    avgContribution,
-    participationRate,
-  };
-}
-
-/** A member "contributes" if they have a non-zero monthly compensation — the
-    v2 driver field. Compensation > 0 means a run will fund them (employee
-    and/or employer leg), so they count toward participation. (The old
-    `monthlyContribution` is vestigial for employer members and now ~0.) */
-function contributesSomething(emp) {
-  return Number(emp.compensation ?? 0) > 0;
-}
+   solely by the Copilot strip's insight. The derivation + the copilot-context
+   builder now live in ./employerCopilotContext (shared verbatim with the desktop
+   Ask-AI panel) so the two surfaces never drift. */
 
 /* ── Insights (Copilot strip) ───────────────────────────────────────────────── */
 function generateInsights(metrics, derived, runs, pendingKyc) {
@@ -254,7 +224,7 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
   // always KYC-complete). Drives the hero tile, the Copilot insight, and the panel.
   const pendingKyc = pendingInvites.length;
 
-  const derived = useMemo(() => deriveMetrics(metrics, employees), [metrics, employees]);
+  const derived = useMemo(() => deriveEmployerMetrics(metrics, employees), [metrics, employees]);
   const events = useMemo(() => generateActivity(runs, employees), [runs, employees]);
   const insights = useMemo(() => generateInsights(metrics, derived, runs, pendingKyc), [metrics, derived, runs, pendingKyc]);
   const alerts = useMemo(() => computeAlerts(metrics, runs, pendingKyc, employer?.defaultContributionConfig), [metrics, runs, pendingKyc, employer]);
@@ -295,23 +265,10 @@ export default function EmployerHealthScore({ metrics = {}, employees = [], runs
   // Copilot answer context — the employer's OWN figures, fed to the local
   // employer responder so every reply is truthful (no distributor-network noise,
   // and "Who is pending KYC?" resolves against the real pending-invite list).
-  const copilotAnswerCtx = useMemo(() => {
-    const cfg = employer?.defaultContributionConfig;
-    const cover = Number(cfg?.groupCoverAmount) || 0;
-    const insOn = cfg?.insuranceEnabled ?? cover > 0;
-    return {
-      headcount: derived.headcount,
-      active: derived.active,
-      inactive: metrics.suspended || 0,
-      participationPct: Math.round(derived.participationRate),
-      pendingKyc,
-      pendingNames: pendingInvites.map((inv) => inv.prefill?.fullName).filter(Boolean),
-      fundingLabel: companyFundingLabel(cfg),
-      coverLabel: insOn && cover > 0 ? formatUGX(cover, { compact: false }) : 'no group cover',
-      totalContributions: metrics.totalContributions || 0,
-      lastRunLabel: runs[0]?.periodLabel || null,
-    };
-  }, [employer, derived, metrics, pendingKyc, pendingInvites, runs]);
+  const copilotAnswerCtx = useMemo(
+    () => buildEmployerCopilotContext({ employer, derived, metrics, pendingKyc, pendingInvites, runs }),
+    [employer, derived, metrics, pendingKyc, pendingInvites, runs],
+  );
 
   /* ── Copilot strip (wired to the chat mock, like the branch hero) ── */
   const [copilotOpen, setCopilotOpen] = useState(false);

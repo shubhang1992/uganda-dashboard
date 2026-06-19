@@ -3,15 +3,10 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { formatUGX } from '../../utils/currency';
-import { deriveInvestmentGrowth } from '../../utils/finance';
+import { formatDate } from '../../utils/date';
+import { deriveInvestmentGrowth, deriveEmployerSplit, periodsPerYear } from '../../utils/finance';
 import { useCountUp } from '../../hooks/useCountUp';
-import InfoTip from '../../components/InfoTip';
-import MetricTile from '../../dashboard/shared/MetricTile';
-import EmployerBenefitsWidget from './widgets/EmployerBenefitsWidget';
-import TopUpWidget from './widgets/TopUpWidget';
-import CoPilotWidget from './widgets/CoPilotWidget';
-import PoliciesWidget from './widgets/PoliciesWidget';
-import ActivityWidget from './widgets/ActivityWidget';
+import { useContributionBreakdown, useSubscriberTransactions } from '../../hooks/useSubscriber';
 import styles from './HomeDesktop.module.css';
 
 const stagger = {
@@ -23,48 +18,107 @@ const item = {
   animate: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE_OUT_EXPO } },
 };
 
-// KPI glyphs. Stroke-only line icons (tinted per-tile by each MetricTile's
-// explicit accent), kept aria-hidden — the visible label carries the meaning.
-// Sized to the MetricTile 36px icon chip, matching the agent HomeDesktop tiles.
-const BalanceIcon = (
-  <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
-    <rect x="2.5" y="5" width="15" height="10.5" rx="2" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M13.5 10h2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M2.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-const InvestedIcon = (
-  <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
-    <ellipse cx="10" cy="5.5" rx="5.5" ry="2.25" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M4.5 5.5v4c0 1.24 2.46 2.25 5.5 2.25s5.5-1.01 5.5-2.25v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M4.5 9.5v4c0 1.24 2.46 2.25 5.5 2.25s5.5-1.01 5.5-2.25v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-const SplitIcon = (
-  <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
-    <rect x="3" y="6" width="5.5" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-    <rect x="11.5" y="9.5" width="5.5" height="5.5" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-  </svg>
-);
-const CoverIcon = (
-  <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18" fill="none">
-    <path d="M10 16.5s-6-3.7-6-8.1A3 3 0 0110 6.4a3 3 0 016 2c0 4.4-6 8.1-6 8.1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-  </svg>
-);
+// v5 icon set — stroke-only line glyphs, aria-hidden (the visible label carries
+// the meaning). Authored as size-parameterised factories so the same glyph can
+// render at the hero (26), tile chip (18), card chip (20) sizes.
+const glyph = {
+  wallet: (s) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M3 7a2 2 0 012-2h12a2 2 0 012 2v1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <rect x="3" y="7" width="18" height="13" rx="2" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M16 13h2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  ),
+  pay: (s) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="2.5" y="6" width="19" height="13" rx="2" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M2.5 10h19" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M6 15h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  ),
+  topup: (s) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  ),
+  employer: (s) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 20V7l7-3 7 3v13" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M3 20h18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M8 11h.01M11 11h.01M14 11h.01M8 14h.01M11 14h.01M14 14h.01" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  ),
+  retire: (s) => (
+    <svg width={s} height={s} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M10 17V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M10 8c0-2 1.5-3.5 3.5-3.5C13.5 6.5 12 8 10 8z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M10 10c0-2-1.5-3.5-3.5-3.5C6.5 8.5 8 10 10 10z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  ),
+  emergency: (s) => (
+    <svg width={s} height={s} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M10 3a6 6 0 016 6H4a6 6 0 016-6z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M10 9v6a2 2 0 01-4 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  ),
+  shield: (s) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  growth: (s) => (
+    <svg width={s} height={s} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M3 14l4-4 3 3 6-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 6h-4M16 6v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  month: (s) => (
+    <svg width={s} height={s} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M3 8h14M7 2.5v3M13 2.5v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M9 12l1.3 1.3L13 11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  activity: (s) => (
+    <svg width={s} height={s} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M3 10h3l2-5 4 10 2-5h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  arrow: (s) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 12h13M12 6l6 6-6 6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+};
+
+// Per-transaction-type label + timeline-dot colour for the inline activity feed.
+const TX_META = {
+  contribution: { label: 'Contribution', dot: 'var(--color-green)' },
+  withdrawal: { label: 'Withdrawal', dot: 'var(--color-teal)' },
+  premium: { label: 'Insurance premium', dot: 'var(--color-amber)' },
+  claim: { label: 'Claim payout', dot: 'var(--color-indigo)' },
+};
 
 /**
- * HomeDesktop — the >=1024px subscriber Home tab-root.
+ * HomeDesktop — the >=1024px subscriber Home tab-root (v5 redesign).
  *
- * Mirrors the agent HomeDesktop: a plain page heading (eyebrow / h1 / subtitle),
- * a 4-up KPI tile row sourced from the same subscriber record the mobile dome
- * reads, then a responsive grid that REUSES the shipped Home widgets
- * (TopUp / Co-Pilot / Policies / Activity / EmployerBenefits) so every figure +
- * action stays in lockstep with mobile.
+ * Rebuilt to the approved v5 mockup: a content-top header (eyebrow + greeting +
+ * employer chip), a units-only balance HERO with horizontal Pay / Top-up CTAs, a
+ * 3-up KPI row (Amount invested / Investment growth / Saved this month), an
+ * employer-match block (employer-onboarded members only), a "Your savings &
+ * cover" 3-column card, and a recent-activity feed. Every figure derives from the
+ * SAME subscriber record + finance helpers the mobile Home reads, so the two
+ * viewports never disagree.
  *
- * The shipped mobile Home (PulseCard dome + stacked widgets) is left untouched —
- * this is a wider surface only, gated on >=1024px by HomePage. The caller passes
- * the resolved subscriber, so this component never re-fetches or re-handles the
- * loading / error states (HomePage owns those).
+ * The Ask-AI assistant is no longer an embedded card here — on desktop it lives
+ * in the on-demand right-side panel (SubscriberCopilotPanel) opened from the
+ * "Ask AI" control in SubscriberDesktopShell. The mobile Home keeps its inline
+ * CoPilotWidget.
+ *
+ * The caller (HomePage) passes the resolved subscriber, so this component never
+ * re-fetches or re-handles loading / error states.
  */
 export default function HomeDesktop({ subscriber }) {
   const navigate = useNavigate();
@@ -73,88 +127,96 @@ export default function HomeDesktop({ subscriber }) {
 
   const sub = subscriber || {};
   const net = sub.netBalance || 0;
-  const cover = sub.insurance?.cover || 0;
-  const hasCover = cover > 0;
+  const units = sub.unitsHeld || 0;
+  const isEmployer = Boolean(sub.employerId);
+  const firstName = (sub.name || '').trim().split(' ')[0];
 
-  // Balance count-up + growth — mirrors the mobile PulseCard's selectors exactly
-  // so desktop and phone never disagree. useCountUp returns 0 under reduced
-  // motion (run=false), so we snap to the resolved balance in that case.
+  // Balance count-up — mirrors the mobile PulseCard selectors exactly. useCountUp
+  // returns 0 under reduced motion (run=false), so we snap to the resolved
+  // balance in that case.
   const counted = useCountUp(net, 1100, !reduceMotion);
   const balanceDisplay = formatUGX(reduceMotion ? net : counted, { compact: false });
 
-  const units = sub.unitsHeld || 0;
-  // Invested principal + growth are derived (the demo has no real cost basis);
-  // the same helper feeds the mobile PulseCard so the two never disagree.
+  // Invested principal + growth (demo-derived, deterministic per id; shared with
+  // the mobile PulseCard so the two never disagree).
   const { invested, growth, growthPct } = deriveInvestmentGrowth(sub);
 
-  // Retirement / Emergency are the two pots that sum to net balance
-  // (data-model: netBalance = retirementBalance + emergencyBalance), so a
-  // share-of-balance figure is exact rather than an approximation.
-  // Round retirement directly, then derive emergency as its COMPLEMENT so the
-  // two labels always sum to exactly 100 — rounding each independently can
-  // produce 99% or 101% (e.g. 83.5% / 16.5% → 84 + 17 = 101).
-  const retPct = net > 0 ? Math.round(((sub.retirementBalance || 0) / net) * 100) : 0;
-  const emerPct = net > 0 ? 100 - retPct : 0;
-
-  const premium = sub.insurance?.premiumMonthly || 0;
-  const coverContext = cover > 0
-    ? (premium > 0 ? `Active · ${formatUGX(premium)}/mo` : 'Active cover')
-    : 'Not active';
-
-  const investedStatRow = (
-    <>
-      <span>
-        <strong>{units.toLocaleString('en-UG', { maximumFractionDigits: 2 })}</strong> units
-      </span>
-      {growth > 0 && (
-        <InfoTip
-          style={{ color: 'var(--color-green)' }}
-          content={(
-            <>
-              <b className={styles.tipHead}>Investment growth</b>
-              <span>
-                How your balance compares with what you&rsquo;ve put in — about{' '}
-                {formatUGX(invested, { compact: false })} contributed.
-              </span>
-            </>
-          )}
-        >
-          +{growthPct.toFixed(1)}% growth
-        </InfoTip>
-      )}
-    </>
-  );
-
-  // Retirement + Emergency are the two pots that sum to net balance, now shown
-  // together as one split card (a proportional bar + a per-pot legend).
+  // Retirement / Emergency are the two pots that sum to net balance. Round
+  // retirement directly, then derive emergency as its COMPLEMENT so the two
+  // shares always sum to exactly 100 (rounding each independently can yield 101).
   const retirement = sub.retirementBalance || 0;
   const emergency = sub.emergencyBalance || 0;
-  const splitBody = net > 0 ? (
-    <div className={styles.split}>
-      <div
-        className={styles.splitBar}
-        role="img"
-        aria-label={`Retirement ${retPct}%, Emergency ${emerPct}%`}
-      >
-        <span className={styles.splitSegRet} style={{ width: `${retPct}%` }} />
-        <span className={styles.splitSegEmer} style={{ width: `${emerPct}%` }} />
-      </div>
-      <ul className={styles.splitLegend}>
-        <li>
-          <span className={`${styles.dot} ${styles.dotRet}`} aria-hidden="true" />
-          <span className={styles.splitName}>Retirement</span>
-          <span className={styles.splitVal}>{formatUGX(retirement)} · {retPct}%</span>
-        </li>
-        <li>
-          <span className={`${styles.dot} ${styles.dotEmer}`} aria-hidden="true" />
-          <span className={styles.splitName}>Emergency</span>
-          <span className={styles.splitVal}>{formatUGX(emergency)} · {emerPct}%</span>
-        </li>
-      </ul>
-    </div>
-  ) : null;
+  const retPct = net > 0 ? Math.round((retirement / net) * 100) : 0;
+  const emerPct = net > 0 ? 100 - retPct : 0;
 
-  const firstName = (sub.name || '').trim().split(' ')[0];
+  // Insurance cover.
+  const cover = sub.insurance?.cover || 0;
+  const hasCover = cover > 0;
+  const premium = sub.insurance?.premiumMonthly || 0;
+  const coverContext = hasCover
+    ? (premium > 0 ? `Active · ${formatUGX(premium, { compact: false })}/mo premium` : 'Active cover')
+    : 'Not active';
+
+  // Contribution schedule → hero "Next payment" + Pay button.
+  const schedule = sub.contributionSchedule;
+  const scheduleAmt = schedule?.amount || 0;
+  const hasSchedule = scheduleAmt > 0;
+  const nextDue = schedule?.nextDueDate;
+
+  // Employer match split (own vs employer). The breakdown supplies only the
+  // member's real own:employer RATIO; deriveEmployerSplit re-scales it to the
+  // derived principal so own + employer ties out to "invested".
+  const { data: breakdown } = useContributionBreakdown(sub.id);
+  const { own: ownContrib, employer: employerContrib } = deriveEmployerSplit(sub, breakdown);
+  const splitTotal = ownContrib + employerContrib;
+  const ownPct = splitTotal > 0 ? Math.round((ownContrib / splitTotal) * 100) : 0;
+  const empPct = splitTotal > 0 ? 100 - ownPct : 0;
+
+  // "Saved this month" — the member's monthly-equivalent own contribution, plus
+  // (for employer-onboarded members) the employer's proportional monthly top-up
+  // derived from the same own:employer ratio. No per-month-saved field exists, so
+  // this is a derived demo figure (CLAUDE.md §10a).
+  const ownMonthly = hasSchedule
+    ? Math.round((scheduleAmt * periodsPerYear(schedule.frequency)) / 12)
+    : 0;
+  const employerMonthly = isEmployer && ownContrib > 0
+    ? Math.round(ownMonthly * (employerContrib / ownContrib))
+    : 0;
+  const savedThisMonth = ownMonthly + employerMonthly;
+
+  let savedValue;
+  let savedExplain;
+  if (!hasSchedule) {
+    savedValue = '—';
+    savedExplain = 'Set up a schedule to start saving.';
+  } else if (isEmployer && employerMonthly > 0) {
+    savedValue = `+${formatUGX(savedThisMonth, { compact: false })}`;
+    savedExplain = `Your ${formatUGX(ownMonthly, { compact: false })} + ${formatUGX(employerMonthly, { compact: false })} from your employer.`;
+  } else {
+    savedValue = `+${formatUGX(ownMonthly, { compact: false })}`;
+    savedExplain = `Your ${formatUGX(ownMonthly, { compact: false })} monthly contribution.`;
+  }
+
+  // Recent activity (real transactions; up to 4 rows).
+  const { data: txns = [] } = useSubscriberTransactions(sub.id);
+  const recentTx = txns.slice(0, 4);
+
+  // Pay / Top-up navigation — mirrors TopUpWidget's targets so the desktop hero
+  // and the mobile contribution row drive the same flows.
+  function handlePay() {
+    if (!hasSchedule) {
+      navigate('/dashboard/save/schedule');
+      return;
+    }
+    navigate('/dashboard/save', { state: { prefillAmount: scheduleAmt, scheduled: true } });
+  }
+  function handleTopUp() {
+    navigate('/dashboard/save');
+  }
+
+  const payCaption = hasSchedule
+    ? (nextDue ? <>Next payment · <b>due {formatDate(nextDue, { variant: 'day-month' })}</b></> : 'Next payment')
+    : 'Start saving';
 
   return (
     <motion.div
@@ -163,95 +225,189 @@ export default function HomeDesktop({ subscriber }) {
       initial={reduceMotion ? false : 'initial'}
       animate={reduceMotion ? false : 'animate'}
     >
-      <motion.header variants={itemVariants} className={styles.head}>
-        <p className={styles.eyebrow}>Your savings</p>
-        <h1 className={styles.title}>{firstName ? `Hi ${firstName}` : 'Home'}</h1>
-        <p className={styles.subtitle}>A snapshot of your balance, contributions and protection.</p>
+      {/* Content-top: eyebrow + greeting + employer chip (the Ask-AI pill lives
+          in the shell's top-right, not here). */}
+      <motion.header variants={itemVariants} className={styles.contentTop}>
+        <div>
+          <p className={styles.eyebrow}>Your savings</p>
+          <div className={styles.titleRow}>
+            <h1 className={styles.title}>{firstName ? `Hi, ${firstName}` : 'Home'}</h1>
+            {isEmployer && (
+              <span className={styles.srcChip}>
+                {glyph.employer(13)}
+                Employer-sponsored
+              </span>
+            )}
+          </div>
+        </div>
       </motion.header>
 
-      <motion.div variants={itemVariants} className={styles.kpiRow}>
-        {/* 1 · Total balance — the hero figure on its own */}
-        <MetricTile
-          variant="primary"
-          icon={BalanceIcon}
-          label="Total balance"
-          value={net > 0 ? balanceDisplay : '—'}
-          context={net > 0 ? 'Across retirement & emergency' : 'Start saving to grow your pot'}
-          className={styles.primaryTile}
-        />
-
-        {/* 2 · Amount invested — what you put in, carrying units + growth */}
-        <MetricTile
-          accent="indigo"
-          icon={InvestedIcon}
-          label="Amount invested"
-          value={net > 0 ? formatUGX(invested) : '—'}
-          statRow={net > 0 ? investedStatRow : null}
-        />
-
-        {/* 3 · Retirement vs Emergency split */}
-        <MetricTile
-          accent="teal"
-          icon={SplitIcon}
-          label="Savings split"
-          context={net > 0 ? null : 'Long-term + short-term savings'}
-        >
-          {splitBody}
-        </MetricTile>
-
-        {/* 4 · Insurance cover — the figure, or an Add-cover CTA when unconfigured */}
-        {hasCover ? (
-          <MetricTile
-            accent="green"
-            icon={CoverIcon}
-            label="Insurance cover"
-            value={formatUGX(cover)}
-            context={coverContext}
-          />
-        ) : (
-          <button
-            type="button"
-            className={styles.coverCta}
-            onClick={() => navigate('/dashboard/settings/insurance')}
-            aria-label="Add insurance cover"
-          >
-            <MetricTile accent="green" icon={CoverIcon} label="Insurance cover">
-              <div className={styles.coverCtaBody}>
-                <span className={styles.coverCtaAction}>
-                  Add cover
-                  <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
-                    <path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </span>
-                <span className={styles.coverCtaHint}>Protect your family from UGX 2,000/mo</span>
-              </div>
-            </MetricTile>
-          </button>
-        )}
+      {/* Hero — units-only balance + horizontal Pay / Top-up. */}
+      <motion.div variants={itemVariants} className={styles.heroCard}>
+        <div className={styles.heroMain}>
+          <div className={styles.heroChip}>{glyph.wallet(26)}</div>
+          <div>
+            <p className={styles.heroEyebrow}>Total balance</p>
+            <div className={styles.heroValue}>{net > 0 ? balanceDisplay : 'UGX 0'}</div>
+            <p className={styles.heroUnits}>
+              <span className={styles.uChip}>Units</span>
+              <strong>{units.toLocaleString('en-UG', { maximumFractionDigits: 2 })}</strong> units
+            </p>
+          </div>
+        </div>
+        <div className={styles.heroActions}>
+          <span className={styles.payCaption}>{payCaption}</span>
+          <div className={styles.heroBtnRow}>
+            <button type="button" className={`${styles.heroBtn} ${styles.heroBtnPrimary}`} onClick={handlePay}>
+              {glyph.pay(18)}
+              {hasSchedule ? `Pay ${formatUGX(scheduleAmt, { compact: false })}` : 'Set a schedule'}
+            </button>
+            <button type="button" className={`${styles.heroBtn} ${styles.heroBtnSecondary}`} onClick={handleTopUp}>
+              {glyph.topup(18)}
+              Top up extra
+            </button>
+          </div>
+        </div>
       </motion.div>
 
-      <div className={styles.grid}>
-        <motion.div variants={itemVariants} className={styles.slotFull}>
-          <TopUpWidget subscriber={sub} />
-        </motion.div>
+      {/* KPI performance row. */}
+      <motion.div variants={itemVariants} className={styles.kpis}>
+        <div className={styles.kpi} style={{ '--ac': 'var(--color-indigo)', '--tint': '41,40,103' }}>
+          <div className={styles.kpiChip}>{glyph.growth(18)}</div>
+          <div className={styles.kpiLabel}>Amount invested</div>
+          <div className={styles.kpiValue}>{net > 0 ? formatUGX(invested) : '—'}</div>
+          <div className={styles.kpiExplain}>The money you&rsquo;ve put in so far.</div>
+        </div>
 
-        <motion.div variants={itemVariants} className={styles.slotFull}>
-          <CoPilotWidget />
-        </motion.div>
+        <div className={styles.kpi} style={{ '--ac': 'var(--color-green)', '--tint': '46,139,87' }}>
+          <div className={styles.kpiChip}>{glyph.growth(18)}</div>
+          <div className={styles.kpiLabel}>Investment growth</div>
+          <div className={`${styles.kpiValue} ${styles.kpiValueGrow}`}>
+            {net > 0 ? `+${growthPct.toFixed(1)}%` : '—'}
+          </div>
+          <div className={styles.kpiExplain}>
+            {net > 0 ? `≈ ${formatUGX(growth)} more than you saved.` : 'Start saving to see your growth.'}
+          </div>
+        </div>
 
-        {sub.employerId && (
-          <motion.div variants={itemVariants} className={styles.slotFull}>
-            <EmployerBenefitsWidget subscriber={sub} />
-          </motion.div>
+        <div className={styles.kpi} style={{ '--ac': 'var(--color-indigo-soft)', '--tint': '94,99,168' }}>
+          <div className={styles.kpiChip}>{glyph.month(18)}</div>
+          <div className={styles.kpiLabel}>Saved this month</div>
+          <div className={styles.kpiValue}>{savedValue}</div>
+          <div className={styles.kpiExplain}>{savedExplain}</div>
+        </div>
+      </motion.div>
+
+      {/* Employer-match block — employer-onboarded members only. */}
+      {isEmployer && (
+        <motion.div variants={itemVariants} className={styles.emp}>
+          <div className={styles.blockHead}>
+            <span className={styles.blockTitle}>
+              <span className={`${styles.blockIc} ${styles.empIc}`}>{glyph.employer(18)}</span>
+              Your employer tops up your pension
+            </span>
+            <span className={styles.tag}>Employer-sponsored</span>
+          </div>
+          <div className={styles.empSplit}>
+            <div className={`${styles.empTile} ${styles.empTileOwn}`}>
+              <span className={styles.empTileK}><span className={styles.sw} aria-hidden="true" />You&rsquo;ve contributed</span>
+              <span className={styles.empTileV}>{formatUGX(ownContrib, { compact: false })}</span>
+              <span className={styles.empTilePct}>{ownPct}% of your pension</span>
+            </div>
+            <div className={styles.empPlus} aria-hidden="true">+</div>
+            <div className={`${styles.empTile} ${styles.empTileAdded}`}>
+              <span className={styles.empTileK}><span className={styles.sw} aria-hidden="true" />Your employer added</span>
+              <span className={styles.empTileV}>{formatUGX(employerContrib, { compact: false })}</span>
+              <span className={styles.empTilePct}>{empPct}% — on top of your savings</span>
+            </div>
+          </div>
+          <div
+            className={styles.empBar}
+            role="img"
+            aria-label={`You ${ownPct}%, employer ${empPct}%`}
+          >
+            <span className={styles.segOwn} style={{ width: `${ownPct}%` }} />
+            <span className={styles.segEmp} />
+          </div>
+          <p className={styles.empFoot}>
+            Your employer has added <strong>{formatUGX(employerContrib, { compact: false })}</strong> to your
+            pension so far — real money on top of what you save yourself.
+          </p>
+        </motion.div>
+      )}
+
+      {/* Your savings & cover — Retirement / Emergency / Insurance. */}
+      <motion.div variants={itemVariants} className={styles.swc}>
+        <div className={styles.blockHead}>
+          <span className={styles.blockTitle}>
+            <span className={`${styles.blockIc} ${styles.swcIc}`}>{glyph.wallet(20)}</span>
+            Your savings &amp; cover
+          </span>
+          {hasCover && (
+            <span className={styles.pill}><span className={styles.dotg} aria-hidden="true" />All active</span>
+          )}
+        </div>
+        <div className={styles.swcGrid}>
+          <div className={styles.swcItem} style={{ '--ac': 'var(--color-indigo)', '--tint': '41,40,103' }}>
+            <div className={styles.swcChip}>{glyph.retire(20)}</div>
+            <span className={styles.swcK}>Retirement fund</span>
+            <span className={styles.swcV}>{formatUGX(retirement, { compact: false })}</span>
+            <span className={styles.swcSub}>{retPct}% · growing for your future</span>
+          </div>
+          <div className={styles.swcItem} style={{ '--ac': 'var(--color-indigo-soft)', '--tint': '94,99,168' }}>
+            <div className={styles.swcChip}>{glyph.emergency(20)}</div>
+            <span className={styles.swcK}>Emergency fund</span>
+            <span className={styles.swcV}>{formatUGX(emergency, { compact: false })}</span>
+            <span className={styles.swcSub}>{emerPct}% · withdraw when you need it</span>
+          </div>
+          <div className={styles.swcItem} style={{ '--ac': 'var(--color-teal)', '--tint': '47,143,157' }}>
+            <div className={styles.swcChip}>{glyph.shield(20)}</div>
+            <span className={styles.swcK}>Insurance cover</span>
+            <span className={styles.swcV}>{hasCover ? formatUGX(cover, { compact: false }) : 'Not set'}</span>
+            <span className={styles.swcSub}>{coverContext}</span>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Recent activity. */}
+      <motion.div variants={itemVariants} className={styles.card}>
+        <div className={styles.blockHead}>
+          <span className={styles.blockTitle}>
+            <span className={styles.blockIc} style={{ background: 'color-mix(in srgb, var(--color-indigo) 8%, transparent)', color: 'var(--color-indigo)' }}>
+              {glyph.activity(18)}
+            </span>
+            Recent activity
+          </span>
+          <button type="button" className={styles.blockLink} onClick={() => navigate('/dashboard/activity')}>
+            View all{glyph.arrow(14)}
+          </button>
+        </div>
+        {recentTx.length === 0 ? (
+          <p className={styles.empty}>No activity yet.</p>
+        ) : (
+          recentTx.map((tx) => {
+            const meta = TX_META[tx.type] || TX_META.contribution;
+            const isEmpTx = tx.type === 'contribution' && tx.source === 'employer';
+            const name = isEmpTx ? 'Employer top-up' : meta.label;
+            const dot = isEmpTx ? 'var(--color-indigo-soft)' : meta.dot;
+            const negative = tx.amount < 0;
+            return (
+              <div key={tx.id} className={styles.row}>
+                <span className={styles.tdot} style={{ '--tc': dot }} aria-hidden="true" />
+                <span>
+                  <span className={styles.rowName}>{name}</span>
+                  <span className={styles.rowSub}>
+                    {formatDate(tx.date, { variant: 'day-month' })}{tx.method ? ` · ${tx.method}` : ''}
+                  </span>
+                </span>
+                <span className={`${styles.rowAmt} ${negative ? styles.rowAmtNeg : styles.rowAmtPos}`}>
+                  {negative ? '−' : '+'}{formatUGX(Math.abs(tx.amount), { compact: false })}
+                </span>
+              </div>
+            );
+          })
         )}
-
-        <motion.div variants={itemVariants} className={styles.slotHalf}>
-          <PoliciesWidget subscriber={sub} />
-        </motion.div>
-        <motion.div variants={itemVariants} className={styles.slotHalf}>
-          <ActivityWidget subscriber={sub} />
-        </motion.div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }

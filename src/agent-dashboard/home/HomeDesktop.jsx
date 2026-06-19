@@ -14,12 +14,13 @@ import {
   computeAgentHomeSummary,
   deriveMonthAnchors,
   isOnboardedSince,
+  isInsured,
   pendingContributors,
   monthRangeIso,
 } from './agentHomeSummary';
 import MetricTile from '../../dashboard/shared/MetricTile';
 import QuickActions from './widgets/QuickActions';
-import CoPilotWidget from './widgets/CoPilotWidget';
+import InsuranceCard from './widgets/InsuranceCard';
 import styles from './HomeDesktop.module.css';
 
 const stagger = {
@@ -86,8 +87,12 @@ const PortfolioIcon = (
  *     contribution volume → /contributions, Commissions owed → /commissions,
  *     Onboarded this month → /onboarded-this-month, Yet to contribute →
  *     /yet-to-contribute),
- *   • QuickActions (Onboard / View subscribers) and the Co-Pilot — the same
- *     widgets the mobile Home renders.
+ *   • QuickActions (Onboard / View subscribers).
+ *
+ * The desktop Co-Pilot is no longer an embedded card here — on desktop it lives
+ * in the on-demand right-side AI chat panel (AgentCopilotPanel), opened from the
+ * "Ask AI" control in AgentDesktopShell. The mobile Home still renders the inline
+ * CoPilotWidget.
  *
  * The previous desktop fork showed a different, book-centric metric set
  * (PortfolioCard "Your subscriber book" + active-vs-dormant, a Commissions
@@ -136,6 +141,28 @@ export default function HomeDesktop() {
     return detail?.totalDue ?? due.reduce((sum, c) => sum + (c.amount || 0), 0);
   }, [detail]);
 
+  // Insurance coverage across the agent's book — feeds the Home insurance card.
+  // Null insurance (RLS-filtered on live, or no policy on a subscriber) counts as
+  // uninsured, so the card degrades gracefully rather than crashing.
+  const insurance = useMemo(() => {
+    let insured = 0;
+    let totalCover = 0;
+    for (const s of subscribers) {
+      if (isInsured(s)) {
+        insured += 1;
+        totalCover += Number(s.insurance.cover) || 0;
+      }
+    }
+    const total = subscribers.length;
+    const insuredUninsured = Math.max(0, total - insured);
+    return {
+      insured,
+      uninsured: insuredUninsured,
+      avgCover: insured > 0 ? totalCover / insured : 0,
+      coveragePct: total > 0 ? Math.round((insured / total) * 100) : 0,
+    };
+  }, [subscribers]);
+
   const subsResolving = subsLoading && subscribers.length === 0;
   const hasLifetime = Number.isFinite(summary.lifetime) && summary.lifetime > 0;
   const dueCount = (detail?.dueTransactions || []).length;
@@ -151,26 +178,31 @@ export default function HomeDesktop() {
   const firstName = (user?.name || agent?.name || 'there').split(' ')[0];
   const greeting = `Good ${hourGreeting()}, ${firstName}`;
 
-  // 4 monthly metrics — same labels + drill-down routes as MonthlyDataCard.
-  // Accent is explicit per tile (not :nth-child) because each tile is wrapped in
-  // a <Link>; an explicit accent keeps the tints correct under the wrapper.
+  // 4 monthly metrics. Desktop uses its own plain-language labels + sub-lines
+  // (the redesign), so these intentionally DIFFER from the mobile MonthlyDataCard.
+  // Routes still match the agent router drill-downs. Accent is explicit per tile
+  // (not :nth-child) because each tile is wrapped in a <Link>, which keeps the
+  // tint correct under the wrapper.
   const kpis = [
     {
       key: 'volume',
       icon: VolumeIcon,
       accent: 'indigo',
-      label: 'Monthly contribution volume',
+      label: 'Monthly contributions',
       value: subsResolving ? '—' : formatUGX(summary.monthly),
-      context: 'This month',
+      context: 'What members saved this month',
       to: '/dashboard/contributions',
     },
     {
       key: 'owed',
       icon: OwedIcon,
-      accent: 'teal',
-      label: 'Commissions owed',
+      accent: 'green',
+      label: 'To be paid to you',
       value: formatUGX(totalDue),
-      context: dueCount > 0 ? `${formatNumber(dueCount)} pending` : 'All settled',
+      context:
+        dueCount > 0
+          ? `Your commission · ${formatNumber(dueCount)} pending`
+          : 'Your commission · all settled',
       to: '/dashboard/commissions',
     },
     {
@@ -179,16 +211,16 @@ export default function HomeDesktop() {
       accent: 'lavender',
       label: 'Onboarded this month',
       value: subsResolving ? '—' : formatNumber(summary.onboardedThisMonth),
-      context: subsResolving ? null : `of ${totalLabel} total`,
+      context: 'New members you signed up',
       to: '/dashboard/onboarded-this-month',
     },
     {
       key: 'pending',
       icon: PendingIcon,
-      accent: 'green',
+      accent: 'teal',
       label: 'Yet to contribute',
       value: subsResolving ? '—' : formatNumber(summary.pendingContribution),
-      context: subsResolving ? null : `of ${totalLabel} total`,
+      context: "Haven't saved this month yet",
       to: '/dashboard/yet-to-contribute',
     },
   ];
@@ -205,26 +237,27 @@ export default function HomeDesktop() {
         <h1 className={styles.title}>{greeting}</h1>
       </motion.header>
 
-      {/* Total-contributions primary tile — the desktop equivalent of the mobile
-          dome: the lifetime UGX headline (count-up) + subscribers · active% row. */}
-      <motion.div variants={itemVariants}>
-        <MetricTile
-          variant="primary"
-          icon={PortfolioIcon}
-          label="Total contributions"
-          value={lifetimeDisplay}
-          statRow={hasLifetime ? (
-            <>
+      {/* Total-contributions hero — light surface (no saturated indigo block):
+          the lifetime UGX headline (count-up) + subscribers · active% (active in
+          green). Authored inline (not MetricTile) so the desktop redesign stays
+          isolated from the shared component the subscriber desktop still uses. */}
+      <motion.div variants={itemVariants} className={styles.hero}>
+        <span className={styles.heroChip} aria-hidden="true">{PortfolioIcon}</span>
+        <div className={styles.heroBody}>
+          <p className={styles.heroEyebrow}>Total contributions</p>
+          <div className={styles.heroValue}>{lifetimeDisplay}</div>
+          {hasLifetime && (
+            <p className={styles.heroStats}>
               <span>
                 <strong>{totalLabel}</strong> subscriber{summary.total === 1 ? '' : 's'}
               </span>
               <span className={styles.heroDot} aria-hidden="true" />
-              <span>
+              <span className={styles.heroPos}>
                 <strong>{summary.activePct}%</strong> active
               </span>
-            </>
-          ) : null}
-        />
+            </p>
+          )}
+        </div>
       </motion.div>
 
       <motion.div variants={itemVariants} className={styles.kpiRow}>
@@ -246,12 +279,17 @@ export default function HomeDesktop() {
         ))}
       </motion.div>
 
-      <motion.div variants={itemVariants} className={styles.slotActions}>
-        <QuickActions />
+      <motion.div variants={itemVariants}>
+        <InsuranceCard
+          insured={insurance.insured}
+          uninsured={insurance.uninsured}
+          avgCover={insurance.avgCover}
+          coveragePct={insurance.coveragePct}
+        />
       </motion.div>
 
-      <motion.div variants={itemVariants} className={styles.slotCopilot}>
-        <CoPilotWidget agentId={agentId} />
+      <motion.div variants={itemVariants} className={styles.slotActions}>
+        <QuickActions variant="desktop" />
       </motion.div>
     </motion.div>
   );

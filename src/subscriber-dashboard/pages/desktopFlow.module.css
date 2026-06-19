@@ -1,0 +1,743 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Subscriber desktop money-flow primitives (>=1024px ONLY).
+
+   Shared vocabulary for the genuine 2-column desktop redesign of Save,
+   Withdrawals hub, Withdraw savings, and File a claim — an action column on the
+   left, a sticky summary on the right. Authored once here (rather than copied
+   into four page modules) so the four flows share ONE visual system and can
+   never drift apart.
+
+   These classes are composed ALONGSIDE each page's own module (`flow.x`); they
+   are never imported by the mobile shell, and every page gates its use behind a
+   useIsDesktop() JSX fork, so this file has zero reach into the byte-identical
+   mobile layouts. The subscriber desktop shell already scopes --radius-md/-lg/-xl
+   to 0.5rem, so `var(--radius-md)` renders the ~8px "functional" corner here.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* The canvas establishes a size container so the split collapses based on the
+   ACTUAL content width (which shrinks when the AI panel opens / the rail
+   expands), not the viewport — the column never gets crushed below ~900px. */
+.canvas {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-8) var(--space-4) 0;
+}
+
+/* ── Header (content-top) ─────────────────────────────────────────────────── */
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-indigo-soft);
+  margin: 0;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+  margin: 0;
+}
+
+.subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  margin: 0;
+  max-width: 60ch;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Back chip — only the nested sub-flows (Withdraw savings, File a claim) render
+   it; the tab-roots (Save, Withdrawals hub) navigate via the rail. */
+.backBtn {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-top: 2px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-lavender);
+  background: var(--color-white);
+  color: var(--color-indigo);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.backBtn:hover {
+  border-color: var(--color-indigo-soft);
+  background: var(--color-cloud);
+}
+
+.backBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+/* Bare size container for a split that isn't wrapped in .canvas (Claim keeps its
+   own header/body structure but still needs the split to collapse on width). */
+.splitHost {
+  container-type: inline-size;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@container (max-width: 900px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.summaryCol {
+  position: sticky;
+  top: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+@container (max-width: 900px) {
+  .summaryCol {
+    position: static;
+  }
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: var(--space-5) var(--space-6);
+  box-shadow: var(--shadow-sm);
+}
+
+.card + .card {
+  margin-top: 0;
+}
+
+/* ── Field label / note ───────────────────────────────────────────────────── */
+.fieldLabel {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-gray);
+  margin-bottom: 8px;
+}
+
+.fieldLabelGap {
+  margin-top: var(--space-4);
+}
+
+.note {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-gray);
+  margin: var(--space-3) 0 0;
+}
+
+.note b {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-indigo-soft);
+}
+
+/* ── Segmented mode toggle (Pay scheduled / Top up extra) ─────────────────── */
+.seg {
+  display: inline-flex;
+  width: 100%;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: var(--space-5);
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+}
+
+.segBtn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--color-gray);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.segBtn:hover {
+  color: var(--color-indigo);
+}
+
+.segBtnActive,
+.segBtnActive:hover {
+  background: var(--color-white);
+  color: var(--color-indigo);
+  box-shadow: var(--shadow-sm);
+}
+
+.segBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+/* ── Amount field ─────────────────────────────────────────────────────────── */
+.amountField {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.amountField:focus-within {
+  border-color: var(--color-indigo);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
+}
+
+.amountFieldLocked {
+  background: color-mix(in srgb, var(--color-indigo) 4%, transparent);
+}
+
+.amountPrefix {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--color-indigo-soft);
+}
+
+.amountVal {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-3xl);
+  letter-spacing: -0.025em;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+.amountInput {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-3xl);
+  letter-spacing: -0.025em;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+.amountInput::placeholder {
+  color: var(--color-gray);
+  font-weight: 700;
+  font-size: var(--text-xl);
+}
+
+.amountLock {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--color-gray);
+  white-space: nowrap;
+}
+
+.errorLine {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-status-poor);
+  margin: var(--space-2) 0 0;
+}
+
+/* ── Presets ──────────────────────────────────────────────────────────────── */
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.preset {
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
+  color: var(--color-indigo-soft);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  padding: 9px 14px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.preset:hover {
+  border-color: var(--color-indigo-soft);
+  color: var(--color-indigo);
+}
+
+.presetActive,
+.presetActive:hover {
+  background: var(--color-indigo);
+  border-color: var(--color-indigo);
+  color: var(--color-white);
+}
+
+.preset:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+/* ── CTA (full-width, inside a card) ──────────────────────────────────────── */
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  margin-top: var(--space-4);
+  padding: 15px 20px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-sm);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  transition: background 0.16s ease, transform 0.16s var(--ease-out-expo),
+    box-shadow 0.16s var(--ease-out-expo);
+}
+
+.cta svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.ctaPrimary {
+  background: var(--color-indigo);
+  color: var(--color-white);
+  border-color: var(--color-indigo);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+}
+
+.ctaPrimary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--color-indigo-deep);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-indigo) 30%, transparent);
+}
+
+.ctaDanger {
+  background: var(--color-status-poor);
+  color: var(--color-white);
+  border-color: var(--color-status-poor);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-status-poor) 22%, transparent);
+}
+
+.ctaDanger:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-status-poor) 30%, transparent);
+}
+
+.cta:disabled {
+  background: var(--color-lavender);
+  border-color: var(--color-lavender);
+  color: var(--color-gray);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.cta:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.cta:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+/* ── Method row (mobile-money payout) ─────────────────────────────────────── */
+.method {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+
+.methodIc {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-teal) 12%, transparent);
+  color: var(--color-teal-ink, var(--color-teal));
+  display: grid;
+  place-items: center;
+}
+
+.methodMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.methodName {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+}
+
+.methodSub {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+}
+
+/* ── Summary card rows ────────────────────────────────────────────────────── */
+.sumEyebrow {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-gray);
+  margin: 0 0 var(--space-3);
+}
+
+.sumBig {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-2xl);
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+.sumList {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sumListTight {
+  margin-top: var(--space-2);
+}
+
+.sumRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 11px 0;
+  border-top: 1px solid var(--color-lavender);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+}
+
+.sumRow:first-child {
+  border-top: none;
+}
+
+.sumRowLabel {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.sumVal {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sumValPos {
+  color: var(--color-green-ink, var(--color-green));
+}
+
+.sumDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 7px;
+  flex: 0 0 auto;
+}
+
+/* ── Projection block (Save scheduled mode) ───────────────────────────────── */
+.proj {
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+}
+
+.projLabel {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-gray);
+  margin: 0;
+}
+
+.projValue {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-xl);
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  margin: 4px 0 0;
+}
+
+.projNote {
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-gray);
+  margin: 3px 0 0;
+}
+
+/* ── Available bar (locked vs withdrawable) ───────────────────────────────── */
+.availBar {
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-lavender);
+  overflow: hidden;
+  display: flex;
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+.availLocked {
+  background: var(--color-indigo);
+}
+
+.availOpen {
+  background: var(--color-green);
+  flex: 1;
+}
+
+/* ── Hub chooser cards ────────────────────────────────────────────────────── */
+.hubCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  text-align: left;
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.18s var(--ease-out-expo), border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.hubCard:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-indigo-soft);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--color-indigo) 6%, transparent),
+    0 16px 30px -20px color-mix(in srgb, var(--color-indigo) 40%, transparent);
+}
+
+.hubCard:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.hubIc {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+}
+
+.hubIcSave {
+  background: color-mix(in srgb, var(--color-indigo) 9%, transparent);
+  color: var(--color-indigo);
+}
+
+.hubIcClaim {
+  background: color-mix(in srgb, var(--color-teal) 12%, transparent);
+  color: var(--color-teal-ink, var(--color-teal));
+}
+
+.hubMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hubTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-base);
+  letter-spacing: -0.015em;
+  color: var(--color-indigo);
+}
+
+.hubDesc {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-gray);
+}
+
+.hubHint {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-indigo-soft);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+.hubArrow {
+  flex: 0 0 auto;
+  color: var(--color-indigo-soft);
+  transition: transform 0.18s ease;
+}
+
+.hubCard:hover .hubArrow {
+  transform: translateX(2px);
+}
+
+/* ── Cover-card head (claim summary) ──────────────────────────────────────── */
+.blockHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.blockTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-base);
+  color: var(--color-indigo);
+}
+
+.blockIc {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-teal) 12%, transparent);
+  color: var(--color-teal-ink, var(--color-teal));
+}
+
+.pillOk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-green-ink, var(--color-green));
+  background: color-mix(in srgb, var(--color-green) 12%, #fff);
+  padding: 5px 10px;
+  border-radius: var(--radius-full);
+}
+
+.pillDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ── Self-constrained narrow column (claim list / review / success) ──────────
+   The claim route is WIDE (1240px) for its form split, but its non-split views
+   read best centred in a comfortable column. */
+.narrow {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta,
+  .hubCard,
+  .hubArrow,
+  .segBtn,
+  .preset {
+    transition: none;
+  }
+  .cta:hover:not(:disabled),
+  .hubCard:hover {
+    transform: none;
+  }
+}

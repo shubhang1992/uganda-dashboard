@@ -9,6 +9,7 @@ import PageHeader from '../../components/PageHeader';
 import ContributionSettingsForm from '../../components/contribution/ContributionSettingsForm';
 import SkeletonRow from '../../components/SkeletonRow';
 import SubscriberScheduleDesktop from './SubscriberScheduleDesktop';
+import EditScheduleConsent from './subscriber/EditScheduleConsent';
 import styles from './SubscriberSchedulePage.module.css';
 
 export default function SubscriberSchedulePage() {
@@ -19,6 +20,8 @@ export default function SubscriberSchedulePage() {
   const updateSchedule = useUpdateSubscriberSchedule(id, agentId);
   const { addToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  // Editing an existing schedule requires the subscriber's OTP consent first.
+  const [consentGiven, setConsentGiven] = useState(false);
 
   const isDesktop = useIsDesktop();
   if (isDesktop) return <SubscriberScheduleDesktop />;
@@ -86,6 +89,25 @@ export default function SubscriberSchedulePage() {
         <PageHeader
           title="Subscriber not found"
           fallback="/dashboard/subscribers"
+        />
+      </div>
+    );
+  }
+
+  // Gate edits to an existing schedule behind subscriber OTP consent.
+  if (!isNew && !consentGiven) {
+    return (
+      <div className={styles.page}>
+        <PageHeader
+          title="Edit contribution schedule"
+          subtitle={`for ${subscriber.name}`}
+          fallback={`/dashboard/subscribers/${id}`}
+        />
+        <EditScheduleConsent
+          phone={subscriber.phone}
+          subscriberName={subscriber.name}
+          onVerified={() => setConsentGiven(true)}
+          onCancel={handleCancel}
         />
       </div>
     );

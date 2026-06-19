@@ -4,14 +4,16 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { calcFV, parseAmount } from '../../utils/finance';
 import { EASE_OUT_EXPO } from '../../utils/motion';
-import { formatNumber, formatUGX } from '../../utils/currency';
+import { formatNumber, formatUGX, formatUGXShort } from '../../utils/currency';
 import { useCurrentSubscriber, useRequestWithdrawal } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { MIN_WITHDRAW, RETIREMENT_AGE } from '../../constants/savings';
 import HeroCapsule from '../../components/HeroCapsule';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
 import { goBackOrFallback } from '../shell/navigation';
 import styles from './WithdrawPage.module.css';
+import flow from './desktopFlow.module.css';
 
 // Free-text reason labels. The default value stays "medical" (preserved from
 // the prior form) — `value` is the lowercase id, `label` the free-text written
@@ -35,6 +37,7 @@ const METHODS = [
 export default function WithdrawPage() {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
+  const isDesktop = useIsDesktop();
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const requestWithdrawal = useRequestWithdrawal(sub?.id);
@@ -146,14 +149,223 @@ export default function WithdrawPage() {
     ? ((sliderValue - MIN_WITHDRAW) / (max - MIN_WITHDRAW)) * 100
     : 0;
 
+  const potLabel = bucket === 'emergency' ? 'Savings' : 'Retirement';
+
+  // Desktop "available to withdraw" breakdown (sticky summary). Retirement is
+  // locked until age 60 unless the member is already eligible.
+  const availableNow = emergencyBalance + (retirementEligible ? retirementBalance : 0);
+  const lockedRet = retirementEligible ? 0 : retirementBalance;
+  const totalPot = emergencyBalance + retirementBalance;
+  const lockedPct = totalPot > 0 ? Math.round((lockedRet / totalPot) * 100) : 0;
+  const methodHint = method === 'bank' ? 'Bank' : method === 'airtel' ? 'Airtel' : 'MoMo';
+
   return (
     <div className={styles.page}>
-      <PageHeaderHero
-        amount={hasAmount ? amount : 0}
-        bucket={bucket}
-        remainingAfter={hasAmount ? remainingAfter : max}
-        onBack={handleBack}
-      />
+      {isDesktop ? (
+        /* Desktop (>=1024px): genuine 2-column flow — amount slider + pot picker +
+           reason + payout form in the action column, beside a sticky summary
+           (available/locked breakdown + this-withdrawal recap). Mobile keeps the
+           shipped hero + stacked body + footer EXACTLY as-is in the fragment. */
+        <div className={flow.canvas}>
+          <header className={flow.head}>
+            <button type="button" className={flow.backBtn} onClick={handleBack} aria-label="Back">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
+                <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <div className={flow.headText}>
+              <p className={flow.eyebrow}>{potLabel} fund</p>
+              <h1 className={flow.title}>Withdraw savings</h1>
+              <p className={flow.subtitle}>
+                {locked
+                  ? `Locked until age ${RETIREMENT_AGE} — your retirement savings unlock then. Use your Savings pot any time.`
+                  : `UGX ${formatUGXShort(max)} available · paid to your ${method === 'bank' ? 'bank account' : 'Mobile Money'} in 1–2 days.`}
+              </p>
+            </div>
+          </header>
+
+          <div className={flow.split}>
+            {/* LEFT — withdrawal form */}
+            <div className={flow.col}>
+              <div className={flow.card}>
+                <span className={flow.fieldLabel}>How much do you need?</span>
+                <input
+                  type="range"
+                  min={MIN_WITHDRAW}
+                  max={Math.max(max, MIN_WITHDRAW)}
+                  step={1000}
+                  value={sliderValue}
+                  onChange={handleSliderChange}
+                  disabled={sliderDisabled}
+                  className={styles.slider}
+                  style={{ '--pct': `${sliderPct}%` }}
+                  aria-label={`Withdrawal amount from your ${potLabel} pot in UGX`}
+                  aria-valuetext={`${formatUGX(sliderValue, { compact: false })} of ${formatUGX(Math.max(max, MIN_WITHDRAW), { compact: false })}`}
+                />
+                <div className={styles.sliderEnds}>
+                  <span>{formatUGX(MIN_WITHDRAW, { compact: false })}</span>
+                  <span className={styles.sliderMax}>{formatUGX(Math.max(max, MIN_WITHDRAW), { compact: false })}</span>
+                </div>
+                {sliderDisabled && !locked && (
+                  <p className={styles.helperLine}>
+                    This pot is below the {formatUGX(MIN_WITHDRAW, { compact: false })} minimum.
+                  </p>
+                )}
+              </div>
+
+              <div className={flow.card}>
+                <span className={flow.fieldLabel}>Withdraw from</span>
+                <div className={styles.bucketGrid}>
+                  <button
+                    type="button"
+                    className={styles.bucket}
+                    data-active={bucket === 'emergency'}
+                    data-tone="emergency"
+                    onClick={() => setBucket('emergency')}
+                  >
+                    <span className={styles.bucketName}>
+                      <span className={styles.bucketDot} data-tone="emergency" />
+                      Savings
+                    </span>
+                    <span className={styles.bucketBal}>{formatUGX(emergencyBalance, { compact: false })}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.bucket}
+                    data-active={bucket === 'retirement'}
+                    data-tone="retirement"
+                    data-locked={!retirementEligible || undefined}
+                    onClick={() => setBucket('retirement')}
+                  >
+                    <span className={styles.bucketName}>
+                      <span className={styles.bucketDot} data-tone="retirement" />
+                      Retirement
+                    </span>
+                    <span className={styles.bucketBal}>{formatUGX(retirementBalance, { compact: false })}</span>
+                    {!retirementEligible && (
+                      <span className={styles.lockPill}>
+                        <svg aria-hidden="true" viewBox="0 0 12 12" width="9" height="9">
+                          <rect x="3" y="5.5" width="6" height="4" rx="0.75" stroke="currentColor" strokeWidth="1.2" fill="none" />
+                          <path d="M4 5.5V4a2 2 0 014 0v1.5" stroke="currentColor" strokeWidth="1.2" fill="none" />
+                        </svg>
+                        Locked until {RETIREMENT_AGE}
+                      </span>
+                    )}
+                  </button>
+                </div>
+                {locked && (
+                  <p className={styles.helperLine} style={{ marginTop: '10px' }}>
+                    Retirement funds unlock at age {RETIREMENT_AGE}. Use your Savings pot any time.
+                  </p>
+                )}
+              </div>
+
+              <div className={flow.card}>
+                <span className={flow.fieldLabel}>Reason</span>
+                <PillChipGroup label="Withdrawal reason" layout="row">
+                  {REASONS.map((r) => (
+                    <PillChip key={r.id} selected={reason === r.value} onClick={() => setReason(r.value)}>
+                      {r.label}
+                    </PillChip>
+                  ))}
+                </PillChipGroup>
+              </div>
+
+              <div className={flow.card}>
+                <span className={flow.fieldLabel}>Payout to</span>
+                <PillChipGroup label="Payout method" layout="row">
+                  {METHODS.map((m) => (
+                    <PillChip key={m.id} selected={method === m.id} onClick={() => setMethod(m.id)}>
+                      {m.label}
+                    </PillChip>
+                  ))}
+                </PillChipGroup>
+                <p className={styles.helperLine} style={{ marginTop: '10px' }}>
+                  Funds reach your registered account ({sub?.phone || 'your number'}) within 2 business days.
+                </p>
+                <button
+                  type="button"
+                  className={`${flow.cta} ${flow.ctaPrimary}`}
+                  disabled={!hasAmount}
+                  onClick={handleReview}
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 3v12M7 8l5-5 5 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                  </svg>
+                  {hasAmount ? `Withdraw ${formatUGX(amount, { compact: false })}` : 'Request withdrawal'}
+                </button>
+              </div>
+            </div>
+
+            {/* RIGHT — sticky summary */}
+            <aside className={flow.summaryCol}>
+              <div className={flow.card}>
+                <p className={flow.sumEyebrow}>Available to withdraw</p>
+                <div className={flow.sumBig}>{formatUGX(availableNow, { compact: false })}</div>
+                <div className={flow.availBar} role="img" aria-label={`${lockedPct}% locked in retirement`}>
+                  <span className={flow.availLocked} style={{ flexBasis: `${lockedPct}%` }} />
+                  <span className={flow.availOpen} />
+                </div>
+                <ul className={`${flow.sumList} ${flow.sumListTight}`}>
+                  <li className={flow.sumRow}>
+                    <span className={flow.sumRowLabel}>
+                      <span className={flow.sumDot} style={{ background: 'var(--color-green)' }} />
+                      Emergency · available
+                    </span>
+                    <span className={`${flow.sumVal} ${flow.sumValPos}`}>{formatUGX(emergencyBalance, { compact: false })}</span>
+                  </li>
+                  <li className={flow.sumRow}>
+                    <span className={flow.sumRowLabel}>
+                      <span className={flow.sumDot} style={{ background: 'var(--color-indigo)' }} />
+                      Retirement · {retirementEligible ? 'available' : `locked to ${RETIREMENT_AGE}`}
+                    </span>
+                    <span className={flow.sumVal}>{formatUGX(retirementBalance, { compact: false })}</span>
+                  </li>
+                </ul>
+                <p className={flow.note}>
+                  {retirementEligible
+                    ? 'Both your funds are available to withdraw.'
+                    : 'Only your emergency fund can be withdrawn before retirement.'}
+                </p>
+              </div>
+
+              <div className={flow.card}>
+                <p className={flow.sumEyebrow}>This withdrawal</p>
+                <div className={flow.sumBig}>{formatUGX(hasAmount ? amount : 0, { compact: false })}</div>
+                <ul className={flow.sumList}>
+                  <li className={flow.sumRow}>
+                    <span>{potLabel} left after</span>
+                    <span className={flow.sumVal}>{formatUGX(hasAmount ? remainingAfter : max, { compact: false })}</span>
+                  </li>
+                  <li className={flow.sumRow}>
+                    <span>Pay out to</span>
+                    <span className={flow.sumVal}>{methodHint}</span>
+                  </li>
+                  <li className={flow.sumRow}>
+                    <span>Arrives</span>
+                    <span className={flow.sumVal}>1–2 days</span>
+                  </li>
+                </ul>
+                {bucket === 'retirement' && retirementImpact != null ? (
+                  <p className={flow.note}>
+                    May reduce your projected retirement by approx <b>{formatUGX(retirementImpact)}</b>.
+                  </p>
+                ) : (
+                  <p className={flow.note}>Your retirement savings stay locked until age {RETIREMENT_AGE}.</p>
+                )}
+              </div>
+            </aside>
+          </div>
+        </div>
+      ) : (
+        <>
+        <PageHeaderHero
+          amount={hasAmount ? amount : 0}
+          bucket={bucket}
+          remainingAfter={hasAmount ? remainingAfter : max}
+          onBack={handleBack}
+        />
 
       <div className={styles.body}>
         {/* Amount slider */}
@@ -285,6 +497,8 @@ export default function WithdrawPage() {
           {hasAmount ? `Withdraw ${formatUGX(amount, { compact: false })}` : 'Withdraw'}
         </button>
       </footer>
+        </>
+      )}
 
       {/* Confirm → success sheet — portaled to <body> so it escapes the page's
           animated (transformed) ancestor and layers ABOVE the fixed BottomTabBar
@@ -400,7 +614,7 @@ export default function WithdrawPage() {
                       className={styles.trackLink}
                       onClick={() => navigate('/dashboard/reports')}
                     >
-                      Track in Reports
+                      View your activity
                       <svg aria-hidden="true" viewBox="0 0 12 12" width="10" height="10">
                         <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                       </svg>

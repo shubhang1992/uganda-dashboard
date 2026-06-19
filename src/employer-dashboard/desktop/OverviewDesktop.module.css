@@ -1,0 +1,170 @@
+/* OverviewDesktop — page-specific atoms (funding split bar + insurance stats).
+   Shared chrome (stack, hero, tiles, card, section head, status badge) comes from
+   ui.module.css / ui.jsx. Translated from employer-desktop-home-v1.html. */
+
+/* ── How your staff's pension is funded ──────────────────────────── */
+.fundStack {
+  display: flex;
+  gap: 3px;
+  height: 72px;
+  margin-bottom: var(--space-5);
+}
+
+.fundOwn,
+.fundEmp {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 var(--space-5);
+  color: #fff;
+  overflow: hidden;
+  min-width: 0;
+}
+.fundOwn {
+  background: var(--color-indigo);
+  border-radius: var(--radius-md) 4px 4px var(--radius-md);
+}
+.fundEmp {
+  background: var(--color-green-ink, #1F6B41);
+  border-radius: 4px var(--radius-md) var(--radius-md) 4px;
+}
+
+.fundSegK {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fundSegV {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-2xl);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.fundRules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  margin-bottom: var(--space-4);
+}
+
+.fundRule {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.3;
+  color: var(--color-slate);
+}
+.fundRule b { font-weight: 700; color: var(--color-indigo); }
+
+.dot { width: 11px; height: 11px; border-radius: 3px; flex: 0 0 auto; }
+.dotOwn { background: var(--color-indigo); }
+.dotEmp { background: var(--color-green-ink, #1F6B41); }
+
+.fundFoot {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-slate);
+}
+.fundFoot strong { color: var(--color-green-ink, #1F6B41); font-weight: 700; }
+
+@media (max-width: 620px) {
+  .fundStack { height: auto; flex-direction: column; gap: 6px; }
+  .fundOwn, .fundEmp {
+    flex: none !important;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+/* ── Group insurance ─────────────────────────────────────────────── */
+.insStats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.insStat {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-left: var(--space-6);
+  border-left: 1px solid var(--color-lavender);
+}
+.insStat:first-child { padding-left: 0; border-left: none; }
+
+.insK {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-gray);
+}
+
+.insV {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-xl);
+  line-height: 1.05;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+.insSub { font-family: var(--font-body); font-size: var(--text-xs); color: var(--color-gray); }
+
+.insBar {
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--color-lavender);
+  overflow: hidden;
+}
+.insBarFill {
+  height: 100%;
+  width: 100%;
+  background: var(--color-teal);
+  border-radius: 9999px;
+}
+
+.insCap {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: 9px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+}
+.insPct { color: var(--color-teal-ink, #1F6E7A); font-weight: 700; }
+
+.insEmpty {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-gray);
+}
+
+@media (max-width: 760px) {
+  .insStats { grid-template-columns: 1fr; }
+  .insStat { padding-left: 0; border-left: none; }
+}

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
@@ -17,6 +17,7 @@ import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
 import TicketListRow from '../../components/tickets/TicketListRow';
 import { ThreadPanel } from '../inbox/ThreadPanel';
+import { NewConversationPanel } from '../inbox/NewConversationPanel';
 import styles from './InboxPage.module.css';
 
 const FILTERS = [
@@ -44,9 +45,13 @@ export default function InboxPage() {
   // us label rows + the focused filter with a real name instead of a bare id.
   const { data: subscribers = [] } = useAgentSubscribers(agentId);
 
+  const isDesktop = useIsDesktop();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
+  // Set when "Message → Platform chat" deep-links to a subscriber who has no
+  // existing thread → render a fresh-conversation composer instead of a list.
+  const [composeSubscriberId, setComposeSubscriberId] = useState(null);
 
   const nameById = useMemo(() => {
     const map = new Map();
@@ -95,8 +100,40 @@ export default function InboxPage() {
     setSearchParams(next, { replace: true });
   }
 
-  const isDesktop = useIsDesktop();
+  // Deep-link from "Message → Platform chat": ?subscriberId=…&open=1. Once
+  // tickets resolve, open that subscriber's most recent thread, or drop into a
+  // fresh-conversation composer if they have none, then consume the ?open flag.
+  // Mobile only — on desktop this component renders <InboxDesktop/>, which owns
+  // the same logic; running it here too would race to consume the URL flag.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (isDesktop || autoOpenedRef.current) return;
+    if (!subscriberFilter || searchParams.get('open') == null || isLoading) return;
+    autoOpenedRef.current = true;
+    const match = tickets.find((t) => t.subscriberId === subscriberFilter);
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    setSearchParams(next, { replace: true });
+    if (match) setSelectedId(match.id);
+    else setComposeSubscriberId(subscriberFilter);
+  }, [isDesktop, subscriberFilter, searchParams, isLoading, tickets, setSearchParams]);
+
   if (isDesktop) return <InboxDesktop />;
+
+  // ── New-conversation mode (no existing thread for this subscriber) ──
+  if (composeSubscriberId) {
+    return (
+      <div className={styles.page} data-mode="thread">
+        <NewConversationPanel
+          agentId={agentId}
+          subscriberId={composeSubscriberId}
+          participantLabel={subscriberName(composeSubscriberId)}
+          onBack={() => setComposeSubscriberId(null)}
+          onCreated={(ticketId) => { setComposeSubscriberId(null); setSelectedId(ticketId); }}
+        />
+      </div>
+    );
+  }
 
   // ── Thread mode ──
   if (selectedId) {

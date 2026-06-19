@@ -42,11 +42,11 @@ test.describe('agent dashboard smoke', () => {
     await page.goto('/dashboard');
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
-    // Post-redesign: Home's PulseCard wraps HeroCapsule, which renders the
-    // (dynamic) greeting as the page <h1>. That greeting is not a stable
-    // identity marker, so we still assert the unique "Monthly contribution
-    // volume" hero eyebrow label — the most stable copy on the page.
-    await expect(page.getByText('Monthly contribution volume')).toBeVisible();
+    // The greeting <h1> is dynamic, so we assert the stable monthly-contributions
+    // KPI label. This spec runs at BOTH desktop (1440 → HomeDesktop, label
+    // "Monthly contributions") and mobile (375/390 → MonthlyDataCard, label
+    // "Monthly contribution volume") viewports, so match the shared prefix.
+    await expect(page.getByText(/Monthly contribution/)).toBeVisible();
   });
 
   test('Onboard loads', async ({ page }) => {

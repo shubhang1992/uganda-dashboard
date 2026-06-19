@@ -7,8 +7,18 @@
 
 @media (min-width: 1024px) {
   .page {
-    max-width: 640px;
-    margin: 0 auto;
     padding-bottom: var(--space-8);
   }
+}
+
+/* Desktop (>=1024px): centred, width-capped frame around the form (mirrors the
+   agent's SubscriberScheduleDesktop). The form supplies its own padding, scroll
+   body and sticky footer; the frame just gives the 2-column split layout room
+   (its container query activates at ~860px of form width) and centres it within
+   the wide desktop canvas this route renders in. */
+.frame {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
 }

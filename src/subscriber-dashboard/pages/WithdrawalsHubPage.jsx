@@ -4,8 +4,11 @@ import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { formatUGXShort, formatUGX } from '../../utils/currency';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
+import { RETIREMENT_AGE } from '../../constants/savings';
 import PageHeader from '../../components/PageHeader';
 import styles from './WithdrawalsHubPage.module.css';
+import flow from './desktopFlow.module.css';
 
 const OPTIONS = [
   {
@@ -38,6 +41,7 @@ const OPTIONS = [
 export default function WithdrawalsHubPage() {
   const navigate = useNavigate();
   const reducedMotion = useReducedMotion();
+  const isDesktop = useIsDesktop();
   const { data: sub } = useCurrentSubscriber();
 
   const emergency = sub?.emergencyBalance || 0;
@@ -45,6 +49,14 @@ export default function WithdrawalsHubPage() {
   const available = emergency + retirement;
   const cover = sub?.insurance?.cover || 0;
   const insuranceActive = sub?.insurance?.status === 'active';
+
+  // Desktop summary reframes "available" honestly: retirement is locked until
+  // age 60, so only the emergency pot (plus retirement once eligible) is actually
+  // withdrawable now. The mobile hero keeps the shipped `available` figure.
+  const retirementEligible = typeof sub?.age === 'number' && sub.age >= RETIREMENT_AGE;
+  const availableNow = emergency + (retirementEligible ? retirement : 0);
+  const lockedRet = retirementEligible ? 0 : retirement;
+  const lockedPct = available > 0 ? Math.round((lockedRet / available) * 100) : 0;
 
   const HINTS = {
     savings: `${formatUGX(emergency)} ready · ${formatUGX(retirement)} retirement`,
@@ -64,16 +76,105 @@ export default function WithdrawalsHubPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        variant="hero"
-        title="Withdrawals"
-        eyebrow="Available to withdraw"
-        prefix="UGX"
-        amount={formatUGXShort(available)}
-        subtitle="Take money out, or file an insurance claim"
-        statRow={statRow}
-        fallback="/dashboard"
-      />
+      {isDesktop ? (
+        /* Desktop (>=1024px): genuine 2-column flow — the two actions as rich
+           chooser cards beside a sticky "available now" breakdown (emergency
+           withdrawable vs retirement locked). Mobile keeps the shipped hero +
+           card grid EXACTLY as-is in the fragment below. */
+        <div className={flow.canvas}>
+          <header className={flow.head}>
+            <div className={flow.headText}>
+              <p className={flow.eyebrow}>Available to withdraw</p>
+              <h1 className={flow.title}>Withdrawals</h1>
+              <p className={flow.subtitle}>
+                UGX {formatUGXShort(availableNow)} available · take money out of your emergency savings, or file an insurance claim.
+              </p>
+            </div>
+          </header>
+
+          <div className={flow.split}>
+            {/* LEFT — choose an action */}
+            <div className={flow.col}>
+              {OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={flow.hubCard}
+                  onClick={() => navigate(opt.to)}
+                >
+                  <span className={`${flow.hubIc} ${opt.id === 'savings' ? flow.hubIcSave : flow.hubIcClaim}`}>
+                    {opt.icon}
+                  </span>
+                  <span className={flow.hubMain}>
+                    <span className={flow.hubTitle}>{opt.title}</span>
+                    <span className={flow.hubDesc}>{opt.description}</span>
+                    <span className={flow.hubHint}>{HINTS[opt.id]}</span>
+                  </span>
+                  <span className={flow.hubArrow}>
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
+                      <path d="M5 12h13M12 6l6 6-6 6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* RIGHT — sticky available breakdown */}
+            <aside className={flow.summaryCol}>
+              <div className={flow.card}>
+                <p className={flow.sumEyebrow}>Available now</p>
+                <div className={flow.sumBig}>{formatUGX(availableNow, { compact: false })}</div>
+                <div
+                  className={flow.availBar}
+                  role="img"
+                  aria-label={`${lockedPct}% locked in retirement`}
+                >
+                  <span className={flow.availLocked} style={{ flexBasis: `${lockedPct}%` }} />
+                  <span className={flow.availOpen} />
+                </div>
+                <ul className={`${flow.sumList} ${flow.sumListTight}`}>
+                  <li className={flow.sumRow}>
+                    <span className={flow.sumRowLabel}>
+                      <span className={flow.sumDot} style={{ background: 'var(--color-green)' }} />
+                      Emergency · available
+                    </span>
+                    <span className={`${flow.sumVal} ${flow.sumValPos}`}>{formatUGX(emergency, { compact: false })}</span>
+                  </li>
+                  <li className={flow.sumRow}>
+                    <span className={flow.sumRowLabel}>
+                      <span className={flow.sumDot} style={{ background: 'var(--color-indigo)' }} />
+                      Retirement · {retirementEligible ? 'available' : `locked to ${RETIREMENT_AGE}`}
+                    </span>
+                    <span className={flow.sumVal}>{formatUGX(retirement, { compact: false })}</span>
+                  </li>
+                  {cover > 0 && (
+                    <li className={flow.sumRow}>
+                      <span>Insurance cover</span>
+                      <span className={flow.sumVal}>{formatUGX(cover, { compact: false })}</span>
+                    </li>
+                  )}
+                </ul>
+                <p className={flow.note}>
+                  {retirementEligible
+                    ? 'Both your funds are available to withdraw.'
+                    : `Only your emergency fund can be withdrawn before retirement. Retirement savings unlock at age ${RETIREMENT_AGE}.`}
+                </p>
+              </div>
+            </aside>
+          </div>
+        </div>
+      ) : (
+        <>
+        <PageHeader
+          variant="hero"
+          title="Withdrawals"
+          eyebrow="Available to withdraw"
+          prefix="UGX"
+          amount={formatUGXShort(available)}
+          subtitle="Take money out, or file an insurance claim"
+          statRow={statRow}
+          fallback="/dashboard"
+        />
 
       <div className={styles.body}>
         <div className={styles.grid}>
@@ -101,6 +202,8 @@ export default function WithdrawalsHubPage() {
           ))}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

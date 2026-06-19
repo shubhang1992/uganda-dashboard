@@ -1,14 +1,123 @@
+/* Body-level radius override (paired with the .subscriber-desktop-shell class
+   that SubscriberDesktopShell toggles on <body> while mounted). The .page rule
+   below also sets these — that copy applies to in-page content immediately on
+   first paint (no flash). This body-scoped copy additionally reaches body-level
+   PORTALS that escape .page: the Settings panel, Modal, and any popovers. Same
+   ~8px "functional" corner everywhere on the subscriber desktop. Mirrors the
+   agent desktop shell. --radius-sm / -full keep their shapes (small accents,
+   pills). Scoped to the body class → zero reach into the subscriber mobile shell
+   (which never mounts this) or any other role. */
+:global(body.subscriber-desktop-shell) {
+  --radius-md: 0.5rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.5rem;
+}
+
 .shell {
-  /* Local sidebar width token. Matches the shipped SideNav rail (240px) and the
-     agent desktop shell, so the two role dashboards share one rail width. */
+  /* Local sidebar width token. Matches the desktop rail (240px) + the agent
+     desktop shell, so the two role dashboards share one rail width. */
   --subscriber-desktop-sidebar: 240px;
+  /* AI chat panel (third column). --subscriber-copilot-w is its open width (also
+     read by SubscriberCopilotPanel for its fixed inner width);
+     --subscriber-copilot-col is the live track width — 0 when closed, the full
+     width when open. */
+  --subscriber-copilot-w: 380px;
+  --subscriber-copilot-col: 0px;
 
   position: fixed;
   inset: 0;
   display: grid;
-  grid-template-columns: var(--subscriber-desktop-sidebar) 1fr;
+  grid-template-columns: var(--subscriber-desktop-sidebar) 1fr var(--subscriber-copilot-col);
   background: var(--color-cloud);
   overflow: hidden;
+  transition: grid-template-columns 0.3s var(--ease-out-expo);
+}
+
+/* Collapsed sidebar — the rail folds to an icon-only strip and the grid column
+   shrinks with it (SubscriberSideNavDesktop renders the icon-only contents). */
+.shellCollapsed {
+  --subscriber-desktop-sidebar: 76px;
+}
+
+/* AI panel open — the third column grows to its full width; the content column
+   (1fr) shrinks and the overview reflows beside the panel (animated by the
+   grid-template-columns transition above). */
+.shellCopilotOpen {
+  --subscriber-copilot-col: var(--subscriber-copilot-w);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell { transition: none; }
+}
+
+/* Top-right corner controls (the "Ask AI" pill + the notification bell). Pinned
+   to the screen top-right; the right offset grows with the AI panel so they slide
+   left and stay just to the panel's left when it opens. Above page content, below
+   modals/slide-in panels. */
+.topBar {
+  position: absolute;
+  top: var(--space-5);
+  right: var(--space-6);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  transition: right 0.3s var(--ease-out-expo);
+}
+
+.shellCopilotOpen .topBar {
+  right: calc(var(--space-6) + var(--subscriber-copilot-w));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topBar { transition: none; }
+}
+
+/* "Ask AI" CTA — the v5 filled-indigo pill with a sparkle glyph. Deepens + gains
+   an inset hairline while the panel is open. */
+.askAi {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+  transition: transform 0.15s var(--ease-out-expo), background 0.15s ease;
+}
+
+.askAi:hover {
+  transform: translateY(-1px);
+  background: var(--color-indigo-deep);
+}
+
+.askAi:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.askAiActive,
+.askAiActive:hover {
+  background: var(--color-indigo-deep);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  transform: none;
+}
+
+.askAiIcon {
+  display: inline-flex;
+  color: var(--color-amber, #fbbf24);
+}
+
+.askAiActive .askAiIcon {
+  color: var(--color-white);
 }
 
 .viewport {
@@ -21,15 +130,26 @@
 }
 
 /* Default (focused-flow) content column: a comfortable centred reading width.
-   Forms, lists, detail views and the now-flattened hero heading all sit here. */
+   Forms, lists, detail views and the now-flattened hero heading all sit here.
+
+   Redesign: the ~8px "functional" corner the team approved on the Home overview,
+   applied to EVERY subscriber desktop page so curvature stays consistent across
+   the whole desktop dashboard (mirrors the agent desktop shell). Scoped to this
+   module → zero effect on the subscriber mobile shell or any other role.
+   --radius-sm / -full are deliberately left untouched so small accents + pills
+   keep their own shapes. */
 .page {
   width: 100%;
   max-width: 880px;
   margin: 0 auto;
   padding: 0 var(--space-8);
+
+  --radius-md: 0.5rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.5rem;
 }
 
-/* Home overview: the full dashboard canvas for the KPI row + 2-up widget grid. */
+/* Home overview: the full dashboard canvas for the hero + KPI row + cards. */
 .pageWide {
   max-width: 1240px;
 }

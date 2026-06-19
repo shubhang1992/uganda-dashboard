@@ -58,7 +58,8 @@ describe('agent service — real (Supabase) branch', () => {
         'registered_date, last_contribution_date, products_held, contribution_history, ' +
         'contribution_schedules(frequency, amount, retirement_pct, emergency_pct, ' +
         'include_insurance, insurance_choice_made, next_due_date), ' +
-        'subscriber_balances(total_balance, retirement_balance, emergency_balance)',
+        'subscriber_balances(total_balance, retirement_balance, emergency_balance), ' +
+        'insurance_policies(cover, premium_monthly, status)',
     );
     expect(call.chain.eq).toHaveBeenCalledWith('agent_id', 'a-001');
   });
@@ -92,6 +93,11 @@ describe('agent service — real (Supabase) branch', () => {
           emergency_balance: 100000,
           units: 500,
         },
+        insurance_policies: {
+          cover: 1000000,
+          premium_monthly: 2000,
+          status: 'active',
+        },
       }],
       error: null,
     });
@@ -116,6 +122,8 @@ describe('agent service — real (Supabase) branch', () => {
     expect(sub.contributionSchedule.includeInsurance).toBe(false);
     expect(sub.contributionSchedule.insuranceChoiceMade).toBe(true);
     expect(sub.contributionSchedule.nextDueDate).toBe('2026-06-01');
+    // Insurance policy mapped for the agent Home insurance card.
+    expect(sub.insurance).toEqual({ cover: 1000000, premiumMonthly: 2000, status: 'active' });
   });
 
   it('handles array-shape joins (Supabase to-many embed)', async () => {

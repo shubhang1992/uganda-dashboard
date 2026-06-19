@@ -1,0 +1,62 @@
+/* AnalyticsDesktop — page-specific atoms: the 2-column chart grid + chart-card
+   header/body. Shared chrome (stack, toolrow, filters, tiles, card, section head,
+   buttons) comes from ui.module.css / ui.jsx. Translated from
+   employer-desktop-analytics-v1.html (.charts / .chart-card). */
+
+/* spacer that pushes the Export button to the far right of the toolrow */
+.grow { flex: 1; }
+
+/* ── Chart grid (2-up, collapses to 1 on narrow viewports) ───────── */
+.charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+@media (max-width: 960px) {
+  .charts { grid-template-columns: 1fr; }
+}
+
+/* ── Chart card header ───────────────────────────────────────────── */
+.chartHead {
+  margin-bottom: var(--space-4);
+}
+
+.chartTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-base);
+  line-height: 1.2;
+  color: var(--color-indigo);
+  margin-bottom: 4px;
+}
+
+.chartSub {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--color-gray);
+}
+
+/* ── Chart body — Recharts ResponsiveContainer lives here ────────── */
+.chartBody {
+  width: 100%;
+  min-width: 0;
+}
+
+.chartEmpty {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+}
+
+/* ── Downloads footnote ──────────────────────────────────────────── */
+.downloadNote {
+  margin-top: var(--space-4);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-gray);
+}

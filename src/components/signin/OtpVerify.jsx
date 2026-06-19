@@ -27,7 +27,15 @@ function authErrorMessage(err) {
   return 'Could not verify the code. Please try again.';
 }
 
-export default function OtpVerify({ phone, onVerify, onResend, onBack }) {
+export default function OtpVerify({
+  phone,
+  onVerify,
+  onResend,
+  onBack,
+  heading = 'Verification code',
+  subtext,
+  submitLabel = 'Verify & sign in',
+}) {
   const [digits, setDigits] = useState(Array(OTP_LENGTH).fill(''));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -138,8 +146,10 @@ export default function OtpVerify({ phone, onVerify, onResend, onBack }) {
         </svg>
       </div>
 
-      <h2 className={styles.heading}>Verification code</h2>
-      <p className={styles.subtext}>Enter the 6-digit code sent to <strong>{masked}</strong></p>
+      <h2 className={styles.heading}>{heading}</h2>
+      <p className={styles.subtext}>
+        {subtext ?? <>Enter the 6-digit code sent to <strong>{masked}</strong></>}
+      </p>
 
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.otpRow} onPaste={handlePaste}>
@@ -172,7 +182,7 @@ export default function OtpVerify({ phone, onVerify, onResend, onBack }) {
               <span className={styles.spinner} />
             </span>
           ) : (
-            'Verify & sign in'
+            submitLabel
           )}
         </button>
 
