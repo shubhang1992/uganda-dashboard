@@ -17,6 +17,8 @@ import { EASE_OUT_EXPO } from '../utils/motion';
 import { EmployerDashboardProvider, useEmployerPanel } from '../contexts/EmployerPanelContext';
 import { EmployerScopeProvider } from '../contexts/EmployerScopeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsDesktop } from '../hooks/useIsDesktop';
+import EmployerDesktopShell from './shell/EmployerDesktopShell';
 import logo from '../assets/logo.png';
 import EmployerSidebar from './sidebar/EmployerSidebar';
 import EmployerOverview from './overview/EmployerOverview';
@@ -152,11 +154,20 @@ function useAutoCloseOnRouteChange(open, onClose) {
 }
 
 function ShellInner() {
+  const isDesktop = useIsDesktop();
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const toggleMenu = useCallback(() => setMenuOpen((prev) => !prev), []);
 
   useAutoCloseOnRouteChange(menuOpen, closeMenu);
+
+  // Desktop (>=1024px): the redesigned routed shell (white collapsible rail +
+  // full pages + Ask-AI copilot), mirroring the agent/subscriber desktop
+  // redesigns. Mobile keeps the shipped slide-in-panel shell below, untouched.
+  // Both render inside the same EmployerDashboardProvider + EmployerScopeProvider
+  // (wrapped one level up), so the desktop shell has scope + panel context for
+  // its reused Onboard / Pending-KYC overlays.
+  if (isDesktop) return <EmployerDesktopShell />;
 
   return (
     <div className={styles.shell}>

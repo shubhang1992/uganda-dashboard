@@ -1,0 +1,75 @@
+/* RunsDesktop — page-specific atoms for the desktop Contribution Runs page.
+   Shared chrome (stack, hero, tiles, card, section head, table, buttons) comes
+   from ui.module.css / ui.jsx. The history↔detail↔wizard flow itself reuses the
+   panel's stylesheet (runs/ContributionRuns.module.css) via runViews, so this
+   file only carries the in-page scaffolding the mockup adds:
+   the action toolrow, the "How a run works" copy, and the back control / detail
+   shell that frames RunDetailView + NewRunWizard in-page (no panel). */
+
+/* ── Action toolrow (right-aligned "New contribution run") ──────── */
+.actionRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* ── "How a run works" copy ─────────────────────────────────────── */
+.howText {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-slate);
+  max-width: 78ch;
+}
+
+/* ── In-page detail / wizard shell ──────────────────────────────── */
+/* RunDetailView + NewRunWizard were authored for the 680-wide slide panel; in
+   the desktop page they sit inside a white card so the table / stepper read as a
+   framed surface rather than floating on the page background. */
+.flowCard {
+  background: #fff;
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-sm);
+}
+
+.backRow {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--space-5);
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--color-indigo);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.backBtn:hover {
+  border-color: var(--color-indigo-soft);
+  background: var(--color-cloud);
+}
+
+.backBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+/* ── Run-history table footer summary ───────────────────────────── */
+.foot {
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,153 @@
+/* Body-level radius override (paired with .employer-desktop-shell, toggled on
+   <body> while the desktop shell is mounted). Reaches body-level PORTALS that
+   escape .page — the Onboard / Pending-KYC slide panels, Modal, and the
+   NotificationBell popover — so the tight ~8px corner is consistent everywhere.
+   Scoped to the body class → zero reach into employer mobile or other roles.
+   Mirrors AgentDesktopShell.module.css. */
+:global(body.employer-desktop-shell) {
+  --radius-md: 0.5rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.5rem;
+}
+
+.shell {
+  /* Local sidebar width token (NOT the 64px global --sidebar-width, which is the
+     branch ICON rail). The AI panel is the third column: --employer-copilot-w is
+     its open width (also read by EmployerCopilotPanel), --employer-copilot-col is
+     the live track width (0 closed, full open). */
+  --employer-desktop-sidebar: 240px;
+  --employer-copilot-w: 360px;
+  --employer-copilot-col: 0px;
+
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: var(--employer-desktop-sidebar) 1fr var(--employer-copilot-col);
+  background: var(--color-cloud);
+  overflow: hidden;
+  transition: grid-template-columns 0.22s var(--ease-out-expo);
+}
+
+.shellCollapsed {
+  --employer-desktop-sidebar: 76px;
+}
+
+.shellCopilotOpen {
+  --employer-copilot-col: var(--employer-copilot-w);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell { transition: none; }
+}
+
+/* Top-right corner controls (Ask AI + notification bell). Pinned to the screen
+   top-right; the right offset grows with the AI panel so they slide left and
+   stay just to the panel's left when it opens. */
+.topBar {
+  position: absolute;
+  top: var(--space-5);
+  right: var(--space-6);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  transition: right 0.22s var(--ease-out-expo);
+}
+
+.shellCopilotOpen .topBar {
+  right: calc(var(--space-6) + var(--employer-copilot-w));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topBar { transition: none; }
+}
+
+/* "Ask AI" CTA — filled indigo pill with a sparkle glyph (matches the mockup's
+   primary Ask-AI button). Stays filled while the panel is open. */
+.askAi {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--color-indigo);
+  border-radius: var(--radius-md);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+  transition: transform 0.15s var(--ease-out-expo), background 0.15s, border-color 0.15s;
+}
+
+.askAi:hover {
+  transform: translateY(-1px);
+  background: var(--color-indigo-deep);
+  border-color: var(--color-indigo-deep);
+}
+
+.askAi:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.askAiActive,
+.askAiActive:hover {
+  background: var(--color-indigo-deep);
+  border-color: var(--color-indigo-deep);
+}
+
+.askAiIcon { display: inline-flex; color: var(--color-white); }
+
+.viewport {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  padding-bottom: var(--space-8);
+}
+
+.page {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--space-8);
+
+  /* The approved ~8px "functional" corner, applied to EVERY employer desktop
+     page. This wrapper holds the <Outlet/>, so the radius cascades to all page
+     content + shared atoms (ui.module.css uses --radius-md/-sm). Scoped to this
+     module → no effect on employer mobile or any other role. */
+  --radius-md: 0.5rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.5rem;
+}
+
+/* Lazy-route fallback */
+.pageFallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  padding: var(--space-8) var(--space-4);
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid var(--color-lavender);
+  border-top-color: var(--color-indigo);
+  border-radius: 50%;
+  animation: employerSpin 0.7s linear infinite;
+}
+
+@keyframes employerSpin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 1.4s; }
+}
