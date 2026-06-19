@@ -1,7 +1,72 @@
 .body {
   display: flex;
   flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Header (recipient + close) ───────────────────────── */
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: var(--space-3);
+}
+
+.headText {
+  min-width: 0;
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+  line-height: 1.15;
+}
+
+.sub {
+  margin: 3px 0 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-gray);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-gray);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.close:hover {
+  background: var(--color-cloud);
+  color: var(--color-indigo);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+/* ── Message field ────────────────────────────────────── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
 
 .label {
@@ -16,24 +81,27 @@
 .textarea {
   width: 100%;
   resize: vertical;
-  min-height: 110px;
-  padding: var(--space-3) var(--space-4);
-  border: 1.5px solid var(--color-lavender);
-  border-radius: var(--radius-lg);
+  min-height: 96px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
   font-family: var(--font-body);
   font-size: var(--text-sm);
   line-height: 1.5;
-  color: var(--color-slate);
+  color: var(--color-slate, #2b2b40);
   background: var(--color-white);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .textarea:focus {
-  border-color: var(--color-indigo);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 8%, transparent);
+  border-color: var(--color-indigo-soft);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 10%, transparent);
   outline: none;
 }
 
+/* ── Contact channels ─────────────────────────────────── */
+/* Flex-wrap (not a fixed 2-col grid) so an odd channel count stays balanced:
+   3 chips → two on row 1, the third grows to full width on row 2. */
 .channels {
   display: flex;
   flex-wrap: wrap;
@@ -41,27 +109,33 @@
 }
 
 .channel {
-  flex: 1 1 auto;
-  min-width: 120px;
+  flex: 1 1 140px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 44px;
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-full);
+  gap: 8px;
+  height: 46px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  color: var(--color-indigo);
   font-family: var(--font-display);
   font-weight: 700;
   font-size: var(--text-sm);
   cursor: pointer;
   text-decoration: none;
   touch-action: manipulation;
-  border: 1.5px solid transparent;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.channel:hover {
+  background: color-mix(in srgb, var(--color-indigo) 5%, var(--color-white));
+  border-color: var(--color-indigo-soft);
 }
 
 .channel:active {
-  transform: scale(0.98);
+  transform: scale(0.99);
 }
 
 .channel:focus-visible {
@@ -69,28 +143,66 @@
   outline-offset: 2px;
 }
 
-.channel:disabled,
 .channel[aria-disabled='true'] {
-  opacity: 0.5;
+  opacity: 0.45;
   pointer-events: none;
 }
 
-.whatsapp {
-  background: #25D366;
-  color: #06351b;
+.cIcon {
+  display: inline-flex;
+  color: var(--color-indigo-soft);
 }
 
-.sms {
-  background: var(--color-cloud);
+.waIcon {
+  color: #1f6b41; /* deep green — AA-safe (~5.7:1 on white), reads as WhatsApp */
+}
+
+.channel:hover .cIcon {
   color: var(--color-indigo);
-  border-color: var(--color-lavender);
 }
 
+/* ── Platform message (primary) ───────────────────────── */
 .platform {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+  border: none;
+  border-radius: var(--radius-md);
   background: var(--color-indigo);
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.platform .cIcon {
   color: var(--color-white);
 }
 
+.platform:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.platform:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.platform:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.platform:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+/* ── Notes / status ───────────────────────────────────── */
 .note {
   font-family: var(--font-body);
   font-size: 12px;
@@ -102,15 +214,21 @@
 .error {
   font-family: var(--font-body);
   font-size: 12px;
-  color: var(--color-alert);
+  color: #b91c1c; /* AA-safe red (~5.9:1 on white); --color-alert fails at 12px */
   margin: 0;
+}
+
+.sentWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .sent {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: var(--text-base);
-  color: var(--color-positive);
+  color: #1f6b41; /* AA-safe green (~5.7:1); the ✓ prefix gives non-colour cue */
   margin: 0;
 }
 
@@ -119,7 +237,7 @@
   height: 44px;
   padding: 0 var(--space-5);
   border: none;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-md);
   background: var(--color-indigo);
   color: var(--color-white);
   font-family: var(--font-display);

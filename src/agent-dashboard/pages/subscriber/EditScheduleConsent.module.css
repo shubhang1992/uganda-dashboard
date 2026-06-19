@@ -1,0 +1,7 @@
+/* Centred wrapper for the schedule-edit consent OTP step (reuses OtpVerify). */
+.gate {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: var(--space-4) 0;
+}

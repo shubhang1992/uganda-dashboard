@@ -84,6 +84,44 @@
   letter-spacing: -0.01em;
 }
 
+/* ── Desktop variant (agent Home ≥1024px) ─────────────────────────────────
+   Icon-left row, squared chip, plain-language label + a one-line helper. The
+   mobile call site renders no .desktop class, so it keeps the stacked thumb
+   cards above. The .cta radius comes from HomeDesktop's scoped --radius-xl
+   override (→ ~8px), so this variant adds no radius of its own. */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.help {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: var(--text-xs);
+  line-height: 1.35;
+}
+
+.primary .help {
+  color: var(--color-on-indigo-muted);
+}
+
+.secondary .help {
+  color: var(--color-gray);
+}
+
+.desktop .cta {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+.desktop .icon {
+  border-radius: var(--radius-md);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cta {
     transition: none;

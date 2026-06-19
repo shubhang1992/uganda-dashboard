@@ -107,3 +107,14 @@ export function pendingContributors(subscribers, monthContributions = []) {
   const contributed = new Set(monthContributions.map((c) => c.subscriberId));
   return subscribers.filter((s) => !contributed.has(s.id));
 }
+
+/**
+ * True if a subscriber has ACTIVE life cover. Single source of truth shared by
+ * the Home insurance card (counts) and the Insured / Uninsured drill-down pages,
+ * so the card numbers always equal the list lengths. Null/absent insurance (e.g.
+ * RLS-filtered on live, or no policy) is treated as uninsured.
+ */
+export function isInsured(subscriber) {
+  const ins = subscriber?.insurance;
+  return !!ins && ins.status === 'active' && Number(ins.cover) > 0;
+}

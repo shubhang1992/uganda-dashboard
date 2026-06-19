@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
@@ -11,6 +11,7 @@ import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
 import TicketListRow from '../../components/tickets/TicketListRow';
 import { ThreadPanel } from '../inbox/ThreadPanel';
+import { NewConversationPanel } from '../inbox/NewConversationPanel';
 import styles from './InboxDesktop.module.css';
 
 // Mirrors the mobile FILTERS contract exactly — same ids, labels and predicates
@@ -58,6 +59,9 @@ export default function InboxDesktop() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
+  // Set when "Message → Platform chat" deep-links to a subscriber who has no
+  // existing thread → the right pane shows a fresh-conversation composer.
+  const [composeSubscriberId, setComposeSubscriberId] = useState(null);
 
   const nameById = useMemo(() => {
     const map = new Map();
@@ -113,6 +117,23 @@ export default function InboxDesktop() {
     next.delete('subscriberId');
     setSearchParams(next, { replace: true });
   }
+
+  // Deep-link from "Message → Platform chat": ?subscriberId=…&open=1. Once
+  // tickets resolve, open that subscriber's most recent thread in the right
+  // pane, or a fresh-conversation composer if they have none, then consume the
+  // ?open flag.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    if (!subscriberFilter || searchParams.get('open') == null || isLoading) return;
+    autoOpenedRef.current = true;
+    const match = tickets.find((t) => t.subscriberId === subscriberFilter);
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    setSearchParams(next, { replace: true });
+    if (match) setSelectedId(match.id);
+    else setComposeSubscriberId(subscriberFilter);
+  }, [subscriberFilter, searchParams, isLoading, tickets, setSearchParams]);
 
   return (
     <div className={styles.page}>
@@ -213,7 +234,7 @@ export default function InboxDesktop() {
                   ticket={ticket}
                   unreadFor="agent"
                   subtitle={subscriberName(ticket.subscriberId)}
-                  onClick={() => setSelectedId(ticket.id)}
+                  onClick={() => { setComposeSubscriberId(null); setSelectedId(ticket.id); }}
                 />
               </div>
             ))}
@@ -227,6 +248,14 @@ export default function InboxDesktop() {
               ticketId={selectedId}
               participantLabel={subscriberName(selectedTicket?.subscriberId)}
               onBack={() => setSelectedId(null)}
+            />
+          ) : composeSubscriberId ? (
+            <NewConversationPanel
+              agentId={agentId}
+              subscriberId={composeSubscriberId}
+              participantLabel={subscriberName(composeSubscriberId)}
+              onBack={() => setComposeSubscriberId(null)}
+              onCreated={(ticketId) => { setComposeSubscriberId(null); setSelectedId(ticketId); }}
             />
           ) : (
             <div className={styles.placeholder}>

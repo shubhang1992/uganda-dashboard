@@ -20,6 +20,8 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const ContributionsThisMonthPage = lazy(() => import('./pages/ContributionsThisMonthPage'));
 const OnboardedThisMonthPage = lazy(() => import('./pages/OnboardedThisMonthPage'));
 const YetToContributePage = lazy(() => import('./pages/YetToContributePage'));
+const InsuredMembersPage = lazy(() => import('./pages/InsuredMembersPage'));
+const UninsuredMembersPage = lazy(() => import('./pages/UninsuredMembersPage'));
 
 function PageFallback() {
   return (
@@ -88,6 +90,8 @@ export default function AgentDashboardShell() {
             <Route path="contributions" element={<Suspense fallback={<PageFallback />}><ContributionsThisMonthPage /></Suspense>} />
             <Route path="onboarded-this-month" element={<Suspense fallback={<PageFallback />}><OnboardedThisMonthPage /></Suspense>} />
             <Route path="yet-to-contribute" element={<Suspense fallback={<PageFallback />}><YetToContributePage /></Suspense>} />
+            <Route path="insured" element={<Suspense fallback={<PageFallback />}><InsuredMembersPage /></Suspense>} />
+            <Route path="uninsured" element={<Suspense fallback={<PageFallback />}><UninsuredMembersPage /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<PageFallback />}><SettingsPage /></Suspense>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>

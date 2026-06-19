@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
@@ -11,8 +12,16 @@ import { useIsDesktop } from '../../hooks/useIsDesktop';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../../components/PageHeader';
 import SubscriberDetailDesktop from './SubscriberDetailDesktop';
+import MessageLauncher from './MessageLauncher';
 import styles from './SubscriberDetailPage.module.css';
-import { StatusPill, KycBadge, SparkBars } from './subscriber/SubscriberBadges';
+import { StatusPill, KycBadge } from './subscriber/SubscriberBadges';
+import { deriveSubscriberMetrics } from './subscriber/subscriberMetrics';
+
+const MessageIcon = (
+  <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none">
+    <path d="M3 5.5A1.5 1.5 0 014.5 4h11A1.5 1.5 0 0117 5.5v7a1.5 1.5 0 01-1.5 1.5H8l-3.5 3v-3H4.5A1.5 1.5 0 013 12.5v-7z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+  </svg>
+);
 
 export default function SubscriberDetailPage() {
   const { id } = useParams();
@@ -20,6 +29,7 @@ export default function SubscriberDetailPage() {
   const reducedMotion = useReducedMotion();
   const { agentId } = useAgentScope();
   const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
+  const [messageOpen, setMessageOpen] = useState(false);
 
   const isDesktop = useIsDesktop();
   if (isDesktop) return <SubscriberDetailDesktop />;
@@ -68,16 +78,33 @@ export default function SubscriberDetailPage() {
     );
   }
 
-  const balance = subscriber.netBalance ?? (subscriber.totalContributions - subscriber.totalWithdrawals);
   const schedule = subscriber.contributionSchedule;
-  // Real per-month contribution series from the backend. When the agent
-  // service doesn't supply one (mock-fallback list, partial RLS shape, etc.)
-  // we render an em-dash rather than fabricating a sin-curve trend.
-  const historyRaw = Array.isArray(subscriber.contributionHistory) ? subscriber.contributionHistory : [];
-  const sparkValues = historyRaw
-    .slice(-12)
-    .map((v) => Math.max(0, Number(v) || 0));
-  const hasSpark = sparkValues.some((v) => v > 0);
+  // The agent must NOT see the subscriber's balance or total contributions, so
+  // the page shows engagement signals derived from the same data instead.
+  const metrics = deriveSubscriberMetrics(subscriber);
+  const kpis = [
+    {
+      label: 'Largest contribution',
+      value: metrics.largest != null ? formatUGX(metrics.largest, { compact: false }) : '—',
+      hint: 'single largest',
+    },
+    {
+      label: 'Last contribution',
+      value: metrics.last > 0 ? formatUGX(metrics.last, { compact: false }) : '—',
+      hint: metrics.lastDate ? formatDate(metrics.lastDate) : 'most recent',
+    },
+    {
+      label: 'Ad hoc contributions',
+      value: metrics.adHoc != null ? String(metrics.adHoc) : '—',
+      hint: 'above their usual',
+    },
+    {
+      label: 'Insurance cover',
+      value: metrics.insured ? formatUGX(metrics.cover, { compact: false }) : 'No cover',
+      hint: metrics.insured ? 'active cover' : 'not insured',
+      tone: metrics.insured ? 'insured' : 'muted',
+    },
+  ];
 
   return (
     <div className={styles.page}>
@@ -108,25 +135,24 @@ export default function SubscriberDetailPage() {
               <StatusPill status={subscriber.isActive ? 'active' : 'dormant'} />
             </div>
           </div>
+          <button
+            type="button"
+            className={styles.messageBtn}
+            onClick={() => setMessageOpen(true)}
+          >
+            <span aria-hidden="true">{MessageIcon}</span>
+            Message
+          </button>
         </div>
 
         <div className={styles.kpiRow}>
-          <div className={styles.kpiCard}>
-            <span className={styles.kpiLabel}>Balance</span>
-            <span className={styles.kpiValue}>{formatUGX(balance)}</span>
-          </div>
-          <div className={styles.kpiCard}>
-            <span className={styles.kpiLabel}>Total contributions</span>
-            <span className={styles.kpiValue}>{formatUGX(subscriber.totalContributions)}</span>
-          </div>
-          <div className={styles.kpiCard}>
-            <span className={styles.kpiLabel}>Last contribution</span>
-            <span className={styles.kpiValue}>{formatUGX(subscriber.lastContribution || 0)}</span>
-          </div>
-          <div className={styles.kpiCard}>
-            <span className={styles.kpiLabel}>Registered</span>
-            <span className={styles.kpiValue}>{formatDate(subscriber.registeredDate)}</span>
-          </div>
+          {kpis.map((kpi) => (
+            <div key={kpi.label} className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>{kpi.label}</span>
+              <span className={styles.kpiValue} data-tone={kpi.tone}>{kpi.value}</span>
+              <span className={styles.kpiHint}>{kpi.hint}</span>
+            </div>
+          ))}
         </div>
 
         <section className={styles.section}>
@@ -191,37 +217,15 @@ export default function SubscriberDetailPage() {
           </div>
         </section>
 
-        <section className={styles.section}>
-          <header className={styles.sectionHead}>
-            <h2 className={styles.sectionTitle}>Contribution rhythm</h2>
-            <span className={styles.sectionHint}>12 months</span>
-          </header>
-          <div className={styles.trendCard}>
-            {hasSpark ? (
-              <SparkBars values={sparkValues} />
-            ) : (
-              <span className={styles.trendEmpty} aria-label="No contribution history available">—</span>
-            )}
-            <div className={styles.trendFooter}>
-              <span>12 months</span>
-              <span className={styles.trendValue}>{formatUGX(subscriber.totalContributions)}</span>
-            </div>
-          </div>
-        </section>
-
-        {subscriber.productsHeld?.length > 0 && (
-          <section className={styles.section}>
-            <header className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle}>Products held</h2>
-            </header>
-            <div className={styles.productList}>
-              {subscriber.productsHeld.map((p) => (
-                <span key={p} className={styles.productPill}>{p}</span>
-              ))}
-            </div>
-          </section>
-        )}
       </motion.div>
+
+      {messageOpen && (
+        <MessageLauncher
+          open
+          onClose={() => setMessageOpen(false)}
+          subscriber={subscriber}
+        />
+      )}
     </div>
   );
 }

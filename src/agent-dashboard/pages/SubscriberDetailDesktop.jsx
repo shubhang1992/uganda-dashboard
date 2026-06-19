@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { normalizeFrequency, FREQUENCY_LABEL } from '../../utils/finance';
@@ -9,9 +10,17 @@ import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
 import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../../components/PageHeader';
-import { StatusPill, KycBadge, SparkBars } from './subscriber/SubscriberBadges';
+import { StatusPill, KycBadge } from './subscriber/SubscriberBadges';
+import { deriveSubscriberMetrics } from './subscriber/subscriberMetrics';
+import MessageLauncher from './MessageLauncher';
 import pageStyles from './SubscriberDetailPage.module.css';
 import styles from './SubscriberDetailDesktop.module.css';
+
+const MessageIcon = (
+  <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none">
+    <path d="M3 5.5A1.5 1.5 0 014.5 4h11A1.5 1.5 0 0117 5.5v7a1.5 1.5 0 01-1.5 1.5H8l-3.5 3v-3H4.5A1.5 1.5 0 013 12.5v-7z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+  </svg>
+);
 
 /**
  * SubscriberDetailDesktop — desktop (>=1024px) layout for the agent's
@@ -40,6 +49,7 @@ export default function SubscriberDetailDesktop() {
   const reducedMotion = useReducedMotion();
   const { agentId } = useAgentScope();
   const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
+  const [messageOpen, setMessageOpen] = useState(false);
 
   const subscriber = subscribers.find((s) => s.id === id);
 
@@ -85,16 +95,33 @@ export default function SubscriberDetailDesktop() {
     );
   }
 
-  const balance = subscriber.netBalance ?? (subscriber.totalContributions - subscriber.totalWithdrawals);
   const schedule = subscriber.contributionSchedule;
-  // Real per-month contribution series from the backend. When the agent
-  // service doesn't supply one (mock-fallback list, partial RLS shape, etc.)
-  // we render an em-dash rather than fabricating a sin-curve trend.
-  const historyRaw = Array.isArray(subscriber.contributionHistory) ? subscriber.contributionHistory : [];
-  const sparkValues = historyRaw
-    .slice(-12)
-    .map((v) => Math.max(0, Number(v) || 0));
-  const hasSpark = sparkValues.some((v) => v > 0);
+  // The agent must NOT see the subscriber's balance or total contributions, so
+  // the page shows engagement signals derived from the same data instead.
+  const metrics = deriveSubscriberMetrics(subscriber);
+  const kpis = [
+    {
+      label: 'Largest contribution',
+      value: metrics.largest != null ? formatUGX(metrics.largest, { compact: false }) : '—',
+      hint: 'single largest',
+    },
+    {
+      label: 'Last contribution',
+      value: metrics.last > 0 ? formatUGX(metrics.last, { compact: false }) : '—',
+      hint: metrics.lastDate ? formatDate(metrics.lastDate) : 'most recent',
+    },
+    {
+      label: 'Ad hoc contributions',
+      value: metrics.adHoc != null ? String(metrics.adHoc) : '—',
+      hint: 'above their usual',
+    },
+    {
+      label: 'Insurance cover',
+      value: metrics.insured ? formatUGX(metrics.cover, { compact: false }) : 'No cover',
+      hint: metrics.insured ? 'active cover' : 'not insured',
+      tone: metrics.insured ? 'insured' : 'muted',
+    },
+  ];
 
   return (
     <div className={styles.page}>
@@ -125,25 +152,24 @@ export default function SubscriberDetailDesktop() {
               <StatusPill status={subscriber.isActive ? 'active' : 'dormant'} />
             </div>
           </div>
+          <button
+            type="button"
+            className={pageStyles.messageBtn}
+            onClick={() => setMessageOpen(true)}
+          >
+            <span aria-hidden="true">{MessageIcon}</span>
+            Message
+          </button>
         </div>
 
         <div className={pageStyles.kpiRow}>
-          <div className={pageStyles.kpiCard}>
-            <span className={pageStyles.kpiLabel}>Balance</span>
-            <span className={pageStyles.kpiValue}>{formatUGX(balance)}</span>
-          </div>
-          <div className={pageStyles.kpiCard}>
-            <span className={pageStyles.kpiLabel}>Total contributions</span>
-            <span className={pageStyles.kpiValue}>{formatUGX(subscriber.totalContributions)}</span>
-          </div>
-          <div className={pageStyles.kpiCard}>
-            <span className={pageStyles.kpiLabel}>Last contribution</span>
-            <span className={pageStyles.kpiValue}>{formatUGX(subscriber.lastContribution || 0)}</span>
-          </div>
-          <div className={pageStyles.kpiCard}>
-            <span className={pageStyles.kpiLabel}>Registered</span>
-            <span className={pageStyles.kpiValue}>{formatDate(subscriber.registeredDate)}</span>
-          </div>
+          {kpis.map((kpi) => (
+            <div key={kpi.label} className={pageStyles.kpiCard}>
+              <span className={pageStyles.kpiLabel}>{kpi.label}</span>
+              <span className={pageStyles.kpiValue} data-tone={kpi.tone}>{kpi.value}</span>
+              <span className={pageStyles.kpiHint}>{kpi.hint}</span>
+            </div>
+          ))}
         </div>
 
         <div className={styles.grid}>
@@ -190,7 +216,9 @@ export default function SubscriberDetailDesktop() {
                 </div>
               )}
             </section>
+          </div>
 
+          <div className={styles.column}>
             <section className={pageStyles.section}>
               <header className={pageStyles.sectionHead}>
                 <h2 className={pageStyles.sectionTitle}>Support</h2>
@@ -210,41 +238,16 @@ export default function SubscriberDetailDesktop() {
               </div>
             </section>
           </div>
-
-          <div className={styles.column}>
-            <section className={pageStyles.section}>
-              <header className={pageStyles.sectionHead}>
-                <h2 className={pageStyles.sectionTitle}>Contribution rhythm</h2>
-                <span className={pageStyles.sectionHint}>12 months</span>
-              </header>
-              <div className={pageStyles.trendCard}>
-                {hasSpark ? (
-                  <SparkBars values={sparkValues} />
-                ) : (
-                  <span className={pageStyles.trendEmpty} aria-label="No contribution history available">—</span>
-                )}
-                <div className={pageStyles.trendFooter}>
-                  <span>12 months</span>
-                  <span className={pageStyles.trendValue}>{formatUGX(subscriber.totalContributions)}</span>
-                </div>
-              </div>
-            </section>
-
-            {subscriber.productsHeld?.length > 0 && (
-              <section className={pageStyles.section}>
-                <header className={pageStyles.sectionHead}>
-                  <h2 className={pageStyles.sectionTitle}>Products held</h2>
-                </header>
-                <div className={pageStyles.productList}>
-                  {subscriber.productsHeld.map((p) => (
-                    <span key={p} className={pageStyles.productPill}>{p}</span>
-                  ))}
-                </div>
-              </section>
-            )}
-          </div>
         </div>
       </motion.div>
+
+      {messageOpen && (
+        <MessageLauncher
+          open
+          onClose={() => setMessageOpen(false)}
+          subscriber={subscriber}
+        />
+      )}
     </div>
   );
 }

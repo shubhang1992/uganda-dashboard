@@ -1,15 +1,123 @@
+/* Body-level radius override (paired with the .agent-desktop-shell class that
+   AgentDesktopShell toggles on <body> while mounted). The .page rule below also
+   sets these — that copy applies to in-page content immediately on first paint
+   (no flash). This body-scoped copy additionally reaches body-level PORTALS that
+   escape .page: the Settings panel, Modal/NudgeSheet, and the NotificationBell
+   popover. Same ~8px "functional" corner everywhere on the agent desktop.
+   --radius-sm / -full / -capsule are left alone (small accents, pills, hero dome
+   keep their shapes). Scoped to the body class → zero reach into agent mobile
+   (which never mounts this shell) or any other role. */
+:global(body.agent-desktop-shell) {
+  --radius-md: 0.5rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.5rem;
+}
+
 .shell {
   /* Local sidebar width token. Deliberately NOT var(--sidebar-width): that
      global token is 64px for the Branch ICON rail and would under-size this
      240px labelled agent sidebar. */
   --agent-desktop-sidebar: 240px;
+  /* AI chat panel (third column). --agent-copilot-w is its open width (also read
+     by AgentCopilotPanel for its fixed inner width); --agent-copilot-col is the
+     live track width — 0 when closed, the full width when open. */
+  --agent-copilot-w: 360px;
+  --agent-copilot-col: 0px;
 
   position: fixed;
   inset: 0;
   display: grid;
-  grid-template-columns: var(--agent-desktop-sidebar) 1fr;
+  grid-template-columns: var(--agent-desktop-sidebar) 1fr var(--agent-copilot-col);
   background: var(--color-cloud);
   overflow: hidden;
+  transition: grid-template-columns 0.22s var(--ease-out-expo);
+}
+
+/* Collapsed sidebar — the rail folds to an icon-only strip and the grid column
+   shrinks with it (AgentSideNavDesktop renders the icon-only contents). */
+.shellCollapsed {
+  --agent-desktop-sidebar: 76px;
+}
+
+/* AI panel open — the third column grows to its full width; the content column
+   (1fr) shrinks and the overview reflows beside the panel (animated by the
+   grid-template-columns transition above). */
+.shellCopilotOpen {
+  --agent-copilot-col: var(--agent-copilot-w);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell { transition: none; }
+}
+
+/* Top-right corner controls (Ask AI + notification bell). Pinned to the screen
+   top-right; the right offset grows with the AI panel so the controls slide left
+   and stay just to the panel's left when it opens. Above page content, below
+   modals/slide-in panels. */
+.topBar {
+  position: absolute;
+  top: var(--space-5);
+  right: var(--space-6);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  transition: right 0.22s var(--ease-out-expo);
+}
+
+.shellCopilotOpen .topBar {
+  right: calc(var(--space-6) + var(--agent-copilot-w));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topBar { transition: none; }
+}
+
+/* "Ask AI" CTA — pill matching the notification bell's chrome (white, lavender
+   hairline, indigo text), with a sparkle glyph. Flips to a filled indigo state
+   while the panel is open. */
+.askAi {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-full);
+  background: var(--color-white);
+  color: var(--color-indigo);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.askAi:hover {
+  background: color-mix(in srgb, var(--color-indigo) 6%, transparent);
+  border-color: var(--color-indigo-soft);
+}
+
+.askAi:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.askAiActive,
+.askAiActive:hover {
+  background: var(--color-indigo);
+  border-color: var(--color-indigo);
+  color: var(--color-white);
+}
+
+.askAiIcon {
+  display: inline-flex;
+  color: var(--color-amber, #fbbf24);
+}
+
+.askAiActive .askAiIcon {
+  color: var(--color-white);
 }
 
 .viewport {
@@ -26,4 +134,16 @@
   max-width: 1280px;
   margin: 0 auto;
   padding: 0 var(--space-8);
+
+  /* Redesign: the balanced ~8px "functional" corner the team approved on the
+     Home overview, applied to EVERY agent desktop page. This wrapper holds the
+     <Outlet/>, so the tighter radius cascades to all page content + the shared
+     primitives they reuse (MetricTile / cards / rows / buttons / PageHeader),
+     keeping curvature consistent across the whole agent desktop dashboard.
+     Scoped to this module → zero effect on agent mobile (different shell) or any
+     other role. --radius-sm / -full / -capsule are deliberately left untouched
+     so small accents, pills, and the hero dome keep their own shapes. */
+  --radius-md: 0.5rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.5rem;
 }

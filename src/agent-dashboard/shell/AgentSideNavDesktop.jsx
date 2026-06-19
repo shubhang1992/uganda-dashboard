@@ -2,14 +2,21 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentUnreadTicketCount } from '../../hooks/useTickets';
-import NotificationBell from '../../components/notifications/NotificationBell';
-import logoWhite from '../../assets/logo-white.png';
+import logo from '../../assets/logo.png';
 import {
   DESKTOP_PRIMARY_NAV,
   DESKTOP_SECONDARY_NAV,
   logoutIcon,
 } from './agentNav';
 import styles from './AgentSideNavDesktop.module.css';
+
+// Collapse (hamburger) glyph — sits AFTER the logo and folds the rail to an
+// icon-only strip. Local to this rail (not a shared nav glyph).
+const menuIcon = (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+    <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+  </svg>
+);
 
 // Cap the numeric unread badge so a busy inbox never blows out the rail item
 // (mirrors BottomTabBar's badgeText so desktop + mobile read identically).
@@ -18,16 +25,17 @@ function badgeText(count) {
 }
 
 /**
- * AgentSideNavDesktop — the 240px labelled sidebar rail for the desktop
- * (>=1024px) agent dashboard. Fills the left grid column of AgentDesktopShell.
+ * AgentSideNavDesktop — the labelled sidebar rail for the desktop (>=1024px)
+ * agent dashboard. Fills the left grid column of AgentDesktopShell.
  *
- * Nav arrays + icons come from the shared agentNav.js (same source the mobile
- * BottomTabBar consumes), so the two never drift. Always-on (no media-query
- * display gate) because it only ever mounts inside the already-desktop-gated
- * AgentDesktopShell. The Inbox item carries an unread-ticket badge for parity
- * with mobile's More>Inbox affordance (desktop-only surface; no mobile impact).
+ * Redesign: WHITE rail (was indigo), the real colour logo, and a collapse
+ * control after the logo that folds the rail to an icon-only strip (driven by
+ * `collapsed` / `onToggleCollapse` lifted to AgentDesktopShell so the shell grid
+ * can reflow). The notification bell moved OUT of here to the shell's top-right
+ * corner. Nav arrays + icons still come from the shared agentNav.js so desktop
+ * and the mobile BottomTabBar never drift.
  */
-export default function AgentSideNavDesktop() {
+export default function AgentSideNavDesktop({ collapsed = false, onToggleCollapse }) {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const { agentId } = useAgentScope();
@@ -43,23 +51,22 @@ export default function AgentSideNavDesktop() {
   }
 
   return (
-    <aside className={styles.nav} aria-label="Primary">
+    <aside
+      className={`${styles.nav} ${collapsed ? styles.collapsed : ''}`}
+      aria-label="Primary"
+    >
       <div className={styles.brand}>
-        <img
-          src={logoWhite}
-          alt="Universal Pensions"
-          width="160"
-          height="56"
-          className={styles.brandLogo}
-        />
-        {/* Exactly one NotificationBell for the agent desktop chrome. Self-hides
-            when agentId is falsy. align="left" so the popover opens rightward off
-            the left-edge rail (mirrors SideNav.jsx). */}
-        {agentId && (
-          <div className={styles.brandBell}>
-            <NotificationBell role="agent" entityId={agentId} align="left" />
-          </div>
-        )}
+        <img src={logo} alt="Universal Pensions" className={styles.brandLogo} />
+        <button
+          type="button"
+          className={styles.collapseBtn}
+          onClick={onToggleCollapse}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {menuIcon}
+        </button>
       </div>
 
       <div className={styles.group}>
@@ -69,6 +76,7 @@ export default function AgentSideNavDesktop() {
             to={item.to}
             end={item.end}
             className={({ isActive }) => `${styles.item} ${isActive ? styles.itemActive : ''}`}
+            title={collapsed ? item.label : undefined}
           >
             <span className={styles.itemIcon}>{item.icon}</span>
             <span className={styles.itemLabel}>{item.label}</span>
@@ -86,6 +94,7 @@ export default function AgentSideNavDesktop() {
               key={item.to}
               to={item.to}
               className={({ isActive }) => `${styles.item} ${styles.itemSecondary} ${isActive ? styles.itemActive : ''}`}
+              title={collapsed ? item.label : undefined}
             >
               <span className={styles.itemIcon}>{item.icon}</span>
               <span className={styles.itemLabel}>{item.label}</span>
@@ -99,7 +108,12 @@ export default function AgentSideNavDesktop() {
 
       <div className={styles.spacer} />
 
-      <button type="button" className={styles.logout} onClick={handleLogout}>
+      <button
+        type="button"
+        className={styles.logout}
+        onClick={handleLogout}
+        title={collapsed ? 'Log out' : undefined}
+      >
         <span className={styles.itemIcon}>{logoutIcon(20)}</span>
         <span className={styles.itemLabel}>Log out</span>
       </button>
