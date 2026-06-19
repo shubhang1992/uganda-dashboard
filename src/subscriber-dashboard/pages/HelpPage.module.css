@@ -360,3 +360,126 @@
     transition: none;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Desktop (>=1024px) — v5 theme. Renders inside SubscriberDesktopShell (which
+   scopes --radius-md/-lg/-xl to 0.5rem), so cards pick up the ~8px "functional"
+   corner. Mobile (<1024px) is untouched by everything below.
+   ────────────────────────────────────────────────────────────────────────── */
+@media (min-width: 1024px) {
+  .body {
+    padding: var(--space-8) 0 var(--space-6);
+  }
+
+  .step {
+    gap: var(--space-6);
+  }
+
+  /* Flat v5 header (eyebrow + title + subtitle), forked from the mobile hero. */
+  .deskHead {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-8) 0 var(--space-2);
+  }
+
+  .deskEyebrow {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-indigo-soft);
+    margin: 0;
+  }
+
+  .deskTitle {
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--color-indigo);
+    margin: 0;
+  }
+
+  .deskSubtitle {
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    color: var(--color-gray);
+    margin: 0;
+  }
+
+  /* Section heads → v5 block title (bolder, indigo, not an uppercase eyebrow). */
+  .sectionTitle {
+    font-size: var(--text-base);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    text-transform: none;
+    color: var(--color-indigo);
+    margin: 0 0 var(--space-1);
+  }
+
+  /* Search field de-pilled to a functional corner. */
+  .searchInput {
+    border-radius: var(--radius-md);
+  }
+
+  /* Cards: white, 1px lavender, ~8px corner, shadow-sm. */
+  .agentCard {
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-lavender);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .agentCard:hover {
+    border-color: var(--color-indigo-soft);
+    box-shadow: 0 2px 4px color-mix(in srgb, var(--color-indigo) 6%, transparent),
+      0 16px 30px -20px color-mix(in srgb, var(--color-indigo) 40%, transparent);
+  }
+
+  .agentCard:active {
+    transform: none;
+  }
+
+  /* Avatar de-emphasised to a tinted square chip to match v5 block icons. */
+  .agentAvatar {
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--color-indigo) 9%, transparent);
+    color: var(--color-indigo);
+  }
+
+  /* "Message" affordance → de-pilled filled-indigo block CTA with v5 shadow. */
+  .agentCta {
+    background: var(--color-indigo);
+    color: #fff;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 800;
+    padding: 10px 16px;
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+    transition: transform 0.16s var(--ease-out-expo),
+      box-shadow 0.16s var(--ease-out-expo);
+  }
+
+  .agentCard:hover .agentCta {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--color-indigo) 30%, transparent);
+  }
+
+  .contactCard {
+    border-radius: var(--radius-md);
+  }
+
+  .contactIcon {
+    border-radius: var(--radius-sm);
+  }
+
+  .faqRow {
+    border-radius: var(--radius-md);
+  }
+
+  .faqHead:focus-visible {
+    border-radius: var(--radius-md);
+  }
+}

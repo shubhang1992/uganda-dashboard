@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { formatDate } from '../../utils/date';
-import { isValidUGPhone } from '../../utils/phone';
+import { isValidUGPhone, parseUGPhoneLocal } from '../../utils/phone';
 import { useCurrentSubscriber, useUpdateProfile } from '../../hooks/useSubscriber';
 import { useAllEntities } from '../../hooks/useEntity';
 import { useToast } from '../../contexts/ToastContext';
@@ -21,10 +21,6 @@ const OCCUPATION_LABEL = {
   'market-vendor': 'Market vendor',
   other: 'Other',
 };
-
-function digitsOnly(s) {
-  return String(s || '').replace(/\D/g, '');
-}
 
 function formatDob(dob) {
   return formatDate(dob, { variant: 'short' });
@@ -139,10 +135,9 @@ export default function ProfilePage() {
                   inputMode="tel"
                   className={`${styles.input} ${styles.phoneFlex}`}
                   value={phoneDigits}
-                  onChange={(e) => setPhoneDigits(digitsOnly(e.target.value).slice(0, 9))}
+                  onChange={(e) => setPhoneDigits(parseUGPhoneLocal(e.target.value))}
                   placeholder="7X XXX XXXX"
                   autoComplete="tel-national"
-                  maxLength={9}
                 />
               </div>
             </label>

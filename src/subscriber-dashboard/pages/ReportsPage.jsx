@@ -4,6 +4,8 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import PageHeader from '../../components/PageHeader';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
+import AnalyticsPanel from '../reports/AnalyticsPanel';
 import styles from './ReportsPage.module.css';
 
 const REPORT_VIEWS = {
@@ -83,18 +85,79 @@ function ReportLoading() {
   );
 }
 
-export default function ReportsPage() {
+/**
+ * Page header that forks on viewport: the subscriber mobile hero dome
+ * (<PageHeader variant="hero">, unchanged) on <1024px, and a flat
+ * eyebrow + h1 + subtitle header on desktop (matching the v5 desktop look —
+ * HomeDesktop / SettingsDesktop). Mobile stays byte-identical.
+ */
+function ReportsHeader({ eyebrow, title, subtitle, fallback }) {
+  const isDesktop = useIsDesktop();
+  if (isDesktop) {
+    return (
+      <header className={styles.deskHead}>
+        {eyebrow && <p className={styles.deskEyebrow}>{eyebrow}</p>}
+        <h1 className={styles.deskTitle}>{title}</h1>
+        {subtitle && <p className={styles.deskSubtitle}>{subtitle}</p>}
+      </header>
+    );
+  }
+  return (
+    <PageHeader
+      variant="hero"
+      title={title}
+      subtitle={subtitle}
+      fallback={fallback}
+    />
+  );
+}
+
+/**
+ * Mobile Reports hub — the original card grid linking to the 5 deep-view
+ * report routes. Kept byte-identical to the pre-analytics build; only rendered
+ * <1024px (the desktop hub renders <AnalyticsPanel/> instead).
+ */
+function ReportsHubMobile() {
   const navigate = useNavigate();
   const reducedMotion = useReducedMotion();
+  return (
+    <div className={styles.grid}>
+      {REPORTS.map((r, i) => (
+        <motion.button
+          key={r.id}
+          type="button"
+          className={styles.card}
+          onClick={() => navigate(`/dashboard/reports/${r.id}`)}
+          initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+          animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 + i * 0.05, ease: EASE_OUT_EXPO }}
+          whileHover={reducedMotion ? undefined : { y: -2 }}
+        >
+          <span className={styles.cardIcon}>{r.icon}</span>
+          <div className={styles.cardText}>
+            <span className={styles.cardTitle}>{r.title}</span>
+            <span className={styles.cardDesc}>{r.description}</span>
+          </div>
+          <svg aria-hidden="true" viewBox="0 0 12 12" width="12" height="12" className={styles.cardArrow}>
+            <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          </svg>
+        </motion.button>
+      ))}
+    </div>
+  );
+}
+
+export default function ReportsPage() {
   const { reportId } = useParams();
+  const isDesktop = useIsDesktop();
 
   if (reportId) {
     const ActiveReportComponent = REPORT_VIEWS[reportId];
     if (!ActiveReportComponent) {
       return (
         <div className={styles.page}>
-          <PageHeader
-            variant="hero"
+          <ReportsHeader
+            eyebrow="Analytics"
             title="Report not found"
             fallback="/dashboard/reports"
           />
@@ -106,8 +169,8 @@ export default function ReportsPage() {
     }
     return (
       <div className={styles.page}>
-        <PageHeader
-          variant="hero"
+        <ReportsHeader
+          eyebrow="Analytics"
           title={REPORT_TITLES[reportId]}
           fallback="/dashboard/reports"
         />
@@ -122,37 +185,15 @@ export default function ReportsPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        variant="hero"
-        title="Reports"
+      <ReportsHeader
+        eyebrow="Your savings"
+        title={isDesktop ? 'Analytics' : 'Reports'}
         subtitle="Every transaction. Every claim. Every number."
         fallback="/dashboard"
       />
 
       <div className={styles.body}>
-        <div className={styles.grid}>
-          {REPORTS.map((r, i) => (
-            <motion.button
-              key={r.id}
-              type="button"
-              className={styles.card}
-              onClick={() => navigate(`/dashboard/reports/${r.id}`)}
-              initial={reducedMotion ? false : { opacity: 0, y: 12 }}
-              animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.05 + i * 0.05, ease: EASE_OUT_EXPO }}
-              whileHover={reducedMotion ? undefined : { y: -2 }}
-            >
-              <span className={styles.cardIcon}>{r.icon}</span>
-              <div className={styles.cardText}>
-                <span className={styles.cardTitle}>{r.title}</span>
-                <span className={styles.cardDesc}>{r.description}</span>
-              </div>
-              <svg aria-hidden="true" viewBox="0 0 12 12" width="12" height="12" className={styles.cardArrow}>
-                <path d="M4.5 2.5l4 3.5-4 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              </svg>
-            </motion.button>
-          ))}
-        </div>
+        {isDesktop ? <AnalyticsPanel /> : <ReportsHubMobile />}
       </div>
     </div>
   );

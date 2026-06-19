@@ -7,10 +7,12 @@ import { formatNumber, formatUGX } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 import { useCurrentSubscriber, useSubmitClaim, useSubscriberClaims } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import PageHeader from '../../components/PageHeader';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
 import { goBackOrFallback } from '../shell/navigation';
 import styles from './ClaimPage.module.css';
+import flow from './desktopFlow.module.css';
 
 const CLAIM_TYPES = [
   { id: 'medical',          label: 'Medical' },
@@ -35,6 +37,7 @@ function statusMeta(status) {
 export default function ClaimPage() {
   const navigate = useNavigate();
   const reducedMotion = useReducedMotion();
+  const isDesktop = useIsDesktop();
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const submitClaim = useSubmitClaim(sub?.id);
@@ -120,40 +123,72 @@ export default function ClaimPage() {
   // view (and the no-policy upsell) shows a title-only hero with a muted line.
   const showCoverHero = view === 'list' && !noPolicy && insurance;
 
+  const headTitle =
+    view === 'list' ? 'File a claim'
+    : view === 'form' ? 'New claim'
+    : view === 'review' ? 'Review claim'
+    : 'Submitted';
+
+  // Desktop subtitle folds the cover figure (mobile surfaces it in the hero
+  // dome's big amount + stat row) into a single flat line so nothing is lost.
+  const deskSubtitle =
+    showCoverHero
+      ? `UGX ${formatUGX(insurance.cover || 0, { compact: false }).replace('UGX ', '')} active cover · ${formatUGX(insurance.premiumMonthly, { compact: false })} / mo · renews ${formatDate(insurance.renewalDate)}`
+      : view === 'list' && insurance ? `Cover: ${formatUGX(insurance.cover || 0)}`
+      : view === 'list' ? 'No active policy yet'
+      : undefined;
+
   return (
     <div className={styles.page}>
-      <PageHeader
-        variant="hero"
-        title={
-          view === 'list' ? 'File a claim'
-          : view === 'form' ? 'New claim'
-          : view === 'review' ? 'Review claim'
-          : 'Submitted'
-        }
-        eyebrow={showCoverHero ? 'ACTIVE COVER' : undefined}
-        prefix={showCoverHero ? 'UGX' : undefined}
-        amount={showCoverHero ? formatUGX(insurance.cover || 0, { compact: false }).replace('UGX ', '') : undefined}
-        subtitle={
-          showCoverHero ? undefined
-          : view === 'list' && insurance ? `Cover: ${formatUGX(insurance.cover || 0)}`
-          : view === 'list' ? 'No active policy yet'
-          : undefined
-        }
-        statRow={showCoverHero ? (
-          <>
-            <span><strong>{formatUGX(insurance.premiumMonthly, { compact: false })}</strong> / mo</span>
-            <span>Renews <strong>{formatDate(insurance.renewalDate)}</strong></span>
-          </>
-        ) : undefined}
-        onBack={handleBack}
-      />
+      {isDesktop ? (
+        // Desktop (>=1024px): flat v5 header — eyebrow + title + subtitle. No
+        // indigo hero dome. Cover/premium/renewal fold into the subtitle line.
+        <header className={styles.deskHead}>
+          <button
+            type="button"
+            className={styles.deskBack}
+            onClick={handleBack}
+            aria-label="Back"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
+              <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          <div className={styles.deskHeadText}>
+            <p className={styles.deskEyebrow}>{showCoverHero ? 'Active cover' : 'Insurance claim'}</p>
+            <h1 className={styles.deskTitle}>{headTitle}</h1>
+            {deskSubtitle && <p className={styles.deskSubtitle}>{deskSubtitle}</p>}
+          </div>
+        </header>
+      ) : (
+        <PageHeader
+          variant="hero"
+          title={headTitle}
+          eyebrow={showCoverHero ? 'ACTIVE COVER' : undefined}
+          prefix={showCoverHero ? 'UGX' : undefined}
+          amount={showCoverHero ? formatUGX(insurance.cover || 0, { compact: false }).replace('UGX ', '') : undefined}
+          subtitle={
+            showCoverHero ? undefined
+            : view === 'list' && insurance ? `Cover: ${formatUGX(insurance.cover || 0)}`
+            : view === 'list' ? 'No active policy yet'
+            : undefined
+          }
+          statRow={showCoverHero ? (
+            <>
+              <span><strong>{formatUGX(insurance.premiumMonthly, { compact: false })}</strong> / mo</span>
+              <span>Renews <strong>{formatDate(insurance.renewalDate)}</strong></span>
+            </>
+          ) : undefined}
+          onBack={handleBack}
+        />
+      )}
 
       <div className={styles.body}>
         <AnimatePresence mode="wait" initial={false}>
           {view === 'list' && (
             <motion.div
               key="list"
-              className={styles.step}
+              className={`${styles.step}${isDesktop ? ` ${flow.narrow}` : ''}`}
               initial={reducedMotion ? false : { opacity: 0, y: 10 }}
               animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
               exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
@@ -231,6 +266,150 @@ export default function ClaimPage() {
               exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
               transition={{ duration: 0.28, ease: EASE_OUT_EXPO }}
             >
+              {isDesktop ? (
+                /* Desktop (>=1024px): 2-column — the claim form beside a sticky
+                   "Your cover" card. The review CTA sits inline at the foot of
+                   the form column (the page footer's Review button is hidden on
+                   desktop). Mobile keeps the shipped numbered-section flow below. */
+                <div className={flow.splitHost}>
+                  <div className={flow.split}>
+                    <div className={flow.col}>
+                      <div className={flow.card}>
+                        <span className={flow.fieldLabel}>What are you claiming for?</span>
+                        <PillChipGroup label="Claim type" layout="grid" columns={2}>
+                          {CLAIM_TYPES.map((c) => (
+                            <PillChip key={c.id} selected={claimType === c.id} onClick={() => setClaimType(c.id)}>
+                              {c.label}
+                            </PillChip>
+                          ))}
+                        </PillChipGroup>
+                      </div>
+
+                      <div className={flow.card}>
+                        <span className={flow.fieldLabel}>When did it happen?</span>
+                        <input
+                          type="date"
+                          className={styles.input}
+                          value={claimDate}
+                          max={new Date().toISOString().slice(0, 10)}
+                          onChange={(e) => setClaimDate(e.target.value)}
+                          aria-label="Incident date"
+                        />
+                        <span className={`${flow.fieldLabel} ${flow.fieldLabelGap}`}>Claim amount (UGX)</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          className={styles.input}
+                          value={claimAmount ? formatNumber(parseAmount(claimAmount) ?? 0) : ''}
+                          onChange={(e) => setClaimAmount(e.target.value.replace(/[^\d]/g, ''))}
+                          placeholder="e.g. 350,000"
+                          aria-label="Claim amount in UGX"
+                        />
+                      </div>
+
+                      <div className={flow.card}>
+                        <span className={flow.fieldLabel} id="claim-desc-label-desktop">Describe what happened</span>
+                        <textarea
+                          className={styles.textarea}
+                          value={claimDesc}
+                          onChange={(e) => setClaimDesc(e.target.value)}
+                          placeholder="A short summary of the incident and what you're claiming for."
+                          rows={4}
+                          aria-labelledby="claim-desc-label-desktop"
+                        />
+                        <span className={styles.charHint}>{claimDesc.length} chars · min 6</span>
+                      </div>
+
+                      <div className={flow.card}>
+                        <span className={flow.fieldLabel}>Supporting documents</span>
+                        <label className={styles.dropzone}>
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*,application/pdf"
+                            onChange={handleFilePick}
+                            className={styles.hiddenInput}
+                            aria-label="Upload supporting documents"
+                          />
+                          <div className={styles.dropzoneInner}>
+                            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="22" height="22">
+                              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                              <polyline points="17,8 12,3 7,8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                              <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                            </svg>
+                            <span className={styles.dropzoneTitle}>Tap to upload</span>
+                            <span className={styles.dropzoneHint}>Receipts, discharge letter, photos · up to 4 files</span>
+                          </div>
+                        </label>
+                        {claimFiles.length > 0 && (
+                          <ul className={styles.filesList}>
+                            {claimFiles.map((f, i) => (
+                              <li key={`${f.name}-${i}`} className={styles.fileItem}>
+                                <svg aria-hidden="true" viewBox="0 0 20 20" width="14" height="14" fill="none">
+                                  <path d="M5 3h7l4 4v10a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+                                </svg>
+                                <span className={styles.fileName}>{f.name}</span>
+                                <button type="button" className={styles.fileRemove} onClick={() => removeFileAt(i)} aria-label={`Remove ${f.name}`}>
+                                  <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" fill="none">
+                                    <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                                  </svg>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <button
+                          type="button"
+                          className={`${flow.cta} ${flow.ctaPrimary}`}
+                          disabled={!canReview}
+                          onClick={() => setView('review')}
+                        >
+                          Review claim
+                        </button>
+                      </div>
+                    </div>
+
+                    <aside className={flow.summaryCol}>
+                      <div className={flow.card}>
+                        <div className={flow.blockHead}>
+                          <span className={flow.blockTitle}>
+                            <span className={flow.blockIc}>
+                              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+                                <path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+                                <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </span>
+                            Your cover
+                          </span>
+                          <span className={flow.pillOk}><span className={flow.pillDot} />Active</span>
+                        </div>
+                        <ul className={flow.sumList}>
+                          <li className={flow.sumRow}>
+                            <span>Cover amount</span>
+                            <span className={flow.sumVal}>{formatUGX(insurance?.cover || 0, { compact: false })}</span>
+                          </li>
+                          {insurance?.premiumMonthly != null && (
+                            <li className={flow.sumRow}>
+                              <span>Premium</span>
+                              <span className={flow.sumVal}>{formatUGX(insurance.premiumMonthly, { compact: false })} / mo</span>
+                            </li>
+                          )}
+                          {insurance?.renewalDate && (
+                            <li className={flow.sumRow}>
+                              <span>Renews</span>
+                              <span className={flow.sumVal}>{formatDate(insurance.renewalDate)}</span>
+                            </li>
+                          )}
+                        </ul>
+                        <p className={flow.note}>
+                          Claims are reviewed within 3–5 working days. You&apos;ll get a notification when there&apos;s an update.
+                        </p>
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              ) : (
+                <>
               <section className={styles.section}>
                 <div className={styles.sectionHead}>
                   <span className={styles.sectionIdx}>01</span>
@@ -343,13 +522,15 @@ export default function ClaimPage() {
                   </ul>
                 )}
               </section>
+                </>
+              )}
             </motion.div>
           )}
 
           {view === 'review' && (
             <motion.div
               key="review"
-              className={styles.step}
+              className={`${styles.step}${isDesktop ? ` ${flow.narrow}` : ''}`}
               initial={reducedMotion ? false : { opacity: 0, y: 10 }}
               animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
               exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
@@ -383,7 +564,7 @@ export default function ClaimPage() {
           {view === 'success' && (
             <motion.div
               key="success"
-              className={styles.successStep}
+              className={`${styles.successStep}${isDesktop ? ` ${flow.narrow}` : ''}`}
               initial={reducedMotion ? false : { opacity: 0, scale: 0.96 }}
               animate={reducedMotion ? undefined : { opacity: 1, scale: 1 }}
               exit={reducedMotion ? undefined : { opacity: 0 }}
@@ -409,8 +590,11 @@ export default function ClaimPage() {
         </AnimatePresence>
       </div>
 
-      {!noPolicy && (
-        <footer className={styles.footer}>
+      {/* On desktop the form's Review CTA is inline in the split column, so the
+          page footer is suppressed for the form view (it still drives the list /
+          review / success actions, constrained to the narrow column). */}
+      {!noPolicy && !(isDesktop && view === 'form') && (
+        <footer className={`${styles.footer}${isDesktop ? ` ${flow.narrow}` : ''}`}>
           {view === 'list' && claims.length > 0 && (
             <button type="button" className={styles.primaryBtn} onClick={() => { resetForm(); setView('form'); }}>
               File a new claim

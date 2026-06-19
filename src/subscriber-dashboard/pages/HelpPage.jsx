@@ -5,6 +5,7 @@ import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { getInitials } from '../../utils/dashboard';
 import { useCurrentSubscriber, useSubscriberAgent } from '../../hooks/useSubscriber';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { useSubscriberTickets } from '../../hooks/useTickets';
 import { TICKET_STATUS } from '../../data/ticketsSeed';
 import {
@@ -52,6 +53,7 @@ const FAQS = [
 export default function HelpPage() {
   const navigate = useNavigate();
   const reducedMotion = useReducedMotion();
+  const isDesktop = useIsDesktop();
   const { data: sub } = useCurrentSubscriber();
   const subId = sub?.id;
   const { data: agent } = useSubscriberAgent(subId);
@@ -81,12 +83,23 @@ export default function HelpPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        variant="hero"
-        title="How can we help?"
-        subtitle="Message your agent, find answers, or contact support"
-        onBack={() => goBackOrFallback(navigate, '/dashboard')}
-      />
+      {isDesktop ? (
+        // Desktop (>=1024px): flat v5 header (eyebrow + title + subtitle), no
+        // indigo hero dome. Tab-root page — no back affordance, matching the
+        // mobile hero's role here.
+        <header className={styles.deskHead}>
+          <p className={styles.deskEyebrow}>Support</p>
+          <h1 className={styles.deskTitle}>How can we help?</h1>
+          <p className={styles.deskSubtitle}>Message your agent, find answers, or contact support</p>
+        </header>
+      ) : (
+        <PageHeader
+          variant="hero"
+          title="How can we help?"
+          subtitle="Message your agent, find answers, or contact support"
+          onBack={() => goBackOrFallback(navigate, '/dashboard')}
+        />
+      )}
 
       <div className={styles.body}>
         <motion.div

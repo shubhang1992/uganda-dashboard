@@ -12,7 +12,7 @@ const SECTION_LABELS = {
   withdraw: 'Withdrawals',
   claim: 'Withdrawals',
   activity: 'Activity',
-  reports: 'Reports',
+  reports: 'Analytics',
   policies: 'Policies',
   help: 'Help',
   agent: 'Your agent',

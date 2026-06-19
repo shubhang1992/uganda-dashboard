@@ -41,7 +41,7 @@ const PRIMARY = [
 const SECONDARY = [
   {
     to: '/dashboard/reports',
-    label: 'Reports',
+    label: 'Analytics',
     icon: (
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="20" height="20">
         <path d="M3 3v18h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>

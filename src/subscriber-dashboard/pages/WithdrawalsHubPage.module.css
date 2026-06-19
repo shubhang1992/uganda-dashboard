@@ -6,9 +6,83 @@
 }
 
 @media (min-width: 1024px) {
+  /* Desktop renders the 2-column split (desktopFlow.module.css) on the full
+     .pageWide (1240px) canvas — don't re-cap the width here. */
   .page {
-    max-width: 720px;
-    margin: 0 auto;
+    max-width: none;
+  }
+}
+
+/* ── Desktop flat header (v5) — replaces the mobile hero dome >=1024px ─────── */
+.deskHead {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .deskHead {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-8) var(--space-4) 0;
+  }
+
+  .deskBack {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    margin-top: 2px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-lavender);
+    background: var(--color-white);
+    color: var(--color-indigo);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .deskBack:hover {
+    border-color: var(--color-indigo-soft);
+    background: var(--color-cloud);
+  }
+
+  .deskBack:focus-visible {
+    outline: 2px solid var(--color-indigo-soft);
+    outline-offset: 2px;
+  }
+
+  .deskHeadText {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .eyebrow {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-indigo-soft);
+    margin: 0;
+  }
+
+  .title {
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--color-indigo);
+    margin: 0;
+  }
+
+  .subtitle {
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    color: var(--color-gray);
+    margin: 0;
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -126,5 +200,34 @@
   }
   .card:active {
     transform: none;
+  }
+}
+
+/* ── Desktop chooser-card normalisation (v5) ──────────────────────────────────
+   1px lavender hairline + ~8px functional corner; square --radius-sm icon badge
+   in place of the mobile --radius-full pill. The shell scopes --radius-md to
+   0.5rem at this width, so the card naturally lands on the functional corner. */
+@media (min-width: 1024px) {
+  .card {
+    border-width: 1px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .card:hover {
+    border-color: var(--color-indigo-soft);
+    box-shadow: 0 2px 4px color-mix(in srgb, var(--color-indigo) 6%, transparent),
+      0 16px 30px -20px color-mix(in srgb, var(--color-indigo) 40%, transparent);
+  }
+
+  .card:focus-visible {
+    outline: 2px solid var(--color-indigo-soft);
+    outline-offset: 2px;
+    border-color: var(--color-indigo-soft);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .cardIcon {
+    border-radius: var(--radius-sm);
   }
 }

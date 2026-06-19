@@ -4,6 +4,7 @@ import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { formatNumber } from '../../utils/currency';
 import { useCurrentSubscriber, useSubscriberAgent } from '../../hooks/useSubscriber';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { useToast } from '../../contexts/ToastContext';
 import {
   useSubscriberTickets,
@@ -25,6 +26,7 @@ import TicketListRow from '../../components/tickets/TicketListRow';
 import ThreadView from '../../components/tickets/ThreadView';
 import RaiseIssueSheet from '../../components/tickets/RaiseIssueSheet';
 import styles from './AgentPage.module.css';
+import flow from './desktopFlow.module.css';
 
 function formatTenure(months) {
   if (!Number.isFinite(months)) return '—';
@@ -169,6 +171,7 @@ function TicketThread({ ticketId, agentName, onBack }) {
 
 export default function AgentPage() {
   const reducedMotion = useReducedMotion();
+  const isDesktop = useIsDesktop();
   const { data: sub } = useCurrentSubscriber();
   const subId = sub?.id;
   const {
@@ -259,15 +262,206 @@ export default function AgentPage() {
     ? `~${agent.avgResponseHours < 1 ? '<1' : Math.round(agent.avgResponseHours)}h reply`
     : null;
 
+  // Agent profile card + the issues list — extracted so the list view can place
+  // them as a genuine 2-column desktop split (issues left, sticky agent card on
+  // the right) while mobile stacks them UNCHANGED (profile then issues).
+  const agentCard = hasAgent ? (
+    <section className={styles.profile}>
+      <div className={styles.profileTop}>
+        <span
+          className={styles.avatar}
+          data-status={agent.status === 'active' ? 'online' : 'offline'}
+          aria-hidden="true"
+        >
+          {initials}
+          <span className={styles.statusDot} />
+        </span>
+        <div className={styles.profileMain}>
+          <div className={styles.profileName}>{agent.name}</div>
+          <div className={styles.profileBadges}>
+            {ratingLabel && (
+              <span className={styles.badge} data-tone="rating">{ratingLabel}</span>
+            )}
+            {responseLabel && (
+              <span className={styles.badge}>{responseLabel}</span>
+            )}
+            <span className={styles.badge}>
+              {formatTenure(agent.tenureMonths)} at UP
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <ul className={styles.contactRow}>
+        <li>
+          <a className={styles.contactBtn} href={`tel:${agent.phone}`} aria-label={`Call ${agent.name}`}>
+            <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+              <path d="M3 2h2.5l1.2 3-1.6 1.1a8 8 0 003.8 3.8L10 8.3l3 1.2V12a1.5 1.5 0 01-1.5 1.5A11 11 0 011.5 3.5 1.5 1.5 0 013 2z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+            </svg>
+            Call
+          </a>
+        </li>
+        <li>
+          <a className={styles.contactBtn} href={`mailto:${agent.email}`} aria-label={`Email ${agent.name}`}>
+            <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+              <rect x="2" y="3.5" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M2 4.5l6 4 6-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Email
+          </a>
+        </li>
+      </ul>
+
+      {(agent.specialties?.length > 0 || agent.languages?.length > 0) && (
+        <dl className={styles.profileMeta}>
+          {agent.specialties?.length > 0 && (
+            <div className={styles.metaRow}>
+              <dt>Specialties</dt>
+              <dd>{agent.specialties.join(' · ')}</dd>
+            </div>
+          )}
+          {agent.languages?.length > 0 && (
+            <div className={styles.metaRow}>
+              <dt>Languages</dt>
+              <dd>{agent.languages.join(', ')}</dd>
+            </div>
+          )}
+          {Number.isFinite(agent.subscribersManaged) && (
+            <div className={styles.metaRow}>
+              <dt>Looking after</dt>
+              <dd>{formatNumber(agent.subscribersManaged)} savers</dd>
+            </div>
+          )}
+        </dl>
+      )}
+    </section>
+  ) : (
+    <section className={styles.noAgent} aria-live="polite">
+      <div className={styles.noAgentTitle}>No agent assigned yet</div>
+      <p className={styles.noAgentBody}>
+        You don&rsquo;t have a personal agent assigned right now. You can
+        still raise an issue — our support team will pick it up and
+        connect you with an agent.
+      </p>
+    </section>
+  );
+
+  const ticketsSection = (
+    <section className={styles.tickets}>
+      <div className={styles.ticketsHead}>
+        <div className={styles.ticketsTitle}>Your issues</div>
+        <button
+          type="button"
+          className={styles.raiseBtn}
+          onClick={() => setSheetOpen(true)}
+        >
+          <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+            <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+          </svg>
+          Raise an issue
+        </button>
+      </div>
+
+      {!hasNoTickets && (
+        <PillChipGroup label="Filter your issues" layout="row" className={styles.filters}>
+          {STATUS_FILTERS.map((f) => (
+            <PillChip
+              key={f.id}
+              selected={statusFilter === f.id}
+              onClick={() => setStatusFilter(f.id)}
+            >
+              {f.label}
+              <span className={styles.filterCount}>{counts[f.id]}</span>
+            </PillChip>
+          ))}
+        </PillChipGroup>
+      )}
+
+      <div className={styles.list}>
+        {loading && <SkeletonRow count={4} label="Loading your issues" />}
+
+        {isError && !isLoading && (
+          <ErrorCard
+            title="We couldn't load your issues"
+            message={error}
+            onRetry={refetch}
+          />
+        )}
+
+        {hasNoTickets && (
+          <EmptyState
+            kind="no-data"
+            title="No issues yet"
+            body={
+              hasAgent
+                ? "Have a question for your agent? Raise an issue and they'll reply right here."
+                : 'Have a question? Raise an issue and our support team will reply right here.'
+            }
+            cta={{ label: 'Raise an issue', onClick: () => setSheetOpen(true) }}
+          />
+        )}
+
+        {!loading && !isError && !hasNoTickets && filtered.length === 0 && (
+          <EmptyState
+            kind="no-match"
+            title={statusFilter === TICKET_STATUS.OPEN ? 'No open issues' : 'No closed issues'}
+            body={
+              statusFilter === TICKET_STATUS.OPEN
+                ? 'Nothing open right now. Switch to Closed to see resolved issues.'
+                : 'No resolved issues yet. Switch to Open to see active ones.'
+            }
+          />
+        )}
+
+        {!loading && !isError &&
+          filtered.map((ticket) => (
+            <TicketListRow
+              key={ticket.id}
+              ticket={ticket}
+              unreadFor="subscriber"
+              onClick={openThread}
+            />
+          ))}
+      </div>
+    </section>
+  );
+
   return (
     <div className={styles.page} data-view={view}>
-      <PageHeader
-        variant="hero"
-        title={agent?.name || 'Your agent'}
-        subtitle={agent?.branchName ? `${agent.branchName} branch` : null}
-        fallback="/dashboard"
-        onBack={view === 'thread' ? () => setView('list') : undefined}
-      />
+      {isDesktop ? (
+        // Desktop (>=1024px): flat v5 header (eyebrow + title + subtitle), no
+        // indigo hero dome. In the thread view it keeps the same back affordance
+        // (return to the list) the mobile hero provides via onBack.
+        <header className={styles.deskHead}>
+          {view === 'thread' && (
+            <button
+              type="button"
+              className={styles.deskBack}
+              onClick={() => setView('list')}
+              aria-label="Back to your issues"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+                <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+          <div className={styles.deskHeadText}>
+            <p className={styles.deskEyebrow}>Your agent</p>
+            <h1 className={styles.deskTitle}>{agent?.name || 'Your agent'}</h1>
+            {agent?.branchName && (
+              <p className={styles.deskSubtitle}>{agent.branchName} branch</p>
+            )}
+          </div>
+        </header>
+      ) : (
+        <PageHeader
+          variant="hero"
+          title={agent?.name || 'Your agent'}
+          subtitle={agent?.branchName ? `${agent.branchName} branch` : null}
+          fallback="/dashboard"
+          onBack={view === 'thread' ? () => setView('list') : undefined}
+        />
+      )}
 
       <div className={styles.body}>
         {loadingAgent ? (
@@ -291,164 +485,23 @@ export default function AgentPage() {
                 exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
                 transition={{ duration: reducedMotion ? 0 : 0.3, ease: EASE_OUT_EXPO }}
               >
-                {hasAgent ? (
-                <section className={styles.profile}>
-                  <div className={styles.profileTop}>
-                    <span
-                      className={styles.avatar}
-                      data-status={agent.status === 'active' ? 'online' : 'offline'}
-                      aria-hidden="true"
-                    >
-                      {initials}
-                      <span className={styles.statusDot} />
-                    </span>
-                    <div className={styles.profileMain}>
-                      <div className={styles.profileName}>{agent.name}</div>
-                      <div className={styles.profileBadges}>
-                        {ratingLabel && (
-                          <span className={styles.badge} data-tone="rating">{ratingLabel}</span>
-                        )}
-                        {responseLabel && (
-                          <span className={styles.badge}>{responseLabel}</span>
-                        )}
-                        <span className={styles.badge}>
-                          {formatTenure(agent.tenureMonths)} at UP
-                        </span>
-                      </div>
+                {isDesktop ? (
+                  /* Desktop (>=1024px): 2-column split — "Your issues" in the
+                     action column, the agent profile as a sticky reference card
+                     on the right (the header already carries the agent's name).
+                     Mobile stacks agentCard then ticketsSection below, unchanged. */
+                  <div className={flow.splitHost}>
+                    <div className={flow.split}>
+                      <div className={flow.col}>{ticketsSection}</div>
+                      <aside className={flow.summaryCol}>{agentCard}</aside>
                     </div>
                   </div>
-
-                  <ul className={styles.contactRow}>
-                    <li>
-                      <a className={styles.contactBtn} href={`tel:${agent.phone}`} aria-label={`Call ${agent.name}`}>
-                        <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
-                          <path d="M3 2h2.5l1.2 3-1.6 1.1a8 8 0 003.8 3.8L10 8.3l3 1.2V12a1.5 1.5 0 01-1.5 1.5A11 11 0 011.5 3.5 1.5 1.5 0 013 2z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-                        </svg>
-                        Call
-                      </a>
-                    </li>
-                    <li>
-                      <a className={styles.contactBtn} href={`mailto:${agent.email}`} aria-label={`Email ${agent.name}`}>
-                        <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
-                          <rect x="2" y="3.5" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-                          <path d="M2 4.5l6 4 6-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                        Email
-                      </a>
-                    </li>
-                  </ul>
-
-                  {(agent.specialties?.length > 0 || agent.languages?.length > 0) && (
-                    <dl className={styles.profileMeta}>
-                      {agent.specialties?.length > 0 && (
-                        <div className={styles.metaRow}>
-                          <dt>Specialties</dt>
-                          <dd>{agent.specialties.join(' · ')}</dd>
-                        </div>
-                      )}
-                      {agent.languages?.length > 0 && (
-                        <div className={styles.metaRow}>
-                          <dt>Languages</dt>
-                          <dd>{agent.languages.join(', ')}</dd>
-                        </div>
-                      )}
-                      {Number.isFinite(agent.subscribersManaged) && (
-                        <div className={styles.metaRow}>
-                          <dt>Looking after</dt>
-                          <dd>{formatNumber(agent.subscribersManaged)} savers</dd>
-                        </div>
-                      )}
-                    </dl>
-                  )}
-                </section>
                 ) : (
-                  <section className={styles.noAgent} aria-live="polite">
-                    <div className={styles.noAgentTitle}>No agent assigned yet</div>
-                    <p className={styles.noAgentBody}>
-                      You don&rsquo;t have a personal agent assigned right now. You can
-                      still raise an issue below — our support team will pick it up and
-                      connect you with an agent.
-                    </p>
-                  </section>
+                  <>
+                    {agentCard}
+                    {ticketsSection}
+                  </>
                 )}
-
-                <section className={styles.tickets}>
-                  <div className={styles.ticketsHead}>
-                    <div className={styles.ticketsTitle}>Your issues</div>
-                    <button
-                      type="button"
-                      className={styles.raiseBtn}
-                      onClick={() => setSheetOpen(true)}
-                    >
-                      <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
-                        <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-                      </svg>
-                      Raise an issue
-                    </button>
-                  </div>
-
-                  {!hasNoTickets && (
-                    <PillChipGroup label="Filter your issues" layout="row" className={styles.filters}>
-                      {STATUS_FILTERS.map((f) => (
-                        <PillChip
-                          key={f.id}
-                          selected={statusFilter === f.id}
-                          onClick={() => setStatusFilter(f.id)}
-                        >
-                          {f.label}
-                          <span className={styles.filterCount}>{counts[f.id]}</span>
-                        </PillChip>
-                      ))}
-                    </PillChipGroup>
-                  )}
-
-                  <div className={styles.list}>
-                    {loading && <SkeletonRow count={4} label="Loading your issues" />}
-
-                    {isError && !isLoading && (
-                      <ErrorCard
-                        title="We couldn't load your issues"
-                        message={error}
-                        onRetry={refetch}
-                      />
-                    )}
-
-                    {hasNoTickets && (
-                      <EmptyState
-                        kind="no-data"
-                        title="No issues yet"
-                        body={
-                          hasAgent
-                            ? "Have a question for your agent? Raise an issue and they'll reply right here."
-                            : 'Have a question? Raise an issue and our support team will reply right here.'
-                        }
-                        cta={{ label: 'Raise an issue', onClick: () => setSheetOpen(true) }}
-                      />
-                    )}
-
-                    {!loading && !isError && !hasNoTickets && filtered.length === 0 && (
-                      <EmptyState
-                        kind="no-match"
-                        title={statusFilter === TICKET_STATUS.OPEN ? 'No open issues' : 'No closed issues'}
-                        body={
-                          statusFilter === TICKET_STATUS.OPEN
-                            ? 'Nothing open right now. Switch to Closed to see resolved issues.'
-                            : 'No resolved issues yet. Switch to Open to see active ones.'
-                        }
-                      />
-                    )}
-
-                    {!loading && !isError &&
-                      filtered.map((ticket) => (
-                        <TicketListRow
-                          key={ticket.id}
-                          ticket={ticket}
-                          unreadFor="subscriber"
-                          onClick={openThread}
-                        />
-                      ))}
-                  </div>
-                </section>
               </motion.div>
             ) : (
               <motion.div

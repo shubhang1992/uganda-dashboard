@@ -1,0 +1,47 @@
+/* Branded Recharts tooltip card (used by chartTooltip in chartConfig.jsx). */
+.tooltip {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-body);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tooltipLabel {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--color-indigo);
+  letter-spacing: -0.01em;
+}
+
+.tooltipRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.tooltipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.tooltipName {
+  color: var(--color-slate);
+  font-weight: 600;
+}
+
+.tooltipValue {
+  margin-left: auto;
+  color: var(--color-indigo);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
