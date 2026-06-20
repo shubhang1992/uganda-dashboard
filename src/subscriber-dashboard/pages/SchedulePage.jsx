@@ -59,23 +59,30 @@ export default function SchedulePage() {
     );
   }
 
-  // Mobile: keep the shipped curved-hero layout exactly as-is.
+  // Mobile: the persistent shell app bar now owns the page title + back arrow, so
+  // the in-page hero dome is removed. A flat, light intro card carries the page's
+  // brand surface at the top of the body, then the shared form follows.
   return (
     <div className={styles.page}>
-      <PageHeader
-        variant="hero"
-        title={isNew ? 'Set a schedule' : 'Tune your schedule'}
-        subtitle="Frequency, amount, and the retirement/emergency split"
-        fallback="/dashboard/save"
-      />
-      {sub && (
-        <ContributionSettingsForm
-          initial={existing}
-          age={sub.age}
-          onSave={handleSave}
-          submitting={submitting}
-        />
-      )}
+      <div className={styles.body}>
+        <section className={styles.intro}>
+          <p className={styles.introEyebrow}>Contribution plan</p>
+          <p className={styles.introTitle}>
+            {isNew ? 'Set up your schedule' : 'Tune your schedule'}
+          </p>
+          <p className={styles.introSub}>
+            Frequency, amount, and the retirement/emergency split.
+          </p>
+        </section>
+        {sub && (
+          <ContributionSettingsForm
+            initial={existing}
+            age={sub.age}
+            onSave={handleSave}
+            submitting={submitting}
+          />
+        )}
+      </div>
     </div>
   );
 }

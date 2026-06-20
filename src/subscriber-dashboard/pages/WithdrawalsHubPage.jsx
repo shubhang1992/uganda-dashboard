@@ -6,7 +6,6 @@ import { formatUGXShort, formatUGX } from '../../utils/currency';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { RETIREMENT_AGE } from '../../constants/savings';
-import PageHeader from '../../components/PageHeader';
 import styles from './WithdrawalsHubPage.module.css';
 import flow from './desktopFlow.module.css';
 
@@ -64,15 +63,6 @@ export default function WithdrawalsHubPage() {
       ? `${formatUGX(cover)} cover ${insuranceActive ? 'active' : 'inactive'}`
       : 'No active cover',
   };
-
-  const statRow = (
-    <>
-      <span>{formatUGX(emergency)} emergency</span>
-      <span>
-        <strong>{formatUGX(cover)}</strong> cover
-      </span>
-    </>
-  );
 
   return (
     <div className={styles.page}>
@@ -165,18 +155,22 @@ export default function WithdrawalsHubPage() {
         </div>
       ) : (
         <>
-        <PageHeader
-          variant="hero"
-          title="Withdrawals"
-          eyebrow="Available to withdraw"
-          prefix="UGX"
-          amount={formatUGXShort(available)}
-          subtitle="Take money out, or file an insurance claim"
-          statRow={statRow}
-          fallback="/dashboard"
-        />
-
       <div className={styles.body}>
+        {/* Flat summary card replaces the hero dome — the app bar provides the
+            "Withdrawals" title + back. Eyebrow + big indigo "available now"
+            figure + a sub-line noting retirement stays locked until 60. */}
+        <section className={styles.summary} aria-labelledby="wd-summary-label">
+          <span className={styles.summaryEyebrow} id="wd-summary-label">
+            Available to withdraw now
+          </span>
+          <div className={styles.summaryBig}>{formatUGX(availableNow, { compact: false })}</div>
+          <p className={styles.summarySub}>
+            {retirementEligible
+              ? 'Both your funds are available to withdraw.'
+              : `Emergency pot · retirement locked to ${RETIREMENT_AGE}`}
+          </p>
+        </section>
+
         <div className={styles.grid}>
           {OPTIONS.map((opt, i) => (
             <motion.button

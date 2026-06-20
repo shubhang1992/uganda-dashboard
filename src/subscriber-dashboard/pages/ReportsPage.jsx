@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
-import PageHeader from '../../components/PageHeader';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import AnalyticsPanel from '../reports/AnalyticsPanel';
 import styles from './ReportsPage.module.css';
@@ -86,29 +85,21 @@ function ReportLoading() {
 }
 
 /**
- * Page header that forks on viewport: the subscriber mobile hero dome
- * (<PageHeader variant="hero">, unchanged) on <1024px, and a flat
- * eyebrow + h1 + subtitle header on desktop (matching the v5 desktop look —
- * HomeDesktop / SettingsDesktop). Mobile stays byte-identical.
+ * Page header that forks on viewport. Desktop (>=1024px) renders a flat
+ * eyebrow + h1 + subtitle header (matching the v5 desktop look —
+ * HomeDesktop / SettingsDesktop). Mobile renders NOTHING: the persistent
+ * shell app-bar already provides this page's title + back arrow, so the
+ * in-page hero dome was removed in the flat-light redesign.
  */
-function ReportsHeader({ eyebrow, title, subtitle, fallback }) {
+function ReportsHeader({ eyebrow, title, subtitle }) {
   const isDesktop = useIsDesktop();
-  if (isDesktop) {
-    return (
-      <header className={styles.deskHead}>
-        {eyebrow && <p className={styles.deskEyebrow}>{eyebrow}</p>}
-        <h1 className={styles.deskTitle}>{title}</h1>
-        {subtitle && <p className={styles.deskSubtitle}>{subtitle}</p>}
-      </header>
-    );
-  }
+  if (!isDesktop) return null;
   return (
-    <PageHeader
-      variant="hero"
-      title={title}
-      subtitle={subtitle}
-      fallback={fallback}
-    />
+    <header className={styles.deskHead}>
+      {eyebrow && <p className={styles.deskEyebrow}>{eyebrow}</p>}
+      <h1 className={styles.deskTitle}>{title}</h1>
+      {subtitle && <p className={styles.deskSubtitle}>{subtitle}</p>}
+    </header>
   );
 }
 
@@ -159,7 +150,6 @@ export default function ReportsPage() {
           <ReportsHeader
             eyebrow="Analytics"
             title="Report not found"
-            fallback="/dashboard/reports"
           />
           <div className={styles.body}>
             <p className={styles.empty}>That report doesn&apos;t exist.</p>
@@ -172,7 +162,6 @@ export default function ReportsPage() {
         <ReportsHeader
           eyebrow="Analytics"
           title={REPORT_TITLES[reportId]}
-          fallback="/dashboard/reports"
         />
         <div className={styles.body}>
           <Suspense fallback={<ReportLoading />}>
@@ -189,7 +178,6 @@ export default function ReportsPage() {
         eyebrow="Your savings"
         title={isDesktop ? 'Analytics' : 'Reports'}
         subtitle="Every transaction. Every claim. Every number."
-        fallback="/dashboard"
       />
 
       <div className={styles.body}>

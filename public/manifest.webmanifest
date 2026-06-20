@@ -1,0 +1,20 @@
+{
+  "name": "Universal Pensions",
+  "short_name": "UP Pensions",
+  "description": "Save for retirement from UGX 5,000/month. Licensed by URBRA.",
+  "id": "/dashboard",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#F6F7FB",
+  "background_color": "#292867",
+  "lang": "en-UG",
+  "dir": "ltr",
+  "categories": ["finance"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

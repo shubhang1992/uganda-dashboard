@@ -15,7 +15,10 @@
 
 .body {
   flex: 1;
-  padding: var(--space-2) var(--space-4) var(--space-6);
+  /* The shell app bar owns the "Profile" title + back arrow now (the in-page
+     hero dome was removed in the mobile redesign), so the body starts flush at
+     the top of the scroll area. */
+  padding: var(--space-4) var(--space-4) var(--space-6);
 }
 
 .step {
@@ -25,16 +28,18 @@
 }
 
 /* ── Profile card ─────────────────────────────────────── */
-/* The indigo dome (hero header) now carries the brand block, so this card is a
-   clean white surface to avoid a double-indigo stack directly beneath it. */
+/* The in-page hero dome was removed (the shell app bar now carries the "Profile"
+   title + back). This card sits at the top of the body instead, lifted with the
+   soft cloud gradient so it reads as the page's brand surface — flat, light, no
+   indigo block. */
 .profile {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: var(--color-white);
+  background: linear-gradient(155deg, #fff 0%, var(--color-cloud) 100%);
   color: var(--color-indigo);
   border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   padding: var(--space-4) var(--space-5);
   box-shadow: var(--shadow-sm);
 }
@@ -78,7 +83,7 @@
   gap: 4px;
   font-family: var(--font-body);
   font-size: 12px;
-  color: var(--color-indigo-soft);
+  color: var(--color-gray);
 }
 
 .profileDot { color: var(--color-lavender); }
@@ -90,8 +95,9 @@
   gap: var(--space-3);
   background: var(--color-white);
   border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   padding: var(--space-3) var(--space-4);
+  box-shadow: var(--shadow-sm);
 }
 
 .statItem {
@@ -103,11 +109,11 @@
 }
 
 .statLabel {
-  font-family: var(--font-body);
+  font-family: var(--font-display);
   font-size: 10.5px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-indigo-soft);
+  color: var(--color-gray);
   font-weight: 600;
 }
 

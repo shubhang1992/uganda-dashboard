@@ -18,6 +18,15 @@
   padding: var(--space-2) var(--space-4) var(--space-6);
 }
 
+/* Mobile drops the in-page hero (the app-bar provides the title), so the body
+   no longer sits under the dome — bump its top padding to breathe. Desktop
+   keeps the shipped PageHeader hero above and its tighter top spacing. */
+@media (max-width: 1023.98px) {
+  .body {
+    padding-top: var(--space-4);
+  }
+}
+
 .step {
   display: flex;
   flex-direction: column;

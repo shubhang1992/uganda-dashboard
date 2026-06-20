@@ -13,7 +13,11 @@
 
 .body {
   flex: 1;
-  padding: var(--space-4) var(--space-4) var(--space-6);
+  /* Mobile: the in-page hero dome was removed (the shell app-bar provides the
+     title + back), so the body starts at the top of the scroll area — a touch
+     more top breathing room replaces the dome's spacing. The >=1024px block
+     below overrides this padding for the desktop flat header. */
+  padding: var(--space-5) var(--space-4) var(--space-6);
 }
 
 /* ── Desktop flat header (>=1024px) — replaces the indigo hero dome on the

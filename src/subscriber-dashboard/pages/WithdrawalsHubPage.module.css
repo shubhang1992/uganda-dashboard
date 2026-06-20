@@ -88,11 +88,58 @@
 
 .body {
   flex: 1;
-  /* Sit the cards clear below the hero dome's curved base — the prior negative
-     pull made them clash with the curve's centre dip. */
+  /* No hero dome on mobile now — the body starts at the top, under the shell
+     app bar. The flat summary card leads, then the option grid. */
   padding: var(--space-4) var(--space-4) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   position: relative;
   z-index: 1;
+}
+
+/* ── Mobile flat summary card (replaces the removed hero dome) ─────────────────
+   Soft gradient white→cloud card: uppercase eyebrow, big indigo "available now"
+   figure, then a sub-line. UNGATED — only renders <1024px because the desktop
+   branch doesn't mount it. */
+.summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  background: linear-gradient(155deg, #fff 0%, var(--color-cloud) 100%);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5) var(--space-4);
+}
+
+.summaryEyebrow {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+}
+
+.summaryBig {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+.summarySub {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-gray);
+  margin: 0;
+  line-height: 1.45;
 }
 
 .grid {

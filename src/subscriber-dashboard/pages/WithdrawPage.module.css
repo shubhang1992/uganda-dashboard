@@ -89,16 +89,61 @@
 
 .body {
   flex: 1;
-  padding: var(--space-5) var(--space-4) var(--space-6);
+  padding: var(--space-4) var(--space-4) var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-3);
 }
 
+/* Mobile (<1024px): each form group is a flat white card matching the desktop
+   design language ported to mobile. The desktop @media block below re-declares
+   these surface props, so the desktop branch stays byte-identical. */
 .section {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4) var(--space-5);
+}
+
+/* Amount-first summary card — replaces the removed hero dome. Soft gradient,
+   uppercase eyebrow, big indigo figure, muted sub-line (the SavePage recipe). */
+.summaryHero {
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding-top: var(--space-5);
+  padding-bottom: var(--space-5);
+  background: linear-gradient(155deg, #fff 0%, var(--color-cloud) 100%);
+}
+
+.heroEyebrow {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+}
+
+.heroAmtBig {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+.heroNote {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  color: var(--color-gray);
+  margin: 0;
 }
 
 .sectionHead {

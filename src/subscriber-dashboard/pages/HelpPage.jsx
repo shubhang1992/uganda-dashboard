@@ -13,8 +13,6 @@ import {
   SUPPORT_WHATSAPP_DISPLAY,
   SUPPORT_EMAIL,
 } from '../../config/env';
-import PageHeader from '../../components/PageHeader';
-import { goBackOrFallback } from '../shell/navigation';
 import styles from './HelpPage.module.css';
 
 const FAQS = [
@@ -83,7 +81,7 @@ export default function HelpPage() {
 
   return (
     <div className={styles.page}>
-      {isDesktop ? (
+      {isDesktop && (
         // Desktop (>=1024px): flat v5 header (eyebrow + title + subtitle), no
         // indigo hero dome. Tab-root page — no back affordance, matching the
         // mobile hero's role here.
@@ -92,14 +90,10 @@ export default function HelpPage() {
           <h1 className={styles.deskTitle}>How can we help?</h1>
           <p className={styles.deskSubtitle}>Message your agent, find answers, or contact support</p>
         </header>
-      ) : (
-        <PageHeader
-          variant="hero"
-          title="How can we help?"
-          subtitle="Message your agent, find answers, or contact support"
-          onBack={() => goBackOrFallback(navigate, '/dashboard')}
-        />
       )}
+      {/* Mobile (<1024px): the persistent shell app bar renders this page's
+          title + back arrow, so the in-page hero is removed and the body
+          starts at the top. */}
 
       <div className={styles.body}>
         <motion.div

@@ -6,6 +6,7 @@ import { formatUGX } from '../../utils/currency';
 
 import { formatDate } from '../../utils/date';
 import { useCurrentSubscriber, useSubscriberTransactions } from '../../hooks/useSubscriber';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import PageHeader from '../../components/PageHeader';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
 import SkeletonRow from '../../components/SkeletonRow';
@@ -38,6 +39,7 @@ export default function ActivityPage() {
   const navigate = useNavigate();
   const reducedMotion = useReducedMotion();
   const { data: sub } = useCurrentSubscriber();
+  const isDesktop = useIsDesktop();
   const [filter, setFilter] = useState('all');
   const { data: allTx = [], isLoading: txLoading } = useSubscriberTransactions(sub?.id);
 
@@ -82,27 +84,30 @@ export default function ActivityPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        variant="hero"
-        title="Activity"
-        eyebrow="THIS YEAR"
-        prefix="UGX"
-        amount={loading
-          ? '—'
-          : `${yearSummary.net < 0 ? '−' : ''}${formatUGX(Math.abs(yearSummary.net), { compact: false }).replace('UGX ', '')}`}
-        statRow={loading ? (
-          <span style={{ opacity: 0.6 }}>Loading your activity…</span>
-        ) : (
-          <>
-            <span style={{ color: 'var(--color-green)' }}>
-              ↑ <strong style={{ color: 'var(--color-green)' }}>{formatUGX(yearSummary.inflow)}</strong> in
-            </span>
-            <span>↓ <strong>{formatUGX(yearSummary.outflow)}</strong> out</span>
-          </>
-        )}
-        onBack={() => goBackOrFallback(navigate, '/dashboard')}
-      />
-
+      {/* Desktop (>=1024px) keeps the shipped PageHeader hero exactly. Mobile
+          drops it (the app-bar provides the title) for the flat summary below. */}
+      {isDesktop && (
+        <PageHeader
+          variant="hero"
+          title="Activity"
+          eyebrow="THIS YEAR"
+          prefix="UGX"
+          amount={loading
+            ? '—'
+            : `${yearSummary.net < 0 ? '−' : ''}${formatUGX(Math.abs(yearSummary.net), { compact: false }).replace('UGX ', '')}`}
+          statRow={loading ? (
+            <span style={{ opacity: 0.6 }}>Loading your activity…</span>
+          ) : (
+            <>
+              <span style={{ color: 'var(--color-green)' }}>
+                ↑ <strong style={{ color: 'var(--color-green)' }}>{formatUGX(yearSummary.inflow)}</strong> in
+              </span>
+              <span>↓ <strong>{formatUGX(yearSummary.outflow)}</strong> out</span>
+            </>
+          )}
+          onBack={() => goBackOrFallback(navigate, '/dashboard')}
+        />
+      )}
       <div className={styles.body}>
         <motion.div
           className={styles.stack}
@@ -110,10 +115,38 @@ export default function ActivityPage() {
           animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
+          {/* Mobile flat summary card — replaces the removed HeroCapsule "year
+              net" dome with an eyebrow + big indigo net figure + an in/out row.
+              Desktop renders the PageHeader hero above instead. */}
+          {!isDesktop && (
+            <section className={styles.summary} aria-labelledby="activity-net-label">
+              <span className={styles.summaryEyebrow} id="activity-net-label">Net this year</span>
+              {loading ? (
+                <span className={styles.summaryLoading}>Loading your activity…</span>
+              ) : (
+                <>
+                  <div className={styles.summaryFigure}>
+                    {yearSummary.net < 0 ? '−' : ''}
+                    {formatUGX(Math.abs(yearSummary.net), { compact: false })}
+                  </div>
+                  <div className={styles.summaryRow}>
+                    <span className={styles.summaryIn}>
+                      ↑ <strong>{formatUGX(yearSummary.inflow)}</strong> in
+                    </span>
+                    <span className={styles.summaryOut}>
+                      ↓ <strong>{formatUGX(yearSummary.outflow)}</strong> out
+                    </span>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
           <PillChipGroup label="Filter activity" layout="row" className={styles.filters}>
             {FILTERS.map((f) => (
               <PillChip
                 key={f.id}
+                className={styles.filterChip}
                 selected={filter === f.id}
                 onClick={() => setFilter(f.id)}
               >

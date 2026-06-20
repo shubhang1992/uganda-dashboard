@@ -21,9 +21,7 @@ import {
   MOBILE_QUICK_CONTRIBUTION_AMOUNTS,
   RETIREMENT_AGE,
 } from '../../constants/savings';
-import PageHeader from '../../components/PageHeader';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
-import { goBackOrFallback } from '../shell/navigation';
 import styles from './SavePage.module.css';
 import flow from './desktopFlow.module.css';
 
@@ -143,19 +141,6 @@ export default function SavePage() {
     return (sub.netBalance || 0) + (hasAmount ? amount : 0);
   }, [sub, hasAmount, amount]);
 
-  const heroSubtitle = `${retirementPct}% retirement · ${emergencyPct}% emergency`;
-
-  function handleBack() {
-    if (view === 'confirm') {
-      // Leaving the confirm sheet without paying — drop the nonce so re-opening
-      // mints a fresh one (the user may change the amount).
-      contributionNonce.current = null;
-      return setView('form');
-    }
-    // Outermost step — honour browser back, fall back to home for deep-links.
-    goBackOrFallback(navigate, '/dashboard');
-  }
-
   function handleContinue() {
     if (!hasAmount) return;
     // Mint the stable idempotency nonce once, as the confirm sheet opens.
@@ -198,8 +183,6 @@ export default function SavePage() {
       setSubmitting(false);
     }
   }
-
-  const heroAmount = hasAmount ? formatUGXShort(amount) : '—';
 
   return (
     <div className={styles.page}>
@@ -398,106 +381,105 @@ export default function SavePage() {
         </div>
       ) : (
         <>
-        <PageHeader
-          variant="hero"
-          title="Save"
-          eyebrow={lockedMode ? 'SCHEDULED CONTRIBUTION' : 'TOP UP AMOUNT'}
-          prefix="UGX"
-          amount={heroAmount}
-          subtitle={heroSubtitle}
-          onBack={handleBack}
-          showBack
-        />
-
       <div className={styles.body}>
-        {lockedMode ? (
-          /* Scheduled payment — the amount is fixed to the configured schedule
-             amount. Read-only by construction: no chips, no input, an inert
-             <div> (not a label) so nothing can route setAmountStr. The padlock
-             glyph + aria-label communicate that the value is fixed and why. */
-          <section className={styles.section} aria-labelledby="save-amount-label">
-            <div className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle} id="save-amount-label">Scheduled amount</h2>
-            </div>
+        {/* Amount-first hero (flat card) — the app bar provides the "Save" title
+            + back, so no dome here. Locked = the fixed scheduled amount; editable
+            = big centred input + presets. The retirement/emergency split is not
+            surfaced on mobile (it's a property of the saved schedule). */}
+        <section className={`${styles.section} ${styles.amountHero}`} aria-labelledby="save-amount-label">
+          {lockedMode ? (
+            <>
+              <span className={styles.heroEyebrow} id="save-amount-label">
+                Scheduled {cadenceLabel?.toLowerCase()} contribution
+              </span>
+              <div
+                className={styles.heroAmtBig}
+                role="img"
+                aria-label={`Scheduled contribution: ${formatUGX(amount, { compact: false })}. Amount is fixed.`}
+              >
+                <span className={styles.heroCur} aria-hidden="true">UGX</span>
+                <span className={styles.heroNum}>{formatNumber(amount)}</span>
+              </div>
+              <p className={styles.heroNote}>
+                Set in your savings schedule ·{' '}
+                <button type="button" className={styles.resetBtn} onClick={() => navigate('/dashboard/save/schedule')}>
+                  Change
+                </button>
+              </p>
+            </>
+          ) : (
+            <>
+              <span className={styles.heroEyebrow} id="save-amount-label">Enter an amount</span>
+              <label className={styles.heroField} data-error={belowMin || undefined}>
+                <span className={styles.heroCur} aria-hidden="true">UGX</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={amountStr ? formatNumber(Number.parseInt(amountStr, 10)) : ''}
+                  onChange={(e) => setAmountStr(e.target.value.replace(/[^\d]/g, ''))}
+                  placeholder="0"
+                  className={styles.heroInput}
+                  aria-label="Contribution amount in UGX"
+                  aria-invalid={belowMin || undefined}
+                  aria-describedby={belowMin ? 'save-amount-error' : undefined}
+                />
+                <span className={styles.heroEditHint} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                  </svg>
+                </span>
+              </label>
+              <p className={styles.heroFieldHint}>
+                Type your own amount, or pick a preset below · min {formatUGX(MIN_CONTRIBUTION, { compact: false })}
+              </p>
+              <div className={styles.presets}>
+                {PRESET_AMOUNTS.map((v) => (
+                  <button
+                    type="button"
+                    key={v}
+                    className={`${styles.preset} ${amount === v ? styles.presetOn : ''}`}
+                    onClick={() => setAmountStr(String(v))}
+                  >
+                    {formatUGXShort(v)}
+                  </button>
+                ))}
+              </div>
+              {belowMin && (
+                <p id="save-amount-error" className={styles.errorLine} role="alert">
+                  Minimum {formatUGX(MIN_CONTRIBUTION, { compact: false })} required.
+                </p>
+              )}
+            </>
+          )}
+        </section>
 
-            <div
-              className={styles.amountField}
-              data-locked="true"
-              role="img"
-              aria-label={`Scheduled contribution: ${formatUGX(amount, { compact: false })}. Amount is fixed.`}
-            >
-              <span className={styles.amountPrefix} aria-hidden="true">UGX</span>
-              <span className={styles.amountLocked}>{formatNumber(amount)}</span>
-              <svg className={styles.lockGlyph} aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
-                <rect x="3.25" y="7" width="9.5" height="6.25" rx="1.25" stroke="currentColor" strokeWidth="1.4" />
-                <path d="M5.25 7V5.25a2.75 2.75 0 0 1 5.5 0V7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-              </svg>
-            </div>
-
-            <p className={styles.methodHelper}>
-              {cadenceLabel} contribution
-              <span className={styles.bucketSep} aria-hidden="true">·</span>
+        {/* Pay with — full-width radio rows (mobile money only). */}
+        <section className={styles.section} aria-labelledby="save-method-label">
+          <h2 className={styles.sectionTitle} id="save-method-label">Pay with</h2>
+          <div className={styles.methodList} role="radiogroup" aria-label="Payment method">
+            {METHODS.map((m) => (
               <button
                 type="button"
-                className={styles.resetBtn}
-                onClick={() => navigate('/dashboard/save/schedule')}
+                key={m.id}
+                role="radio"
+                aria-checked={method === m.id}
+                className={`${styles.method} ${method === m.id ? styles.methodOn : ''}`}
+                onClick={() => setMethod(m.id)}
               >
-                Change in schedule
+                <span className={styles.methodPic} data-id={m.id} aria-hidden="true">
+                  {m.id === 'mtn' ? 'MTN' : 'Airtel'}
+                </span>
+                <span className={styles.methodInfo}>
+                  <b>{m.full}</b>
+                  <small>{m.helper}</small>
+                </span>
+                <span className={styles.radio} aria-hidden="true" />
               </button>
-            </p>
-            <p className={styles.modeNote}>This is the amount you set in your savings schedule.</p>
-          </section>
-        ) : (
-          <section className={styles.section} aria-labelledby="save-amount-label">
-            <div className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle} id="save-amount-label">How much?</h2>
-              <span className={styles.sectionAside}>Min {formatUGX(MIN_CONTRIBUTION, { compact: false })}</span>
-            </div>
-
-            <PillChipGroup label="Quick top-up amount" layout="grid" columns={3}>
-              {PRESET_AMOUNTS.map((v) => (
-                <PillChip key={v} selected={amount === v} onClick={() => setAmountStr(String(v))}>
-                  {formatUGXShort(v)}
-                </PillChip>
-              ))}
-            </PillChipGroup>
-
-            <label className={styles.amountField} data-error={belowMin || undefined}>
-              <span className={styles.amountPrefix} aria-hidden="true">UGX</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                spellCheck={false}
-                value={amountStr ? formatNumber(Number.parseInt(amountStr, 10)) : ''}
-                onChange={(e) => setAmountStr(e.target.value.replace(/[^\d]/g, ''))}
-                placeholder="Enter another amount"
-                className={styles.amountInput}
-                aria-label="Contribution amount in UGX"
-                aria-invalid={belowMin || undefined}
-                aria-describedby={belowMin ? 'save-amount-error' : undefined}
-              />
-            </label>
-
-            {belowMin && (
-              <p id="save-amount-error" className={styles.errorLine} role="alert">Minimum {formatUGX(MIN_CONTRIBUTION, { compact: false })} required.</p>
-            )}
-          </section>
-        )}
-
-        {/* Payout / pay-with method — mobile money only (Bank dropped per mockup). */}
-        <section className={styles.section} aria-labelledby="save-method-label">
-          <div className={styles.sectionHead}>
-            <h2 className={styles.sectionTitle} id="save-method-label">Pay with</h2>
-          </div>
-          <PillChipGroup label="Payment method" layout="row">
-            {METHODS.map((m) => (
-              <PillChip key={m.id} selected={method === m.id} onClick={() => setMethod(m.id)}>
-                {m.label}
-              </PillChip>
             ))}
-          </PillChipGroup>
-          <p className={styles.methodHelper}>{methodById(method).helper}</p>
+          </div>
         </section>
       </div>
 
@@ -548,20 +530,26 @@ export default function SavePage() {
                   <div className={styles.confirmBig}>{formatUGX(amount, { compact: false })}</div>
 
                   <ul className={styles.confirmList}>
-                    <li className={styles.confirmRow}>
-                      <span>
-                        <span className={styles.summaryDot} data-tone="retirement" />
-                        Retirement ({retirementPct}%)
-                      </span>
-                      <strong>{formatUGX(retAmt, { compact: false })}</strong>
-                    </li>
-                    <li className={styles.confirmRow}>
-                      <span>
-                        <span className={styles.summaryDot} data-tone="emergency" />
-                        Emergency ({emergencyPct}%)
-                      </span>
-                      <strong>{formatUGX(emgAmt, { compact: false })}</strong>
-                    </li>
+                    {/* Retirement/emergency split — desktop only. On mobile the
+                        split is a property of the saved schedule, not surfaced. */}
+                    {isDesktop && (
+                      <>
+                        <li className={styles.confirmRow}>
+                          <span>
+                            <span className={styles.summaryDot} data-tone="retirement" />
+                            Retirement ({retirementPct}%)
+                          </span>
+                          <strong>{formatUGX(retAmt, { compact: false })}</strong>
+                        </li>
+                        <li className={styles.confirmRow}>
+                          <span>
+                            <span className={styles.summaryDot} data-tone="emergency" />
+                            Emergency ({emergencyPct}%)
+                          </span>
+                          <strong>{formatUGX(emgAmt, { compact: false })}</strong>
+                        </li>
+                      </>
+                    )}
                     <li className={styles.confirmRow}>
                       <span>Payment method</span>
                       <strong>{methodById(method).full}</strong>

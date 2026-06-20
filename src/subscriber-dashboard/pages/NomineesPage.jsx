@@ -6,6 +6,7 @@ import { isValidUGPhone, parseUGPhoneLocal } from '../../utils/phone';
 import { getInitials } from '../../utils/dashboard';
 import { useCurrentSubscriber, useUpdateNominees, useSubscriberNominees } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import PageHeader from '../../components/PageHeader';
 import styles from './NomineesPage.module.css';
 
@@ -183,6 +184,7 @@ function NomineeRow({ nominee, onChange, onRemove, canRemove, expanded, onToggle
 
 export default function NomineesPage() {
   const reducedMotion = useReducedMotion();
+  const isDesktop = useIsDesktop();
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const updateNominees = useUpdateNominees(sub?.id);
@@ -273,12 +275,17 @@ export default function NomineesPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        variant="hero"
-        title="Nominees"
-        subtitle="Who inherits your savings if anything happens"
-        fallback="/dashboard/settings"
-      />
+      {/* Desktop (>=1024px) keeps the shipped PageHeader hero exactly. Mobile
+          drops it — the persistent app-bar already provides the title + back
+          arrow. The total-share banner below carries the key figure. */}
+      {isDesktop && (
+        <PageHeader
+          variant="hero"
+          title="Nominees"
+          subtitle="Who inherits your savings if anything happens"
+          fallback="/dashboard/settings"
+        />
+      )}
 
       <div className={styles.body}>
         <motion.div

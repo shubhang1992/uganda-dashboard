@@ -1,0 +1,288 @@
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 6px 16px 8px;
+}
+
+/* cards */
+.card {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+}
+.grad {
+  background: linear-gradient(155deg, #fff 0%, var(--color-cloud) 100%);
+}
+.cardHd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.cardHd h3 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  color: var(--color-indigo);
+}
+.pillOk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 5px 11px;
+  border-radius: var(--radius-full);
+  color: var(--color-green-ink, #1f6e44);
+  background: color-mix(in srgb, var(--color-green) 12%, #fff);
+}
+.pillOk i {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+
+/* balance hero */
+.greet {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-gray);
+  margin-bottom: 6px;
+}
+.greet b {
+  color: var(--color-indigo);
+  font-weight: 800;
+}
+.heroVal {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 35px;
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+  line-height: 1.02;
+  font-variant-numeric: tabular-nums;
+}
+.statStrip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: 14px 8px;
+}
+.statStrip > div {
+  text-align: center;
+  position: relative;
+}
+.statStrip > div + div::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 26px;
+  width: 1px;
+  background: var(--color-lavender);
+}
+.statStrip b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.statGrow {
+  color: var(--color-green-ink, #1f6e44) !important;
+}
+.statStrip small {
+  display: block;
+  font-size: 10.5px;
+  color: var(--color-gray);
+  margin-top: 3px;
+}
+
+/* next payment */
+.paycard {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-lg);
+  padding: 15px 16px;
+  box-shadow: var(--shadow-sm);
+}
+.payIc {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-indigo) 9%, transparent);
+  color: var(--color-indigo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.payText {
+  min-width: 0;
+}
+.payText b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-slate);
+}
+.payText small {
+  font-size: 11.5px;
+  color: var(--color-gray);
+}
+.payPill {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  color: #fff;
+  background: var(--color-indigo);
+  border-radius: var(--radius-full);
+  padding: 9px 16px;
+}
+
+/* funding grid */
+.fundGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.fundCell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.fundCell + .fundCell::before {
+  content: '';
+  position: absolute;
+  left: -9px;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--color-lavender);
+}
+.fundIc {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 11px;
+}
+.fundK {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-gray);
+}
+.fundV {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.fundP {
+  font-size: 11px;
+  color: var(--color-gray);
+  margin-top: 2px;
+}
+
+/* savings & cover list */
+.lrow {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  text-align: left;
+  padding: 13px 0;
+  border: none;
+  border-top: 1px solid var(--color-lavender);
+  background: none;
+  cursor: pointer;
+}
+.lrow:first-of-type {
+  border-top: none;
+}
+.lIc {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lMid {
+  flex: 1;
+  min-width: 0;
+}
+.lMid b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-slate);
+}
+.lMid small {
+  font-size: 11.5px;
+  color: var(--color-gray);
+}
+.lAmt {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.chev {
+  color: color-mix(in srgb, var(--color-indigo-soft) 55%, transparent);
+  flex: 0 0 auto;
+  display: flex;
+}
+
+/* icon tints */
+.tintIndigo {
+  background: color-mix(in srgb, var(--color-indigo) 9%, transparent);
+  color: var(--color-indigo);
+}
+.tintSoft {
+  background: color-mix(in srgb, var(--color-indigo-soft) 13%, transparent);
+  color: var(--color-indigo-soft);
+}
+.tintTeal {
+  background: color-mix(in srgb, var(--color-teal) 12%, transparent);
+  color: var(--color-teal);
+}
+.tintGreen {
+  background: color-mix(in srgb, var(--color-green) 12%, transparent);
+  color: var(--color-green-ink, #1f6e44);
+}

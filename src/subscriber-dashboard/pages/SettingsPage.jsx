@@ -9,7 +9,6 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { useCurrentSubscriber } from '../../hooks/useSubscriber';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { getInitials } from '../../utils/dashboard';
-import PageHeader from '../../components/PageHeader';
 import SettingsDesktop from './SettingsDesktop';
 import { SECTIONS } from './settingsSections';
 import styles from './SettingsPage.module.css';
@@ -40,8 +39,6 @@ export default function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader variant="hero" title="Profile" fallback="/dashboard" />
-
       <div className={styles.body}>
         <motion.div
           className={styles.step}

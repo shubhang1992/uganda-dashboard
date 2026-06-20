@@ -1,0 +1,202 @@
+import { useNavigate } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
+import { EASE_OUT_EXPO } from '../../utils/motion';
+import { formatUGX } from '../../utils/currency';
+import { formatDate } from '../../utils/date';
+import { deriveInvestmentGrowth, deriveEmployerSplit } from '../../utils/finance';
+import { useContributionBreakdown } from '../../hooks/useSubscriber';
+import { useCountUp } from '../../hooks/useCountUp';
+import styles from './HomeMobile.module.css';
+
+const stagger = { initial: {}, animate: { transition: { staggerChildren: 0.06, delayChildren: 0.04 } } };
+const item = {
+  initial: { opacity: 0, y: 14 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE_OUT_EXPO } },
+};
+
+const CalendarIcon = (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="18" rx="2.5" /><path d="M16 2v4M8 2v4M3 10h18" />
+  </svg>
+);
+const WalletIcon = (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M16 12h.5" strokeLinecap="round" />
+  </svg>
+);
+const BuildingIcon = (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16" /><path d="M15 10h4a1 1 0 0 1 1 1v10" /><path d="M8 8h.5M11 8h.5M8 12h.5M11 12h.5M8 16h3" strokeLinecap="round" />
+  </svg>
+);
+const RetireIcon = (
+  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+  </svg>
+);
+const EmergencyIcon = (
+  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" />
+  </svg>
+);
+const ShieldIcon = (
+  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" /><path d="M9 12l2 2 4-4" strokeLinecap="round" />
+  </svg>
+);
+const Chevron = (
+  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <path d="M9 6l6 6-6 6" />
+  </svg>
+);
+
+/**
+ * HomeMobile — the redesigned subscriber PHONE home (<1024px). Adopts the desktop
+ * dashboard's design language (flat white→cloud cards, indigo-text balance,
+ * lavender hairlines) rather than the old indigo HeroCapsule dome. Reuses every
+ * derivation/hook verbatim — purely a presentation rebuild. Desktop still renders
+ * HomeDesktop (gated upstream in HomePage), so this never mounts >=1024px.
+ */
+export default function HomeMobile({ subscriber: sub }) {
+  const navigate = useNavigate();
+  const reduce = useReducedMotion();
+  const { data: breakdown } = useContributionBreakdown(sub?.id);
+
+  const balance = sub?.netBalance || 0;
+  const counted = useCountUp(balance, 1100, !reduce);
+  const amountLabel = Math.round(reduce ? balance : counted).toLocaleString('en-UG');
+  const { invested, growth, growthPct } = deriveInvestmentGrowth(sub);
+  const units = sub?.unitsHeld || 0;
+
+  const firstName = (sub?.name || '').trim().split(' ')[0];
+  const schedule = sub?.contributionSchedule;
+  const hasSchedule = Boolean(schedule?.amount);
+
+  const hasEmployer = Boolean(sub?.employerId);
+  const { own, employer } = deriveEmployerSplit(sub, breakdown);
+
+  const retirement = sub?.retirementBalance || 0;
+  const emergency = sub?.emergencyBalance || 0;
+  const activeCover = (sub?.policies || [])
+    .filter((p) => p.status === 'active')
+    .reduce((s, p) => s + (p.cover || 0), 0);
+
+  const itemV = reduce ? undefined : item;
+
+  return (
+    <motion.div
+      className={styles.home}
+      variants={reduce ? undefined : stagger}
+      initial={reduce ? false : 'initial'}
+      animate={reduce ? false : 'animate'}
+    >
+      {/* Balance hero */}
+      <motion.section variants={itemV} className={`${styles.card} ${styles.grad}`} aria-label="Your balance">
+        <p className={styles.greet}>
+          {firstName ? <><b>Hi {firstName}</b>, here&apos;s your total balance</> : "Here's your total balance"}
+        </p>
+        <p className={styles.heroVal}>UGX {amountLabel}</p>
+        <div className={styles.statStrip}>
+          <div>
+            <b>{formatUGX(invested)}</b>
+            <small>Invested</small>
+          </div>
+          <div>
+            <b className={styles.statGrow}>
+              {growth >= 0 ? '↑' : '↓'} {Math.abs(growthPct).toFixed(1)}%
+            </b>
+            <small>Growth</small>
+          </div>
+          <div>
+            <b>{units.toLocaleString('en-UG', { maximumFractionDigits: 0 })}</b>
+            <small>Units</small>
+          </div>
+        </div>
+      </motion.section>
+
+      {/* Next payment */}
+      <motion.button
+        variants={itemV}
+        type="button"
+        className={styles.paycard}
+        onClick={() =>
+          hasSchedule
+            ? navigate('/dashboard/save', { state: { prefillAmount: schedule.amount, scheduled: true } })
+            : navigate('/dashboard/save/schedule')
+        }
+      >
+        <span className={styles.payIc}>{CalendarIcon}</span>
+        <span className={styles.payText}>
+          {hasSchedule ? (
+            <>
+              <b>Next payment · {formatUGX(schedule.amount, { compact: false })}</b>
+              <small>{schedule.nextDueDate ? `Due ${formatDate(schedule.nextDueDate, { variant: 'day-month' })}` : 'Tap to pay'}</small>
+            </>
+          ) : (
+            <>
+              <b>Set up a schedule</b>
+              <small>Save automatically each month</small>
+            </>
+          )}
+        </span>
+        <span className={styles.payPill}>{hasSchedule ? 'Pay' : 'Set up'}</span>
+      </motion.button>
+
+      {/* Pension funding (employer-sponsored members only) */}
+      {hasEmployer && (
+        <motion.section variants={itemV} className={`${styles.card} ${styles.grad}`} aria-labelledby="funding-title">
+          <div className={styles.cardHd}>
+            <h3 id="funding-title">Pension funding</h3>
+          </div>
+          <div className={styles.fundGrid}>
+            <div className={styles.fundCell}>
+              <span className={`${styles.fundIc} ${styles.tintIndigo}`}>{WalletIcon}</span>
+              <span className={styles.fundK}>You contribute</span>
+              <span className={styles.fundV} style={{ color: 'var(--color-indigo)' }}>{formatUGX(own)}</span>
+              <span className={styles.fundP}>{hasSchedule ? `${formatUGX(schedule.amount, { compact: false })} / month` : 'Your savings'}</span>
+            </div>
+            <div className={styles.fundCell}>
+              <span className={`${styles.fundIc} ${styles.tintGreen}`}>{BuildingIcon}</span>
+              <span className={styles.fundK}>Employer adds</span>
+              <span className={styles.fundV} style={{ color: 'var(--color-green-ink, #1f6e44)' }}>{formatUGX(employer)}</span>
+              <span className={styles.fundP}>On top of your savings</span>
+            </div>
+          </div>
+        </motion.section>
+      )}
+
+      {/* Savings & cover */}
+      <motion.section variants={itemV} className={styles.card} aria-labelledby="cover-title">
+        <div className={styles.cardHd}>
+          <h3 id="cover-title">Savings &amp; cover</h3>
+          <span className={styles.pillOk}><i />All active</span>
+        </div>
+        <button type="button" className={styles.lrow} onClick={() => navigate('/dashboard/reports')}>
+          <span className={`${styles.lIc} ${styles.tintIndigo}`}>{RetireIcon}</span>
+          <span className={styles.lMid}><b>Retirement</b><small>Locked to age 60</small></span>
+          <span className={styles.lAmt}>{formatUGX(retirement)}</span>
+          <span className={styles.chev}>{Chevron}</span>
+        </button>
+        <button type="button" className={styles.lrow} onClick={() => navigate('/dashboard/withdraw')}>
+          <span className={`${styles.lIc} ${styles.tintSoft}`}>{EmergencyIcon}</span>
+          <span className={styles.lMid}><b>Emergency</b><small>Available anytime</small></span>
+          <span className={styles.lAmt}>{formatUGX(emergency)}</span>
+          <span className={styles.chev}>{Chevron}</span>
+        </button>
+        <button
+          type="button"
+          className={styles.lrow}
+          onClick={() => navigate(activeCover > 0 ? '/dashboard/policies' : '/dashboard/settings/insurance')}
+        >
+          <span className={`${styles.lIc} ${styles.tintTeal}`}>{ShieldIcon}</span>
+          <span className={styles.lMid}>
+            <b>Insurance cover</b>
+            <small>{activeCover > 0 ? 'Life & health' : 'Add cover from UGX 2,000/mo'}</small>
+          </span>
+          <span className={styles.lAmt}>{activeCover > 0 ? formatUGX(activeCover) : '—'}</span>
+          <span className={styles.chev}>{Chevron}</span>
+        </button>
+      </motion.section>
+    </motion.div>
+  );
+}

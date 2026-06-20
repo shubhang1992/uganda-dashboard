@@ -5,6 +5,55 @@
   padding-bottom: var(--space-12);
 }
 
+/* Mobile body. The persistent shell app bar now owns the "Set a schedule" title +
+   back arrow (the in-page hero dome was removed in the mobile redesign), so the
+   body starts flush at the top of the scroll area. Rendered only in the mobile
+   branch — desktop renders .page > .frame directly. */
+.body {
+  flex: 1;
+  padding-top: var(--space-4);
+}
+
+/* Flat, light intro card — replaces the removed indigo hero dome with the page's
+   brand surface: soft cloud gradient, lavender hairline, no indigo block. This
+   page has no monetary key figure of its own (the shared form carries the inputs),
+   so the card reads as a context header rather than a balance tile. */
+.intro {
+  margin: 0 var(--space-4);
+  background: linear-gradient(155deg, #fff 0%, var(--color-cloud) 100%);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+}
+
+.introEyebrow {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+}
+
+.introTitle {
+  margin: 6px 0 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+}
+
+.introSub {
+  margin: 4px 0 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-gray);
+}
+
 @media (min-width: 1024px) {
   .page {
     padding-bottom: var(--space-8);

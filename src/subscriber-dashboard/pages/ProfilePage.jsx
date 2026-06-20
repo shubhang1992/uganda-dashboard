@@ -7,6 +7,7 @@ import { formatDate } from '../../utils/date';
 import { isValidUGPhone, parseUGPhoneLocal } from '../../utils/phone';
 import { useCurrentSubscriber, useUpdateProfile } from '../../hooks/useSubscriber';
 import { useAllEntities } from '../../hooks/useEntity';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { useToast } from '../../contexts/ToastContext';
 import PageHeader from '../../components/PageHeader';
 import styles from './ProfilePage.module.css';
@@ -34,6 +35,7 @@ function titleCase(s) {
 export default function ProfilePage() {
   const navigate = useNavigate();
   const reducedMotion = useReducedMotion();
+  const isDesktop = useIsDesktop();
   const { data: sub } = useCurrentSubscriber();
   const { data: districts = [] } = useAllEntities('district');
   const { addToast } = useToast();
@@ -102,7 +104,12 @@ export default function ProfilePage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader variant="hero" title="Profile" subtitle="Edit your personal details" fallback="/dashboard/settings" />
+      {/* Desktop (>=1024px) keeps the shipped PageHeader hero exactly. Mobile
+          drops it — the persistent shell app bar already shows the "Profile"
+          title and a back arrow, so the form body starts at the top instead. */}
+      {isDesktop && (
+        <PageHeader variant="hero" title="Profile" subtitle="Edit your personal details" fallback="/dashboard/settings" />
+      )}
 
       <div className={styles.body}>
         <motion.div

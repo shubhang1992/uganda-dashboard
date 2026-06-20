@@ -18,6 +18,22 @@
   padding: var(--space-2) var(--space-4) var(--space-6);
 }
 
+/* Mobile (<1024px) drops the in-page hero — the shell app bar carries the
+   title — so the body starts at the top. Bump the top padding (it previously
+   relied on the removed dome above it) and flatten the field cards to the
+   light design language (radius-lg + soft shadow-sm). Desktop still renders
+   the PageHeader hero, so its base rules are left byte-identical. */
+@media (max-width: 1023.98px) {
+  .body {
+    padding-top: var(--space-4);
+  }
+
+  .section {
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+}
+
 .step {
   display: flex;
   flex-direction: column;

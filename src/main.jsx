@@ -9,6 +9,7 @@ import { ToastProvider } from './contexts/ToastContext.jsx';
 import ToastContainer from './components/Toast.jsx';
 import WarmupBanner from './components/WarmupBanner.jsx';
 import { scrubEvent, scrubBreadcrumb } from './utils/sentryScrub.js';
+import { registerSW } from './pwa/registerSW.js';
 import './index.css';
 import App from './App.jsx';
 
@@ -68,3 +69,6 @@ createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </StrictMode>,
 );
+
+// Register the PWA service worker (prod builds only — no-op in dev/tests).
+registerSW();

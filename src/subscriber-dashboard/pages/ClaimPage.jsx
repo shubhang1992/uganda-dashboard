@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { parseAmount } from '../../utils/finance';
@@ -8,9 +8,9 @@ import { formatDate } from '../../utils/date';
 import { useCurrentSubscriber, useSubmitClaim, useSubscriberClaims } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
-import PageHeader from '../../components/PageHeader';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
 import { goBackOrFallback } from '../shell/navigation';
+import { useSubscriberAppBar } from '../shell/subscriberAppBarContext';
 import styles from './ClaimPage.module.css';
 import flow from './desktopFlow.module.css';
 
@@ -58,11 +58,21 @@ export default function ClaimPage() {
   const claimAmtNum = parseAmount(claimAmount) ?? 0;
   const canReview = claimType && claimDate && claimAmtNum > 0 && claimDesc.trim().length >= 6;
 
-  function handleBack() {
+  const { registerBack } = useSubscriberAppBar();
+  const handleBack = useCallback(() => {
     if (view === 'review') return setView('form');
     if (view === 'form' || view === 'success') return setView('list');
     goBackOrFallback(navigate, '/dashboard/withdraw');
-  }
+  }, [view, navigate]);
+
+  // On mobile the shell app bar owns the back arrow (the in-page hero was
+  // removed). Register handleBack so its back steps through this flow's internal
+  // views (review→form→list) before exiting the route. Desktop wires handleBack
+  // to its own deskHead back button, so it doesn't register.
+  useEffect(() => {
+    if (isDesktop) return undefined;
+    return registerBack(handleBack);
+  }, [isDesktop, registerBack, handleBack]);
 
   function handleFilePick(e) {
     // Keep the actual File objects, not just metadata, so they can be uploaded
@@ -140,9 +150,12 @@ export default function ClaimPage() {
 
   return (
     <div className={styles.page}>
-      {isDesktop ? (
+      {isDesktop && (
         // Desktop (>=1024px): flat v5 header — eyebrow + title + subtitle. No
         // indigo hero dome. Cover/premium/renewal fold into the subtitle line.
+        // Mobile drops its in-page header entirely — the shell app bar owns the
+        // "File a claim" title + back arrow; the cover figure surfaces in a flat
+        // summary card inside the list body below.
         <header className={styles.deskHead}>
           <button
             type="button"
@@ -160,27 +173,6 @@ export default function ClaimPage() {
             {deskSubtitle && <p className={styles.deskSubtitle}>{deskSubtitle}</p>}
           </div>
         </header>
-      ) : (
-        <PageHeader
-          variant="hero"
-          title={headTitle}
-          eyebrow={showCoverHero ? 'ACTIVE COVER' : undefined}
-          prefix={showCoverHero ? 'UGX' : undefined}
-          amount={showCoverHero ? formatUGX(insurance.cover || 0, { compact: false }).replace('UGX ', '') : undefined}
-          subtitle={
-            showCoverHero ? undefined
-            : view === 'list' && insurance ? `Cover: ${formatUGX(insurance.cover || 0)}`
-            : view === 'list' ? 'No active policy yet'
-            : undefined
-          }
-          statRow={showCoverHero ? (
-            <>
-              <span><strong>{formatUGX(insurance.premiumMonthly, { compact: false })}</strong> / mo</span>
-              <span>Renews <strong>{formatDate(insurance.renewalDate)}</strong></span>
-            </>
-          ) : undefined}
-          onBack={handleBack}
-        />
       )}
 
       <div className={styles.body}>
@@ -216,6 +208,20 @@ export default function ClaimPage() {
                 </section>
               ) : (
                 <>
+                  {!isDesktop && showCoverHero && (
+                    // Mobile: the removed hero dome's cover figure, re-homed as a
+                    // flat summary card. Eyebrow + big indigo amount + a premium /
+                    // renewal sub-line. Desktop folds the same figures into the
+                    // flat header subtitle, so this is mobile-only.
+                    <section className={styles.coverSummary}>
+                      <span className={styles.coverEyebrow}>Active cover</span>
+                      <div className={styles.coverAmount}>{formatUGX(insurance.cover || 0, { compact: false })}</div>
+                      <p className={styles.coverSub}>
+                        {formatUGX(insurance.premiumMonthly, { compact: false })} / mo · Renews {formatDate(insurance.renewalDate)}
+                      </p>
+                    </section>
+                  )}
+
                   <button type="button" className={styles.fileNewBtn} onClick={() => { resetForm(); setView('form'); }}>
                     <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="14" height="14">
                       <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>

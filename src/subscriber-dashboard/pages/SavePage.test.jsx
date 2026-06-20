@@ -47,7 +47,7 @@ describe('<SavePage /> scheduled-payment lock', () => {
     expect(screen.queryByText('100K')).toBeNull(); // a preset chip in the editable view
 
     // The locked, fixed amount is shown with its accessible label.
-    expect(screen.getByText('Scheduled amount')).toBeInTheDocument();
+    expect(screen.getByText('Scheduled monthly contribution')).toBeInTheDocument();
     expect(
       screen.getByRole('img', { name: /Scheduled contribution: UGX 39,000\. Amount is fixed\./ }),
     ).toBeInTheDocument();
@@ -55,16 +55,16 @@ describe('<SavePage /> scheduled-payment lock', () => {
     // Scheduled affordances: "Pay" verb (not "Top up") + a change-in-schedule link.
     expect(screen.getByText('Pay')).toBeInTheDocument();
     expect(screen.queryByText('Top up')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Change in schedule' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change' })).toBeInTheDocument();
   });
 
   it('keeps the amount editable for an ad-hoc top-up (no scheduled flag)', () => {
     renderSave(null, monthly);
 
     expect(screen.getByLabelText('Contribution amount in UGX')).toBeInTheDocument();
-    expect(screen.getByText('How much?')).toBeInTheDocument();
+    expect(screen.getByText('Enter an amount')).toBeInTheDocument();
     expect(screen.getByText('Top up')).toBeInTheDocument();
-    expect(screen.queryByText('Scheduled amount')).toBeNull();
+    expect(screen.queryByText(/Scheduled .* contribution/)).toBeNull();
   });
 
   it('does NOT lock when the schedule amount is below the minimum — falls back to editable', () => {

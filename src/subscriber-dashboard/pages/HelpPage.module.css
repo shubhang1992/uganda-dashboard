@@ -15,7 +15,9 @@
 
 .body {
   flex: 1;
-  padding: var(--space-4) var(--space-4) var(--space-6);
+  /* Mobile: hero removed (shell app bar carries the title), so the body starts
+     at the top with a little breathing room. Desktop overrides padding below. */
+  padding: var(--space-6) var(--space-4) var(--space-6);
 }
 
 .step {

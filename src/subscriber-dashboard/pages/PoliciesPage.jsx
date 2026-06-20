@@ -10,6 +10,7 @@ import { formatMemberId } from '../../utils/memberId';
 import { useCurrentSubscriber, useSubscriberNominees, useRenewPolicy } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import { openPolicyCertificate } from '../../signup/contribution/insurancePolicyCertificate';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
@@ -96,6 +97,7 @@ function PolicyCard({ policy, onRenew, onCertificate }) {
 export default function PoliciesPage() {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
+  const isDesktop = useIsDesktop();
   const { data: sub, isLoading } = useCurrentSubscriber();
   const { data: nominees } = useSubscriberNominees(sub?.id);
   const { addToast } = useToast();
@@ -106,6 +108,9 @@ export default function PoliciesPage() {
   const expired = policies.filter((p) => p.status === 'expired');
   const hasAny = policies.length > 0;
   const onlyExpired = active.length === 0 && expired.length > 0;
+  // Headline figure for the mobile flat summary card (replaces the removed hero):
+  // total benefit across the subscriber's active cover.
+  const totalActiveCover = active.reduce((sum, p) => sum + (p.cover || 0), 0);
 
   // Renewal sheet
   const [renewing, setRenewing] = useState(null);
@@ -173,15 +178,30 @@ export default function PoliciesPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        variant="hero"
-        title="Your policies"
-        eyebrow="INSURANCE"
-        subtitle={subtitle}
-        fallback="/dashboard"
-      />
+      {/* Desktop (>=1024px) keeps the shipped PageHeader hero exactly. Mobile
+          drops it (the app-bar provides the title) for the flat summary below. */}
+      {isDesktop && (
+        <PageHeader
+          variant="hero"
+          title="Your policies"
+          eyebrow="INSURANCE"
+          subtitle={subtitle}
+          fallback="/dashboard"
+        />
+      )}
 
       <div className={styles.body}>
+        {/* Mobile flat summary card — replaces the removed hero with an eyebrow +
+            big indigo total-cover figure + a sub-line. Desktop renders the
+            PageHeader hero above instead. Only shown when cover exists. */}
+        {!isDesktop && !isLoading && hasAny && (
+          <section className={styles.summary} aria-labelledby="policies-cover-label">
+            <span className={styles.summaryEyebrow} id="policies-cover-label">Total active cover</span>
+            <div className={styles.summaryFigure}>{formatUGX(totalActiveCover, { compact: false })}</div>
+            <span className={styles.summarySub}>{subtitle}</span>
+          </section>
+        )}
+
         {!isLoading && !hasAny && (
           <EmptyState
             kind="no-data"

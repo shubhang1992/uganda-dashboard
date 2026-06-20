@@ -4,12 +4,11 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { calcFV, parseAmount } from '../../utils/finance';
 import { EASE_OUT_EXPO } from '../../utils/motion';
-import { formatNumber, formatUGX, formatUGXShort } from '../../utils/currency';
+import { formatUGX, formatUGXShort } from '../../utils/currency';
 import { useCurrentSubscriber, useRequestWithdrawal } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { MIN_WITHDRAW, RETIREMENT_AGE } from '../../constants/savings';
-import HeroCapsule from '../../components/HeroCapsule';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
 import { goBackOrFallback } from '../shell/navigation';
 import styles from './WithdrawPage.module.css';
@@ -360,14 +359,30 @@ export default function WithdrawPage() {
         </div>
       ) : (
         <>
-        <PageHeaderHero
-          amount={hasAmount ? amount : 0}
-          bucket={bucket}
-          remainingAfter={hasAmount ? remainingAfter : max}
-          onBack={handleBack}
-        />
-
       <div className={styles.body}>
+        {/* Amount-first summary (flat card) — the app bar provides the
+            "Withdraw savings" title + back, so no dome here. Mirrors the SavePage
+            reskin: eyebrow + big centred indigo amount (the live slider value) +
+            a sub-line naming the source pot and what remains after. */}
+        <section
+          className={`${styles.section} ${styles.summaryHero}`}
+          aria-labelledby="withdraw-amount-label"
+        >
+          <span className={styles.heroEyebrow} id="withdraw-amount-label">
+            You&apos;re taking out
+          </span>
+          <div
+            className={styles.heroAmtBig}
+            role="img"
+            aria-label={`Withdrawing ${formatUGX(hasAmount ? amount : 0, { compact: false })} from your ${potLabel} pot.`}
+          >
+            {formatUGX(hasAmount ? amount : 0, { compact: false })}
+          </div>
+          <p className={styles.heroNote}>
+            From {potLabel} · {formatUGX(hasAmount ? remainingAfter : max, { compact: false })} remaining
+          </p>
+        </section>
+
         {/* Amount slider */}
         <section className={styles.section}>
           <div className={styles.sectionHead}>
@@ -632,25 +647,5 @@ export default function WithdrawPage() {
         document.body
       )}
     </div>
-  );
-}
-
-/**
- * Hero dome for the withdraw form. Title "Withdraw", eyebrow "YOU'RE TAKING
- * OUT", the live amount, and a subtitle that names the source pot plus the
- * balance remaining after this withdrawal. The pot label mirrors the pot-card
- * wording ("Savings" / "Retirement") so the two never disagree.
- */
-function PageHeaderHero({ amount, bucket, remainingAfter, onBack }) {
-  const potLabel = bucket === 'emergency' ? 'Savings' : 'Retirement';
-  return (
-    <HeroCapsule
-      title="Withdraw"
-      eyebrow="YOU'RE TAKING OUT"
-      prefix="UGX"
-      amount={amount > 0 ? formatNumber(amount) : '0'}
-      subtitle={`From your ${potLabel} pot · ${formatUGX(remainingAfter, { compact: false })} remaining`}
-      onBack={onBack}
-    />
   );
 }

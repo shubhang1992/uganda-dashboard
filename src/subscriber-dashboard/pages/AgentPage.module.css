@@ -159,6 +159,16 @@
   color: var(--color-indigo);
 }
 
+/* Branch · role subline — carries the identity context the removed mobile hero
+   used to show. Mobile-only: the desktop deskHead already prints the branch, so
+   it is hidden at >=1024px (keeping the shared agentCard visually unchanged on
+   the desktop summary rail). */
+.profileBranch {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  color: var(--color-gray);
+}
+
 .profileBadges {
   display: flex;
   flex-wrap: wrap;
@@ -457,6 +467,36 @@
   }
 }
 
+/* Mobile (<1024px) — align the agent profile to the redesigned dashboard's
+   signature look: a soft white→cloud gradient hero card, an uppercase eyebrow,
+   and a flattened (shadowless) avatar to match the flat-light language. Desktop
+   (>=1024px summary rail) keeps the shipped white card via the block below. */
+@media (max-width: 1023.98px) {
+  .profile {
+    background: linear-gradient(155deg, #fff 0%, var(--color-cloud) 100%);
+  }
+  .profileEyebrow {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-gray);
+    margin-bottom: 2px;
+  }
+  .avatar {
+    box-shadow: none;
+  }
+}
+
+/* The eyebrow is a mobile-only hero affordance; the desktop deskHead already
+   prints "Your agent", so suppress it on the desktop summary rail. */
+@media (min-width: 1024px) {
+  .profileEyebrow {
+    display: none;
+  }
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
    Desktop (>=1024px) — v5 theme. The page renders inside SubscriberDesktopShell
    (which scopes --radius-md/-lg/-xl to 0.5rem), so cards pick up the ~8px
@@ -557,6 +597,12 @@
   .noAgent,
   .tickets {
     border-radius: var(--radius-md);
+  }
+
+  /* The branch subline is a mobile-only stand-in for the removed hero; on the
+     desktop summary rail the deskHead already carries it, so suppress it here. */
+  .profileBranch {
+    display: none;
   }
 
   /* Avatar de-emphasised to a tinted chip (square) to match v5 block icons. */

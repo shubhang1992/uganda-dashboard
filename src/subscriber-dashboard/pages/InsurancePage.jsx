@@ -8,6 +8,7 @@ import { formatDate } from '../../utils/date';
 import { getInitials } from '../../utils/dashboard';
 import { useCurrentSubscriber, useUpdateInsuranceCover } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import PageHeader from '../../components/PageHeader';
 import styles from './InsurancePage.module.css';
 
@@ -21,6 +22,7 @@ const COVER_TIERS = [
 export default function InsurancePage() {
   const navigate = useNavigate();
   const reducedMotion = useReducedMotion();
+  const isDesktop = useIsDesktop();
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const updateCover = useUpdateInsuranceCover(sub?.id);
@@ -86,22 +88,28 @@ export default function InsurancePage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        variant="hero"
-        title="Insurance cover"
-        eyebrow={noPolicy ? undefined : 'CURRENT COVER'}
-        prefix={noPolicy ? undefined : 'UGX'}
-        amount={noPolicy ? undefined : formatUGX(insurance.cover || 0, { compact: false }).replace('UGX ', '')}
-        subtitle={noPolicy ? 'Premium and policy level' : undefined}
-        statRow={noPolicy ? undefined : (
-          <>
-            <span><strong>{formatUGX(insurance.premiumMonthly, { compact: false })}</strong> / mo</span>
-            <span>Started <strong>{formatDate(insurance.policyStart)}</strong></span>
-            <span>Renews <strong>{formatDate(lifePolicy?.renewalDate ?? insurance.renewalDate)}</strong></span>
-          </>
-        )}
-        fallback="/dashboard/settings"
-      />
+      {isDesktop && (
+        // Desktop (>=1024px): the in-page hero dome is preserved byte-identically
+        // from the shipped layout. On mobile the persistent shell app bar owns the
+        // "Insurance" title + back arrow, so the hero is dropped there and the
+        // cover figure surfaces in a flat summary card inside the body below.
+        <PageHeader
+          variant="hero"
+          title="Insurance cover"
+          eyebrow={noPolicy ? undefined : 'CURRENT COVER'}
+          prefix={noPolicy ? undefined : 'UGX'}
+          amount={noPolicy ? undefined : formatUGX(insurance.cover || 0, { compact: false }).replace('UGX ', '')}
+          subtitle={noPolicy ? 'Premium and policy level' : undefined}
+          statRow={noPolicy ? undefined : (
+            <>
+              <span><strong>{formatUGX(insurance.premiumMonthly, { compact: false })}</strong> / mo</span>
+              <span>Started <strong>{formatDate(insurance.policyStart)}</strong></span>
+              <span>Renews <strong>{formatDate(lifePolicy?.renewalDate ?? insurance.renewalDate)}</strong></span>
+            </>
+          )}
+          fallback="/dashboard/settings"
+        />
+      )}
 
       <div className={styles.body}>
         <motion.div
@@ -110,6 +118,18 @@ export default function InsurancePage() {
           animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
+          {!isDesktop && !noPolicy && insurance && (
+            // Mobile: the removed hero dome's cover figure, re-homed as a flat
+            // summary card. Eyebrow + big indigo amount + a premium / renewal
+            // sub-line. Mobile-only — desktop keeps the hero dome above.
+            <section className={styles.coverSummary}>
+              <span className={styles.coverEyebrow}>Current cover</span>
+              <div className={styles.coverAmount}>{formatUGX(insurance.cover || 0, { compact: false })}</div>
+              <p className={styles.coverSub}>
+                {formatUGX(insurance.premiumMonthly, { compact: false })} / mo · Renews {formatDate(lifePolicy?.renewalDate ?? insurance.renewalDate)}
+              </p>
+            </section>
+          )}
           {noPolicy && (
             <section className={styles.emptyCoverCard}>
               <div className={styles.shieldIcon} aria-hidden="true">

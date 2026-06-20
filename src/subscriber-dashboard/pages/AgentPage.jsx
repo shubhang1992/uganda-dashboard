@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
@@ -6,6 +7,8 @@ import { formatNumber } from '../../utils/currency';
 import { useCurrentSubscriber, useSubscriberAgent } from '../../hooks/useSubscriber';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { useToast } from '../../contexts/ToastContext';
+import { goBackOrFallback } from '../shell/navigation';
+import { useSubscriberAppBar } from '../shell/subscriberAppBarContext';
 import {
   useSubscriberTickets,
   useTicketThread,
@@ -17,7 +20,6 @@ import {
 } from '../../hooks/useTickets';
 import { TICKET_STATUS, SENDER_ROLE } from '../../data/ticketsSeed';
 import { getInitials } from '../../utils/dashboard';
-import PageHeader from '../../components/PageHeader';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
@@ -202,6 +204,21 @@ export default function AgentPage() {
   const [statusFilter, setStatusFilter] = useState(TICKET_STATUS.OPEN);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  // On mobile the shell app bar owns the back arrow (the in-page hero was
+  // removed). Register a step-back so its back returns thread→list before
+  // exiting the route — agreeing with ThreadView's in-card "All tickets" back.
+  // Desktop keeps its own deskHead back button, so it doesn't register.
+  const navigate = useNavigate();
+  const { registerBack } = useSubscriberAppBar();
+  const handleBack = useCallback(() => {
+    if (view === 'thread') return setView('list');
+    return goBackOrFallback(navigate, '/dashboard');
+  }, [view, navigate]);
+  useEffect(() => {
+    if (isDesktop) return undefined;
+    return registerBack(handleBack);
+  }, [isDesktop, registerBack, handleBack]);
+
   // Fetch the subscriber's tickets ONCE (no status arg) and filter client-side,
   // mirroring SubscribersPage. This keeps a single cache entry + poll.
   const {
@@ -277,7 +294,13 @@ export default function AgentPage() {
           <span className={styles.statusDot} />
         </span>
         <div className={styles.profileMain}>
+          <div className={styles.profileEyebrow}>Your dedicated agent</div>
           <div className={styles.profileName}>{agent.name}</div>
+          {agent.branchName && (
+            // Mobile only (hidden >=1024px via CSS): the branch line the removed
+            // hero used to carry. On desktop the deskHead already shows it.
+            <div className={styles.profileBranch}>{agent.branchName} branch · Your agent</div>
+          )}
           <div className={styles.profileBadges}>
             {ratingLabel && (
               <span className={styles.badge} data-tone="rating">{ratingLabel}</span>
@@ -428,10 +451,14 @@ export default function AgentPage() {
 
   return (
     <div className={styles.page} data-view={view}>
-      {isDesktop ? (
-        // Desktop (>=1024px): flat v5 header (eyebrow + title + subtitle), no
-        // indigo hero dome. In the thread view it keeps the same back affordance
-        // (return to the list) the mobile hero provides via onBack.
+      {/* Desktop (>=1024px): flat v5 header (eyebrow + title + subtitle), no
+          indigo hero dome. In the thread view it keeps the same back affordance
+          (return to the list) the mobile hero provided via onBack. Mobile drops
+          its own hero entirely — the persistent shell app-bar carries the "Your
+          agent" title + back arrow, and the thread view keeps its in-card "All
+          tickets" back button via ThreadView's onBack. The agent identity moves
+          into the flat profile card below. */}
+      {isDesktop && (
         <header className={styles.deskHead}>
           {view === 'thread' && (
             <button
@@ -453,14 +480,6 @@ export default function AgentPage() {
             )}
           </div>
         </header>
-      ) : (
-        <PageHeader
-          variant="hero"
-          title={agent?.name || 'Your agent'}
-          subtitle={agent?.branchName ? `${agent.branchName} branch` : null}
-          fallback="/dashboard"
-          onBack={view === 'thread' ? () => setView('list') : undefined}
-        />
       )}
 
       <div className={styles.body}>
