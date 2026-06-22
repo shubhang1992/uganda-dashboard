@@ -25,6 +25,7 @@ import { supabase } from './supabaseClient';
 import { IS_SUPABASE_ENABLED } from './api';
 import { normalizeFrequency } from '../utils/finance';
 import { derivePolicies } from '../utils/policies';
+import { paidThisMonth } from '../utils/periodSettlement';
 import { SUBSCRIBERS, AGENTS, BRANCHES, currentTime } from '../data/mockData';
 
 // =============================================================================
@@ -43,10 +44,16 @@ function readSession(id) {
       scheduleOverride: null,
       nomineesOverride: null,
       insuranceOverride: null,
+      // Per-product insurance rows added/paid this session (mock mode only).
+      // Each { product, cover, premiumMonthly, policyStart, renewalDate, status }.
+      // Live mode reflects new products via the real insurance_policies rows on
+      // refetch, so this override is only consulted in the mock branch.
+      insuranceProductsOverride: [],
       profileOverride: null,
-      // Per-policy renewal overrides (keyed by 'life' | 'health'). Each holds
-      // { status, renewalDate, paidRef }; derivePolicies reads renewalDate to
-      // flip a renewed policy back to active. Demo-only; resets on refresh.
+      // Per-policy renewal overrides (keyed by product: 'life'|'health'|'funeral').
+      // Each holds { status, renewalDate, paidRef }; derivePolicies reads
+      // renewalDate to flip a renewed policy back to active. Demo-only; resets
+      // on refresh.
       policyRenewals: {},
       balanceDelta: { retirement: 0, emergency: 0, total: 0 },
     });
@@ -59,12 +66,34 @@ function applyMutations(sub) {
   const m = readSession(sub.id);
   const mergedTx = [...m.extraTransactions, ...(sub.transactions || [])];
   mergedTx.sort((a, b) => b.date.localeCompare(a.date));
+  // Merge any session-added insurance products over the base set. The base set
+  // is the subscriber's `insuranceProducts` array (Supabase reads) or, for the
+  // frozen mock subscribers, a single 'life' entry synthesised from `insurance`.
+  const insurance = m.insuranceOverride ?? sub.insurance;
+  const baseProducts = sub.insuranceProducts ?? (
+    insurance && Number(insurance.cover) > 0
+      ? [{
+          product: 'life',
+          cover: insurance.cover,
+          premiumMonthly: insurance.premiumMonthly,
+          policyStart: insurance.policyStart,
+          renewalDate: insurance.renewalDate,
+          status: insurance.status,
+        }]
+      : []
+  );
+  const overridden = new Set(m.insuranceProductsOverride.map((o) => o.product));
+  const insuranceProducts = [
+    ...m.insuranceProductsOverride,
+    ...baseProducts.filter((p) => !overridden.has(p.product)),
+  ];
   return {
     ...sub,
     ...(m.profileOverride ?? null),
     contributionSchedule: m.scheduleOverride ?? sub.contributionSchedule,
     nominees: m.nomineesOverride ?? sub.nominees,
-    insurance: m.insuranceOverride ?? sub.insurance,
+    insurance,
+    insuranceProducts,
     claims: [...m.extraClaims, ...(sub.claims || [])],
     withdrawals: [...m.extraWithdrawals, ...(sub.withdrawals || [])],
     transactions: mergedTx,
@@ -152,9 +181,17 @@ function mapSubscriberRow(row) {
   const sched = Array.isArray(row.contribution_schedules)
     ? row.contribution_schedules[0]
     : row.contribution_schedules;
+  // Life cover lives in insurance_policies (single row per subscriber); the extra
+  // products (health/funeral) live in subscriber_insurance_products (migration
+  // 0064). `insurance` keeps pointing at the life row (cover slider / signup
+  // parity); `insuranceProducts` below merges life + the extras for the policies
+  // list + the settle flow.
   const ins = Array.isArray(row.insurance_policies)
     ? row.insurance_policies[0]
     : row.insurance_policies;
+  const extraInsuranceRows = Array.isArray(row.subscriber_insurance_products)
+    ? row.subscriber_insurance_products
+    : (row.subscriber_insurance_products ? [row.subscriber_insurance_products] : []);
 
   return {
     id: row.id,
@@ -218,6 +255,32 @@ function mapSubscriberRow(row) {
           status: ins.status ?? 'inactive',
         }
       : { cover: 0, premiumMonthly: 0, status: 'inactive' },
+
+    // All held insurance products (life from insurance_policies + the extras from
+    // subscriber_insurance_products), one entry per held product with cover>0.
+    // derivePolicies builds the policies list from this.
+    insuranceProducts: [
+      ...(ins && Number(ins.cover ?? 0) > 0
+        ? [{
+            product: 'life',
+            cover: Number(ins.cover ?? 0),
+            premiumMonthly: Number(ins.premium_monthly ?? 0),
+            policyStart: ins.policy_start,
+            renewalDate: ins.renewal_date,
+            status: ins.status ?? 'inactive',
+          }]
+        : []),
+      ...extraInsuranceRows
+        .filter((p) => Number(p.cover ?? 0) > 0)
+        .map((p) => ({
+          product: p.product,
+          cover: Number(p.cover ?? 0),
+          premiumMonthly: Number(p.premium_monthly ?? 0),
+          policyStart: p.policy_start,
+          renewalDate: p.renewal_date,
+          status: p.status ?? 'inactive',
+        })),
+    ],
   };
 }
 
@@ -353,7 +416,7 @@ export async function getCurrentSubscriber(phone) {
   // the signature for the mock branch above.
   const { data, error } = await supabase
     .from('subscribers')
-    .select('*, subscriber_balances(*), contribution_schedules(*), insurance_policies(*)')
+    .select('*, subscriber_balances(*), contribution_schedules(*), insurance_policies(*), subscriber_insurance_products(*)')
     .limit(1)
     .maybeSingle();
   if (error) throw error;
@@ -396,6 +459,19 @@ export async function getSubscriberTransactions(id, { type, range, status } = {}
   }
   const rows = unwrap(await q);
   return (rows ?? []).map(mapTransactionRow);
+}
+
+/**
+ * Sum of the subscriber's OWN contributions in the current (demo-clock) month —
+ * the basis for the schedule "pay the difference" settle flow. Lives in the
+ * service layer because it needs `currentTime()` (the demo clock), which
+ * components/hooks may not import (§4.1). The month-window logic itself is the
+ * pure `paidThisMonth` util.
+ */
+export async function getContributionPaidThisMonth(id) {
+  if (!id) return 0;
+  const txns = await getSubscriberTransactions(id, { type: 'contribution' });
+  return paidThisMonth(txns, currentTime());
 }
 
 /**
@@ -758,6 +834,14 @@ export async function updateContributionSchedule(id, schedule = {}) {
   if (schedule.emergencyPct !== undefined) patch.emergency_pct = Number(schedule.emergencyPct);
   if (schedule.includeInsurance !== undefined) patch.include_insurance = !!schedule.includeInsurance;
   if (schedule.insuranceChoiceMade !== undefined) patch.insurance_choice_made = !!schedule.insuranceChoiceMade;
+  // `insuranceTypes` (the multi-product selection) has no DB column — the source
+  // of truth for held products is the insurance_policies rows. When it's sent we
+  // still derive include_insurance + mark the choice made, then echo it back so
+  // the caller's settle flow can diff added products.
+  if (schedule.insuranceTypes !== undefined) {
+    patch.include_insurance = schedule.insuranceTypes.length > 0;
+    patch.insurance_choice_made = true;
+  }
   if (schedule.nextDueDate !== undefined) patch.next_due_date = schedule.nextDueDate;
   patch.updated_at = new Date().toISOString();
 
@@ -776,6 +860,7 @@ export async function updateContributionSchedule(id, schedule = {}) {
     emergencyPct: Number(row.emergency_pct),
     includeInsurance: !!row.include_insurance,
     insuranceChoiceMade: !!row.insurance_choice_made,
+    insuranceTypes: schedule.insuranceTypes,
     nextDueDate: row.next_due_date,
   };
 }
@@ -891,6 +976,64 @@ export async function updateInsuranceCover(id, { cover, premiumMonthly } = {}) {
 }
 
 /**
+ * Pay an insurance premium for a single product (health | funeral | life).
+ * Activates the per-(subscriber, product) policy row AND records a 'premium'
+ * transaction, idempotent on the client-minted `nonce`. Routes through the
+ * SECURITY DEFINER `pay_insurance_premium` RPC (migration 0063); 'premium' rows
+ * never fire the contribution trigger, so balances/AUM are unaffected.
+ *
+ * @param {string} id
+ * @param {{ product:'health'|'funeral'|'life', cover:number, premiumMonthly:number, method?:string, nonce?:string }} payload
+ */
+export async function payInsurancePremium(
+  id,
+  { product, cover, premiumMonthly, method = 'MTN Mobile Money', nonce } = {},
+) {
+  if (!id) throw new Error('Subscriber id required');
+  if (!['health', 'funeral', 'life'].includes(product)) throw new Error('Unknown insurance product');
+
+  if (!IS_SUPABASE_ENABLED) {
+    const sub = SUBSCRIBERS[id];
+    if (!sub) throw new Error('Subscriber not found');
+    const m = readSession(id);
+    const entry = {
+      product,
+      cover: Number(cover ?? 0),
+      premiumMonthly: Number(premiumMonthly ?? 0),
+      policyStart: todayIso(),
+      renewalDate: renewalIsoFromNow(1),
+      status: 'active',
+    };
+    m.insuranceProductsOverride = [
+      ...m.insuranceProductsOverride.filter((o) => o.product !== product),
+      entry,
+    ];
+    setRenewalOverride(id, product, true);
+    const reference = `PR-${Math.floor(Math.random() * 900000) + 100000}`;
+    m.extraTransactions.unshift({
+      id: `tx-${id}-prem-${Date.now()}`,
+      type: 'premium',
+      amount: Number(premiumMonthly ?? 0),
+      date: todayIso(),
+      status: 'settled',
+      method,
+      reference,
+    });
+    return { ...entry, reference };
+  }
+
+  const { data, error } = await supabase.rpc('pay_insurance_premium', {
+    p_nonce: nonce ?? crypto.randomUUID(),
+    p_product: product,
+    p_cover: Number(cover ?? 0),
+    p_premium: Number(premiumMonthly ?? 0),
+    p_method: method,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
  * Renew a policy by recording a (demo) premium payment. Demo scope: there is no
  * real processor — paying flips the policy back to active for the session and
  * pushes its renewal date forward a year. The renewal is held as a session
@@ -908,7 +1051,7 @@ export async function updateInsuranceCover(id, { cover, premiumMonthly } = {}) {
  */
 export async function renewPolicy(id, { type, method = 'MTN Mobile Money' } = {}) {
   if (!id) throw new Error('Subscriber id required');
-  if (type !== 'life' && type !== 'health') throw new Error('Unknown policy type');
+  if (!['life', 'health', 'funeral'].includes(type)) throw new Error('Unknown policy type');
 
   const reference = `RN-${Math.floor(Math.random() * 900000) + 100000}`;
   // Flip the policy active for a year (read back below to get the amount paid).
@@ -940,11 +1083,32 @@ export async function renewPolicy(id, { type, method = 'MTN Mobile Money' } = {}
   if (!IS_SUPABASE_ENABLED) {
     readSession(id).extraTransactions.unshift(tx);
   } else {
-    // Supabase parity: record the premium in the transactions feed too. Direct
-    // insert mirrors makeAdHocContribution; 'premium' is not counted as a
-    // contribution by the balance trigger, so balances are unaffected. The
-    // policy status/date renewal itself stays a session override (above), since
-    // health has no table and we make no schema changes.
+    // Supabase: persist the renewal on the real row — push the renewal date
+    // forward a year + reactivate — and record the 'premium' transaction.
+    // 'premium' rows never fire the contribution trigger, so balances are
+    // unaffected. Life lives in insurance_policies (subscriber_id); health/funeral
+    // live in subscriber_insurance_products (subscriber_id, product) — migration
+    // 0064. Direct writes are gated by the subscriber's own *_update_self RLS.
+    const dbRenewal = new Date();
+    dbRenewal.setFullYear(dbRenewal.getFullYear() + 1);
+    const renewalPatch = {
+      status: 'active',
+      renewal_date: dbRenewal.toISOString().slice(0, 10),
+      updated_at: new Date().toISOString(),
+    };
+    try {
+      if (type === 'life') {
+        await supabase.from('insurance_policies').update(renewalPatch).eq('subscriber_id', id);
+      } else {
+        await supabase
+          .from('subscriber_insurance_products')
+          .update(renewalPatch)
+          .eq('subscriber_id', id)
+          .eq('product', type);
+      }
+    } catch {
+      // Non-fatal — the session override still flips the policy active.
+    }
     try {
       await supabase.from('transactions').insert({
         id: tx.id,
@@ -1000,7 +1164,7 @@ export async function updateProfile(id, updates = {}) {
       .from('subscribers')
       .update(patch)
       .eq('id', id)
-      .select('*, subscriber_balances(*), contribution_schedules(*), insurance_policies(*)')
+      .select('*, subscriber_balances(*), contribution_schedules(*), insurance_policies(*), subscriber_insurance_products(*)')
       .single(),
   );
   return mapSubscriberRow(row);

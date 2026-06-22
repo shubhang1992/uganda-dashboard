@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
-import { formatNumber } from '../../utils/currency';
 import { useCurrentSubscriber, useSubscriberAgent } from '../../hooks/useSubscriber';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { useToast } from '../../contexts/ToastContext';
@@ -28,7 +27,6 @@ import TicketListRow from '../../components/tickets/TicketListRow';
 import ThreadView from '../../components/tickets/ThreadView';
 import RaiseIssueSheet from '../../components/tickets/RaiseIssueSheet';
 import styles from './AgentPage.module.css';
-import flow from './desktopFlow.module.css';
 
 function formatTenure(months) {
   if (!Number.isFinite(months)) return '—';
@@ -275,104 +273,81 @@ export default function AgentPage() {
 
   const initials = getInitials(agent?.name || '');
   const ratingLabel = agent?.rating ? `${agent.rating.toFixed(1)} ★` : null;
-  const responseLabel = agent?.avgResponseHours
-    ? `~${agent.avgResponseHours < 1 ? '<1' : Math.round(agent.avgResponseHours)}h reply`
-    : null;
-
-  // Agent profile card + the issues list — extracted so the list view can place
-  // them as a genuine 2-column desktop split (issues left, sticky agent card on
-  // the right) while mobile stacks them UNCHANGED (profile then issues).
-  const agentCard = hasAgent ? (
-    <section className={styles.profile}>
-      <div className={styles.profileTop}>
-        <span
-          className={styles.avatar}
-          data-status={agent.status === 'active' ? 'online' : 'offline'}
-          aria-hidden="true"
-        >
-          {initials}
-          <span className={styles.statusDot} />
-        </span>
-        <div className={styles.profileMain}>
-          <div className={styles.profileEyebrow}>Your dedicated agent</div>
-          <div className={styles.profileName}>{agent.name}</div>
-          {agent.branchName && (
-            // Mobile only (hidden >=1024px via CSS): the branch line the removed
-            // hero used to carry. On desktop the deskHead already shows it.
-            <div className={styles.profileBranch}>{agent.branchName} branch · Your agent</div>
+  // Slim agent strip — condensed identity (avatar, name, branch · rating ·
+  // tenure) + Call/Email. The issues inbox below is the page's hero, so the
+  // agent details stay compact at the top instead of competing for space.
+  const agentStrip = hasAgent ? (
+    <section className={styles.agentStrip}>
+      <span
+        className={styles.stripAvatar}
+        data-status={agent.status === 'active' ? 'online' : 'offline'}
+        aria-hidden="true"
+      >
+        {initials}
+        <span className={styles.statusDot} />
+      </span>
+      <div className={styles.stripInfo}>
+        <p className={styles.stripEyebrow}>Your agent</p>
+        <h1 className={styles.stripName}>{agent.name}</h1>
+        <p className={styles.stripMeta}>
+          {agent.branchName && <span>{agent.branchName} branch</span>}
+          {ratingLabel && (
+            <>
+              <span className={styles.metaDot} aria-hidden="true">·</span>
+              <span>{ratingLabel}</span>
+            </>
           )}
-          <div className={styles.profileBadges}>
-            {ratingLabel && (
-              <span className={styles.badge} data-tone="rating">{ratingLabel}</span>
-            )}
-            {responseLabel && (
-              <span className={styles.badge}>{responseLabel}</span>
-            )}
-            <span className={styles.badge}>
-              {formatTenure(agent.tenureMonths)} at UP
-            </span>
-          </div>
-        </div>
+          <span className={styles.metaDot} aria-hidden="true">·</span>
+          <span>{formatTenure(agent.tenureMonths)} at UP</span>
+        </p>
+        {(agent.specialties?.length > 0 || agent.languages?.length > 0) && (
+          <p className={styles.stripSub}>
+            {[
+              agent.specialties?.length ? agent.specialties.join(' · ') : null,
+              agent.languages?.length ? agent.languages.join(', ') : null,
+            ].filter(Boolean).join('  ·  ')}
+          </p>
+        )}
       </div>
-
-      <ul className={styles.contactRow}>
-        <li>
-          <a className={styles.contactBtn} href={`tel:${agent.phone}`} aria-label={`Call ${agent.name}`}>
-            <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
-              <path d="M3 2h2.5l1.2 3-1.6 1.1a8 8 0 003.8 3.8L10 8.3l3 1.2V12a1.5 1.5 0 01-1.5 1.5A11 11 0 011.5 3.5 1.5 1.5 0 013 2z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-            </svg>
-            Call
-          </a>
-        </li>
-        <li>
-          <a className={styles.contactBtn} href={`mailto:${agent.email}`} aria-label={`Email ${agent.name}`}>
-            <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
-              <rect x="2" y="3.5" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-              <path d="M2 4.5l6 4 6-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Email
-          </a>
-        </li>
-      </ul>
-
-      {(agent.specialties?.length > 0 || agent.languages?.length > 0) && (
-        <dl className={styles.profileMeta}>
-          {agent.specialties?.length > 0 && (
-            <div className={styles.metaRow}>
-              <dt>Specialties</dt>
-              <dd>{agent.specialties.join(' · ')}</dd>
-            </div>
-          )}
-          {agent.languages?.length > 0 && (
-            <div className={styles.metaRow}>
-              <dt>Languages</dt>
-              <dd>{agent.languages.join(', ')}</dd>
-            </div>
-          )}
-          {Number.isFinite(agent.subscribersManaged) && (
-            <div className={styles.metaRow}>
-              <dt>Looking after</dt>
-              <dd>{formatNumber(agent.subscribersManaged)} savers</dd>
-            </div>
-          )}
-        </dl>
-      )}
+      <div className={styles.stripActions}>
+        <a className={styles.contactBtn} href={`tel:${agent.phone}`} aria-label={`Call ${agent.name}`}>
+          <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+            <path d="M3 2h2.5l1.2 3-1.6 1.1a8 8 0 003.8 3.8L10 8.3l3 1.2V12a1.5 1.5 0 01-1.5 1.5A11 11 0 011.5 3.5 1.5 1.5 0 013 2z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+          </svg>
+          Call
+        </a>
+        <a className={styles.contactBtn} href={`mailto:${agent.email}`} aria-label={`Email ${agent.name}`}>
+          <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+            <rect x="2" y="3.5" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+            <path d="M2 4.5l6 4 6-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Email
+        </a>
+      </div>
     </section>
   ) : (
-    <section className={styles.noAgent} aria-live="polite">
-      <div className={styles.noAgentTitle}>No agent assigned yet</div>
-      <p className={styles.noAgentBody}>
-        You don&rsquo;t have a personal agent assigned right now. You can
-        still raise an issue — our support team will pick it up and
-        connect you with an agent.
-      </p>
+    <section className={styles.agentStrip} data-empty="true" aria-live="polite">
+      <div className={styles.stripInfo}>
+        <p className={styles.stripEyebrow}>Your agent</p>
+        <h1 className={styles.stripName}>No agent assigned yet</h1>
+        <p className={styles.stripSub}>
+          Raise an issue below — our support team will pick it up and connect you with an agent.
+        </p>
+      </div>
     </section>
   );
 
   const ticketsSection = (
     <section className={styles.tickets}>
       <div className={styles.ticketsHead}>
-        <div className={styles.ticketsTitle}>Your issues</div>
+        <div className={styles.ticketsHeadText}>
+          <h2 className={styles.ticketsTitle}>Your issues</h2>
+          <p className={styles.ticketsSubtitle}>
+            {hasAgent
+              ? `Message ${agent.name.split(' ')[0]} about claims, withdrawals, or your plan — replies land right here.`
+              : 'Raise a question and our support team will reply right here.'}
+          </p>
+        </div>
         <button
           type="button"
           className={styles.raiseBtn}
@@ -443,6 +418,7 @@ export default function AgentPage() {
               ticket={ticket}
               unreadFor="subscriber"
               onClick={openThread}
+              hideAvatar
             />
           ))}
       </div>
@@ -451,14 +427,11 @@ export default function AgentPage() {
 
   return (
     <div className={styles.page} data-view={view}>
-      {/* Desktop (>=1024px): flat v5 header (eyebrow + title + subtitle), no
-          indigo hero dome. In the thread view it keeps the same back affordance
-          (return to the list) the mobile hero provided via onBack. Mobile drops
-          its own hero entirely — the persistent shell app-bar carries the "Your
-          agent" title + back arrow, and the thread view keeps its in-card "All
-          tickets" back button via ThreadView's onBack. The agent identity moves
-          into the flat profile card below. */}
-      {isDesktop && (
+      {/* Desktop thread view keeps a flat header with a back affordance to the
+          inbox. In the LIST view the slim agent strip below is the header, so no
+          separate desk header is needed (inbox-first layout). Mobile uses the
+          persistent shell app-bar for the "Your agent" title + back arrow. */}
+      {isDesktop && view === 'thread' && (
         <header className={styles.deskHead}>
           {view === 'thread' && (
             <button
@@ -504,23 +477,11 @@ export default function AgentPage() {
                 exit={reducedMotion ? undefined : { opacity: 0, y: -8 }}
                 transition={{ duration: reducedMotion ? 0 : 0.3, ease: EASE_OUT_EXPO }}
               >
-                {isDesktop ? (
-                  /* Desktop (>=1024px): 2-column split — "Your issues" in the
-                     action column, the agent profile as a sticky reference card
-                     on the right (the header already carries the agent's name).
-                     Mobile stacks agentCard then ticketsSection below, unchanged. */
-                  <div className={flow.splitHost}>
-                    <div className={flow.split}>
-                      <div className={flow.col}>{ticketsSection}</div>
-                      <aside className={flow.summaryCol}>{agentCard}</aside>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {agentCard}
-                    {ticketsSection}
-                  </>
-                )}
+                {/* Inbox-first: a slim agent strip above the issues inbox (the
+                    hero). Same stacked layout on mobile + desktop; the desktop
+                    column is centred + width-capped via CSS. */}
+                {agentStrip}
+                {ticketsSection}
               </motion.div>
             ) : (
               <motion.div

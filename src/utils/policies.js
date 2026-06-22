@@ -1,50 +1,42 @@
 // Policy derivation for the subscriber "Your policies" surfaces.
 //
-// The platform stores a single life-cover record per subscriber
-// (`subscriber.insurance`); there is no health product in the data model and
-// nothing computes expiry. This module derives a normalised `policies` list:
-//   - Life cover, from the real insurance record (held when cover > 0).
-//   - Health insurance, synthesised deterministically per subscriber so
-//     different demo logins show active / expired / none.
-// Active vs expired is computed from the renewal date so the policies page can
-// show real states and drive a renew-by-payment flow — all client-side, no
-// backend changes.
+// Insurance is stored per-(subscriber, product) in `subscriber.insuranceProducts`
+// (migration 0063): one row per held product — life / health / funeral. This
+// module normalises those rows into the `policies` list the UI renders,
+// computing active vs expired from each row's renewal date so the policies page
+// can show real states and drive a renew-by-payment flow. A legacy single-life
+// fallback (from `subscriber.insurance`) keeps any pre-0063 / signup-only read
+// working.
 //
 // IMPORTANT (CLAUDE.md §4.1): this is a util, NOT a service, so it must NOT
 // import from `src/data/mockData.js`. The demo clock is read by the service
 // layer (`services/subscriber.js`) via `currentTime()` and passed in as `now`.
 
-const MS_PER_DAY = 86_400_000;
+import { INSURANCE_PRODUCTS } from '../constants/savings';
 
-const HEALTH_COVER_TIERS = [3_000_000, 5_000_000];
-const HEALTH_PREMIUM_MONTHLY = 5_000;
 // Fallback premium for a held policy whose record is missing a premium, so the
 // renewal amount is never UGX 0 (the cover slider's lowest tier is 2,000/mo).
 const FALLBACK_PREMIUM_MONTHLY = 2_000;
 
-/** Deterministic 32-bit string hash (FNV-1a). Stable across sessions. */
-export function hashId(str) {
-  let h = 2166136261 >>> 0;
-  const s = String(str ?? '');
-  for (let i = 0; i < s.length; i += 1) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
+// Display name + stable ordering per product. Falls back to the
+// INSURANCE_PRODUCTS label, then a generic title.
+const PRODUCT_LABEL = {
+  life: 'Life cover',
+  health: 'Health insurance',
+  funeral: 'Funeral cover',
+};
+const PRODUCT_ORDER = ['life', 'health', 'funeral'];
+
+function productName(product) {
+  if (PRODUCT_LABEL[product]) return PRODUCT_LABEL[product];
+  const cfg = INSURANCE_PRODUCTS.find((p) => p.id === product);
+  return cfg?.label ?? 'Insurance cover';
 }
 
 function toDate(value) {
   if (!value) return null;
   const d = value instanceof Date ? value : new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function isoOf(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-function addDays(date, days) {
-  return new Date(date.getTime() + days * MS_PER_DAY);
 }
 
 /**
@@ -57,35 +49,6 @@ export function derivePolicyStatus({ renewalDate }, now) {
   const renew = toDate(renewalDate);
   if (!renew) return 'active';
   return renew.getTime() >= now.getTime() ? 'active' : 'expired';
-}
-
-/**
- * Deterministically synthesise a health-insurance policy for a subscriber so
- * the demo shows varied states. Keyed off the phone (the rep logs in by phone,
- * so this spreads the seeded demo accounts across buckets):
- *   bucket 0 → null (no health policy) · 1 → active · 2 → expired.
- * Amounts are stable per subscriber. Returns the raw policy fields (status is
- * computed downstream by `derivePolicies`).
- *
- * @param {object} subscriber
- * @param {Date} now
- * @returns {object|null}
- */
-export function synthesizeHealthPolicy(subscriber, now) {
-  const seed = hashId(subscriber?.phone || subscriber?.id || '');
-  const bucket = seed % 3;
-  if (bucket === 0) return null;
-
-  const cover = HEALTH_COVER_TIERS[(seed >>> 2) & 1];
-  const active = bucket === 1;
-  const start = active ? addDays(now, -200) : addDays(now, -500);
-  const renewal = active ? addDays(now, 165) : addDays(now, -135);
-  return {
-    cover,
-    premiumMonthly: HEALTH_PREMIUM_MONTHLY,
-    policyStart: isoOf(start),
-    renewalDate: isoOf(renewal),
-  };
 }
 
 function buildPolicy(base, override, now) {
@@ -108,50 +71,51 @@ function buildPolicy(base, override, now) {
 }
 
 /**
- * Build the subscriber's normalised policy list. Pure: `now` and any
- * `renewalOverrides` (keyed by policy type) are supplied by the service layer.
+ * Build the subscriber's normalised policy list — one entry per held insurance
+ * product. Pure: `now` and any `renewalOverrides` (keyed by product id) are
+ * supplied by the service layer.
  *
- * @param {object} subscriber
+ * @param {object} subscriber — expects `insuranceProducts` (per-product rows);
+ *   falls back to the single `insurance` (life) record when that's absent/empty.
  * @param {{ now: Date, renewalOverrides?: Record<string, {renewalDate:string}> }} opts
  * @returns {Array<object>}
  */
 export function derivePolicies(subscriber, { now, renewalOverrides = {} } = {}) {
   if (!subscriber || !now) return [];
-  const policies = [];
 
-  const ins = subscriber.insurance;
-  if (ins && Number(ins.cover) > 0) {
-    policies.push(buildPolicy(
-      {
-        id: `${subscriber.id}-life`,
-        type: 'life',
-        name: 'Life cover',
+  // Source rows = the per-product insurance set. Legacy fallback: if the array
+  // is absent/empty but the single life record has cover, synthesise one life
+  // row so older reads + signup-only accounts still render their policy.
+  let rows = (Array.isArray(subscriber.insuranceProducts) ? subscriber.insuranceProducts : [])
+    .filter((r) => Number(r.cover) > 0);
+  if (rows.length === 0) {
+    const ins = subscriber.insurance;
+    if (ins && Number(ins.cover) > 0) {
+      rows = [{
+        product: 'life',
         cover: ins.cover,
         premiumMonthly: ins.premiumMonthly,
         policyStart: ins.policyStart,
         renewalDate: ins.renewalDate,
-      },
-      renewalOverrides.life,
-      now,
-    ));
+        status: ins.status,
+      }];
+    }
   }
 
-  const health = synthesizeHealthPolicy(subscriber, now);
-  if (health) {
-    policies.push(buildPolicy(
+  return rows
+    .slice()
+    .sort((a, b) => PRODUCT_ORDER.indexOf(a.product) - PRODUCT_ORDER.indexOf(b.product))
+    .map((r) => buildPolicy(
       {
-        id: `${subscriber.id}-health`,
-        type: 'health',
-        name: 'Health insurance',
-        cover: health.cover,
-        premiumMonthly: health.premiumMonthly,
-        policyStart: health.policyStart,
-        renewalDate: health.renewalDate,
+        id: `${subscriber.id}-${r.product}`,
+        type: r.product,
+        name: productName(r.product),
+        cover: r.cover,
+        premiumMonthly: r.premiumMonthly,
+        policyStart: r.policyStart,
+        renewalDate: r.renewalDate,
       },
-      renewalOverrides.health,
+      renewalOverrides[r.product],
       now,
     ));
-  }
-
-  return policies;
 }

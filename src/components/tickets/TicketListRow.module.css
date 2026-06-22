@@ -17,6 +17,11 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s var(--ease-out-expo);
 }
 
+/* Self-inbox contexts hide the (subject-initials) avatar → body + trailing only. */
+.row[data-no-avatar='true'] {
+  grid-template-columns: 1fr auto;
+}
+
 .row:hover {
   border-color: var(--color-indigo-soft);
   box-shadow: var(--shadow-sm);

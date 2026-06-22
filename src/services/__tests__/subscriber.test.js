@@ -60,7 +60,7 @@ describe('subscriber service — real (Supabase) branch', () => {
       expect(sub.insurance.cover).toBe(1000000);
       const call = supabaseMock.__getFromCalls('subscribers').at(-1);
       expect(call.chain.select).toHaveBeenCalledWith(
-        '*, subscriber_balances(*), contribution_schedules(*), insurance_policies(*)',
+        '*, subscriber_balances(*), contribution_schedules(*), insurance_policies(*), subscriber_insurance_products(*)',
       );
       expect(call.chain.limit).toHaveBeenCalledWith(1);
       expect(call.chain.maybeSingle).toHaveBeenCalled();

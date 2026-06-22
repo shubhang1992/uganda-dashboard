@@ -111,6 +111,51 @@
   color: var(--color-gray);
 }
 
+/* ── Collapsed section row (collapsible mobile) ───────────────────────────
+   Used only when the form is rendered with `collapsible` (subscriber mobile,
+   editing an existing schedule): each section shows its current value + an Edit
+   toggle, expanding on tap. Unused — and therefore inert — everywhere else. */
+.sectionSummary {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-indigo);
+  letter-spacing: -0.01em;
+  text-align: right;
+  max-width: 52%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editToggle {
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  color: var(--color-indigo);
+  background: color-mix(in srgb, var(--color-indigo) 7%, transparent);
+  border: 1px solid var(--color-lavender);
+  padding: 7px 14px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  min-height: 34px;
+  touch-action: manipulation;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.editToggle:hover {
+  background: color-mix(in srgb, var(--color-indigo) 12%, transparent);
+  border-color: var(--color-indigo-soft);
+}
+
+.editToggle:active { transform: scale(0.97); }
+
+.editToggle:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 2px;
+}
+
 /* ── Frequency grid ───────────────────────────────────── */
 .freqGrid {
   display: grid;
@@ -258,21 +303,27 @@
   margin: 0;
 }
 
-/* ── Split slider ─────────────────────────────────────── */
+/* ── Split slider ─────────────────────────────────────────────────────────
+   Compact two-bucket header: each side is label + percent on one line with its
+   withdrawal rule as a small caption beneath, so the section stays short. */
 .splitHead {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
 .splitSide {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  min-width: 0;
 }
 
 .splitSide[data-align='right'] {
-  align-items: flex-end;
+  justify-content: flex-end;
+  text-align: right;
 }
 
 .splitLabel {
@@ -285,13 +336,23 @@
 
 .splitLabel[data-tone='teal'] { color: var(--color-teal); }
 
+/* Withdrawal rule — drops to its own line beneath the label + percent. */
+.splitNote {
+  flex-basis: 100%;
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--color-gray);
+  line-height: 1.25;
+}
+
 .splitPct {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: var(--text-xl);
-  letter-spacing: -0.025em;
+  font-size: var(--text-base);
+  letter-spacing: -0.02em;
   color: var(--color-indigo);
   font-variant-numeric: tabular-nums;
+  line-height: 1.1;
 }
 
 .splitPct[data-tone='teal'] { color: var(--color-teal); }
@@ -304,7 +365,7 @@
   border-radius: var(--radius-full);
   background: linear-gradient(to right, var(--color-indigo) 0%, var(--color-indigo) var(--pct), var(--color-teal) var(--pct), var(--color-teal) 100%);
   outline: none;
-  margin-top: var(--space-2);
+  margin-top: var(--space-1);
 }
 
 .slider::-webkit-slider-thumb {
@@ -328,37 +389,13 @@
   cursor: pointer;
 }
 
-.bucketHelp {
-  font-family: var(--font-body);
-  font-size: 11.5px;
-  color: var(--color-slate);
-  margin: 4px 0 0;
+/* ── Insurance multi-select ───────────────────────────── */
+.insuranceList {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  line-height: 1.5;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.bucketHelp strong {
-  font-family: var(--font-display);
-  font-weight: 700;
-  color: var(--color-indigo);
-  margin: 0 4px 0 2px;
-}
-
-.bucketSep { color: var(--color-lavender); margin: 0 4px; }
-
-.bucketDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-.bucketDot[data-tone='retirement'] { background: var(--color-indigo); }
-.bucketDot[data-tone='emergency']  { background: var(--color-teal); }
-
-/* ── Insurance toggle ─────────────────────────────────── */
 .insuranceRow {
   display: flex;
   align-items: center;
@@ -669,3 +706,46 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Mobile theme, single-column (no split) ───────────────────────────────
+   The desktop split layout (.bodySplit) already renders sections + the summary
+   as light v5 cards. The mobile single-column layout previously kept a 28px
+   radius, no card shadow, and a saturated indigo summary block — off-theme vs.
+   the redesigned light mobile dashboard (SavePage / HomeMobile use --radius-lg
+   + --shadow-sm + light cards + indigo ink). Align it here. Scoped to
+   .body:not(.bodySplit) so the desktop tree (always .bodySplit) is byte-identical. */
+.body:not(.bodySplit) .section {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.body:not(.bodySplit) .summarySection {
+  background: linear-gradient(155deg, #fff 0%, var(--color-cloud) 100%);
+  color: var(--color-slate);
+  border: 1px solid var(--color-lavender);
+  box-shadow: var(--shadow-sm);
+}
+
+.body:not(.bodySplit) .summaryEyebrow,
+.body:not(.bodySplit) .summaryCadence { color: var(--color-gray); }
+
+.body:not(.bodySplit) .summaryBig { color: var(--color-indigo); }
+
+.body:not(.bodySplit) .summaryRow {
+  color: var(--color-slate);
+  border-top-color: var(--color-lavender);
+}
+
+.body:not(.bodySplit) .summaryRow > span:last-child { color: var(--color-indigo); }
+
+.body:not(.bodySplit) .summaryDot[data-tone='retirement'] { background: var(--color-indigo); }
+.body:not(.bodySplit) .summaryDot[data-tone='emergency'] { background: var(--color-teal); }
+
+.body:not(.bodySplit) .projection {
+  background: color-mix(in srgb, var(--color-indigo) 5%, transparent);
+  border-color: var(--color-lavender);
+}
+
+.body:not(.bodySplit) .projLabel,
+.body:not(.bodySplit) .projNote { color: var(--color-gray); }
+.body:not(.bodySplit) .projValue { color: var(--color-indigo); }

@@ -46,6 +46,18 @@ export function useContributionBreakdown(id) {
   });
 }
 
+/**
+ * Sum of the subscriber's own contributions in the current (demo-clock) month —
+ * drives the schedule "pay the difference" settle prompt.
+ */
+export function useContributionPaidThisMonth(id) {
+  return useQuery({
+    queryKey: ['contributionPaidThisMonth', id],
+    queryFn: () => subscriberService.getContributionPaidThisMonth(id),
+    enabled: !!id,
+  });
+}
+
 export function useSubscriberClaims(id) {
   return useQuery({
     queryKey: ['subscriberClaims', id],
@@ -161,6 +173,20 @@ export function useUpdateInsuranceCover(id) {
   const invalidate = useInvalidateSubscriber(id);
   return useMutation({
     mutationFn: (payload) => subscriberService.updateInsuranceCover(id, payload),
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * Pays an insurance premium for a single product (health | funeral | life),
+ * activating its policy row + recording a 'premium' transaction (idempotent on
+ * the payload `nonce`). Invalidates the subscriber cache so the new product
+ * appears on the Policies page and the premium shows in the activity feed.
+ */
+export function usePayInsurancePremium(id) {
+  const invalidate = useInvalidateSubscriber(id);
+  return useMutation({
+    mutationFn: (payload) => subscriberService.payInsurancePremium(id, payload),
     onSuccess: invalidate,
   });
 }

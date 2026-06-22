@@ -1,9 +1,23 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCurrentSubscriber, useUpdateSchedule } from '../../hooks/useSubscriber';
+import {
+  useCurrentSubscriber,
+  useUpdateSchedule,
+  useMakeContribution,
+  usePayInsurancePremium,
+  useContributionPaidThisMonth,
+} from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
+import { periodsPerYear } from '../../utils/finance';
+import { formatUGX } from '../../utils/currency';
+import {
+  contributionOwed,
+  newlyAddedProducts,
+  buildSettleLineItems,
+} from '../../utils/periodSettlement';
 import PageHeader from '../../components/PageHeader';
+import PaySheet from '../../components/PaySheet';
 import ContributionSettingsForm from '../../components/contribution/ContributionSettingsForm';
 import styles from './SchedulePage.module.css';
 
@@ -12,11 +26,28 @@ export default function SchedulePage() {
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const updateSchedule = useUpdateSchedule(sub?.id);
+  const makeContribution = useMakeContribution(sub?.id);
+  const payPremium = usePayInsurancePremium(sub?.id);
+  const { data: paidThisMonthAmount = 0 } = useContributionPaidThisMonth(sub?.id);
   const [submitting, setSubmitting] = useState(false);
   const isDesktop = useIsDesktop();
 
+  // "Settle this period" prompt — opened after a save that leaves something owed
+  // (a higher contribution this month, and/or newly-added insurance premiums).
+  const [settle, setSettle] = useState(null);
+  const [settleView, setSettleView] = useState('confirm'); // confirm | success
+  const [settleSubmitting, setSettleSubmitting] = useState(false);
+
   const existing = sub?.contributionSchedule;
   const isNew = !existing;
+
+  // Products the subscriber currently holds (active policies) — the single
+  // source of truth shared by the form's pre-checked toggles AND the settle
+  // flow's "what's newly added" diff below, so re-saving an unchanged plan can
+  // never re-charge an already-held premium.
+  const heldActiveTypes = (sub?.policies ?? [])
+    .filter((p) => p.status === 'active')
+    .map((p) => p.type);
 
   async function handleSave(schedule) {
     if (!sub) return;
@@ -24,6 +55,26 @@ export default function SchedulePage() {
     try {
       await updateSchedule.mutateAsync(schedule);
       addToast('success', isNew ? 'Schedule set up.' : 'Contribution schedule updated.');
+
+      // Settle the current period: the contribution top-up still owed this month
+      // plus premiums for any newly-added insurance products.
+      const owed = contributionOwed(schedule.amount, paidThisMonthAmount);
+      const added = newlyAddedProducts(heldActiveTypes, schedule.insuranceTypes ?? []);
+      const { lineItems, total, products } = buildSettleLineItems({
+        owed,
+        addedProductIds: added,
+        freqPerYear: periodsPerYear(schedule.frequency),
+      });
+
+      if (total > 0) {
+        // Mint a stable nonce per leg so a double-tap can't double-charge.
+        const nonces = { contribution: crypto.randomUUID() };
+        products.forEach((p) => { nonces[p.id] = crypto.randomUUID(); });
+        setSettle({ owed, products, lineItems, total, retirementPct: schedule.retirementPct, nonces });
+        setSettleView('confirm');
+        setSubmitting(false);
+        return;
+      }
       navigate('/dashboard');
     } catch (err) {
       addToast('error', err?.message || 'Could not save schedule.');
@@ -32,30 +83,94 @@ export default function SchedulePage() {
     }
   }
 
+  async function handleSettlePay(methodFull) {
+    if (!settle || !sub) return;
+    setSettleSubmitting(true);
+    try {
+      if (settle.owed > 0) {
+        await makeContribution.mutateAsync({
+          amount: settle.owed,
+          retirementPct: settle.retirementPct,
+          method: methodFull,
+          nonce: settle.nonces.contribution,
+        });
+      }
+      for (const p of settle.products) {
+        // Sequential so each premium commits with its own nonce (idempotent).
+        await payPremium.mutateAsync({
+          product: p.id,
+          cover: p.cover,
+          premiumMonthly: p.premiumMonthly,
+          method: methodFull,
+          nonce: settle.nonces[p.id],
+        });
+      }
+      setSettleView('success');
+    } catch (err) {
+      addToast('error', err?.message || 'Could not complete the payment.');
+    } finally {
+      setSettleSubmitting(false);
+    }
+  }
+
+  function closeSettle() {
+    if (settleSubmitting) return;
+    const paid = settleView === 'success';
+    setSettle(null);
+    if (paid) addToast('success', 'Payment complete — your plan is up to date.');
+    navigate('/dashboard');
+  }
+
+  const settleSheet = (
+    <PaySheet
+      open={!!settle}
+      view={settleView}
+      ariaLabel="Settle this period"
+      eyebrow="Settle this month"
+      total={settle?.total ?? 0}
+      subtitle="Pay for the changes you just made to this month's plan."
+      lineItems={(settle?.lineItems ?? []).map((li) => ({
+        label: li.label,
+        value: `${li.kind === 'insurance' ? '+' : ''}${formatUGX(li.amount, { compact: false })}`,
+      }))}
+      note="You'll receive an SMS prompt to authorise the payment on your mobile money account."
+      payLabel={settle ? `Pay ${formatUGX(settle.total, { compact: false })}` : undefined}
+      cancelLabel="Maybe later"
+      submitting={settleSubmitting}
+      success={{ title: 'Payment complete', subtitle: 'Your plan is up to date for this month.' }}
+      onPay={handleSettlePay}
+      onClose={closeSettle}
+    />
+  );
+
   // Desktop (>=1024px): mirror the agent's schedule sub-page — a plain header
   // (no indigo hero dome) over a width-capped, centred frame wrapping the SAME
   // form in its 2-column "split" layout (inputs left / sticky summary right).
   if (isDesktop) {
     return (
-      <div className={styles.page}>
-        <PageHeader
-          title={isNew ? 'Set up contribution schedule' : 'Tune your schedule'}
-          subtitle="Frequency, amount, and the retirement/emergency split"
-          fallback="/dashboard/save"
-        />
-        <div className={styles.frame}>
-          {sub && (
-            <ContributionSettingsForm
-              initial={existing}
-              age={sub.age}
-              layout="split"
-              onSave={handleSave}
-              submitting={submitting}
-              submitLabel={isNew ? 'Set up schedule' : undefined}
-            />
-          )}
+      <>
+        <div className={styles.page}>
+          <PageHeader
+            title={isNew ? 'Set up contribution schedule' : 'Tune your schedule'}
+            subtitle="Frequency, amount, and the retirement/emergency split"
+            fallback="/dashboard/save"
+          />
+          <div className={styles.frame}>
+            {sub && (
+              <ContributionSettingsForm
+                initial={existing}
+                age={sub.age}
+                initialInsuranceTypes={heldActiveTypes}
+                layout="split"
+                onSave={handleSave}
+                submitting={submitting}
+                submitLabel={isNew ? 'Set up schedule' : undefined}
+              />
+            )}
+          </div>
         </div>
-      </div>
+        {settleSheet}
+      </>
     );
   }
 
@@ -63,26 +178,31 @@ export default function SchedulePage() {
   // the in-page hero dome is removed. A flat, light intro card carries the page's
   // brand surface at the top of the body, then the shared form follows.
   return (
-    <div className={styles.page}>
-      <div className={styles.body}>
-        <section className={styles.intro}>
-          <p className={styles.introEyebrow}>Contribution plan</p>
-          <p className={styles.introTitle}>
-            {isNew ? 'Set up your schedule' : 'Tune your schedule'}
-          </p>
-          <p className={styles.introSub}>
-            Frequency, amount, and the retirement/emergency split.
-          </p>
-        </section>
-        {sub && (
-          <ContributionSettingsForm
-            initial={existing}
-            age={sub.age}
-            onSave={handleSave}
-            submitting={submitting}
-          />
-        )}
+    <>
+      <div className={styles.page}>
+        <div className={styles.body}>
+          <section className={styles.intro}>
+            <p className={styles.introEyebrow}>Contribution plan</p>
+            <p className={styles.introTitle}>
+              {isNew ? 'Set up your schedule' : 'Tune your schedule'}
+            </p>
+            <p className={styles.introSub}>
+              Frequency, amount, and the retirement/emergency split.
+            </p>
+          </section>
+          {sub && (
+            <ContributionSettingsForm
+              initial={existing}
+              age={sub.age}
+              initialInsuranceTypes={heldActiveTypes}
+              collapsible
+              onSave={handleSave}
+              submitting={submitting}
+            />
+          )}
+        </div>
       </div>
-    </div>
+      {settleSheet}
+    </>
   );
 }

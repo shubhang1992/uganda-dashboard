@@ -27,7 +27,6 @@ export default function SettingsPage() {
   if (isDesktop) return <SettingsDesktop />;
 
   const initials = getInitials(sub?.name || '');
-  const insurance = sub?.insurance;
   const memberSince = sub?.registeredDate
     ? formatDate(sub.registeredDate, { variant: 'month-year' })
     : null;
@@ -60,26 +59,6 @@ export default function SettingsPage() {
                   </>
                 )}
               </span>
-            </div>
-          </section>
-
-          {/* Quick stats */}
-          <section className={styles.stats}>
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>Net balance</span>
-              <span className={styles.statValue}>{formatUGX(sub?.netBalance || 0)}</span>
-            </div>
-            <span className={styles.statDivider} aria-hidden="true" />
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>Insurance cover</span>
-              <span className={styles.statValue}>
-                {insurance?.cover ? formatUGX(insurance.cover) : 'None'}
-              </span>
-            </div>
-            <span className={styles.statDivider} aria-hidden="true" />
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>Pension nominees</span>
-              <span className={styles.statValue}>{(sub?.nominees?.pension || []).length}</span>
             </div>
           </section>
 

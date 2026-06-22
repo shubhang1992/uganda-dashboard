@@ -1,0 +1,254 @@
+/* PaySheet — shared modern bottom-sheet for demo payments (renewals, insurance
+   premiums, settle-this-period). Lifted verbatim from the PoliciesPage renewal
+   sheet so every pay surface is visually identical. Mobile-first; renders the
+   same on desktop (a centred-bottom sheet over a scrim). */
+
+.sheetScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: color-mix(in srgb, var(--color-indigo-deep) 42%, transparent);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  background: var(--color-white);
+  border-radius: var(--radius-capsule) var(--radius-capsule) 0 0;
+  padding: var(--space-3) var(--space-5) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  box-shadow: var(--shadow-xl);
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.sheetGrip {
+  display: block;
+  width: 40px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-lavender);
+  margin: 0 auto var(--space-4);
+}
+
+.sheetBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sheetBody[data-center='true'] {
+  align-items: center;
+  text-align: center;
+}
+
+.confirmEyebrow {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+}
+
+.confirmBig {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-4xl);
+  letter-spacing: -0.035em;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.confirmSub {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+}
+
+.confirmList {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.confirmRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 12px;
+  background: var(--color-cloud);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+}
+
+.confirmRow strong {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-indigo);
+}
+
+.methodBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: var(--space-2);
+}
+
+.methodLabel {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-sm);
+  color: var(--color-indigo);
+}
+
+.methodHelper {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-gray);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.confirmNote {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-gray);
+  margin: var(--space-2) 0 0;
+  line-height: 1.5;
+}
+
+.sheetActions {
+  display: flex;
+  gap: 8px;
+  margin-top: var(--space-3);
+}
+
+.primaryBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-indigo);
+  color: var(--color-white);
+  border: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  letter-spacing: -0.01em;
+  border-radius: var(--radius-full);
+  padding: 16px 20px;
+  min-height: 52px;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: var(--shadow-lg);
+  font-variant-numeric: tabular-nums;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.primaryBtn:disabled {
+  background: var(--color-lavender);
+  color: var(--color-gray);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.primaryBtn:active:not(:disabled) {
+  transform: scale(0.99);
+  background: var(--color-indigo-deep);
+}
+
+.primaryBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.secondaryBtn {
+  flex: 1;
+  background: var(--color-white);
+  color: var(--color-indigo);
+  border: 1px solid var(--color-lavender);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  border-radius: var(--radius-full);
+  padding: 16px 22px;
+  min-height: 52px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.secondaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondaryBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+/* Success */
+.successCheck {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(46, 139, 87, 0.12);
+  color: var(--color-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: var(--space-2);
+}
+
+.successTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-2xl);
+  letter-spacing: -0.025em;
+  color: var(--color-indigo);
+  margin: 0;
+}
+
+.successSubtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  margin: 0;
+  max-width: 320px;
+  line-height: 1.55;
+}
+
+.successRef {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  background: var(--color-cloud);
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+}
+
+.successRef strong {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-indigo);
+  letter-spacing: 0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primaryBtn,
+  .secondaryBtn {
+    transition: none;
+  }
+}

@@ -360,12 +360,23 @@ export default function HomeDesktop({ subscriber }) {
             <span className={styles.swcV}>{formatUGX(emergency, { compact: false })}</span>
             <span className={styles.swcSub}>{emerPct}% · withdraw when you need it</span>
           </div>
-          <div className={styles.swcItem} style={{ '--ac': 'var(--color-teal)', '--tint': '47,143,157' }}>
+          <button
+            type="button"
+            className={`${styles.swcItem} ${styles.swcItemBtn}`}
+            style={{ '--ac': 'var(--color-teal)', '--tint': '47,143,157' }}
+            onClick={() => navigate(hasCover ? '/dashboard/policies' : '/dashboard/settings/insurance')}
+            aria-label={hasCover
+              ? 'View your insurance cover and download your certificate'
+              : 'Add insurance cover'}
+          >
             <div className={styles.swcChip}>{glyph.shield(20)}</div>
             <span className={styles.swcK}>Insurance cover</span>
             <span className={styles.swcV}>{hasCover ? formatUGX(cover, { compact: false }) : 'Not set'}</span>
             <span className={styles.swcSub}>{coverContext}</span>
-          </div>
+            <span className={styles.swcCta}>
+              {hasCover ? 'View & download' : 'Add cover'}{glyph.arrow(13)}
+            </span>
+          </button>
         </div>
       </motion.div>
 

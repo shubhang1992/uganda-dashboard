@@ -64,157 +64,128 @@
   to { transform: rotate(360deg); }
 }
 
-/* ── Profile ──────────────────────────────────────────── */
-.profile {
-  background: var(--color-white);
-  border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
-  padding: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-/* No-agent notice — shown in place of the profile when the subscriber has no
-   resolvable agent. The ticket entry point below still renders so the flow
-   isn't a dead end (see BL-5). */
-.noAgent {
-  background: var(--color-white);
-  border: 1px solid var(--color-lavender);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
-  padding: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.noAgentTitle {
-  font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--color-indigo);
-}
-
-.noAgentBody {
-  margin: 0;
-  color: var(--color-gray);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-}
-
-.profileTop {
+/* ── Agent strip (condensed identity; inbox-first layout) ──────────────────
+   A slim horizontal card: avatar + name + meta on the left, Call/Email on the
+   right. The issues inbox below is the page hero, so this stays compact. */
+.agentStrip {
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  flex-wrap: wrap;
+  background: linear-gradient(155deg, #fff 0%, var(--color-cloud) 100%);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4) var(--space-5);
 }
 
-.avatar {
+.agentStrip[data-empty='true'] {
+  background: var(--color-white);
+}
+
+.stripAvatar {
   position: relative;
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  background: var(--color-indigo);
-  color: var(--color-white);
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-indigo) 10%, transparent);
+  color: var(--color-indigo);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: var(--text-lg);
-  letter-spacing: -0.025em;
-  box-shadow: var(--shadow-md);
+  font-size: var(--text-base);
+  letter-spacing: -0.02em;
   flex: 0 0 auto;
 }
 
 .statusDot {
   position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: 15px;
-  height: 15px;
+  right: -3px;
+  bottom: -3px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--color-gray);
   border: 2.5px solid var(--color-white);
 }
 
-.avatar[data-status='online'] .statusDot {
+.stripAvatar[data-status='online'] .statusDot {
   background: var(--color-status-good);
 }
 
-.profileMain {
+.stripInfo {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  min-width: 0;
+  gap: 1px;
 }
 
-.profileName {
+.stripEyebrow {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+  margin: 0;
+}
+
+.stripName {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: var(--text-lg);
-  letter-spacing: -0.02em;
+  font-size: var(--text-xl);
+  letter-spacing: -0.025em;
   color: var(--color-indigo);
+  margin: 0;
+  line-height: 1.15;
 }
 
-/* Branch · role subline — carries the identity context the removed mobile hero
-   used to show. Mobile-only: the desktop deskHead already prints the branch, so
-   it is hidden at >=1024px (keeping the shared agentCard visually unchanged on
-   the desktop summary rail). */
-.profileBranch {
+.stripMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
   font-family: var(--font-body);
   font-size: 12.5px;
   color: var(--color-gray);
+  margin: 3px 0 0;
 }
 
-.profileBadges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.badge {
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 11px;
+.metaDot {
   color: var(--color-indigo-soft);
-  background: color-mix(in srgb, var(--color-indigo-soft) 10%, transparent);
-  padding: 3px 9px;
-  border-radius: var(--radius-full);
-  letter-spacing: 0.02em;
 }
 
-.badge[data-tone='rating'] {
-  color: var(--color-status-warning);
-  background: color-mix(in srgb, var(--color-status-warning) 12%, transparent);
+.stripSub {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-indigo-soft);
+  margin: 3px 0 0;
+  line-height: 1.4;
 }
 
-.contactRow {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.stripActions {
   display: flex;
   gap: var(--space-2);
+  flex: 0 0 auto;
 }
 
-.contactRow li { flex: 1; }
-
+/* Contact buttons (Call / Email) — compact pills. */
 .contactBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  width: 100%;
-  min-height: 44px;
-  background: var(--color-cloud);
+  min-height: 40px;
+  background: var(--color-white);
   border: 1px solid var(--color-lavender);
   color: var(--color-indigo);
   font-family: var(--font-display);
   font-weight: 700;
   font-size: var(--text-sm);
-  padding: 11px 14px;
+  padding: 9px 16px;
   border-radius: var(--radius-full);
   cursor: pointer;
   text-decoration: none;
@@ -223,7 +194,7 @@
 }
 
 .contactBtn:hover {
-  background: var(--color-lavender);
+  background: var(--color-cloud);
   border-color: var(--color-indigo-soft);
 }
 
@@ -236,38 +207,17 @@
   outline-offset: 2px;
 }
 
-.profileMeta {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  border-top: 1px solid var(--color-lavender);
-  padding-top: var(--space-4);
+/* Mobile: contact actions drop to a full-width row beneath the identity. */
+@media (max-width: 560px) {
+  .stripActions {
+    flex: 1 1 100%;
+  }
+  .stripActions .contactBtn {
+    flex: 1;
+  }
 }
 
-.metaRow {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
-  font-family: var(--font-body);
-  font-size: 12.5px;
-  color: var(--color-slate);
-}
-
-.metaRow dt {
-  color: var(--color-gray);
-  flex: 0 0 auto;
-}
-
-.metaRow dd {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 700;
-  color: var(--color-indigo);
-  text-align: right;
-}
-
-/* ── Tickets list ─────────────────────────────────────── */
+/* ── Tickets inbox (page hero) ─────────────────────────── */
 .tickets {
   display: flex;
   flex-direction: column;
@@ -281,17 +231,33 @@
 
 .ticketsHead {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
+}
+
+.ticketsHeadText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .ticketsTitle {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: var(--text-base);
+  font-size: var(--text-lg);
   letter-spacing: -0.02em;
   color: var(--color-indigo);
+  margin: 0;
+}
+
+.ticketsSubtitle {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  color: var(--color-gray);
+  margin: 0;
+  line-height: 1.4;
 }
 
 .raiseBtn {
@@ -330,6 +296,15 @@
 
 .filters {
   margin: 0;
+}
+
+/* Soften the selected Open/Closed tab from a solid indigo block to a light
+   indigo tint with indigo text — lighter overall, less heavy blue. Scoped to
+   this page's filter group via the chip's aria-checked state. */
+.filters [aria-checked='true'] {
+  background: color-mix(in srgb, var(--color-indigo) 10%, transparent);
+  border-color: var(--color-indigo);
+  color: var(--color-indigo);
 }
 
 .filterCount {
@@ -467,36 +442,6 @@
   }
 }
 
-/* Mobile (<1024px) — align the agent profile to the redesigned dashboard's
-   signature look: a soft white→cloud gradient hero card, an uppercase eyebrow,
-   and a flattened (shadowless) avatar to match the flat-light language. Desktop
-   (>=1024px summary rail) keeps the shipped white card via the block below. */
-@media (max-width: 1023.98px) {
-  .profile {
-    background: linear-gradient(155deg, #fff 0%, var(--color-cloud) 100%);
-  }
-  .profileEyebrow {
-    font-family: var(--font-display);
-    font-weight: 600;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--color-gray);
-    margin-bottom: 2px;
-  }
-  .avatar {
-    box-shadow: none;
-  }
-}
-
-/* The eyebrow is a mobile-only hero affordance; the desktop deskHead already
-   prints "Your agent", so suppress it on the desktop summary rail. */
-@media (min-width: 1024px) {
-  .profileEyebrow {
-    display: none;
-  }
-}
-
 /* ──────────────────────────────────────────────────────────────────────────
    Desktop (>=1024px) — v5 theme. The page renders inside SubscriberDesktopShell
    (which scopes --radius-md/-lg/-xl to 0.5rem), so cards pick up the ~8px
@@ -520,8 +465,13 @@
     margin-inline: auto;
   }
 
+  /* Inbox-first list column: centred + width-capped so the strip + inbox read
+     as one focused stack instead of stretching across the wide canvas. */
   .step {
-    gap: var(--space-5);
+    gap: var(--space-4);
+    max-width: 880px;
+    margin-inline: auto;
+    width: 100%;
   }
 
   /* Flat v5 header (eyebrow + title + subtitle), forked from the mobile hero. */
@@ -593,31 +543,19 @@
   }
 
   /* Cards: white, 1px lavender, ~8px corner, shadow-sm. */
-  .profile,
-  .noAgent,
+  .agentStrip,
   .tickets {
     border-radius: var(--radius-md);
   }
 
-  /* The branch subline is a mobile-only stand-in for the removed hero; on the
-     desktop summary rail the deskHead already carries it, so suppress it here. */
-  .profileBranch {
-    display: none;
+  /* The inbox is the hero — give it a floor height so a short ticket list still
+     fills the column instead of leaving a sparse, empty page. */
+  .tickets {
+    min-height: 460px;
   }
 
-  /* Avatar de-emphasised to a tinted chip (square) to match v5 block icons. */
-  .avatar {
-    width: 52px;
-    height: 52px;
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--color-indigo) 9%, transparent);
-    color: var(--color-indigo);
-    box-shadow: none;
-  }
-
-  .statusDot {
-    width: 13px;
-    height: 13px;
+  .list {
+    flex: 1;
   }
 
   /* Contact actions: de-pilled to functional corners (square v5 buttons). */
@@ -630,13 +568,9 @@
     background: var(--color-cloud);
   }
 
-  /* Tickets header re-skinned to the v5 .blockHead recipe. */
+  /* Tickets header keeps a touch of breathing room above the tabs. */
   .ticketsHead {
     margin-bottom: var(--space-1);
-  }
-
-  .ticketsTitle {
-    font-size: var(--text-base);
   }
 
   /* Primary CTA: de-pilled filled-indigo block with the v5 lift shadow. */

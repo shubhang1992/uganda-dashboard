@@ -23,8 +23,10 @@ import styles from './TicketListRow.module.css';
  * @param {'subscriber'|'agent'} [props.unreadFor]  Whose unread counter drives the dot.
  * @param {string}   [props.title]       Overrides the leading line (defaults to ticket.subject).
  * @param {string}   [props.subtitle]    Optional small line under the subject (oversight contexts).
+ * @param {boolean}  [props.hideAvatar]  Drop the leading initials avatar (self-inbox contexts
+ *                                        where it's just the subject's initials, not a person).
  */
-export default function TicketListRow({ ticket, onClick, unreadFor, title, subtitle }) {
+export default function TicketListRow({ ticket, onClick, unreadFor, title, subtitle, hideAvatar = false }) {
   const { subject, lastMessagePreview, updatedAt, status, priority, unread } = ticket;
 
   const leadLine = title || subject;
@@ -37,12 +39,15 @@ export default function TicketListRow({ ticket, onClick, unreadFor, title, subti
     <button
       type="button"
       className={styles.row}
+      data-no-avatar={hideAvatar || undefined}
       onClick={() => onClick?.(ticket)}
       aria-label={hasUnread ? `${leadLine} (unread)` : leadLine}
     >
-      <span className={styles.avatar} aria-hidden="true">
-        {getInitials(leadLine)}
-      </span>
+      {!hideAvatar && (
+        <span className={styles.avatar} aria-hidden="true">
+          {getInitials(leadLine)}
+        </span>
+      )}
 
       <div className={styles.body}>
         <div className={styles.subject}>

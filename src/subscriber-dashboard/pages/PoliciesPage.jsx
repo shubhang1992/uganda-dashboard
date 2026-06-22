@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { EASE_OUT_EXPO } from '../../utils/motion';
 import { formatUGX } from '../../utils/currency';
 
 import { formatDate } from '../../utils/date';
@@ -13,18 +10,8 @@ import { openPolicyCertificate } from '../../signup/contribution/insurancePolicy
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
-import { PillChip, PillChipGroup } from '../../components/PillChip';
+import PaySheet from '../../components/PaySheet';
 import styles from './PoliciesPage.module.css';
-
-// Mobile-money only, matching the Save flow.
-const METHODS = [
-  { id: 'mtn',    label: 'MTN MoMo',     full: 'MTN Mobile Money', helper: '+256 71 100 0001' },
-  { id: 'airtel', label: 'Airtel Money', full: 'Airtel Money',     helper: '+256 70 100 0001' },
-];
-
-function methodById(id) {
-  return METHODS.find((m) => m.id === id) ?? METHODS[0];
-}
 
 function PolicyIcon({ type }) {
   if (type === 'health') {
@@ -32,6 +19,17 @@ function PolicyIcon({ type }) {
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
         <path d="M12 20s-7-4.35-7-9.5A3.5 3.5 0 0112 7.5 3.5 3.5 0 0119 10.5c0 5.15-7 9.5-7 9.5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
         <path d="M12 11.2v3.2M10.4 12.8h3.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (type === 'funeral') {
+    return (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true" stroke="currentColor" strokeWidth="1.5">
+        <ellipse cx="12" cy="7" rx="2.4" ry="3.2" />
+        <ellipse cx="12" cy="17" rx="2.4" ry="3.2" />
+        <ellipse cx="7" cy="12" rx="3.2" ry="2.4" />
+        <ellipse cx="17" cy="12" rx="3.2" ry="2.4" />
+        <circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" />
       </svg>
     );
   }
@@ -96,7 +94,6 @@ function PolicyCard({ policy, onRenew, onCertificate }) {
 
 export default function PoliciesPage() {
   const navigate = useNavigate();
-  const reduceMotion = useReducedMotion();
   const isDesktop = useIsDesktop();
   const { data: sub, isLoading } = useCurrentSubscriber();
   const { data: nominees } = useSubscriberNominees(sub?.id);
@@ -111,18 +108,22 @@ export default function PoliciesPage() {
   // Headline figure for the mobile flat summary card (replaces the removed hero):
   // total benefit across the subscriber's active cover.
   const totalActiveCover = active.reduce((sum, p) => sum + (p.cover || 0), 0);
+  // Earliest upcoming renewal across active policies — shown in the desktop
+  // cover-summary strip. ISO date strings sort lexicographically.
+  const nextRenewal = active.map((p) => p.renewalDate).filter(Boolean).sort()[0] || null;
+  const nextRenewalName = nextRenewal
+    ? (active.find((p) => p.renewalDate === nextRenewal)?.name ?? null)
+    : null;
 
-  // Renewal sheet
+  // Renewal sheet (the shared PaySheet owns the method picker).
   const [renewing, setRenewing] = useState(null);
   const [view, setView] = useState('confirm'); // confirm | success
-  const [method, setMethod] = useState('mtn');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null); // { reference, renewalDate }
 
   function openRenew(policy) {
     setRenewing(policy);
     setView('confirm');
-    setMethod('mtn');
     setResult(null);
   }
 
@@ -131,13 +132,13 @@ export default function PoliciesPage() {
     setRenewing(null);
   }
 
-  async function handlePay() {
+  async function handlePay(methodFull) {
     if (!renewing || !sub) return;
     setSubmitting(true);
     try {
       const { reference, policy } = await renew.mutateAsync({
         type: renewing.type,
-        method: methodById(method).full,
+        method: methodFull,
       });
       setResult({ reference, renewalDate: policy?.renewalDate });
       setView('success');
@@ -150,20 +151,21 @@ export default function PoliciesPage() {
   }
 
   function handleCertificate(policy) {
-    const isLife = policy.type === 'life';
+    // Life + funeral pay out to named beneficiaries; health does not.
+    const hasBeneficiaries = policy.type === 'life' || policy.type === 'funeral';
+    const PRODUCT_LABEL = { life: 'Life', health: 'Health', funeral: 'Funeral' };
     const ok = openPolicyCertificate({
       holderName: sub?.name,
       memberId: formatMemberId(sub?.phone),
       dob: sub?.dob,
       cover: policy.cover,
       premiumPerPeriod: policy.premiumMonthly,
-      frequency: 'monthly', // premium is a monthly figure for both products
+      frequency: 'monthly', // premium is a monthly figure for every product
       policyStart: policy.policyStart,
       renewalDate: policy.renewalDate,
-      // Life cover lists payout beneficiaries; health insurance has none.
-      productLabel: isLife ? 'Life' : 'Health',
-      showBeneficiaries: isLife,
-      beneficiaries: isLife ? (nominees?.insurance ?? []) : [],
+      productLabel: PRODUCT_LABEL[policy.type] ?? 'Life',
+      showBeneficiaries: hasBeneficiaries,
+      beneficiaries: hasBeneficiaries ? (nominees?.insurance ?? []) : [],
     });
     if (!ok) {
       addToast('error', 'Please allow pop-ups for this site, then try again to open your certificate.');
@@ -178,22 +180,49 @@ export default function PoliciesPage() {
 
   return (
     <div className={styles.page}>
-      {/* Desktop (>=1024px) keeps the shipped PageHeader hero exactly. Mobile
-          drops it (the app-bar provides the title) for the flat summary below. */}
+      {/* Desktop (>=1024px): flat, light page header matching the rest of the
+          desktop dashboard (Home / Schedule) — replaces the mobile indigo hero
+          dome that read as out-of-theme here. Mobile drops the header entirely
+          (the app-bar owns the title) and shows the in-body summary card. */}
       {isDesktop && (
         <PageHeader
-          variant="hero"
           title="Your policies"
-          eyebrow="INSURANCE"
           subtitle={subtitle}
           fallback="/dashboard"
         />
       )}
 
       <div className={styles.body}>
+        {/* Desktop cover summary — three KPI tiles mirroring the Home overview's
+            "savings & cover" card, so the page reads as a sibling of the rest of
+            the desktop dashboard. Only when cover exists. */}
+        {isDesktop && !isLoading && hasAny && (
+          <section className={styles.deskSummary} aria-label="Cover summary">
+            <div className={styles.sumItem}>
+              <span className={styles.sumK}>Total active cover</span>
+              <span className={styles.sumV}>{formatUGX(totalActiveCover, { compact: false })}</span>
+              <span className={styles.sumSub}>
+                {active.length} active {active.length === 1 ? 'policy' : 'policies'}
+              </span>
+            </div>
+            <div className={styles.sumItem}>
+              <span className={styles.sumK}>Status</span>
+              <span className={styles.sumV}>{active.length} active</span>
+              <span className={styles.sumSub}>
+                {expired.length} expired
+              </span>
+            </div>
+            <div className={styles.sumItem}>
+              <span className={styles.sumK}>Next renewal</span>
+              <span className={styles.sumV}>{nextRenewal ? formatDate(nextRenewal) : '—'}</span>
+              <span className={styles.sumSub}>{nextRenewalName || 'No upcoming renewals'}</span>
+            </div>
+          </section>
+        )}
+
         {/* Mobile flat summary card — replaces the removed hero with an eyebrow +
             big indigo total-cover figure + a sub-line. Desktop renders the
-            PageHeader hero above instead. Only shown when cover exists. */}
+            KPI strip above instead. Only shown when cover exists. */}
         {!isDesktop && !isLoading && hasAny && (
           <section className={styles.summary} aria-labelledby="policies-cover-label">
             <span className={styles.summaryEyebrow} id="policies-cover-label">Total active cover</span>
@@ -247,111 +276,33 @@ export default function PoliciesPage() {
         )}
       </div>
 
-      {/* Renewal sheet — state-based, portaled to <body> so it layers above the
-          fixed bottom tab bar (mirrors SavePage). */}
-      {createPortal(
-        <AnimatePresence>
-          {renewing && (
-            <motion.div
-              className={styles.sheetScrim}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: reduceMotion ? 0 : 0.2 }}
-              onClick={closeSheet}
-            >
-              <motion.div
-                className={styles.sheet}
-                role="dialog"
-                aria-modal="true"
-                aria-label={view === 'confirm' ? `Renew ${renewing.name}` : 'Renewal complete'}
-                initial={reduceMotion ? false : { y: '100%' }}
-                animate={{ y: 0 }}
-                exit={reduceMotion ? { opacity: 0 } : { y: '100%' }}
-                transition={{ duration: reduceMotion ? 0 : 0.34, ease: EASE_OUT_EXPO }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <span className={styles.sheetGrip} aria-hidden="true" />
-
-                {view === 'confirm' && (
-                  <div className={styles.sheetBody}>
-                    <span className={styles.confirmEyebrow}>You&apos;re paying to renew</span>
-                    <div className={styles.confirmBig}>{formatUGX(renewing.renewalAmount, { compact: false })}</div>
-                    <p className={styles.confirmSub}>
-                      One year of {renewing.name.toLowerCase()} · {formatUGX(renewing.cover, { compact: false })} benefit
-                    </p>
-
-                    <ul className={styles.confirmList}>
-                      <li className={styles.confirmRow}>
-                        <span>Policy</span>
-                        <strong>{renewing.name}</strong>
-                      </li>
-                      <li className={styles.confirmRow}>
-                        <span>Cover</span>
-                        <strong>{formatUGX(renewing.cover, { compact: false })}</strong>
-                      </li>
-                      <li className={styles.confirmRow}>
-                        <span>Premium</span>
-                        <strong>{formatUGX(renewing.premiumMonthly, { compact: false })} / mo</strong>
-                      </li>
-                    </ul>
-
-                    <div className={styles.methodBlock}>
-                      <span className={styles.methodLabel}>Pay with</span>
-                      <PillChipGroup label="Payment method" layout="row">
-                        {METHODS.map((m) => (
-                          <PillChip key={m.id} selected={method === m.id} onClick={() => setMethod(m.id)}>
-                            {m.label}
-                          </PillChip>
-                        ))}
-                      </PillChipGroup>
-                      <p className={styles.methodHelper}>{methodById(method).helper}</p>
-                    </div>
-
-                    <p className={styles.confirmNote}>
-                      You&apos;ll receive an SMS prompt to authorise the payment on your mobile money account.
-                    </p>
-
-                    <div className={styles.sheetActions}>
-                      <button type="button" className={styles.secondaryBtn} onClick={closeSheet} disabled={submitting}>
-                        Cancel
-                      </button>
-                      <button type="button" className={styles.primaryBtn} onClick={handlePay} disabled={submitting}>
-                        {submitting ? 'Processing…' : `Pay ${formatUGX(renewing.renewalAmount, { compact: false })}`}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {view === 'success' && (
-                  <div className={styles.sheetBody} data-center="true">
-                    <div className={styles.successCheck} aria-hidden="true">
-                      <svg viewBox="0 0 48 48" width="40" height="40" fill="none">
-                        <circle cx="24" cy="24" r="22" stroke="currentColor" strokeWidth="2" />
-                        <path d="M14 24l7 7 14-15" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </div>
-                    <h2 className={styles.successTitle}>Policy renewed</h2>
-                    <p className={styles.successSubtitle}>
-                      {renewing.name} is active again.
-                      {result?.renewalDate ? ` Renews ${formatDate(result.renewalDate)}.` : ''}
-                    </p>
-                    {result?.reference && (
-                      <div className={styles.successRef}>
-                        Reference <strong>{result.reference}</strong>
-                      </div>
-                    )}
-                    <button type="button" className={styles.primaryBtn} onClick={closeSheet}>
-                      Done
-                    </button>
-                  </div>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+      {/* Renewal sheet — the shared PaySheet (portaled to <body>). */}
+      <PaySheet
+        open={!!renewing}
+        view={view}
+        ariaLabel={renewing ? (view === 'confirm' ? `Renew ${renewing.name}` : 'Renewal complete') : undefined}
+        eyebrow="You're paying to renew"
+        total={renewing?.renewalAmount ?? 0}
+        subtitle={renewing
+          ? `One year of ${renewing.name.toLowerCase()} · ${formatUGX(renewing.cover, { compact: false })} benefit`
+          : undefined}
+        lineItems={renewing ? [
+          { label: 'Policy', value: renewing.name },
+          { label: 'Cover', value: formatUGX(renewing.cover, { compact: false }) },
+          { label: 'Premium', value: `${formatUGX(renewing.premiumMonthly, { compact: false })} / mo` },
+        ] : []}
+        note="You'll receive an SMS prompt to authorise the payment on your mobile money account."
+        submitting={submitting}
+        success={{
+          title: 'Policy renewed',
+          subtitle: renewing
+            ? `${renewing.name} is active again.${result?.renewalDate ? ` Renews ${formatDate(result.renewalDate)}.` : ''}`
+            : undefined,
+          reference: result?.reference,
+        }}
+        onPay={handlePay}
+        onClose={closeSheet}
+      />
     </div>
   );
 }

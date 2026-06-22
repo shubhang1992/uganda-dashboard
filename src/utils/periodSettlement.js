@@ -1,0 +1,81 @@
+// Settle-this-period helpers for the contribution-schedule "pay the difference"
+// flow. Pure: the demo clock (`now`) and the transactions feed are passed in by
+// the caller, so this util never imports mockData / the clock (CLAUDE.md §4.1).
+//
+// When a subscriber edits their schedule (or adds insurance), we settle the
+// CURRENT period: the contribution top-up they still owe this month plus the
+// premiums for any newly-added insurance products. (Distinct from the
+// distributor commission flow in utils/settlement.js.)
+
+import { INSURANCE_PRODUCTS } from '../constants/savings';
+
+/**
+ * Sum of this-(calendar)-month own contributions, using the injected `now`
+ * (the demo clock). Employer co-contributions are excluded — the subscriber is
+ * settling their OWN scheduled amount.
+ *
+ * @param {Array<{type, source?, amount, date}>} transactions
+ * @param {Date} now
+ */
+export function paidThisMonth(transactions, now) {
+  if (!Array.isArray(transactions) || !now) return 0;
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  return transactions
+    .filter((t) => t && t.type === 'contribution' && t.source !== 'employer')
+    .filter((t) => {
+      const d = t.date instanceof Date ? t.date : new Date(t.date);
+      return !Number.isNaN(d.getTime()) && d.getFullYear() === year && d.getMonth() === month;
+    })
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+}
+
+/**
+ * What's still owed on this period's scheduled contribution: the new scheduled
+ * amount minus what's already been paid this month, floored at 0. If the old
+ * 5,000 is already paid and the schedule rises to 10,000 → owe 5,000; if nothing
+ * is paid yet → owe the full 10,000.
+ */
+export function contributionOwed(scheduleAmount, paid) {
+  return Math.max(0, Math.round((Number(scheduleAmount) || 0) - (Number(paid) || 0)));
+}
+
+/** Product ids present in `next` but not already held in `prev`. */
+export function newlyAddedProducts(prev, next) {
+  const held = new Set(prev ?? []);
+  return (next ?? []).filter((id) => !held.has(id));
+}
+
+/** Per-period premium for a product given the schedule's periods-per-year. */
+function premiumPerPeriod(premiumMonthly, freqPerYear) {
+  return Math.round(((Number(premiumMonthly) || 0) * 12) / (freqPerYear || 12));
+}
+
+/**
+ * Build the settle line items + total from the owed contribution and the
+ * newly-added insurance products. Each line carries a numeric `amount` (summed
+ * into the total) plus the product config the caller needs to drive payment.
+ *
+ * @param {{ owed?: number, addedProductIds?: string[], freqPerYear?: number }} opts
+ * @returns {{ lineItems: Array, total: number, products: Array }}
+ */
+export function buildSettleLineItems({ owed = 0, addedProductIds = [], freqPerYear = 12 } = {}) {
+  const lineItems = [];
+  if (owed > 0) {
+    lineItems.push({ id: 'contribution', kind: 'contribution', label: 'This month’s contribution', amount: owed });
+  }
+  const products = INSURANCE_PRODUCTS.filter((p) => addedProductIds.includes(p.id));
+  for (const p of products) {
+    lineItems.push({
+      id: `insurance-${p.id}`,
+      kind: 'insurance',
+      product: p.id,
+      label: p.label,
+      cover: p.cover,
+      premiumMonthly: p.premiumMonthly,
+      amount: premiumPerPeriod(p.premiumMonthly, freqPerYear),
+    });
+  }
+  const total = lineItems.reduce((sum, li) => sum + li.amount, 0);
+  return { lineItems, total, products };
+}

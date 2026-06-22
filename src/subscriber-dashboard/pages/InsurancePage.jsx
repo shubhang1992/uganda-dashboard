@@ -6,10 +6,11 @@ import { formatUGX } from '../../utils/currency';
 
 import { formatDate } from '../../utils/date';
 import { getInitials } from '../../utils/dashboard';
-import { useCurrentSubscriber, useUpdateInsuranceCover } from '../../hooks/useSubscriber';
+import { useCurrentSubscriber, useUpdateInsuranceCover, usePayInsurancePremium } from '../../hooks/useSubscriber';
 import { useToast } from '../../contexts/ToastContext';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import PageHeader from '../../components/PageHeader';
+import PaySheet from '../../components/PaySheet';
 import styles from './InsurancePage.module.css';
 
 const COVER_TIERS = [
@@ -26,6 +27,13 @@ export default function InsurancePage() {
   const { data: sub } = useCurrentSubscriber();
   const { addToast } = useToast();
   const updateCover = useUpdateInsuranceCover(sub?.id);
+  const payPremium = usePayInsurancePremium(sub?.id);
+
+  // Upgrade pay sheet (downgrades take no payment).
+  const [payOpen, setPayOpen] = useState(false);
+  const [payView, setPayView] = useState('confirm'); // confirm | success
+  const [paySubmitting, setPaySubmitting] = useState(false);
+  const [payNonce, setPayNonce] = useState(null);
 
   const insurance = sub?.insurance;
   // Derive active/expired from the same source as the policies page (status is
@@ -63,8 +71,17 @@ export default function InsurancePage() {
     pickerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  // Upgrading (or first-time activation) takes a real premium payment via the
+  // modern PaySheet. Downgrading lowers cover with no charge (the lower premium
+  // applies next cycle) behind the existing two-tap confirm.
   async function handleApplyCover() {
     if (!sub || isCurrent) return;
+    if (isUpgrade) {
+      setPayNonce(crypto.randomUUID());
+      setPayView('confirm');
+      setPayOpen(true);
+      return;
+    }
     if (isDowngrade && !confirmingDowngrade) {
       setConfirmingDowngrade(true);
       return;
@@ -75,9 +92,7 @@ export default function InsurancePage() {
         cover: selectedTier.cover,
         premiumMonthly: selectedTier.premium,
       });
-      addToast('success', isUpgrade
-        ? `Cover upgraded to ${formatUGX(selectedTier.cover)}.`
-        : `Cover lowered to ${formatUGX(selectedTier.cover)}. New premium starts next cycle.`);
+      addToast('success', `Cover lowered to ${formatUGX(selectedTier.cover)}. New premium starts next cycle.`);
       setConfirmingDowngrade(false);
     } catch (err) {
       addToast('error', err?.message || 'Could not update cover.');
@@ -86,32 +101,64 @@ export default function InsurancePage() {
     }
   }
 
+  async function handlePayUpgrade(methodFull) {
+    if (!sub) return;
+    setPaySubmitting(true);
+    try {
+      await payPremium.mutateAsync({
+        product: 'life',
+        cover: selectedTier.cover,
+        premiumMonthly: selectedTier.premium,
+        method: methodFull,
+        nonce: payNonce,
+      });
+      setPayView('success');
+      addToast('success', `Cover set to ${formatUGX(selectedTier.cover)}.`);
+    } catch (err) {
+      addToast('error', err?.message || 'Could not update cover.');
+    } finally {
+      setPaySubmitting(false);
+    }
+  }
+
+  function closePay() {
+    if (paySubmitting) return;
+    setPayOpen(false);
+  }
+
   return (
     <div className={styles.page}>
       {isDesktop && (
-        // Desktop (>=1024px): the in-page hero dome is preserved byte-identically
-        // from the shipped layout. On mobile the persistent shell app bar owns the
-        // "Insurance" title + back arrow, so the hero is dropped there and the
-        // cover figure surfaces in a flat summary card inside the body below.
+        // Desktop (>=1024px): flat, light page header matching the rest of the
+        // desktop dashboard (replaces the old indigo hero dome). The current
+        // cover figure surfaces in the KPI summary strip at the top of the body.
         <PageHeader
-          variant="hero"
           title="Insurance cover"
-          eyebrow={noPolicy ? undefined : 'CURRENT COVER'}
-          prefix={noPolicy ? undefined : 'UGX'}
-          amount={noPolicy ? undefined : formatUGX(insurance.cover || 0, { compact: false }).replace('UGX ', '')}
-          subtitle={noPolicy ? 'Premium and policy level' : undefined}
-          statRow={noPolicy ? undefined : (
-            <>
-              <span><strong>{formatUGX(insurance.premiumMonthly, { compact: false })}</strong> / mo</span>
-              <span>Started <strong>{formatDate(insurance.policyStart)}</strong></span>
-              <span>Renews <strong>{formatDate(lifePolicy?.renewalDate ?? insurance.renewalDate)}</strong></span>
-            </>
-          )}
+          subtitle="Premium and policy level"
           fallback="/dashboard/settings"
         />
       )}
 
       <div className={styles.body}>
+        {isDesktop && !noPolicy && insurance && (
+          <section className={styles.deskSummary} aria-label="Cover summary">
+            <div className={styles.sumItem}>
+              <span className={styles.sumK}>Current cover</span>
+              <span className={styles.sumV}>{formatUGX(insurance.cover || 0, { compact: false })}</span>
+              <span className={styles.sumSub}>Life cover</span>
+            </div>
+            <div className={styles.sumItem}>
+              <span className={styles.sumK}>Premium</span>
+              <span className={styles.sumV}>{formatUGX(insurance.premiumMonthly, { compact: false })}</span>
+              <span className={styles.sumSub}>per month</span>
+            </div>
+            <div className={styles.sumItem}>
+              <span className={styles.sumK}>Renews</span>
+              <span className={styles.sumV}>{formatDate(lifePolicy?.renewalDate ?? insurance.renewalDate)}</span>
+              <span className={styles.sumSub}>Started {formatDate(insurance.policyStart)}</span>
+            </div>
+          </section>
+        )}
         <motion.div
           className={styles.step}
           initial={reducedMotion ? false : { opacity: 0, y: 10 }}
@@ -199,7 +246,7 @@ export default function InsurancePage() {
               data-confirming={confirmingDowngrade || undefined}
             >
               {submitting ? 'Updating…'
-                : isUpgrade ? `Upgrade to ${formatUGX(selectedTier.cover)}`
+                : isUpgrade ? `${noPolicy ? 'Get' : 'Upgrade to'} ${formatUGX(selectedTier.cover)}${noPolicy ? ' cover' : ''}`
                 : isDowngrade && confirmingDowngrade
                   ? `Confirm downgrade to ${formatUGX(selectedTier.cover)}`
                 : isDowngrade ? `Downgrade to ${formatUGX(selectedTier.cover)}`
@@ -256,6 +303,29 @@ export default function InsurancePage() {
           </button>
         </motion.div>
       </div>
+
+      {/* Upgrade pay sheet — modern shared PaySheet, replaces the no-payment
+          "Upgrade" action. Downgrades never reach this (no charge). */}
+      <PaySheet
+        open={payOpen}
+        view={payView}
+        ariaLabel="Pay for insurance cover"
+        eyebrow={noPolicy ? "You're activating cover" : "You're paying to upgrade"}
+        total={selectedTier.premium}
+        subtitle={`${formatUGX(selectedTier.cover)} life cover · ${formatUGX(selectedTier.premium, { compact: false })} / mo`}
+        lineItems={[
+          { label: 'Cover', value: formatUGX(selectedTier.cover, { compact: false }) },
+          { label: 'Premium', value: `${formatUGX(selectedTier.premium, { compact: false })} / mo` },
+        ]}
+        note="You'll receive an SMS prompt to authorise the payment on your mobile money account."
+        submitting={paySubmitting}
+        success={{
+          title: 'Cover updated',
+          subtitle: `Your life cover is now ${formatUGX(selectedTier.cover)}.`,
+        }}
+        onPay={handlePayUpgrade}
+        onClose={closePay}
+      />
     </div>
   );
 }

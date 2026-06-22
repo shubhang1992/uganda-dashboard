@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
-import { formatUGX } from '../../utils/currency';
 import { formatDate } from '../../utils/date';
 
 import { useAuth } from '../../contexts/AuthContext';
@@ -41,7 +40,6 @@ export default function SettingsDesktop() {
 
   const itemVariants = reduceMotion ? undefined : item;
   const initials = getInitials(sub?.name || '');
-  const insurance = sub?.insurance;
   const memberSince = sub?.registeredDate
     ? formatDate(sub.registeredDate, { variant: 'month-year' })
     : null;
@@ -59,12 +57,6 @@ export default function SettingsDesktop() {
     }
     navigate(s.to);
   }
-
-  const stats = [
-    { label: 'Net balance', value: formatUGX(sub?.netBalance || 0) },
-    { label: 'Insurance cover', value: insurance?.cover ? formatUGX(insurance.cover) : 'None' },
-    { label: 'Pension nominees', value: String((sub?.nominees?.pension || []).length) },
-  ];
 
   return (
     <motion.div
@@ -95,14 +87,6 @@ export default function SettingsDesktop() {
               )}
             </span>
           </div>
-        </div>
-        <div className={styles.stats}>
-          {stats.map((st, i) => (
-            <div key={st.label} className={styles.statItem} data-first={i === 0 || undefined}>
-              <span className={styles.statLabel}>{st.label}</span>
-              <span className={styles.statValue}>{st.value}</span>
-            </div>
-          ))}
         </div>
       </motion.section>
 

@@ -6,11 +6,70 @@ import { formatNumber, formatUGX } from '../../utils/currency';
 import {
   RETIREMENT_AGE,
   MIN_CONTRIBUTION,
-  INSURANCE_PREMIUM_MONTHLY,
-  INSURANCE_COVER,
+  INSURANCE_PRODUCTS,
   QUICK_CONTRIBUTION_AMOUNTS,
 } from '../../constants/savings';
 import styles from './ContributionSettingsForm.module.css';
+
+/** Inline glyph for an insurance product, keyed by its `icon` in INSURANCE_PRODUCTS. */
+function InsuranceGlyph({ icon }) {
+  if (icon === 'health') {
+    return (
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+        <path
+          d="M12 20s-6.6-4.3-9-8.4C1.4 8.9 3 6 6 6c2 0 3.2 1.2 4 2.4C10.8 7.2 12 6 14 6c3 0 4.6 2.9 3 5.6C18.6 15.7 12 20 12 20z"
+          stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+  if (icon === 'funeral') {
+    return (
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <ellipse cx="12" cy="7" rx="2.3" ry="3.1" />
+        <ellipse cx="12" cy="17" rx="2.3" ry="3.1" />
+        <ellipse cx="7" cy="12" rx="3.1" ry="2.3" />
+        <ellipse cx="17" cy="12" rx="3.1" ry="2.3" />
+        <circle cx="12" cy="12" r="2.1" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+  // life (default) — shield with check
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+      <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M9 12l2.2 2 3.8-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * Resolve the initial set of selected insurance product ids.
+ *
+ * `heldInsuranceTypes` (when the parent passes it) is the authoritative set of
+ * products the subscriber CURRENTLY holds — derived from their live policies —
+ * and takes precedence so the form pre-checks exactly what they own. It is the
+ * same set the settle flow treats as already-paid, so opening a fully-held plan
+ * and saving it untouched registers no newly-added product and never re-charges
+ * a held premium.
+ *
+ * When it's absent (agent onboarding, or any caller without held-policy data)
+ * we fall back to the stored schedule: an explicit `insuranceTypes` array if one
+ * was carried, else Life when the legacy `include_insurance` boolean is on.
+ */
+function resolveInitialSelection(initial, heldInsuranceTypes) {
+  const source = Array.isArray(heldInsuranceTypes)
+    ? heldInsuranceTypes
+    : (Array.isArray(initial?.insuranceTypes) ? initial.insuranceTypes : null);
+  if (source) {
+    return INSURANCE_PRODUCTS.filter((p) => source.includes(p.id)).map((p) => p.id);
+  }
+  return initial?.includeInsurance ? ['life'] : [];
+}
+
+function sameSelection(a, b) {
+  return a.length === b.length && a.every((id) => b.includes(id));
+}
 
 const FREQUENCIES = [
   { id: FREQUENCY.WEEKLY,      label: 'Weekly',      helper: 'every week',     cadence: 'every week'     },
@@ -46,6 +105,12 @@ export default function ContributionSettingsForm({
   initial,
   age,
   dob,
+  // Product ids the subscriber currently holds (active policies). When supplied
+  // these pre-check the insurance toggles so the form reflects what's actually
+  // owned — not just the stored `include_insurance` boolean — and they baseline
+  // the dirty-check so a held plan saved untouched never re-prompts payment.
+  // Optional: callers without held-policy data (agent onboarding) omit it.
+  initialInsuranceTypes,
   onSave,
   onCancel,
   submitting = false,
@@ -57,6 +122,12 @@ export default function ContributionSettingsForm({
   // long vertical scroll. Used by the agent's desktop schedule page + onboarding;
   // left undefined elsewhere (e.g. the subscriber dashboard) so they're unchanged.
   layout,
+  // `collapsible` (subscriber mobile only): when editing an EXISTING schedule,
+  // each section collapses to a summary row (current value + Edit) and expands
+  // per-section on tap — so the phone view is a short settings list instead of a
+  // long scroll. Ignored for a brand-new setup (nothing to summarise) and left
+  // off where the full form is wanted (desktop split, agent, onboarding).
+  collapsible = false,
 }) {
   // State is initialized from `initial` once at mount. If the parent is
   // waiting on async data (e.g., a React Query fetch), it should pass a
@@ -66,7 +137,9 @@ export default function ContributionSettingsForm({
   // Retirement must be at least 60% of the split (emergency caps at 40%), so
   // clamp any lower stored/legacy value up to the floor when the form opens.
   const [retirementPct, setRetirementPct] = useState(Math.max(60, initial?.retirementPct ?? 80));
-  const [includeInsurance, setIncludeInsurance] = useState(Boolean(initial?.includeInsurance));
+  // Insurance is now a multi-select across INSURANCE_PRODUCTS (health/funeral/life)
+  // rather than a single life toggle. Held as an array of product ids.
+  const [insuranceTypes, setInsuranceTypes] = useState(() => resolveInitialSelection(initial, initialInsuranceTypes));
   const [touched, setTouched] = useState(Boolean(initial?.amount));
 
   const amount = parseAmount(amountStr);
@@ -76,11 +149,18 @@ export default function ContributionSettingsForm({
   const belowMin = amount !== null && amount < MIN_CONTRIBUTION;
   const emergencyPct = 100 - retirementPct;
 
-  const insurancePremium = includeInsurance
-    ? Math.round((INSURANCE_PREMIUM_MONTHLY * 12) / freqPerYear)
-    : 0;
+  const includeInsurance = insuranceTypes.length > 0;
+  const selectedProducts = INSURANCE_PRODUCTS.filter((p) => insuranceTypes.includes(p.id));
+  const premiumPerPeriod = (product) => Math.round((product.premiumMonthly * 12) / freqPerYear);
+  const insurancePremium = selectedProducts.reduce((sum, p) => sum + premiumPerPeriod(p), 0);
+
+  function toggleInsurance(id) {
+    setInsuranceTypes((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
   const totalPerPeriod = hasAmount ? amount + insurancePremium : 0;
-  const annualTotal = hasAmount ? totalPerPeriod * freqPerYear : 0;
   const retirementPerPeriod = hasAmount ? Math.round(amount * (retirementPct / 100)) : 0;
   const emergencyPerPeriod = hasAmount ? amount - retirementPerPeriod : 0;
 
@@ -92,17 +172,77 @@ export default function ContributionSettingsForm({
     [years, retMonthly],
   );
 
+  // Baseline the "dirty" check against the SAME set the form pre-checked (held
+  // products when supplied), so opening a fully-held plan and saving it untouched
+  // reads as "No changes to save" — never re-prompting payment for held cover.
+  const baselineInsurance = useMemo(
+    () => resolveInitialSelection(initial, initialInsuranceTypes),
+    [initial, initialInsuranceTypes],
+  );
+
   const isNew = !initial;
   const dirty = !isNew && (
     frequency !== normalizeFrequency(initial.frequency) ||
     amount !== initial.amount ||
     retirementPct !== initial.retirementPct ||
-    includeInsurance !== Boolean(initial.includeInsurance)
+    !sameSelection(insuranceTypes, baselineInsurance)
   );
   const canSave = hasAmount && (isNew || dirty);
 
   const defaultLabel = isNew ? 'Set up schedule' : (dirty ? 'Save changes' : 'No changes to save');
   const buttonLabel = submitting ? 'Saving…' : (submitLabel ?? defaultLabel);
+
+  // Per-section collapse (subscriber mobile). Only when editing an existing
+  // schedule — a fresh setup shows everything expanded. Sections start collapsed
+  // and expand independently on tap.
+  const collapseMode = collapsible && !isNew;
+  const [openSections, setOpenSections] = useState(() => new Set());
+  const isOpen = (id) => !collapseMode || openSections.has(id);
+  function toggleSection(id) {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Collapsed-row summaries — the "current status" shown next to each Edit.
+  const freqSummary = freq.label;
+  const amountSummary = hasAmount ? formatUGX(amount, { compact: false }) : 'Not set';
+  const splitSummary = `${retirementPct}% / ${emergencyPct}%`;
+  const insuranceSummary = selectedProducts.length
+    ? selectedProducts.map((p) => p.label.replace(/\s*insurance$/i, '')).join(', ')
+    : 'None';
+
+  // Section header: the numbered head when expanded/full-form, or a collapsed
+  // summary row (title + current value + Edit/Done toggle) in collapse mode.
+  function renderHead(id, idx, title, aside, summary) {
+    if (!collapseMode) {
+      return (
+        <div className={styles.sectionHead}>
+          <span className={styles.sectionIdx}>{idx}</span>
+          <h2 className={styles.sectionTitle}>{title}</h2>
+          {aside && <span className={styles.sectionAside}>{aside}</span>}
+        </div>
+      );
+    }
+    const open = isOpen(id);
+    return (
+      <div className={styles.sectionHead}>
+        <h2 className={styles.sectionTitle}>{title}</h2>
+        {!open && <span className={styles.sectionSummary}>{summary}</span>}
+        <button
+          type="button"
+          className={styles.editToggle}
+          aria-expanded={open}
+          onClick={() => toggleSection(id)}
+        >
+          {open ? 'Done' : 'Edit'}
+        </button>
+      </div>
+    );
+  }
 
   function handleSave() {
     setTouched(true);
@@ -113,6 +253,7 @@ export default function ContributionSettingsForm({
       retirementPct,
       emergencyPct,
       includeInsurance,
+      insuranceTypes,
     };
     if (initial?.nextDueDate) payload.nextDueDate = initial.nextDueDate;
     onSave(payload);
@@ -132,10 +273,8 @@ export default function ContributionSettingsForm({
           <div className={styles.inputsCol}>
           {/* 01 Frequency */}
           <section className={styles.section}>
-            <div className={styles.sectionHead}>
-              <span className={styles.sectionIdx}>01</span>
-              <h2 className={styles.sectionTitle}>How often?</h2>
-            </div>
+            {renderHead('freq', '01', 'How often?', null, freqSummary)}
+            {isOpen('freq') && (
             <div className={styles.freqGrid} role="radiogroup" aria-label="Frequency">
               {FREQUENCIES.map((f) => (
                 <button
@@ -159,15 +298,14 @@ export default function ContributionSettingsForm({
                 </button>
               ))}
             </div>
+            )}
           </section>
 
           {/* 02 Amount */}
           <section className={styles.section}>
-            <div className={styles.sectionHead}>
-              <span className={styles.sectionIdx}>02</span>
-              <h2 className={styles.sectionTitle}>How much {freq.cadence}?</h2>
-              <span className={styles.sectionAside}>Min {formatUGX(MIN_CONTRIBUTION, { compact: false })}</span>
-            </div>
+            {renderHead('amount', '02', `How much ${freq.cadence}?`, `Min ${formatUGX(MIN_CONTRIBUTION, { compact: false })}`, amountSummary)}
+            {isOpen('amount') && (
+            <>
             <label className={styles.amountField} data-error={(touched && belowMin) || undefined}>
               <span className={styles.amountPrefix} aria-hidden="true">UGX</span>
               <input
@@ -200,23 +338,25 @@ export default function ContributionSettingsForm({
             {touched && belowMin && (
               <p className={styles.errorLine}>Minimum {formatUGX(MIN_CONTRIBUTION, { compact: false })}.</p>
             )}
+            </>
+            )}
           </section>
 
           {/* 03 Split */}
           <section className={styles.section}>
-            <div className={styles.sectionHead}>
-              <span className={styles.sectionIdx}>03</span>
-              <h2 className={styles.sectionTitle}>Split your savings</h2>
-              <span className={styles.sectionAside}>Retirement ≥ 60%</span>
-            </div>
+            {renderHead('split', '03', 'Split your savings', null, splitSummary)}
+            {isOpen('split') && (
+            <>
             <div className={styles.splitHead}>
               <div className={styles.splitSide}>
                 <span className={styles.splitLabel}>Retirement</span>
                 <span className={styles.splitPct}>{retirementPct}%</span>
+                <span className={styles.splitNote}>Locked until {RETIREMENT_AGE}</span>
               </div>
               <div className={styles.splitSide} data-align="right">
                 <span className={styles.splitLabel} data-tone="teal">Emergency</span>
                 <span className={styles.splitPct} data-tone="teal">{emergencyPct}%</span>
+                <span className={styles.splitNote}>Withdraw anytime</span>
               </div>
             </div>
             <input
@@ -230,43 +370,44 @@ export default function ContributionSettingsForm({
               style={{ '--pct': `${(retirementPct - 60) * 2.5}%` }}
               aria-label="Retirement percentage"
             />
-            <p className={styles.bucketHelp}>
-              <span className={styles.bucketDot} data-tone="retirement" aria-hidden="true" />
-              <strong>Retirement</strong> locked until age {RETIREMENT_AGE}
-              <span className={styles.bucketSep} aria-hidden="true">·</span>
-              <span className={styles.bucketDot} data-tone="emergency" aria-hidden="true" />
-              <strong>Emergency</strong> any time
-            </p>
+            </>
+            )}
           </section>
 
-          {/* Insurance opt-in */}
-          <section className={styles.section} data-compact="true">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={includeInsurance}
-              className={styles.insuranceRow}
-              data-active={includeInsurance}
-              onClick={() => setIncludeInsurance((v) => !v)}
-            >
-              <span className={styles.insuranceIcon} aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                  <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
-                  <path d="M9 12l2.2 2 3.8-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </span>
-              <span className={styles.insuranceCopy}>
-                <span className={styles.insuranceTitle}>Add life insurance</span>
-                <span className={styles.insuranceDetail}>
-                  {includeInsurance
-                    ? `+${formatUGX(insurancePremium, { compact: false })} · ${formatUGX(INSURANCE_COVER, { compact: false })} cover`
-                    : 'UGX 2,000 / mo · UGX 1M cover'}
-                </span>
-              </span>
-              <span className={styles.insuranceToggle} aria-hidden="true">
-                <span className={styles.insuranceToggleKnob} />
-              </span>
-            </button>
+          {/* 04 Insurance (optional, multi-select) */}
+          <section className={styles.section}>
+            {renderHead('insurance', '04', 'Add insurance', 'Optional · pick any', insuranceSummary)}
+            {isOpen('insurance') && (
+            <div className={styles.insuranceList}>
+              {INSURANCE_PRODUCTS.map((product) => {
+                const active = insuranceTypes.includes(product.id);
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    role="switch"
+                    aria-checked={active}
+                    className={styles.insuranceRow}
+                    data-active={active}
+                    onClick={() => toggleInsurance(product.id)}
+                  >
+                    <span className={styles.insuranceIcon} aria-hidden="true">
+                      <InsuranceGlyph icon={product.icon} />
+                    </span>
+                    <span className={styles.insuranceCopy}>
+                      <span className={styles.insuranceTitle}>{product.label}</span>
+                      <span className={styles.insuranceDetail}>
+                        {`${formatUGX(product.premiumMonthly, { compact: false })} / mo · ${formatUGX(product.cover, { compact: false })} cover`}
+                      </span>
+                    </span>
+                    <span className={styles.insuranceToggle} aria-hidden="true">
+                      <span className={styles.insuranceToggleKnob} />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            )}
           </section>
           </div>
 
@@ -282,10 +423,6 @@ export default function ContributionSettingsForm({
             </div>
             <ul className={styles.summaryList}>
               <li className={styles.summaryRow}>
-                <span>Per year</span>
-                <span>{hasAmount ? formatUGX(annualTotal, { compact: false }) : '—'}</span>
-              </li>
-              <li className={styles.summaryRow}>
                 <span>
                   <span className={styles.summaryDot} data-tone="retirement" /> Retirement ({retirementPct}%)
                 </span>
@@ -297,14 +434,14 @@ export default function ContributionSettingsForm({
                 </span>
                 <span>{hasAmount ? formatUGX(emergencyPerPeriod, { compact: false }) : '—'}</span>
               </li>
-              {includeInsurance && (
-                <li className={styles.summaryRow}>
+              {selectedProducts.map((product) => (
+                <li className={styles.summaryRow} key={product.id}>
                   <span>
-                    <span className={styles.summaryDot} data-tone="insurance" /> Life insurance
+                    <span className={styles.summaryDot} data-tone="insurance" /> {product.label}
                   </span>
-                  <span>+{formatUGX(insurancePremium, { compact: false })}</span>
+                  <span>+{formatUGX(premiumPerPeriod(product), { compact: false })}</span>
                 </li>
-              )}
+              ))}
             </ul>
             {showProjection && retirementFV > 0 && (
               <div className={styles.projection}>
