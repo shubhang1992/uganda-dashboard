@@ -672,6 +672,56 @@ async function main() {
       'subscriber_id'
     );
 
+    // ── subscriber_insurance_products (health/funeral add-ons) ─────────────
+    // mockData has no multi-product insurance, so synthesise health/funeral
+    // rows here — otherwise the agent's "active policies" chips have nothing to
+    // show. Demo values mirror src/constants/savings.js INSURANCE_PRODUCTS.
+    // Attached to a deterministic slice of insured members, and ALWAYS to demo
+    // agent a-001's insured members so the agent demo is populated.
+    console.log('• subscriber_insurance_products…');
+    const EXTRA_PRODUCTS = {
+      health: { cover: 3_000_000, premium: 5_000 },
+      funeral: { cover: 2_000_000, premium: 1_500 },
+    };
+    const sipStart = reanchorDateStr('2026-01-01');     // before MOCK_NOW
+    const sipRenewal = reanchorDateStr('2027-01-01');   // after  → status active
+    const sipSubId = [];
+    const sipProduct = [];
+    const sipCover = [];
+    const sipPremium = [];
+    const sipPolicyStart = [];
+    const sipRenewalDate = [];
+    const sipStatus = [];
+    const pushProduct = (id, product) => {
+      sipSubId.push(id);
+      sipProduct.push(product);
+      sipCover.push(EXTRA_PRODUCTS[product].cover);
+      sipPremium.push(EXTRA_PRODUCTS[product].premium);
+      sipPolicyStart.push(sipStart);
+      sipRenewalDate.push(sipRenewal);
+      sipStatus.push('active');
+    };
+    insureds.forEach((s, i) => {
+      const isA001 = s.parentId === 'a-001';
+      if (isA001 || i % 3 === 0) pushProduct(s.id, 'health');
+      if ((isA001 && i % 2 === 0) || i % 5 === 0) pushProduct(s.id, 'funeral');
+    });
+    await bulkInsert(
+      client,
+      'subscriber_insurance_products',
+      [
+        { name: 'subscriber_id', type: 'text' },
+        { name: 'product', type: 'text' },
+        { name: 'cover', type: 'numeric' },
+        { name: 'premium_monthly', type: 'numeric' },
+        { name: 'policy_start', type: 'date' },
+        { name: 'renewal_date', type: 'date' },
+        { name: 'status', type: 'text' },
+      ],
+      [sipSubId, sipProduct, sipCover, sipPremium, sipPolicyStart, sipRenewalDate, sipStatus],
+      'subscriber_id, product'
+    );
+
     // ── nominees ───────────────────────────────────────────────────────────
     console.log('• nominees…');
     const nomineeIds = [];

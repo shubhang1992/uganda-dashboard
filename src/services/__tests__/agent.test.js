@@ -59,7 +59,8 @@ describe('agent service — real (Supabase) branch', () => {
         'contribution_schedules(frequency, amount, retirement_pct, emergency_pct, ' +
         'include_insurance, insurance_choice_made, next_due_date), ' +
         'subscriber_balances(total_balance, retirement_balance, emergency_balance), ' +
-        'insurance_policies(cover, premium_monthly, status)',
+        'insurance_policies(cover, premium_monthly, status), ' +
+        'subscriber_insurance_products(product, status)',
     );
     expect(call.chain.eq).toHaveBeenCalledWith('agent_id', 'a-001');
   });
@@ -98,6 +99,10 @@ describe('agent service — real (Supabase) branch', () => {
           premium_monthly: 2000,
           status: 'active',
         },
+        subscriber_insurance_products: [
+          { product: 'health', status: 'active' },
+          { product: 'funeral', status: 'inactive' },
+        ],
       }],
       error: null,
     });
@@ -124,6 +129,30 @@ describe('agent service — real (Supabase) branch', () => {
     expect(sub.contributionSchedule.nextDueDate).toBe('2026-06-01');
     // Insurance policy mapped for the agent Home insurance card.
     expect(sub.insurance).toEqual({ cover: 1000000, premiumMonthly: 2000, status: 'active' });
+    // Active-policy list: life (insurance_policies) + active products, ordered
+    // life→health→funeral, PRODUCT+STATUS ONLY (no cover/premium leaked to agents),
+    // and inactive products excluded.
+    expect(sub.policies).toEqual([
+      { product: 'life', status: 'active' },
+      { product: 'health', status: 'active' },
+    ]);
+    for (const p of sub.policies) {
+      expect(p).not.toHaveProperty('cover');
+      expect(p).not.toHaveProperty('premiumMonthly');
+    }
+  });
+
+  it('omits the life policy from policies when life cover is 0 (inactive)', async () => {
+    supabaseMock.__queueFrom('subscribers', {
+      data: [{
+        id: 's-noins', name: 'No Cover',
+        insurance_policies: { cover: 0, premium_monthly: 0, status: 'inactive' },
+        subscriber_insurance_products: [{ product: 'funeral', status: 'active' }],
+      }],
+      error: null,
+    });
+    const list = await getAgentSubscriberList('a-001');
+    expect(list[0].policies).toEqual([{ product: 'funeral', status: 'active' }]);
   });
 
   it('handles array-shape joins (Supabase to-many embed)', async () => {
@@ -279,7 +308,7 @@ describe('agent service — real/mock branch parity (X11)', () => {
       const sharedKeys = [
         'id', 'name', 'phone', 'email', 'isActive', 'registeredDate',
         'netBalance', 'productsHeld', 'contributionSchedule', 'lastContribution',
-        'totalContributions', 'totalWithdrawals',
+        'totalContributions', 'totalWithdrawals', 'policies',
       ];
       for (const key of sharedKeys) {
         expect(mockKeys.has(key)).toBe(true);

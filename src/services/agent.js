@@ -10,6 +10,30 @@ import { IS_SUPABASE_ENABLED } from './api';
 import { normalizeFrequency } from '../utils/finance';
 import { SUBSCRIBERS } from '../data/mockData';
 
+// Stable display order for an agent's view of a subscriber's policies.
+const POLICY_ORDER = ['life', 'health', 'funeral'];
+
+/**
+ * Build the agent-facing active-policy list for a subscriber: PRODUCT + STATUS
+ * ONLY. Agents must never see cover or premium amounts, so this deliberately
+ * surfaces neither — `lifeIns.cover` is read solely to mirror the `isInsured`
+ * predicate (life counts only when its cover > 0). Life comes from the
+ * `insurance_policies` (life) record; health/funeral from
+ * `subscriber_insurance_products`. Works for both the live row shape
+ * (snake_case product rows) and the mock shape (camelCase) — only `.product`
+ * and `.status` are read off product rows.
+ */
+function buildAgentPolicies(lifeIns, productRows) {
+  const out = [];
+  if (lifeIns && lifeIns.status === 'active' && Number(lifeIns.cover) > 0) {
+    out.push({ product: 'life', status: 'active' });
+  }
+  for (const p of Array.isArray(productRows) ? productRows : []) {
+    if (p && p.status === 'active') out.push({ product: p.product, status: 'active' });
+  }
+  return out.sort((a, b) => POLICY_ORDER.indexOf(a.product) - POLICY_ORDER.indexOf(b.product));
+}
+
 /**
  * Map a joined subscriber+balance+schedule row from supabase-js into the flat
  * shape the agent dashboard expects. Callers like SubscribersPage and
@@ -32,6 +56,9 @@ function mapAgentSubscriberRow(s) {
     : s.subscriber_balances;
   const history = Array.isArray(s.contribution_history) ? s.contribution_history : [];
   const ins = Array.isArray(s.insurance_policies) ? s.insurance_policies[0] : s.insurance_policies;
+  const insProducts = Array.isArray(s.subscriber_insurance_products)
+    ? s.subscriber_insurance_products
+    : [];
 
   return {
     id: s.id,
@@ -73,6 +100,9 @@ function mapAgentSubscriberRow(s) {
           status: ins.status || 'inactive',
         }
       : null,
+    // Active-policy list (product + status only — NO cover/premium) for the
+    // agent's subscriber view: which of life/health/funeral are active.
+    policies: buildAgentPolicies(ins, insProducts),
   };
 }
 
@@ -120,6 +150,8 @@ export async function getAgentSubscriberList(agentId) {
                 status: s.insurance.status || 'inactive',
               }
             : null,
+          // Same product+status-only policy list as the live branch (parity).
+          policies: buildAgentPolicies(s.insurance, s.insuranceProducts),
         };
       });
   }
@@ -139,7 +171,8 @@ export async function getAgentSubscriberList(agentId) {
         'contribution_schedules(frequency, amount, retirement_pct, emergency_pct, ' +
         'include_insurance, insurance_choice_made, next_due_date), ' +
         'subscriber_balances(total_balance, retirement_balance, emergency_balance), ' +
-        'insurance_policies(cover, premium_monthly, status)',
+        'insurance_policies(cover, premium_monthly, status), ' +
+        'subscriber_insurance_products(product, status)',
     )
     .eq('agent_id', agentId);
   if (error) throw error;

@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
-import { formatUGX } from '../../utils/currency';
 import { formatUGPhone } from '../../utils/phone';
 import { getInitials } from '../../utils/dashboard';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
 import { isInsured } from '../home/agentHomeSummary';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
+import AgentMobileHero from '../shell/AgentMobileHero';
 import PageHeader from '../../components/PageHeader';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
@@ -25,6 +26,7 @@ export default function InsuredMembersPage() {
   const reduce = useReducedMotion();
   const { agentId } = useAgentScope();
   const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
+  const isDesktop = useIsDesktop();
 
   const insured = useMemo(
     () =>
@@ -38,8 +40,9 @@ export default function InsuredMembersPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Insured members" subtitle="Subscribers with active life cover" />
-
+      {isDesktop && (
+        <PageHeader title="Insured members" subtitle="Subscribers with active life cover" />
+      )}
       <div className={styles.body}>
         <motion.div
           className={styles.stack}
@@ -47,6 +50,15 @@ export default function InsuredMembersPage() {
           animate={reduce ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
+          {!isDesktop && (
+            <AgentMobileHero
+              eyebrow="Insured members"
+              value={loading ? '—' : `${insured.length} member${insured.length === 1 ? '' : 's'}`}
+            >
+              Subscribers with active life cover
+            </AgentMobileHero>
+          )}
+
           <div className={styles.list}>
             {loading && <SkeletonRow count={5} label="Loading insured subscribers" />}
             {isError && !isLoading && (
@@ -76,8 +88,10 @@ export default function InsuredMembersPage() {
                     <span className={styles.rowMeta}>{formatUGPhone(sub.phone)}</span>
                   </div>
                   <div className={styles.rowAmount}>
-                    <span className={styles.rowAmountValue}>{formatUGX(sub.insurance?.cover)}</span>
-                    <span className={styles.rowAmountLabel}>cover</span>
+                    <span className={styles.rowAmountValue}>{sub.policies?.length || 0}</span>
+                    <span className={styles.rowAmountLabel}>
+                      {(sub.policies?.length || 0) === 1 ? 'policy' : 'policies'}
+                    </span>
                   </div>
                 </button>
               ))}

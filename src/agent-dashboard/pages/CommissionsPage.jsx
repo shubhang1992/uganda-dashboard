@@ -6,8 +6,7 @@ import { useAgentCommissionDetail, useSettlementsList } from '../../hooks/useCom
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { groupByPaidMonth } from '../../utils/commissionMonths';
 import ErrorCard from '../../components/feedback/ErrorCard';
-import PageHeader from '../../components/PageHeader';
-import { useAgentHeaderChrome } from '../shell/AgentHeaderChrome';
+import AgentMobileHero from '../shell/AgentMobileHero';
 import CommissionsDesktop from './CommissionsDesktop';
 import styles from './CommissionsPage.module.css';
 import {
@@ -15,7 +14,7 @@ import {
   EarnedMonths,
   SettlementMismatchBanner,
 } from './commissions/CommissionsParts';
-import { VALID_VIEWS, VIEW_LABELS, Icons } from './commissions/commissionsConfig';
+import { VALID_VIEWS, Icons } from './commissions/commissionsConfig';
 
 export default function CommissionsPage() {
   const { view } = useParams();
@@ -23,7 +22,6 @@ export default function CommissionsPage() {
   const { agentId } = useAgentScope();
   const { data: detail, isLoading, isError, error, refetch } = useAgentCommissionDetail(agentId);
   const { data: settlements = [] } = useSettlementsList({ agentId });
-  const headerChrome = useAgentHeaderChrome();
 
   // INFORM-NOT-BLOCK mismatch surfacing (BL-1): find the LOGGED-IN agent's most
   // recent settlement batch that paid less than the pending total it was raised
@@ -91,41 +89,8 @@ export default function CommissionsPage() {
 
   const list = activeView ? listFor(activeView) : [];
 
-  const title = isHome ? 'Commissions' : VIEW_LABELS[activeView];
-  const heroStatRow = (
-    <>
-      <span>
-        <strong>{totals.settledPct}%</strong> settled
-      </span>
-      <span>
-        <strong>{formatNumber(recordCount)}</strong> record{recordCount === 1 ? '' : 's'}
-      </span>
-    </>
-  );
-
   return (
     <div className={styles.page}>
-      {isHome ? (
-        <PageHeader
-          variant="hero"
-          title="Commissions"
-          eyebrow="TOTAL COMMISSIONS"
-          prefix="UGX"
-          amount={isLoading ? '—' : formatUGX(totals.totalAll).replace('UGX ', '')}
-          subtitle="Paid out by your distributor. You'll get a notification each time a settlement lands."
-          statRow={isLoading ? <span style={{ opacity: 0.6 }}>Loading…</span> : heroStatRow}
-          showBack={false}
-          leadingSlot={headerChrome.leadingSlot}
-          trailingSlot={headerChrome.trailingSlot}
-        />
-      ) : (
-        <PageHeader
-          title={title}
-          subtitle={`${list.length} record${list.length === 1 ? '' : 's'}`}
-          fallback="/dashboard/commissions"
-        />
-      )}
-
       <div className={styles.body}>
         {isLoading && (
           <div className={styles.empty}>
@@ -146,6 +111,16 @@ export default function CommissionsPage() {
 
         {!isLoading && !isError && isHome && (
           <div className={styles.homeWrap}>
+            <AgentMobileHero
+              eyebrow="Total commissions"
+              value={`UGX ${formatUGX(totals.totalAll).replace('UGX ', '')}`}
+            >
+              <span><strong style={{ color: 'var(--color-green-ink, #1f6e44)', fontWeight: 700 }}>{totals.settledPct}%</strong> settled</span>
+              <span style={{ color: 'var(--color-gray)' }}>
+                {formatNumber(recordCount)} record{recordCount === 1 ? '' : 's'}
+              </span>
+            </AgentMobileHero>
+
             <SettlementMismatchBanner batch={partialBatch} />
 
             <section className={styles.outstandingCard} aria-labelledby="outstanding-title">

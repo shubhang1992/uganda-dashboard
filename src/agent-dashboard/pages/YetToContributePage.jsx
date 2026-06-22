@@ -7,6 +7,8 @@ import { formatUGPhone } from '../../utils/phone';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers, useAgentContributions } from '../../hooks/useAgent';
 import { deriveMonthAnchors, pendingContributors, monthRangeIso } from '../home/agentHomeSummary';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
+import AgentMobileHero from '../shell/AgentMobileHero';
 import PageHeader from '../../components/PageHeader';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
@@ -30,6 +32,7 @@ export default function YetToContributePage() {
   const reduce = useReducedMotion();
   const { agentId } = useAgentScope();
   const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
+  const isDesktop = useIsDesktop();
 
   const { contribStart } = useMemo(() => deriveMonthAnchors(subscribers), [subscribers]);
   const range = useMemo(() => monthRangeIso(contribStart), [contribStart]);
@@ -65,8 +68,9 @@ export default function YetToContributePage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Yet to contribute" subtitle="No contribution logged this month" />
-
+      {isDesktop && (
+        <PageHeader title="Yet to contribute" subtitle="No contribution logged this month" />
+      )}
       <div className={styles.body}>
         <motion.div
           className={styles.stack}
@@ -74,6 +78,15 @@ export default function YetToContributePage() {
           animate={reduce ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
+          {!isDesktop && (
+            <AgentMobileHero
+              eyebrow="Yet to contribute"
+              value={loading ? '—' : `${pending.length} member${pending.length === 1 ? '' : 's'}`}
+            >
+              No payment logged this month
+            </AgentMobileHero>
+          )}
+
           {!loading && !isError && pending.length > 0 && (
             <div className={styles.toolbar}>
               <button

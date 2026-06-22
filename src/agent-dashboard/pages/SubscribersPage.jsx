@@ -10,8 +10,7 @@ import { useAgentSubscribers } from '../../hooks/useAgent';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import SubscribersDesktop from './SubscribersDesktop';
 import ErrorCard from '../../components/feedback/ErrorCard';
-import PageHeader from '../../components/PageHeader';
-import { useAgentHeaderChrome } from '../shell/AgentHeaderChrome';
+import AgentMobileHero from '../shell/AgentMobileHero';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
@@ -44,7 +43,6 @@ export default function SubscribersPage() {
   const reducedMotion = useReducedMotion();
   const { agentId } = useAgentScope();
   const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
-  const headerChrome = useAgentHeaderChrome();
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -81,30 +79,6 @@ export default function SubscribersPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        variant="hero"
-        title="My subscribers"
-        showBack={false}
-        leadingSlot={headerChrome.leadingSlot}
-        trailingSlot={headerChrome.trailingSlot}
-        eyebrow="YOUR PORTFOLIO"
-        amount={loading ? '—' : counts.all}
-        subtitle={loading ? undefined : 'subscribers onboarded'}
-        statRow={loading ? (
-          <span style={{ opacity: 0.6 }}>Loading your portfolio…</span>
-        ) : (
-          <>
-            <span>
-              <strong style={{ color: 'var(--color-positive)' }}>{counts.active}</strong> active
-            </span>
-            <span>
-              <strong style={{ color: 'var(--color-amber)' }}>{counts.dormant}</strong> dormant
-            </span>
-            <span><strong>{activePct}%</strong> active</span>
-          </>
-        )}
-      />
-
       <div className={styles.body}>
         <motion.div
           className={styles.stack}
@@ -112,6 +86,21 @@ export default function SubscribersPage() {
           animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
+          <AgentMobileHero
+            eyebrow="Your portfolio"
+            value={loading ? '—' : `${counts.all} subscriber${counts.all === 1 ? '' : 's'}`}
+          >
+            {!loading && (
+              <>
+                <span>
+                  <strong style={{ color: 'var(--color-green-ink, #1f6e44)', fontWeight: 700 }}>{counts.active}</strong> active
+                </span>
+                <span style={{ color: 'var(--color-gray)' }}>{counts.dormant} dormant</span>
+                <span><strong>{activePct}%</strong> active</span>
+              </>
+            )}
+          </AgentMobileHero>
+
           <div className={styles.toolbar}>
             <div className={styles.searchWrap}>
               <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">

@@ -1,16 +1,17 @@
 import { Link } from 'react-router-dom';
-import { formatNumber, formatUGX } from '../../../utils/currency';
+import { formatNumber } from '../../../utils/currency';
 import styles from './InsuranceCard.module.css';
 
 /**
  * InsuranceCard — agent desktop Home insurance summary. Surfaces life-cover
- * uptake across the agent's book: insured vs uninsured members, the average
- * cover per insured member, and a coverage bar (% of members with active cover).
+ * uptake across the agent's book: insured vs uninsured members + a coverage bar
+ * (% of members with active cover). Agents are never shown cover AMOUNTS, so the
+ * card reports counts and percentages only.
  *
  * Figures are derived in HomeDesktop from the subscribers' `insurance` field
- * (cover / status), which the agent service now joins. Resilient to zero data
- * (e.g. RLS-filtered insurance on live): renders "None yet" + zeros rather than
- * breaking. Desktop-only surface — not used by the mobile agent Home.
+ * (status), which the agent service joins. Resilient to zero data (e.g.
+ * RLS-filtered insurance on live): renders zeros rather than breaking.
+ * Desktop-only surface — not used by the mobile agent Home.
  */
 const ShieldIcon = (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
@@ -39,7 +40,6 @@ const ChevronIcon = (
 export default function InsuranceCard({
   insured = 0,
   uninsured = 0,
-  avgCover = 0,
   coveragePct = 0,
 }) {
   return (
@@ -76,11 +76,6 @@ export default function InsuranceCard({
           </span>
           <span className={styles.sub}>no cover yet</span>
         </Link>
-        <div className={styles.stat}>
-          <span className={styles.k}>Avg. cover / member</span>
-          <span className={styles.v}>{formatUGX(avgCover)}</span>
-          <span className={styles.sub}>across insured</span>
-        </div>
       </div>
 
       <div className={styles.bar} role="presentation">

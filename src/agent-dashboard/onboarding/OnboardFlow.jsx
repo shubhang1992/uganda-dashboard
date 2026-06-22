@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { useSignup } from '../../signup/SignupContext';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 import PageHeader from '../../components/PageHeader';
 import AwarenessCheck from './AwarenessCheck';
 import OnboardKycFlow from './OnboardKycFlow';
@@ -25,6 +26,10 @@ function getStageIndex(id) {
 export default function OnboardFlow() {
   const navigate = useNavigate();
   const signup = useSignup();
+  // The desktop chrome (OnboardDesktop) relies on this flow's own PageHeader for
+  // the page <h1>. On mobile the persistent app bar owns the title, so the header
+  // is hidden there (the stepper below still conveys progress).
+  const isDesktop = useIsDesktop();
   const [stage, setStage] = useState('awareness');
   const [awareness, setAwareness] = useState({
     answers: { q1: null, q2: null, q3: null, q4: null, q5: null },
@@ -47,11 +52,13 @@ export default function OnboardFlow() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        title="Onboard a new subscriber"
-        subtitle={STAGES[stageIdx]?.label && `${stageIdx + 1} of ${STAGES.length} · ${STAGES[stageIdx].label}`}
-        fallback="/dashboard"
-      />
+      {isDesktop && (
+        <PageHeader
+          title="Onboard a new subscriber"
+          subtitle={STAGES[stageIdx]?.label && `${stageIdx + 1} of ${STAGES.length} · ${STAGES[stageIdx].label}`}
+          fallback="/dashboard"
+        />
+      )}
 
       <ol className={styles.stepper} aria-label="Onboarding progress">
         {STAGES.map((s, i) => {

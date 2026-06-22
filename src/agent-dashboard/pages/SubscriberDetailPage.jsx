@@ -10,12 +10,12 @@ import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import ErrorCard from '../../components/feedback/ErrorCard';
-import PageHeader from '../../components/PageHeader';
 import SubscriberDetailDesktop from './SubscriberDetailDesktop';
 import MessageLauncher from './MessageLauncher';
 import styles from './SubscriberDetailPage.module.css';
 import { StatusPill, KycBadge } from './subscriber/SubscriberBadges';
 import { deriveSubscriberMetrics } from './subscriber/subscriberMetrics';
+import PolicyChips from './subscriber/PolicyChips';
 
 const MessageIcon = (
   <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none">
@@ -39,7 +39,6 @@ export default function SubscriberDetailPage() {
   if (isLoading) {
     return (
       <div className={styles.page}>
-        <PageHeader title="Loading…" fallback="/dashboard/subscribers" />
         <div className={styles.empty}><div className={styles.spinner} /></div>
       </div>
     );
@@ -48,7 +47,6 @@ export default function SubscriberDetailPage() {
   if (isError) {
     return (
       <div className={styles.page}>
-        <PageHeader title="Subscriber" fallback="/dashboard/subscribers" />
         <div className={styles.empty}>
           <ErrorCard
             title="We couldn't load this subscriber"
@@ -63,7 +61,6 @@ export default function SubscriberDetailPage() {
   if (!subscriber) {
     return (
       <div className={styles.page}>
-        <PageHeader title="Subscriber not found" fallback="/dashboard/subscribers" />
         <div className={styles.empty}>
           <p className={styles.emptyTitle}>We couldn&apos;t find that subscriber.</p>
           <button
@@ -98,22 +95,10 @@ export default function SubscriberDetailPage() {
       value: metrics.adHoc != null ? String(metrics.adHoc) : '—',
       hint: 'above their usual',
     },
-    {
-      label: 'Insurance cover',
-      value: metrics.insured ? formatUGX(metrics.cover, { compact: false }) : 'No cover',
-      hint: metrics.insured ? 'active cover' : 'not insured',
-      tone: metrics.insured ? 'insured' : 'muted',
-    },
   ];
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        title={subscriber.name}
-        subtitle={`${subscriber.phone} · joined ${formatDate(subscriber.registeredDate)}`}
-        fallback="/dashboard/subscribers"
-      />
-
       <motion.div
         className={styles.body}
         initial={reducedMotion ? false : { opacity: 0, y: 10 }}
@@ -154,6 +139,16 @@ export default function SubscriberDetailPage() {
             </div>
           ))}
         </div>
+
+        <section className={styles.section}>
+          <header className={styles.sectionHead}>
+            <h2 className={styles.sectionTitle}>Insurance</h2>
+          </header>
+          <PolicyChips
+            policies={subscriber.policies}
+            emptyText={`${subscriber.name.split(' ')[0]} has no active cover yet.`}
+          />
+        </section>
 
         <section className={styles.section}>
           <header className={styles.sectionHead}>

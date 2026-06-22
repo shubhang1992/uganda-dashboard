@@ -86,6 +86,7 @@ export const SUBSCRIBER_CHILD_TABLES = [
   'subscriber_balances',
   'contribution_schedules',
   'insurance_policies',
+  'subscriber_insurance_products',
   'claims',
   'withdrawals',
   'commissions',
@@ -196,6 +197,14 @@ export async function assertNoSubscriberOrphans(): Promise<void> {
     throw new Error(`assertNoSubscriberOrphans: insurance_policies scan: ${insuranceRes.error.message}`);
   }
   await probe('insurance_policies', insuranceRes.data as { subscriber_id: string }[] | null);
+
+  const insProductsRes = await supabaseAdmin
+    .from('subscriber_insurance_products')
+    .select('subscriber_id');
+  if (insProductsRes.error) {
+    throw new Error(`assertNoSubscriberOrphans: subscriber_insurance_products scan: ${insProductsRes.error.message}`);
+  }
+  await probe('subscriber_insurance_products', insProductsRes.data as { subscriber_id: string }[] | null);
 
   const claimsRes = await supabaseAdmin.from('claims').select('subscriber_id');
   if (claimsRes.error) {

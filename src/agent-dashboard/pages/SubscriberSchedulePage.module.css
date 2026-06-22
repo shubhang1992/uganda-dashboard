@@ -5,6 +5,18 @@
   padding-bottom: var(--space-12);
 }
 
+.contextLine {
+  margin: 0;
+  padding: 6px var(--space-4) 0;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-gray);
+}
+.contextLine strong {
+  color: var(--color-indigo);
+  font-weight: 700;
+}
+
 @media (min-width: 1024px) {
   .page {
     max-width: 720px;

@@ -1,24 +1,15 @@
 /* Shared step card styling — each step uses .card as its outer shell.
-   Layered surface: soft gradient base, fine top highlight line, indigo-tinted
-   shadow. Animation is handled at the component level via Framer Motion
-   variants (see SignupPage + step headers) rather than blanket child stagger. */
+   Flat light surface (white + lavender hairline + soft shadow) matching the new
+   onboarding theme (AwarenessCheck / OnboardingComplete cards). Animation is
+   handled at the component level via Framer Motion variants (see SignupPage +
+   step headers) rather than blanket child stagger. */
 
 .card {
   position: relative;
-  /* Layered surface: soft ambient glow top-left + warm white base. */
-  background:
-    radial-gradient(120% 90% at 8% 0%, rgba(94, 99, 168, 0.07) 0%, transparent 55%),
-    linear-gradient(180deg, #FDFDFE 0%, var(--color-white) 52%);
-  border: 1px solid rgba(217, 220, 242, 0.9);
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
   border-radius: var(--radius-xl);
-  /* Stack: inner top highlight, indigo aurora hairline via 2nd inset shadow,
-     then the elevation. */
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 0 0 1px color-mix(in srgb, var(--color-indigo) 2%, transparent) inset,
-    0 1px 2px color-mix(in srgb, var(--color-indigo) 4%, transparent),
-    0 10px 32px color-mix(in srgb, var(--color-indigo) 6%, transparent),
-    0 28px 60px -24px color-mix(in srgb, var(--color-indigo) 14%, transparent);
+  box-shadow: var(--shadow-sm);
   padding: var(--space-6) var(--space-7);
   isolation: isolate;
 }
@@ -304,34 +295,30 @@
   font-size: var(--text-base);
   font-weight: 700;
   color: var(--color-white);
-  background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
+  background: var(--color-indigo);
   border-radius: var(--radius-full);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.18) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.12) inset,
-    0 6px 16px color-mix(in srgb, var(--color-indigo) 22%, transparent),
-    0 16px 32px -12px color-mix(in srgb, var(--color-indigo) 32%, transparent);
-  transition: transform 0.2s var(--ease-out-expo), box-shadow 0.2s var(--ease-out-expo);
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--color-indigo) 28%, transparent);
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.submit:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.2) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.12) inset,
-    0 10px 24px color-mix(in srgb, var(--color-indigo) 30%, transparent),
-    0 22px 40px -14px color-mix(in srgb, var(--color-indigo) 40%, transparent);
+.submit:hover:not(:disabled) {
+  background: var(--color-indigo-deep);
 }
 
-.submit:active {
-  transform: translateY(0);
+.submit:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.submit:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 2px;
 }
 
 .submit:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   transform: none;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-indigo) 14%, transparent);
+  box-shadow: none;
 }
 
 .secondaryBtn {
@@ -394,10 +381,6 @@
 @media (max-width: 768px) {
   .card {
     padding: var(--space-5) var(--space-5);
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.9) inset,
-      0 1px 2px color-mix(in srgb, var(--color-indigo) 4%, transparent),
-      0 8px 24px color-mix(in srgb, var(--color-indigo) 6%, transparent);
   }
 
   .heading {

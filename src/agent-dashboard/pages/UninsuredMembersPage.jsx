@@ -5,6 +5,8 @@ import { formatUGPhone } from '../../utils/phone';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
 import { isInsured } from '../home/agentHomeSummary';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
+import AgentMobileHero from '../shell/AgentMobileHero';
 import PageHeader from '../../components/PageHeader';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
@@ -39,6 +41,7 @@ export default function UninsuredMembersPage() {
   const reduce = useReducedMotion();
   const { agentId } = useAgentScope();
   const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
+  const isDesktop = useIsDesktop();
 
   const uninsured = useMemo(
     () =>
@@ -71,8 +74,9 @@ export default function UninsuredMembersPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Uninsured members" subtitle="No active cover — invite them to add insurance" />
-
+      {isDesktop && (
+        <PageHeader title="Uninsured members" subtitle="No active cover — invite them to add insurance" />
+      )}
       <div className={styles.body}>
         <motion.div
           className={styles.stack}
@@ -80,6 +84,15 @@ export default function UninsuredMembersPage() {
           animate={reduce ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
+          {!isDesktop && (
+            <AgentMobileHero
+              eyebrow="Uninsured members"
+              value={loading ? '—' : `${uninsured.length} member${uninsured.length === 1 ? '' : 's'}`}
+            >
+              No active cover — invite them to add insurance
+            </AgentMobileHero>
+          )}
+
           {!loading && !isError && uninsured.length > 0 && (
             <div className={styles.toolbar}>
               <button

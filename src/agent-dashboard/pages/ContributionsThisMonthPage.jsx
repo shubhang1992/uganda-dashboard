@@ -8,6 +8,8 @@ import { getInitials } from '../../utils/dashboard';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers, useAgentContributions } from '../../hooks/useAgent';
 import { deriveMonthAnchors, monthRangeIso } from '../home/agentHomeSummary';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
+import AgentMobileHero from '../shell/AgentMobileHero';
 import PageHeader from '../../components/PageHeader';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
@@ -46,14 +48,16 @@ export default function ContributionsThisMonthPage() {
   );
   const monthLabel = haveSubs ? formatDate(contribStart, { variant: 'month-year' }) : '';
   const resolving = subsLoading || (!!from && isLoading);
+  const isDesktop = useIsDesktop();
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        title="Contributions this month"
-        subtitle={monthLabel ? `Payments logged · ${monthLabel}` : 'Payments logged'}
-      />
-
+      {isDesktop && (
+        <PageHeader
+          title="Contributions this month"
+          subtitle={monthLabel ? `Payments logged · ${monthLabel}` : 'Payments logged'}
+        />
+      )}
       <div className={styles.body}>
         <motion.div
           className={styles.stack}
@@ -61,6 +65,15 @@ export default function ContributionsThisMonthPage() {
           animate={reduce ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
+          {!isDesktop && (
+            <AgentMobileHero
+              eyebrow="Collected this month"
+              value={resolving ? '—' : formatUGX(total, { compact: false })}
+            >
+              {monthLabel ? `Payments logged · ${monthLabel}` : 'Payments logged'}
+            </AgentMobileHero>
+          )}
+
           {!resolving && !isError && contributions.length > 0 && (
             <div className={styles.summary}>
               <div className={styles.summaryMain}>

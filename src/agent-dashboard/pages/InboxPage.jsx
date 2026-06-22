@@ -10,8 +10,7 @@ import { useIsDesktop } from '../../hooks/useIsDesktop';
 import InboxDesktop from './InboxDesktop';
 import { TICKET_STATUS } from '../../data/ticketsSeed';
 import ErrorCard from '../../components/feedback/ErrorCard';
-import PageHeader from '../../components/PageHeader';
-import { useAgentHeaderChrome } from '../shell/AgentHeaderChrome';
+import AgentMobileHero from '../shell/AgentMobileHero';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
@@ -29,8 +28,6 @@ const FILTERS = [
 export default function InboxPage() {
   const reducedMotion = useReducedMotion();
   const { agentId } = useAgentScope();
-  // Bell only — an inbox button on the inbox page itself would be redundant.
-  const headerChrome = useAgentHeaderChrome({ showInbox: false });
   const [searchParams, setSearchParams] = useSearchParams();
 
   // ?subscriberId= pre-filters the list to one subscriber's threads (the
@@ -153,29 +150,6 @@ export default function InboxPage() {
   // ── List mode ──
   return (
     <div className={styles.page}>
-      <PageHeader
-        variant="hero"
-        eyebrow="SUPPORT"
-        title="Inbox"
-        showBack={false}
-        leadingSlot={headerChrome.leadingSlot}
-        amount={loading ? '—' : counts.open}
-        subtitle={loading ? undefined : 'open conversations'}
-        statRow={loading ? (
-          <span style={{ opacity: 0.6 }}>Loading your inbox…</span>
-        ) : (
-          <>
-            <span><strong>{counts.open}</strong> open</span>
-            <span><strong>{counts.closed}</strong> closed</span>
-            <span>
-              <strong style={counts.unanswered > 0 ? { color: 'var(--color-amber)' } : undefined}>
-                {counts.unanswered}
-              </strong> awaiting reply
-            </span>
-          </>
-        )}
-      />
-
       <div className={styles.body}>
         <motion.div
           className={styles.stack}
@@ -183,6 +157,23 @@ export default function InboxPage() {
           animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
+          <AgentMobileHero
+            eyebrow="Support"
+            value={loading ? '—' : `${counts.open} open conversation${counts.open === 1 ? '' : 's'}`}
+          >
+            {!loading && (
+              <>
+                <span><strong>{counts.open}</strong> open</span>
+                <span style={{ color: 'var(--color-gray)' }}><strong>{counts.closed}</strong> closed</span>
+                <span>
+                  <strong style={counts.unanswered > 0 ? { color: 'var(--color-amber)', fontWeight: 700 } : undefined}>
+                    {counts.unanswered}
+                  </strong> awaiting reply
+                </span>
+              </>
+            )}
+          </AgentMobileHero>
+
           {subscriberFilter && (
             <div className={styles.focusBar}>
               <span className={styles.focusText}>

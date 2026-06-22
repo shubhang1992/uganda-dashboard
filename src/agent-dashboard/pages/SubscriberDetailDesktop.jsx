@@ -12,6 +12,7 @@ import ErrorCard from '../../components/feedback/ErrorCard';
 import PageHeader from '../../components/PageHeader';
 import { StatusPill, KycBadge } from './subscriber/SubscriberBadges';
 import { deriveSubscriberMetrics } from './subscriber/subscriberMetrics';
+import PolicyChips from './subscriber/PolicyChips';
 import MessageLauncher from './MessageLauncher';
 import pageStyles from './SubscriberDetailPage.module.css';
 import styles from './SubscriberDetailDesktop.module.css';
@@ -115,12 +116,6 @@ export default function SubscriberDetailDesktop() {
       value: metrics.adHoc != null ? String(metrics.adHoc) : '—',
       hint: 'above their usual',
     },
-    {
-      label: 'Insurance cover',
-      value: metrics.insured ? formatUGX(metrics.cover, { compact: false }) : 'No cover',
-      hint: metrics.insured ? 'active cover' : 'not insured',
-      tone: metrics.insured ? 'insured' : 'muted',
-    },
   ];
 
   return (
@@ -219,6 +214,16 @@ export default function SubscriberDetailDesktop() {
           </div>
 
           <div className={styles.column}>
+            <section className={pageStyles.section}>
+              <header className={pageStyles.sectionHead}>
+                <h2 className={pageStyles.sectionTitle}>Insurance</h2>
+              </header>
+              <PolicyChips
+                policies={subscriber.policies}
+                emptyText={`${subscriber.name.split(' ')[0]} has no active cover yet.`}
+              />
+            </section>
+
             <section className={pageStyles.section}>
               <header className={pageStyles.sectionHead}>
                 <h2 className={pageStyles.sectionTitle}>Support</h2>

@@ -128,6 +128,14 @@ export default function ContributionSettingsForm({
   // long scroll. Ignored for a brand-new setup (nothing to summarise) and left
   // off where the full form is wanted (desktop split, agent, onboarding).
   collapsible = false,
+  // `showInsurance` (default true): render the insurance multi-select (section
+  // 04) and emit the insurance selection on save. The AGENT's schedule-EDIT
+  // forks pass `false` — an agent cannot authorise a premium for someone else
+  // (pay_insurance_premium requires app_role='subscriber'), so insurance is the
+  // subscriber's own post-signup decision. When false the section is hidden AND
+  // the save payload omits includeInsurance/insuranceTypes, so the subscriber's
+  // existing insurance flag is left untouched.
+  showInsurance = true,
 }) {
   // State is initialized from `initial` once at mount. If the parent is
   // waiting on async data (e.g., a React Query fetch), it should pass a
@@ -139,7 +147,8 @@ export default function ContributionSettingsForm({
   const [retirementPct, setRetirementPct] = useState(Math.max(60, initial?.retirementPct ?? 80));
   // Insurance is now a multi-select across INSURANCE_PRODUCTS (health/funeral/life)
   // rather than a single life toggle. Held as an array of product ids.
-  const [insuranceTypes, setInsuranceTypes] = useState(() => resolveInitialSelection(initial, initialInsuranceTypes));
+  const [insuranceTypes, setInsuranceTypes] = useState(() =>
+    showInsurance ? resolveInitialSelection(initial, initialInsuranceTypes) : []);
   const [touched, setTouched] = useState(Boolean(initial?.amount));
 
   const amount = parseAmount(amountStr);
@@ -176,8 +185,8 @@ export default function ContributionSettingsForm({
   // products when supplied), so opening a fully-held plan and saving it untouched
   // reads as "No changes to save" — never re-prompting payment for held cover.
   const baselineInsurance = useMemo(
-    () => resolveInitialSelection(initial, initialInsuranceTypes),
-    [initial, initialInsuranceTypes],
+    () => (showInsurance ? resolveInitialSelection(initial, initialInsuranceTypes) : []),
+    [initial, initialInsuranceTypes, showInsurance],
   );
 
   const isNew = !initial;
@@ -252,9 +261,14 @@ export default function ContributionSettingsForm({
       amount,
       retirementPct,
       emergencyPct,
-      includeInsurance,
-      insuranceTypes,
     };
+    // Only emit the insurance selection when the section is shown. Omitting it
+    // (agent schedule-edit) leaves the subscriber's existing include_insurance
+    // untouched (updateContributionSchedule only patches it when sent).
+    if (showInsurance) {
+      payload.includeInsurance = includeInsurance;
+      payload.insuranceTypes = insuranceTypes;
+    }
     if (initial?.nextDueDate) payload.nextDueDate = initial.nextDueDate;
     onSave(payload);
   }
@@ -374,7 +388,9 @@ export default function ContributionSettingsForm({
             )}
           </section>
 
-          {/* 04 Insurance (optional, multi-select) */}
+          {/* 04 Insurance (optional, multi-select) — hidden on the agent's
+              schedule-edit forks (showInsurance={false}). */}
+          {showInsurance && (
           <section className={styles.section}>
             {renderHead('insurance', '04', 'Add insurance', 'Optional · pick any', insuranceSummary)}
             {isOpen('insurance') && (
@@ -409,6 +425,7 @@ export default function ContributionSettingsForm({
             </div>
             )}
           </section>
+          )}
           </div>
 
           <div className={styles.summaryCol}>

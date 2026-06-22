@@ -42,19 +42,21 @@ test.describe('agent dashboard smoke', () => {
     await page.goto('/dashboard');
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
-    // The greeting <h1> is dynamic, so we assert the stable monthly-contributions
-    // KPI label. This spec runs at BOTH desktop (1440 → HomeDesktop, label
-    // "Monthly contributions") and mobile (375/390 → MonthlyDataCard, label
-    // "Monthly contribution volume") viewports, so match the shared prefix.
-    await expect(page.getByText(/Monthly contribution/)).toBeVisible();
+    // The greeting <h1> is dynamic, so we assert the stable "Total contributions"
+    // label. Runs at BOTH desktop (1440 → HomeDesktop hero eyebrow "Total
+    // contributions") and mobile (375/390 → HomeMobile framed label "Total
+    // contributions collected"); the anchored regex matches either leaf label.
+    await expect(page.getByText(/^Total contributions( collected)?$/)).toBeVisible();
   });
 
   test('Onboard loads', async ({ page }) => {
     await page.goto('/dashboard/onboard');
     await expect(page).toHaveURL(/\/dashboard\/onboard/);
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
+    // Desktop (OnboardFlow) keeps its own <h1> "Onboard a new subscriber"; on
+    // mobile the persistent app bar owns the <h1> "Onboard a member".
     await expect(
-      page.getByRole('heading', { level: 1, name: /onboard a new subscriber/i })
+      page.getByRole('heading', { level: 1, name: /onboard a (new subscriber|member)/i })
     ).toBeVisible();
   });
 
@@ -62,16 +64,18 @@ test.describe('agent dashboard smoke', () => {
     await page.goto('/dashboard/subscribers');
     await expect(page).toHaveURL(/\/dashboard\/subscribers$/);
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
+    // Desktop body owns <h1> "My subscribers"; on mobile the app bar <h1> reads
+    // "Subscribers".
     await expect(
-      page.getByRole('heading', { level: 1, name: /my subscribers/i })
+      page.getByRole('heading', { level: 1, name: /(my )?subscribers/i })
     ).toBeVisible();
   });
 
   test('Subscriber detail loads', async ({ page }) => {
     // s-0001 may or may not belong to agent a-001 in the seed — if it doesn't,
-    // SubscriberDetailPage renders a "Subscriber not found" state. Either way
-    // we get an <h1> via PageHeader and no error boundary, which is what this
-    // smoke check guards against.
+    // SubscriberDetailPage renders a "Subscriber not found" state. Either way the
+    // page has an <h1> (desktop: the detail fork's own; mobile: the persistent
+    // app bar's "Subscriber") and no error boundary, which is what this guards.
     await page.goto('/dashboard/subscribers/s-0001');
     await expect(page).toHaveURL(/\/dashboard\/subscribers\/s-0001/);
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
@@ -79,10 +83,10 @@ test.describe('agent dashboard smoke', () => {
   });
 
   test('Inbox loads', async ({ page }) => {
-    // Support inbox (Phase 2 of the tickets feature). Reached from the agent's
-    // More popover. List mode renders PageHeader variant="hero" title="Inbox"
-    // as the page <h1>; selecting a row swaps to a ThreadView, but a cold
-    // goto lands on the list, so the stable identity marker is the "Inbox" h1.
+    // Support inbox (Phase 2 of the tickets feature). Reached from the app bar +
+    // the Profile hub. The page <h1> "Inbox" comes from the desktop fork's header
+    // or, on mobile, the persistent app bar; selecting a row swaps to a ThreadView,
+    // but a cold goto lands on the list, so the stable marker is the "Inbox" h1.
     await page.goto('/dashboard/inbox');
     await expect(page).toHaveURL(/\/dashboard\/inbox/);
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);

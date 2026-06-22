@@ -5,7 +5,6 @@ import { useAgentSubscribers, useUpdateSubscriberSchedule } from '../../hooks/us
 import { useToast } from '../../contexts/ToastContext';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import ErrorCard from '../../components/feedback/ErrorCard';
-import PageHeader from '../../components/PageHeader';
 import ContributionSettingsForm from '../../components/contribution/ContributionSettingsForm';
 import SkeletonRow from '../../components/SkeletonRow';
 import SubscriberScheduleDesktop from './SubscriberScheduleDesktop';
@@ -59,11 +58,9 @@ export default function SubscriberSchedulePage() {
     // so showing the form's silhouette keeps the page feeling alive.
     return (
       <div className={styles.page}>
-        <PageHeader
-          title="Loading schedule…"
-          fallback={`/dashboard/subscribers/${id}`}
-        />
-        <SkeletonRow count={4} label="Loading subscriber schedule" />
+        <div style={{ padding: 'var(--space-4)' }}>
+          <SkeletonRow count={4} label="Loading subscriber schedule" />
+        </div>
       </div>
     );
   }
@@ -71,7 +68,6 @@ export default function SubscriberSchedulePage() {
   if (isError) {
     return (
       <div className={styles.page}>
-        <PageHeader title="Schedule" fallback={`/dashboard/subscribers/${id}`} />
         <div style={{ padding: 'var(--space-4)' }}>
           <ErrorCard
             title="We couldn't load this subscriber"
@@ -86,23 +82,24 @@ export default function SubscriberSchedulePage() {
   if (!subscriber) {
     return (
       <div className={styles.page}>
-        <PageHeader
-          title="Subscriber not found"
-          fallback="/dashboard/subscribers"
-        />
+        <div style={{ padding: 'var(--space-8) var(--space-4)', textAlign: 'center', color: 'var(--color-gray)' }}>
+          <p>We couldn&apos;t find that subscriber.</p>
+        </div>
       </div>
     );
   }
+
+  const contextLine = (
+    <p className={styles.contextLine}>
+      For <strong>{subscriber.name}</strong>
+    </p>
+  );
 
   // Gate edits to an existing schedule behind subscriber OTP consent.
   if (!isNew && !consentGiven) {
     return (
       <div className={styles.page}>
-        <PageHeader
-          title="Edit contribution schedule"
-          subtitle={`for ${subscriber.name}`}
-          fallback={`/dashboard/subscribers/${id}`}
-        />
+        {contextLine}
         <EditScheduleConsent
           phone={subscriber.phone}
           subscriberName={subscriber.name}
@@ -115,11 +112,7 @@ export default function SubscriberSchedulePage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        title={isNew ? 'Set up contribution schedule' : 'Edit contribution schedule'}
-        subtitle={`for ${subscriber.name}`}
-        fallback={`/dashboard/subscribers/${id}`}
-      />
+      {contextLine}
       {subscriber && (
         <ContributionSettingsForm
           initial={existing}
@@ -128,6 +121,7 @@ export default function SubscriberSchedulePage() {
           onCancel={handleCancel}
           submitting={submitting}
           submitLabel={isNew ? 'Set up schedule' : undefined}
+          showInsurance={false}
         />
       )}
     </div>

@@ -137,6 +137,7 @@ export default function SubscriberScheduleDesktop() {
           onCancel={handleCancel}
           submitting={submitting}
           submitLabel={isNew ? 'Set up schedule' : undefined}
+          showInsurance={false}
         />
       </div>
     </div>

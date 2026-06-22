@@ -27,7 +27,9 @@ const PRODUCT_LABEL = {
 };
 const PRODUCT_ORDER = ['life', 'health', 'funeral'];
 
-function productName(product) {
+// Exported so agent-side surfaces (PolicyChips) reuse the SAME product→label map
+// the subscriber policies page uses — no third copy to drift.
+export function productName(product) {
   if (PRODUCT_LABEL[product]) return PRODUCT_LABEL[product];
   const cfg = INSURANCE_PRODUCTS.find((p) => p.id === product);
   return cfg?.label ?? 'Insurance cover';

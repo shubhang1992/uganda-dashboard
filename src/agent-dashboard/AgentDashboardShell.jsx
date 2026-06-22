@@ -17,6 +17,8 @@ const InboxPage = lazy(() => import('./pages/InboxPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const CommissionsPage = lazy(() => import('./pages/CommissionsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const HelpPage = lazy(() => import('./pages/HelpPage'));
 const ContributionsThisMonthPage = lazy(() => import('./pages/ContributionsThisMonthPage'));
 const OnboardedThisMonthPage = lazy(() => import('./pages/OnboardedThisMonthPage'));
 const YetToContributePage = lazy(() => import('./pages/YetToContributePage'));
@@ -93,6 +95,8 @@ export default function AgentDashboardShell() {
             <Route path="insured" element={<Suspense fallback={<PageFallback />}><InsuredMembersPage /></Suspense>} />
             <Route path="uninsured" element={<Suspense fallback={<PageFallback />}><UninsuredMembersPage /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<PageFallback />}><SettingsPage /></Suspense>} />
+            <Route path="profile" element={<Suspense fallback={<PageFallback />}><ProfilePage /></Suspense>} />
+            <Route path="help" element={<Suspense fallback={<PageFallback />}><HelpPage /></Suspense>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Routes>

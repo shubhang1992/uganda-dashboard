@@ -205,7 +205,9 @@ All `SECURITY DEFINER`, gated on `app_role = 'employer'`, scoped to the `employe
 
 ## 4. PostgREST reads (RLS-governed)
 
-Reads of tables like `subscribers`, `subscriber_balances`, `transactions`, `claims`, `withdrawals`, `nominees`, `insurance`, `commissions`, `settlement_batches`, `notifications`, `agent_referrals`, `entities`, etc. happen directly via the `supabase-js` query builder (`supabase.from('subscribers').select(...)`). (`settlement_runs` / `settlement_run_branch_reviews` were dropped in `0029`.)
+Reads of tables like `subscribers`, `subscriber_balances`, `transactions`, `claims`, `withdrawals`, `nominees`, `insurance_policies`, `subscriber_insurance_products`, `commissions`, `settlement_batches`, `notifications`, `agent_referrals`, `entities`, etc. happen directly via the `supabase-js` query builder (`supabase.from('subscribers').select(...)`). (`settlement_runs` / `settlement_run_branch_reviews` were dropped in `0029`.)
+
+The agent subscriber list (`getAgentSubscriberList`, cache key `['agentSubscribers', agentId]`) embeds `insurance_policies(cover, premium_monthly, status)` **and** `subscriber_insurance_products(product, status)` (the latter readable via the `sip_select_agent` RLS policy, `0065`). The service builds a `subscriber.policies` array of `{ product, status }` for ACTIVE policies only — **product + status, never cover/premium** (agents must not see cover). Cache key and invalidation are unchanged by the added embed.
 
 Every table has RLS enabled. Policies read `auth.jwt() ->> 'app_role'` (the application role) plus `auth.jwt() ->> '<role>Id'` to scope rows. Defer to:
 

@@ -56,6 +56,35 @@ describe('<ContributionSettingsForm /> insurance pre-check', () => {
   });
 });
 
+describe('<ContributionSettingsForm /> showInsurance={false} (agent schedule-edit)', () => {
+  it('hides the insurance section entirely', () => {
+    renderForm({ initial: { ...BASE, includeInsurance: true }, showInsurance: false });
+    expect(screen.queryByRole('switch', { name: /Life insurance/ })).toBeNull();
+    expect(screen.queryByRole('switch', { name: /Health insurance/ })).toBeNull();
+    expect(screen.queryByRole('switch', { name: /Funeral insurance/ })).toBeNull();
+    // Frequency/amount/split sections remain.
+    expect(screen.getByRole('radio', { name: /Weekly/ })).toBeInTheDocument();
+  });
+
+  it('omits insurance fields from the saved payload (existing flag left untouched)', async () => {
+    const user = userEvent.setup();
+    let saved = null;
+    // Start from a NEW schedule so the form is dirty/saveable after one edit.
+    render(
+      <ContributionSettingsForm
+        onSave={(p) => { saved = p; }}
+        showInsurance={false}
+        submitLabel="Set up schedule"
+      />,
+    );
+    await user.type(screen.getByLabelText('Contribution amount'), '50000');
+    await user.click(screen.getByRole('button', { name: 'Set up schedule' }));
+    expect(saved).not.toBeNull();
+    expect(saved).not.toHaveProperty('includeInsurance');
+    expect(saved).not.toHaveProperty('insuranceTypes');
+  });
+});
+
 describe('<ContributionSettingsForm /> collapsible (mobile)', () => {
   it('collapses each section to a summary row + Edit when editing an existing schedule', () => {
     renderForm({ initial: BASE, initialInsuranceTypes: ['life'], collapsible: true });

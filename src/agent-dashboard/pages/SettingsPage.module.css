@@ -38,9 +38,9 @@
 .avatar {
   width: 56px;
   height: 56px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-indigo) 0%, var(--color-indigo-deep) 100%);
-  color: var(--color-white);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
+  color: var(--color-indigo);
   font-family: var(--font-display);
   font-weight: 800;
   font-size: var(--text-lg);

@@ -37,9 +37,12 @@ export function deriveSubscriberMetrics(subscriber) {
     adHoc = median > 0 ? nonZero.filter((v) => v > median * AD_HOC_FACTOR).length : 0;
   }
 
+  // `insured` is a boolean engagement signal only. The cover AMOUNT is read
+  // internally to decide insured-ness but is deliberately NOT returned — agents
+  // must not see a subscriber's cover (the active-policy chips show product +
+  // status only).
   const ins = subscriber?.insurance;
   const insured = !!ins && ins.status === 'active' && Number(ins.cover) > 0;
-  const cover = insured ? Number(ins.cover) : 0;
 
-  return { largest, last, lastDate, adHoc, insured, cover };
+  return { largest, last, lastDate, adHoc, insured };
 }

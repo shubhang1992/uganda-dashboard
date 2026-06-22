@@ -9,6 +9,8 @@ import { getInitials } from '../../utils/dashboard';
 import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
 import { deriveMonthAnchors, isOnboardedSince } from '../home/agentHomeSummary';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
+import AgentMobileHero from '../shell/AgentMobileHero';
 import PageHeader from '../../components/PageHeader';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
@@ -38,14 +40,16 @@ export default function OnboardedThisMonthPage() {
     ? formatDate(deriveMonthAnchors(subscribers).onboardStart, { variant: 'month-year' })
     : '';
   const loading = isLoading && subscribers.length === 0;
+  const isDesktop = useIsDesktop();
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        title="Onboarded this month"
-        subtitle={monthLabel ? `New subscribers · ${monthLabel}` : 'New subscribers'}
-      />
-
+      {isDesktop && (
+        <PageHeader
+          title="Onboarded this month"
+          subtitle={monthLabel ? `New subscribers · ${monthLabel}` : 'New subscribers'}
+        />
+      )}
       <div className={styles.body}>
         <motion.div
           className={styles.stack}
@@ -53,6 +57,15 @@ export default function OnboardedThisMonthPage() {
           animate={reduce ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
         >
+          {!isDesktop && (
+            <AgentMobileHero
+              eyebrow="New members"
+              value={loading ? '—' : `${onboarded.length} member${onboarded.length === 1 ? '' : 's'}`}
+            >
+              {monthLabel ? `New subscribers · ${monthLabel}` : 'New subscribers'}
+            </AgentMobileHero>
+          )}
+
           <div className={styles.list}>
             {loading && <SkeletonRow count={5} label="Loading this month's onboardees" />}
             {isError && !isLoading && (

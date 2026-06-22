@@ -1,0 +1,267 @@
+/* Agent mobile home — framed-metric hero + This month + Your book.
+   Mobile-only (HomePage returns <HomeDesktop/> at >=1024px before this paints).
+   Softer mobile radii than the desktop tokens, matching the approved mockup. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 4px 18px 8px;
+}
+
+.card {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+}
+.cardGrad {
+  background: linear-gradient(155deg, #fff 0%, var(--color-cloud) 100%);
+  box-shadow: 0 1px 2px rgba(41, 40, 103, 0.04), 0 8px 22px -16px rgba(41, 40, 103, 0.28);
+}
+
+/* hero */
+.greet {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-gray);
+}
+.greet b {
+  color: var(--color-indigo);
+  font-weight: 800;
+}
+.frame {
+  border: 1px solid var(--color-lavender);
+  background: rgba(255, 255, 255, 0.66);
+  border-radius: 13px;
+  padding: 15px 16px;
+  margin-top: 13px;
+}
+.frameLabel {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 11.5px;
+  color: var(--color-gray);
+  margin-bottom: 5px;
+}
+.heroVal {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+  line-height: 1.02;
+  font-variant-numeric: tabular-nums;
+}
+
+/* stat strip (shared by hero + this-month) */
+.strip {
+  display: grid;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--color-lavender);
+  border-radius: 13px;
+  padding: 14px 8px;
+  margin-top: 13px;
+}
+.strip > * {
+  text-align: center;
+  position: relative;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: default;
+}
+.strip > * + *::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 28px;
+  width: 1px;
+  background: var(--color-lavender);
+}
+.strip b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.strip b.green {
+  color: var(--color-green-ink, #1f6e44);
+}
+.strip small {
+  display: block;
+  font-size: 10.5px;
+  color: var(--color-gray);
+  margin-top: 3px;
+}
+.tapStat {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* card header */
+.cardHd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.cardHd h3 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--color-indigo);
+  letter-spacing: -0.01em;
+}
+.tag {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-gray);
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
+  padding: 5px 9px;
+  border-radius: var(--radius-full);
+}
+.seeAll {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--color-indigo-soft);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* this-month "to be paid to you" row */
+.payRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  margin-top: 16px;
+  padding: 16px 0 0;
+  border: none;
+  border-top: 1px solid var(--color-lavender);
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.payIc {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--color-green) 12%, transparent);
+  color: var(--color-green-ink, #1f6e44);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.payText b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--color-slate);
+}
+.payText small {
+  font-size: 11px;
+  color: var(--color-gray);
+}
+.payEnd {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.payAmt {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--color-green-ink, #1f6e44);
+  font-variant-numeric: tabular-nums;
+}
+.chev {
+  color: var(--color-indigo-soft);
+  display: flex;
+  flex: 0 0 auto;
+}
+
+/* your-book list rows */
+.listRow {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  text-align: left;
+  padding: 13px 0;
+  border: none;
+  border-top: 1px solid var(--color-lavender);
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.listRow:first-of-type {
+  border-top: none;
+}
+.rowIc {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rowMid {
+  flex: 1;
+  min-width: 0;
+}
+.rowMid b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-slate);
+}
+.rowMid small {
+  font-size: 11.5px;
+  color: var(--color-gray);
+}
+.rowVal {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.rowVal.warn {
+  color: var(--color-amber-ink, #8a6209);
+}
+
+.tintIndigo {
+  background: color-mix(in srgb, var(--color-indigo) 9%, transparent);
+  color: var(--color-indigo);
+}
+.tintAmber {
+  background: color-mix(in srgb, var(--color-amber) 18%, transparent);
+  color: var(--color-amber-ink, #8a6209);
+}
+.tintTeal {
+  background: color-mix(in srgb, var(--color-teal) 12%, transparent);
+  color: var(--color-teal);
+}

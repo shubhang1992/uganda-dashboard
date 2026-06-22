@@ -4,17 +4,45 @@
 // exports a component — exporting a helper alongside it trips react-refresh.
 
 import { toCanonicalUGPhone } from '../../utils/phone';
-import { INSURANCE_COVER, INSURANCE_PREMIUM_MONTHLY } from '../../constants/savings';
+import { INSURANCE_PRODUCTS, INSURANCE_COVER, INSURANCE_PREMIUM_MONTHLY } from '../../constants/savings';
 
 /**
  * Build the payload `create_subscriber_from_agent_onboard` expects from the
  * SignupContext snapshot + the locally-collected contribution schedule. Same
  * shape as the self-signup path — the RPC distinguishes by validating
  * `calling_agent_id` against the auth JWT.
+ *
+ * Insurance is multi-product: `ContributionSettingsForm` emits `insuranceTypes`
+ * (an array of 'life' | 'health' | 'funeral'). We split it for the signup chain
+ * (`_insert_subscriber_chain`, migration 0065):
+ *   - life            → `insurancePolicy` (life row in `insurance_policies`).
+ *   - health/funeral  → `insuranceProducts` (rows in `subscriber_insurance_products`).
+ * Covers/premiums come from `INSURANCE_PRODUCTS` (the form emits ids only).
+ * Legacy fallback: a schedule with no `insuranceTypes` but `includeInsurance`
+ * true is treated as life-only (preserves the pre-multi-product behaviour).
  */
 export function buildPayload(signup) {
   const schedule = signup.contributionSchedule || {};
-  const includeInsurance = schedule.includeInsurance ?? false;
+  const types = Array.isArray(schedule.insuranceTypes) ? schedule.insuranceTypes : null;
+  // Any insurance chosen — drives the schedule's legacy include_insurance flag.
+  const includeInsurance = types ? types.length > 0 : (schedule.includeInsurance ?? false);
+
+  // Life → insurancePolicy (unchanged contract). Honour insuranceTypes when the
+  // form emitted it; otherwise the legacy boolean means life-only.
+  const wantsLife = types ? types.includes('life') : includeInsurance;
+  const insurancePolicy = wantsLife
+    ? { cover: INSURANCE_COVER, premiumMonthly: INSURANCE_PREMIUM_MONTHLY }
+    : null;
+
+  // Health/funeral → insuranceProducts array (life never lands here — it belongs
+  // in insurance_policies). cover/premium sourced from INSURANCE_PRODUCTS.
+  const insuranceProducts = (types ?? [])
+    .filter((id) => id === 'health' || id === 'funeral')
+    .map((id) => {
+      const product = INSURANCE_PRODUCTS.find((p) => p.id === id);
+      return { product: id, cover: product?.cover ?? 0, premiumMonthly: product?.premiumMonthly ?? 0 };
+    });
+
   return {
     phone: toCanonicalUGPhone(signup.phone) || signup.phone,
     fullName: signup.fullName,
@@ -38,13 +66,10 @@ export function buildPayload(signup) {
     insuranceSameAsPension: !!signup.insuranceSameAsPension,
     insuranceChoiceMade: !!signup.insuranceChoiceMade,
     paymentMethod: schedule.paymentMethod,
-    // Persist the insurance policy when the subscriber opted in (parity with the
-    // self-signup path; 0042 _insert_subscriber_chain reads payload.insurancePolicy).
-    // The agent schedule form (ContributionSettingsForm) only emits
-    // includeInsurance — NOT cover/premium — so derive them from the same
-    // constants the self-signup path uses. Omitted when insurance was declined.
-    ...(includeInsurance
-      ? { insurancePolicy: { cover: INSURANCE_COVER, premiumMonthly: INSURANCE_PREMIUM_MONTHLY } }
-      : {}),
+    // Life policy (0065 _insert_subscriber_chain reads payload.insurancePolicy).
+    // Omitted when life wasn't selected.
+    ...(insurancePolicy ? { insurancePolicy } : {}),
+    // Extra products (0065 reads payload.insuranceProducts). Omitted when none.
+    ...(insuranceProducts.length ? { insuranceProducts } : {}),
   };
 }

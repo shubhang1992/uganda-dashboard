@@ -12,8 +12,7 @@ import { useAgentScope } from '../../contexts/AgentScopeContext';
 import { useAgentSubscribers } from '../../hooks/useAgent';
 import { formatUGX, formatNumber } from '../../utils/currency';
 import ErrorCard from '../../components/feedback/ErrorCard';
-import PageHeader from '../../components/PageHeader';
-import { useAgentHeaderChrome } from '../shell/AgentHeaderChrome';
+import AgentMobileHero from '../shell/AgentMobileHero';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import AnalyticsDesktop from './AnalyticsDesktop';
 import { deriveAnalytics, pct, MONTHS_BACK } from './analytics/deriveAnalytics';
@@ -25,7 +24,6 @@ export default function AnalyticsPage() {
   const { agentId } = useAgentScope();
   const { data: subscribers = [], isLoading, isError, error, refetch } = useAgentSubscribers(agentId);
   const reduceMotion = useReducedMotion();
-  const headerChrome = useAgentHeaderChrome();
 
   const data = useMemo(() => deriveAnalytics(subscribers), [subscribers]);
   const total = subscribers.length;
@@ -36,7 +34,6 @@ export default function AnalyticsPage() {
   if (isLoading) {
     return (
       <div className={styles.page}>
-        <PageHeader variant="hero" showBack={false} leadingSlot={headerChrome.leadingSlot} trailingSlot={headerChrome.trailingSlot} title="Analytics" subtitle="Loading insights…" />
         <div className={styles.body}>
           <div className={styles.skeletonGrid}>
             {[0, 1, 2, 3, 4].map((i) => (
@@ -51,7 +48,6 @@ export default function AnalyticsPage() {
   if (isError) {
     return (
       <div className={styles.page}>
-        <PageHeader variant="hero" showBack={false} leadingSlot={headerChrome.leadingSlot} trailingSlot={headerChrome.trailingSlot} title="Analytics" />
         <div className={styles.body}>
           <div className={styles.empty}>
             <ErrorCard
@@ -68,7 +64,6 @@ export default function AnalyticsPage() {
   if (total === 0) {
     return (
       <div className={styles.page}>
-        <PageHeader variant="hero" showBack={false} leadingSlot={headerChrome.leadingSlot} trailingSlot={headerChrome.trailingSlot} title="Analytics" subtitle="No subscribers yet" />
         <div className={styles.body}>
           <div className={styles.empty}>
             <div className={styles.emptyIcon} aria-hidden="true">
@@ -97,16 +92,14 @@ export default function AnalyticsPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        variant="hero"
-        showBack={false}
-        leadingSlot={headerChrome.leadingSlot}
-        trailingSlot={headerChrome.trailingSlot}
-        title="Analytics"
-        subtitle={`Insights from your ${formatNumber(total)} subscriber${total === 1 ? '' : 's'}`}
-      />
-
       <div className={styles.body}>
+      <AgentMobileHero
+        eyebrow="Analytics"
+        value={`${formatNumber(total)} subscriber${total === 1 ? '' : 's'}`}
+      >
+        <span style={{ color: 'var(--color-gray)' }}>insights from your book</span>
+      </AgentMobileHero>
+
       <section className={styles.section} aria-labelledby="profile-mix-title">
         <header className={styles.sectionHead}>
           <span className={styles.eyebrow}>Profile mix</span>

@@ -247,8 +247,8 @@ All slide-in panels use `splitMode={true}`:
 | Home | Full | `PortfolioPulseCard` + `CoPilotWidget` |
 | Onboard (4-stage flow) | Full | Awareness check → KYC (reuses signup STEPS) → Schedule → Done |
 | Subscribers list | Scoped | Own subscribers only; search + sort + active/dormant filter |
-| Subscriber detail | Scoped | KYC pill + KPIs + schedule + sparkline + products |
-| Subscriber schedule edit | Scoped | Reuses `ContributionSettingsForm` |
+| Subscriber detail | Scoped | KYC pill + KPIs + schedule + **active insurance policies as product+status chips (Life/Health/Funeral · Active)**. Agents see WHICH policies are active but **NOT the cover amount or premium** (`0065` adds agent `SELECT` RLS on `subscriber_insurance_products`; `services/agent.js` builds `subscriber.policies` = product+status only) |
+| Subscriber schedule edit | Scoped | Reuses `ContributionSettingsForm` with `showInsurance={false}` — the insurance section is hidden (an agent can't authorise a premium for someone else; insurance is the subscriber's own post-signup decision) |
 | Analytics | Scoped | Recharts demographics + saving habits + onboarding velocity from agent's portfolio |
 | Commissions home | Scoped | Earned (`paid`, grouped by paid month) + Owed (`due`) cards |
 | Commissions sub-views | Scoped | `/commissions/:view` ∈ `{earned, owed}` (confirm + disputes removed) |
@@ -257,12 +257,13 @@ All slide-in panels use `splitMode={true}`:
 ### Data Scope
 - **Visibility:** Own agent record + own subscribers + own commissions
 - **No access to:** Other agents, branch-level data, or network data
+- **Insurance:** sees which active policies a subscriber holds (Life/Health/Funeral product + status) but **never the cover amount or premium**. Insured-vs-uninsured counts (Home) remain **life-only** (`isInsured` reads life `cover>0`), so a health-only subscriber counts as "uninsured" on Home by design.
 
 ### Actions (CRUD)
 | Action | Permission | Scope |
 |--------|-----------|-------|
 | View own subscribers | Read | Own subscribers (`useAgentSubscribers`) |
-| Onboard new subscriber | Create | Under own agent ID (full 9-step KYC + schedule capture) |
+| Onboard new subscriber | Create | Under own agent ID (full 9-step KYC + schedule capture, incl. **multi-product insurance selection** — Life → `insurance_policies`, Health/Funeral → `subscriber_insurance_products`, persisted by the `0065` signup-chain re-emit) |
 | Update subscriber's schedule | Update | Own subscribers (`useUpdateSubscriberSchedule` — optimistic + rollback over the agent's portfolio array) |
 | View own commissions | Read | `useAgentCommissionDetail` (Earned / Owed only) |
 | View notifications | Read | Own `commission_settled` notifications (notification bell) |

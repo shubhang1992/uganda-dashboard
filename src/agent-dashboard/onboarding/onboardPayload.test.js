@@ -1,14 +1,18 @@
-// OnboardingComplete.buildPayload — agent-onboard insurance persistence (P5 fix).
+// OnboardingComplete.buildPayload — agent-onboard insurance persistence.
 //
-// The agent schedule form (ContributionSettingsForm) only emits `includeInsurance`
-// — never insuranceCover/insurancePremium — so buildPayload must derive the
-// policy from the savings constants, else insurance is silently dropped on the
-// agent path (the bug the adversarial review caught: the original guard
-// `includeInsurance && insuranceCover > 0` was never true for agent onboarding).
+// The agent schedule form (ContributionSettingsForm) emits `insuranceTypes` (an
+// array of 'life'|'health'|'funeral') plus the legacy `includeInsurance` boolean.
+// buildPayload splits it into `insurancePolicy` (life → insurance_policies) and
+// `insuranceProducts` (health/funeral → subscriber_insurance_products), deriving
+// covers/premiums from the savings constants. A schedule with no insuranceTypes
+// but includeInsurance=true falls back to life-only (legacy behaviour).
 
 import { describe, it, expect } from 'vitest';
 import { buildPayload } from './onboardPayload';
-import { INSURANCE_COVER, INSURANCE_PREMIUM_MONTHLY } from '../../constants/savings';
+import { INSURANCE_COVER, INSURANCE_PREMIUM_MONTHLY, INSURANCE_PRODUCTS } from '../../constants/savings';
+
+const health = INSURANCE_PRODUCTS.find((p) => p.id === 'health');
+const funeral = INSURANCE_PRODUCTS.find((p) => p.id === 'funeral');
 
 const base = {
   phone: '+256711000001',
@@ -28,6 +32,7 @@ const base = {
 };
 
 describe('OnboardingComplete.buildPayload', () => {
+  // ── Legacy boolean path (no insuranceTypes emitted) ───────────────────────
   it('emits insurancePolicy from the savings constants when includeInsurance is true', () => {
     const payload = buildPayload({
       ...base,
@@ -40,7 +45,7 @@ describe('OnboardingComplete.buildPayload', () => {
       cover: INSURANCE_COVER,
       premiumMonthly: INSURANCE_PREMIUM_MONTHLY,
     });
-    // The schedule flag is also carried (0042 now reads it from the sub-object).
+    expect(payload).not.toHaveProperty('insuranceProducts');
     expect(payload.contributionSchedule.includeInsurance).toBe(true);
   });
 
@@ -50,10 +55,69 @@ describe('OnboardingComplete.buildPayload', () => {
       contributionSchedule: { frequency: 'monthly', amount: 50000, includeInsurance: false },
     });
     expect(payload).not.toHaveProperty('insurancePolicy');
+    expect(payload).not.toHaveProperty('insuranceProducts');
   });
 
   it('omits insurancePolicy when there is no schedule', () => {
     const payload = buildPayload({ ...base, contributionSchedule: null });
     expect(payload).not.toHaveProperty('insurancePolicy');
+    expect(payload).not.toHaveProperty('insuranceProducts');
+  });
+
+  // ── Multi-product path (insuranceTypes emitted by the form) ───────────────
+  it('emits both insurancePolicy (life) and insuranceProducts (health) for ["life","health"]', () => {
+    const payload = buildPayload({
+      ...base,
+      contributionSchedule: {
+        frequency: 'monthly', amount: 50000, retirementPct: 80, emergencyPct: 20,
+        includeInsurance: true, insuranceTypes: ['life', 'health'],
+      },
+    });
+    expect(payload.insurancePolicy).toEqual({
+      cover: INSURANCE_COVER,
+      premiumMonthly: INSURANCE_PREMIUM_MONTHLY,
+    });
+    expect(payload.insuranceProducts).toEqual([
+      { product: 'health', cover: health.cover, premiumMonthly: health.premiumMonthly },
+    ]);
+  });
+
+  it('omits insurancePolicy but emits both products for ["health","funeral"] (no life)', () => {
+    const payload = buildPayload({
+      ...base,
+      contributionSchedule: {
+        frequency: 'monthly', amount: 50000, retirementPct: 80, emergencyPct: 20,
+        includeInsurance: true, insuranceTypes: ['health', 'funeral'],
+      },
+    });
+    expect(payload).not.toHaveProperty('insurancePolicy');
+    expect(payload.insuranceProducts).toEqual([
+      { product: 'health', cover: health.cover, premiumMonthly: health.premiumMonthly },
+      { product: 'funeral', cover: funeral.cover, premiumMonthly: funeral.premiumMonthly },
+    ]);
+    expect(payload.contributionSchedule.includeInsurance).toBe(true);
+  });
+
+  it('emits only insurancePolicy for ["life"] and no insuranceProducts', () => {
+    const payload = buildPayload({
+      ...base,
+      contributionSchedule: {
+        frequency: 'monthly', amount: 50000, includeInsurance: true, insuranceTypes: ['life'],
+      },
+    });
+    expect(payload.insurancePolicy).toBeTruthy();
+    expect(payload).not.toHaveProperty('insuranceProducts');
+  });
+
+  it('treats an empty insuranceTypes array as no insurance', () => {
+    const payload = buildPayload({
+      ...base,
+      contributionSchedule: {
+        frequency: 'monthly', amount: 50000, includeInsurance: false, insuranceTypes: [],
+      },
+    });
+    expect(payload).not.toHaveProperty('insurancePolicy');
+    expect(payload).not.toHaveProperty('insuranceProducts');
+    expect(payload.contributionSchedule.includeInsurance).toBe(false);
   });
 });

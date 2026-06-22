@@ -239,6 +239,13 @@ test.describe('agent → onboard new subscriber (UI + RPC + DB)', () => {
       .getByRole('textbox', { name: /contribution amount/i })
       .fill('50000');
 
+    // Section 04 · multi-product insurance — select all three so we can assert
+    // both the life row (insurance_policies) and the health/funeral rows
+    // (subscriber_insurance_products) persist via the 0065 chain.
+    await page.getByRole('switch', { name: /life insurance/i }).click();
+    await page.getByRole('switch', { name: /health insurance/i }).click();
+    await page.getByRole('switch', { name: /funeral insurance/i }).click();
+
     const saveContinue = page.getByRole('button', { name: /save & continue/i });
     await expect(saveContinue).toBeEnabled();
     await saveContinue.click();
@@ -281,6 +288,21 @@ test.describe('agent → onboard new subscriber (UI + RPC + DB)', () => {
     expect(
       await rowExists('subscriber_balances', { subscriber_id: sub!.id }),
       `subscriber_balances row should be created atomically for ${sub!.id}`,
+    ).toBe(true);
+
+    // Multi-product insurance: life lands in insurance_policies; health/funeral
+    // in subscriber_insurance_products (0065 chain re-emit).
+    expect(
+      await rowExists('insurance_policies', { subscriber_id: sub!.id }),
+      `life insurance_policies row should be created for ${sub!.id}`,
+    ).toBe(true);
+    expect(
+      await rowExists('subscriber_insurance_products', { subscriber_id: sub!.id, product: 'health' }),
+      `health subscriber_insurance_products row should be created for ${sub!.id}`,
+    ).toBe(true);
+    expect(
+      await rowExists('subscriber_insurance_products', { subscriber_id: sub!.id, product: 'funeral' }),
+      `funeral subscriber_insurance_products row should be created for ${sub!.id}`,
     ).toBe(true);
 
     // eslint-disable-next-line no-console

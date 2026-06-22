@@ -146,19 +146,14 @@ export default function HomeDesktop() {
   // uninsured, so the card degrades gracefully rather than crashing.
   const insurance = useMemo(() => {
     let insured = 0;
-    let totalCover = 0;
     for (const s of subscribers) {
-      if (isInsured(s)) {
-        insured += 1;
-        totalCover += Number(s.insurance.cover) || 0;
-      }
+      if (isInsured(s)) insured += 1;
     }
     const total = subscribers.length;
     const insuredUninsured = Math.max(0, total - insured);
     return {
       insured,
       uninsured: insuredUninsured,
-      avgCover: insured > 0 ? totalCover / insured : 0,
       coveragePct: total > 0 ? Math.round((insured / total) * 100) : 0,
     };
   }, [subscribers]);
@@ -283,7 +278,6 @@ export default function HomeDesktop() {
         <InsuranceCard
           insured={insurance.insured}
           uninsured={insurance.uninsured}
-          avgCover={insurance.avgCover}
           coveragePct={insurance.coveragePct}
         />
       </motion.div>
