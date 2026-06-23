@@ -1,0 +1,33 @@
+.shell {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-cloud);
+  overflow: hidden;
+}
+
+.viewport {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  /* Clear the bottom nav (64px) plus a breathing gap and the iOS home-indicator
+     safe area. No centre FAB on the employer bar, so no extra protrusion to
+     allow for (unlike the agent shell). */
+  padding-bottom: calc(64px + var(--space-4) + env(safe-area-inset-bottom));
+}
+
+.viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.page {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  min-height: 100%;
+  padding: 0 16px;
+}
