@@ -16,10 +16,63 @@
   flex-shrink: 0;
 }
 
+/* ── Desktop: the KYC block becomes a width-tiered named container ───────────
+   On desktop the agent onboarding is NOT a phone column stretched wide. Each
+   KYC step opens its card to the width its content actually needs (tier), and
+   the SHARED step components (src/signup/steps/*) restyle themselves for that
+   width via `@container onboardcanvas (...)` rules in their own modules.
+
+   Why a NAMED container: the subscriber self-signup renders the SAME step
+   components inside SignupShell's fixed 560px `.bodyInner` column, which never
+   establishes an `onboardcanvas` container — so none of the steps' desktop
+   `@container onboardcanvas` rules can ever match there. Subscriber phone signup
+   stays byte-identical; this desktop layout is fully isolated to the agent
+   wizard. Gated to >=1024px so the agent MOBILE onboarding (same components) is
+   unaffected too.
+
+   `.kyc` is a stretch-capped flex item, so max-width gives it a determinate
+   inline size (container-type: inline-size needs that) and left-aligns it under
+   the stepper. The container reports this tier width to the step within. */
 @media (min-width: 1024px) {
   .metaBar {
-    padding-inline: var(--space-5);
+    padding-inline: 0;
+    border-bottom: none;
+    padding-bottom: var(--space-2);
   }
+
+  .backBtn {
+    margin-left: 0;
+  }
+
+  .stepHost {
+    padding-inline: 0;
+    padding-top: var(--space-2);
+  }
+
+  .kyc {
+    container: onboardcanvas / inline-size;
+    width: 100%;
+    max-width: 560px; /* default — also covers the terminal review cards */
+    /* width:100% keeps the inline size determinate (so container-type works);
+       the auto side-margins then CENTRE the tier-capped block under the stepper
+       instead of pinning it to the left. The metaBar + step card both sit inside
+       .kyc, so they centre together and stay aligned. */
+    margin-inline: auto;
+  }
+
+  /* TIER ↔ THRESHOLD INVARIANT: each tier below must stay OUT of the range
+     [640px, 720px). The shared step modules switch layout at `@container
+     onboardcanvas (min-width: 640|720)`, so a tier landing inside that gap would
+     fire a wide rule it isn't sized for. Current tiers (460/520/640/760/980) are
+     all < 640 or >= 720 — keep it that way if you add/resize a step. */
+  .kyc[data-step='id-upload'] { max-width: 640px; }
+  .kyc[data-step='review'] { max-width: 980px; }
+  .kyc[data-step='nira'] { max-width: 460px; }
+  .kyc[data-step='otp'] { max-width: 460px; }
+  .kyc[data-step='liveness'] { max-width: 520px; }
+  .kyc[data-step='aml'] { max-width: 460px; }
+  .kyc[data-step='beneficiaries'] { max-width: 980px; }
+  .kyc[data-step='consent'] { max-width: 760px; }
 }
 
 .backBtn {
@@ -53,6 +106,7 @@
   letter-spacing: 0.01em;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .stepHost {

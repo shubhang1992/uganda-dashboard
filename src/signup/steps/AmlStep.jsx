@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { useSignup } from '../SignupContext';
+import { useOnboardAudience } from '../OnboardAudienceContext';
 import { screenAml } from '../../services/kyc';
 import EducationalLoader from '../EducationalLoader';
 import styles from './Step.module.css';
@@ -10,6 +11,7 @@ import own from './AmlStep.module.css';
 
 export default function AmlStep({ onNext, onFlagged }) {
   const signup = useSignup();
+  const isAgent = useOnboardAudience() === 'agent';
   const [state, setState] = useState('running');
 
   useEffect(() => {
@@ -79,7 +81,7 @@ export default function AmlStep({ onNext, onFlagged }) {
         </motion.div>
         <h2 className={`${styles.heading} textCenter`}>Background check passed</h2>
         <p className={`${styles.subtext} textCenter`} role="status">
-          You're cleared. Moving on to beneficiaries…
+          {isAgent ? 'Cleared. Moving on to beneficiaries…' : "You're cleared. Moving on to beneficiaries…"}
         </p>
       </div>
     );
@@ -88,7 +90,7 @@ export default function AmlStep({ onNext, onFlagged }) {
   return (
     <div className={styles.card}>
       <span className={styles.eyebrow}>Step 6 · Background check</span>
-      <h2 className={styles.heading}>Running a quick compliance check</h2>
+      <h2 className={styles.heading}>{isAgent ? 'Screening compliance lists' : 'Running a quick compliance check'}</h2>
       <EducationalLoader
         title="Screening compliance lists"
         subtitle="This usually takes a few seconds. Here's why this step matters."

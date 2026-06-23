@@ -387,3 +387,64 @@
     font-size: var(--text-xl);
   }
 }
+
+/* ── Desktop agent onboarding: multi-column form ─────────────────────────
+   These rules fire ONLY inside the agent desktop wizard's `onboardcanvas`
+   named container (established per-step in OnboardKycFlow.module.css at >=1024px).
+   The subscriber self-signup renders the SAME step components inside SignupShell's
+   fixed 560px `.bodyInner` column, which establishes NO such container — so none
+   of this can ever match there. The phone signup form stays a single column,
+   byte-identical. Only the wide steps (Review/Beneficiaries/Consent tiers >=720px)
+   reach this width; narrow steps (NIRA/OTP/AML/Selfie) never trigger it.
+
+   `.form` is Review-only; it becomes a 2-column grid that roughly halves the
+   vertical scroll. `.fieldRow` (card+dob) and `.actions` span both columns; the
+   gender field opts in to spanning via the `spanFull` class (ReviewStep.module.css)
+   so it doesn't leave a grid orphan before the section divider. The primary CTA
+   right-aligns instead of stretching edge-to-edge across the wide card. */
+/* ── Agent desktop console chrome (v3 mockup alignment) ──────────────────
+   The shared step components are written for the subscriber PHONE signup. When
+   they render inside the agent desktop wizard (the `onboardcanvas` named
+   container), restyle them to the terser agent-console look from the v3 design:
+   a sharp 8px card, no "Step N ·" eyebrow, and a smaller heading. Subscriber and
+   agent-mobile (no such container) keep the fuller phone chrome unchanged. */
+@container onboardcanvas (min-width: 100px) {
+  .card {
+    border-radius: 0.5rem;
+  }
+
+  .eyebrow {
+    display: none;
+  }
+
+  .heading {
+    font-size: var(--text-xl);
+    margin-bottom: var(--space-2);
+  }
+}
+
+/* Wide/form steps (id-upload 640 and up): the primary CTA right-aligns and sizes
+   to its content instead of stretching full width like a mobile button. The
+   narrow centered steps (otp/nira/aml/liveness, <=520) keep their focused
+   full-width button. */
+@container onboardcanvas (min-width: 600px) {
+  .actions {
+    align-items: flex-end;
+  }
+}
+
+/* Review becomes a 2-column form (the spanning + gender rules live in
+   ReviewStep.module.css). */
+@container onboardcanvas (min-width: 720px) {
+  .form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4) var(--space-5);
+    align-items: start;
+  }
+
+  .form > .fieldRow,
+  .form > .actions {
+    grid-column: 1 / -1;
+  }
+}

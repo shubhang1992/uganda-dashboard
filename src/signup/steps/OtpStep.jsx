@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { useSignup } from '../SignupContext';
+import { useOnboardAudience } from '../OnboardAudienceContext';
 import { sendOtp, verifyOtp } from '../../services/kyc';
 import styles from './Step.module.css';
 import own from './OtpStep.module.css';
@@ -12,6 +13,7 @@ const RESEND_COOLDOWN = 30;
 
 export default function OtpStep({ onNext }) {
   const signup = useSignup();
+  const isAgent = useOnboardAudience() === 'agent';
 
   const [digits, setDigits] = useState(() => Array(OTP_LENGTH).fill(''));
   const [error, setError] = useState('');
@@ -136,7 +138,7 @@ export default function OtpStep({ onNext }) {
   return (
     <div className={styles.card}>
       <span className={styles.eyebrow}>Step 4 · Phone verification</span>
-      <h2 className={styles.heading}>Enter the code we sent you</h2>
+      <h2 className={styles.heading}>{isAgent ? 'Verify the phone number' : 'Enter the code we sent you'}</h2>
       <p className={styles.subtext}>
         {sending
           ? 'Sending a code to your phone…'

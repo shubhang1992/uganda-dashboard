@@ -202,6 +202,90 @@
   color: var(--color-gray);
 }
 
+/* ── Agent allocation aside: per-beneficiary donut + legend (v3 mockup) ──── */
+.allocAside {
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.allocLabel {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+  margin-bottom: var(--space-2);
+}
+
+.donut {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  margin: 4px auto var(--space-3);
+  display: grid;
+  place-items: center;
+}
+
+.donutHole {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: var(--color-cloud);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-sm);
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: var(--text-xs);
+  padding: 7px 0;
+  border-top: 1px solid var(--color-lavender);
+}
+
+.legendName {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-slate);
+}
+
+.legendDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.legendPct {
+  font-family: var(--font-display);
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
 /* ── Row actions ─────────────────────────────────────────────────────── */
 .rowActions {
   display: flex;
@@ -340,4 +424,48 @@
   font-family: var(--font-body);
   font-size: var(--text-xs);
   text-align: center;
+}
+
+/* ── Desktop agent onboarding (Beneficiaries at the 980px tier) ──────────
+   Fires only inside the `onboardcanvas` named container (agent desktop) — the
+   subscriber phone signup, rendered in SignupShell's 560px column, has no such
+   container and stays a single column, byte-identical.
+
+   Each section becomes a 2-column layout: the beneficiary rows on the left, the
+   allocation summary as a sticky aside on the right (auto-placement keeps the
+   rows + "add / split evenly" actions in column 1; the section header, when
+   present, spans both). The allocation card stacks its bar over its total so it
+   reads as a compact summary in the narrow aside, and stays visible while the
+   agent fills long rosters. */
+@container onboardcanvas (min-width: 720px) {
+  .section {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 244px;
+    column-gap: var(--space-5);
+    row-gap: var(--space-3);
+    align-items: start;
+  }
+
+  .sectionHeader {
+    grid-column: 1 / -1;
+  }
+
+  .allocation,
+  .allocAside {
+    grid-column: 2;
+    align-self: start;
+    position: sticky;
+    top: var(--space-2);
+  }
+
+  .allocation {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .allocationText {
+    align-items: flex-start;
+    min-width: 0;
+  }
 }

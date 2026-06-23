@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useSignup } from '../SignupContext';
+import { useOnboardAudience } from '../OnboardAudienceContext';
 import { assessImageQuality } from '../../services/kyc';
 import styles from './Step.module.css';
 import own from './IdUploadStep.module.css';
@@ -35,6 +36,7 @@ const SIDES = [
 
 export default function IdUploadStep({ onNext }) {
   const signup = useSignup();
+  const isAgent = useOnboardAudience() === 'agent';
 
   // Clean up any stale object URLs when the step unmounts.
   useEffect(() => {
@@ -53,9 +55,13 @@ export default function IdUploadStep({ onNext }) {
   return (
     <div className={styles.card}>
       <span className={styles.eyebrow}>Step 1 · National ID</span>
-      <h2 className={styles.heading}>Scan both sides of your Ndaga Muntu</h2>
+      <h2 className={styles.heading}>
+        {isAgent ? "Scan the subscriber's ID" : 'Scan both sides of your Ndaga Muntu'}
+      </h2>
       <p className={styles.subtext}>
-        We read your details from the card so you don’t have to type them.
+        {isAgent
+          ? 'We’ll read their details from the card — even lighting, whole card in frame, no glare.'
+          : 'We read your details from the card so you don’t have to type them.'}
       </p>
 
       <ul className={own.tips}>

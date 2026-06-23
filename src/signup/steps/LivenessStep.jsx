@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 import { useSignup } from '../SignupContext';
+import { useOnboardAudience } from '../OnboardAudienceContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { faceMatch } from '../../services/kyc';
 import styles from './Step.module.css';
@@ -27,6 +28,7 @@ function pickFacingMode(role) {
 
 export default function LivenessStep({ onNext, onAgentFallback }) {
   const signup = useSignup();
+  const isAgent = useOnboardAudience() === 'agent';
   const { role } = useAuth();
   const [phase, setPhase] = useState(PHASES.idle);
   const [cameraReady, setCameraReady] = useState(false);
@@ -207,10 +209,16 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
           </motion.div>
           <h2 className={`${styles.heading} textCenter`}>Let’s try that again</h2>
           <p className={`${styles.subtext} textCenter`}>
-            We couldn’t confirm that was a live person. Face the camera directly in good lighting — no hats or glasses.
+            {isAgent
+              ? 'We couldn’t confirm that was a live person. Have them face the camera directly in good lighting — no hats or glasses.'
+              : 'We couldn’t confirm that was a live person. Face the camera directly in good lighting — no hats or glasses.'}
           </p>
           <p className={own.retryNotice} role="status">
-            You have <strong>1 retry</strong> remaining. If it fails again, an agent will help you in person.
+            {isAgent ? (
+              <>You have <strong>1 retry</strong> remaining. If it fails again, complete this verification in person.</>
+            ) : (
+              <>You have <strong>1 retry</strong> remaining. If it fails again, an agent will help you in person.</>
+            )}
           </p>
           <div className={styles.actions}>
             <button type="button" className={styles.submit} onClick={retry}>
@@ -235,9 +243,13 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
   return (
     <div className={styles.card}>
       <span className={styles.eyebrow}>Step 5 · Selfie</span>
-      <h2 className={styles.heading}>Take a quick selfie</h2>
+      <h2 className={styles.heading}>{isAgent ? "Take the subscriber's selfie" : 'Take a quick selfie'}</h2>
       <p className={styles.subtext}>
-        A live-person check matches your face to your NIRA photo. Takes under 30&nbsp;seconds.
+        {isAgent ? (
+          'Capture their face to match the ID photo.'
+        ) : (
+          <>A live-person check matches your face to your NIRA photo. Takes under 30&nbsp;seconds.</>
+        )}
       </p>
 
       <div className={own.frame} data-phase={phase}>
@@ -387,9 +399,14 @@ export default function LivenessStep({ onNext, onAgentFallback }) {
 }
 
 function TerminalBlock({ onAgentFallback, kind }) {
+  const isAgent = useOnboardAudience() === 'agent';
   const copy = kind === 'liveness'
-    ? 'We still couldn’t confirm a live person. An agent can verify you in person.'
-    : 'Your selfie didn’t match the photo on your ID. An agent will help you finish this in person.';
+    ? (isAgent
+        ? 'We still couldn’t confirm a live person. Verify the subscriber in person.'
+        : 'We still couldn’t confirm a live person. An agent can verify you in person.')
+    : (isAgent
+        ? 'The selfie didn’t match the photo on their ID. Finish this verification in person.'
+        : 'Your selfie didn’t match the photo on your ID. An agent will help you finish this in person.');
   return (
     <div className={styles.card}>
       <motion.div

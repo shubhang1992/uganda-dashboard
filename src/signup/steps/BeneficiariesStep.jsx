@@ -4,6 +4,7 @@ import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { isValidUGPhone, parseUGPhoneLocal } from '../../utils/phone';
 import { useSignup } from '../SignupContext';
+import { useOnboardAudience } from '../OnboardAudienceContext';
 import styles from './Step.module.css';
 import own from './BeneficiariesStep.module.css';
 
@@ -14,6 +15,9 @@ const RELATIONSHIPS = [
   { id: 'sibling', label: 'Sibling' },
   { id: 'other',   label: 'Other' },
 ];
+
+// Donut/legend segment colours for the agent-desktop allocation aside (v3 mockup).
+const ALLOC_COLORS = ['#292867', '#2F8F9D', '#5E63A8', '#D9DCF2', '#2E8B57', '#E6A817'];
 
 function newId() {
   return `b-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -92,6 +96,7 @@ function validList(list) {
 
 export default function BeneficiariesStep({ onNext }) {
   const signup = useSignup();
+  const isAgent = useOnboardAudience() === 'agent';
 
   // Lazily seed one empty row for pension if none exists. Memoized so the
   // derived values below (pensionOk, blockerHint) have stable deps.
@@ -160,9 +165,11 @@ export default function BeneficiariesStep({ onNext }) {
   return (
     <div className={styles.card}>
       <span className={styles.eyebrow}>Step 7 · Beneficiaries</span>
-      <h2 className={styles.heading}>Who inherits your savings?</h2>
+      <h2 className={styles.heading}>{isAgent ? 'Nominate beneficiaries' : 'Who inherits your savings?'}</h2>
       <p className={styles.subtext}>
-        Nominate at least one beneficiary for your pension. Move any slider — the others auto-adjust so the total always adds up to 100%.
+        {isAgent
+          ? 'Add at least one pension beneficiary. Move a slider and the rest auto-balance to 100%.'
+          : 'Nominate at least one beneficiary for your pension. Move any slider — the others auto-adjust so the total always adds up to 100%.'}
       </p>
 
       <BeneficiarySection
@@ -251,7 +258,21 @@ export default function BeneficiariesStep({ onNext }) {
 /* ── Reusable beneficiary section ──────────────────────────────────────── */
 
 function BeneficiarySection({ title, list, onChange }) {
+  const isAgent = useOnboardAudience() === 'agent';
   const total = totalShare(list);
+
+  // Agent desktop allocation aside (v3): a per-beneficiary donut + legend.
+  // Build a conic-gradient from each beneficiary's running share (computed via a
+  // pure prefix-sum so nothing is reassigned during render), then fill any
+  // unallocated remainder with a neutral wedge.
+  const shares = list.map((b) => Math.max(0, Number(b.share) || 0));
+  const segments = shares.map((v, i) => {
+    const start = shares.slice(0, i).reduce((s, x) => s + x, 0);
+    return `${ALLOC_COLORS[i % ALLOC_COLORS.length]} ${start}% ${Math.min(start + v, 100)}%`;
+  });
+  const donutBg = `conic-gradient(${
+    (total < 100 ? [...segments, `#EEF0F8 ${total}% 100%`] : segments).join(', ')
+  })`;
 
   function updateOne(id, patchObj) {
     onChange(list.map((b) => (b.id === id ? { ...b, ...patchObj } : b)));
@@ -336,22 +357,44 @@ function BeneficiarySection({ title, list, onChange }) {
       </div>
 
       {/* Allocation summary — with auto-balance, total is always 100 so this is
-          purely a progress/confirmation affordance. */}
-      <div className={own.allocation} data-state={total === 100 ? 'ok' : 'under'}>
-        <div className={own.allocationBar}>
-          <motion.span
-            className={own.allocationFill}
-            animate={{ width: `${Math.min(total, 100)}%` }}
-            transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
-          />
+          purely a progress/confirmation affordance. The agent desktop flow shows
+          a per-beneficiary donut + legend (v3 mockup); the subscriber phone flow
+          keeps the compact bar. */}
+      {isAgent ? (
+        <div className={own.allocAside} data-state={total === 100 ? 'ok' : 'under'}>
+          <span className={own.allocLabel}>Allocation</span>
+          <div className={own.donut} style={{ background: donutBg }}>
+            <span className={own.donutHole}>{total}%</span>
+          </div>
+          <ul className={own.legend}>
+            {list.map((b, i) => (
+              <li key={b.id} className={own.legendRow}>
+                <span className={own.legendName}>
+                  <span className={own.legendDot} style={{ background: ALLOC_COLORS[i % ALLOC_COLORS.length] }} />
+                  {b.name.trim() || `Beneficiary ${i + 1}`}
+                </span>
+                <b className={own.legendPct}>{b.share}%</b>
+              </li>
+            ))}
+          </ul>
         </div>
-        <div className={own.allocationText}>
-          <span className={own.allocationValue}>{total}%</span>
-          <span className={own.allocationRemaining}>
-            {total === 100 ? 'Allocated' : `${100 - total}% to allocate`}
-          </span>
+      ) : (
+        <div className={own.allocation} data-state={total === 100 ? 'ok' : 'under'}>
+          <div className={own.allocationBar}>
+            <motion.span
+              className={own.allocationFill}
+              animate={{ width: `${Math.min(total, 100)}%` }}
+              transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
+            />
+          </div>
+          <div className={own.allocationText}>
+            <span className={own.allocationValue}>{total}%</span>
+            <span className={own.allocationRemaining}>
+              {total === 100 ? 'Allocated' : `${100 - total}% to allocate`}
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className={own.rowActions}>
         <button type="button" className={own.addBtn} onClick={addOne}>

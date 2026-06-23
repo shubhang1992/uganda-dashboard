@@ -6,10 +6,37 @@
 }
 
 @media (min-width: 1024px) {
+  /* Desktop onboarding is NOT a phone column patched wide — each stage opens to
+     the width its content actually needs. The KYC stage (default here) is the
+     widest because individual KYC steps tier their own card width per step via
+     the `onboardcanvas` named container (see OnboardKycFlow.module.css); this
+     cap just has to be wide enough for the widest step (Review / Beneficiaries
+     at 980px). Awareness uses a master/detail layout; Done is a compact
+     confirmation; Schedule hosts the 2-column ContributionSettingsForm (which
+     switches to split at 860px — see ContributionSettingsForm.module.css). */
   .page {
-    max-width: 720px;
+    /* width:100% is REQUIRED: .page sits in a flex-column parent (.shell) with
+       `margin: 0 auto`, and auto cross-axis margins make a flex item shrink-wrap
+       to its content instead of expanding to max-width. Without this the page
+       collapses to the step's intrinsic width (~490px), the per-step tiers never
+       apply, and the wide `@container onboardcanvas` rules never fire — the steps
+       fall back to the single-column mobile layout. */
+    width: 100%;
+    max-width: 1000px;
     margin: 0 auto;
     padding-bottom: var(--space-8);
+  }
+
+  .page[data-stage='awareness'] {
+    max-width: 920px;
+  }
+
+  .page[data-stage='schedule'] {
+    max-width: 960px;
+  }
+
+  .page[data-stage='done'] {
+    max-width: 640px;
   }
 }
 

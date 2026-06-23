@@ -154,3 +154,33 @@
 @media (prefers-reduced-motion: reduce) {
   .btnSpinner { animation-duration: 2s; }
 }
+
+/* ── Desktop agent onboarding (Consent at the 760px tier) ────────────────
+   The three summary panels move from a vertical stack into a single row. To keep
+   the subscriber phone signup BYTE-IDENTICAL — including the card's child-reveal
+   stagger, which is driven by `.card > *:nth-child(...)` — the panels stay DIRECT
+   children of the card (no wrapper that would re-index those children). Instead the
+   card itself (own.consentCard) becomes a 3-column grid only inside the
+   `onboardcanvas` named container: the three `.panel`s flow into the columns and
+   every other child (eyebrow / heading / subtext / consent box / actions) spans
+   full width via `:not(.panel)`. Child margins are zeroed so row-gap owns the
+   rhythm. Subscriber/agent-mobile have no such container, so the card stays a plain
+   block and nothing here applies. */
+@container onboardcanvas (min-width: 640px) {
+  .consentCard {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    column-gap: var(--space-3);
+    row-gap: var(--space-4);
+    align-items: start;
+  }
+
+  .consentCard > * {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  .consentCard > *:not(.panel) {
+    grid-column: 1 / -1;
+  }
+}

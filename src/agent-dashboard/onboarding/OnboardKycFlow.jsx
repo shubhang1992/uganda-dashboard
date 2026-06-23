@@ -91,7 +91,7 @@ export default function OnboardKycFlow({ onComplete, onBackToAwareness, onExit }
   const stepNode = useMemo(() => renderStep(), [stepId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className={styles.kyc}>
+    <div className={styles.kyc} data-step={stepId}>
       <div className={styles.metaBar}>
         {showBack ? (
           <button type="button" className={styles.backBtn} onClick={goBack}>

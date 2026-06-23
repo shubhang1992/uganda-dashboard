@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { useSignup } from '../../signup/SignupContext';
+import { OnboardAudienceProvider } from '../../signup/OnboardAudienceContext';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import PageHeader from '../../components/PageHeader';
 import AwarenessCheck from './AwarenessCheck';
@@ -51,13 +52,14 @@ export default function OnboardFlow() {
   }
 
   return (
-    <div className={styles.page}>
+    <OnboardAudienceProvider value="agent">
+    <div className={styles.page} data-stage={stage}>
       {isDesktop && (
-        <PageHeader
-          title="Onboard a new subscriber"
-          subtitle={STAGES[stageIdx]?.label && `${stageIdx + 1} of ${STAGES.length} · ${STAGES[stageIdx].label}`}
-          fallback="/dashboard"
-        />
+        // Plain title only (matches the v3 mockup). The 4-stage stepper below
+        // already conveys position, and the KYC meta-bar owns "Step N of 8" +
+        // step-back — so the header's own back chevron + "N of 4" subtitle would
+        // just be redundant navigation. Hidden here to avoid the double back.
+        <PageHeader title="Onboard a new subscriber" showBack={false} />
       )}
 
       <ol className={styles.stepper} aria-label="Onboarding progress">
@@ -153,5 +155,6 @@ export default function OnboardFlow() {
         </AnimatePresence>
       </div>
     </div>
+    </OnboardAudienceProvider>
   );
 }

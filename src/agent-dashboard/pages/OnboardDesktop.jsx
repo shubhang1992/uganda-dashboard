@@ -11,8 +11,11 @@ import styles from './OnboardDesktop.module.css';
  * top-level early return and nothing remounts the provider across breakpoints.
  *
  * This component is intentionally thin: it renders a centred, width-capped
- * column (~780px, within the 720-840px target band) around the SAME extracted
- * OnboardFlow. The wizard is byte-identical to the mobile experience — its own
+ * column around the SAME extracted OnboardFlow. The shell caps at 960px so the
+ * Schedule stage can open into the two-column desktop ContributionSettings layout
+ * (the inner .page keeps the other single-column stages at the readable ~720px
+ * width — see OnboardPage.module.css). The wizard is byte-identical to the mobile
+ * experience otherwise — its own
  * PageHeader still owns the single page <h1> "Onboard a new subscriber" (the
  * E2E asserts exactly one level-1 heading matching /onboard a new subscriber/i,
  * so OnboardDesktop deliberately adds NO second heading). The desktop top bar

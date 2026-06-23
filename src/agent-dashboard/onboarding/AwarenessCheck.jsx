@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
+import { useIsDesktop } from '../../hooks/useIsDesktop';
 
 import styles from './AwarenessCheck.module.css';
 
@@ -62,6 +63,7 @@ const POINTS = [
  */
 export default function AwarenessCheck({ state, onChange, onContinue }) {
   const { answers } = state;
+  const isDesktop = useIsDesktop();
   const [expandedId, setExpandedId] = useState(POINTS[0].id);
 
   const answeredCount = useMemo(
@@ -75,6 +77,12 @@ export default function AwarenessCheck({ state, onChange, onContinue }) {
   const allAnswered = answeredCount === POINTS.length;
   const lowScore = allAnswered && correctCount < 3;
 
+  // Desktop master/detail uses expandedId as the selected question; fall back to
+  // the first point if nothing is selected (e.g. after the final answer clears it).
+  const selectedPoint = POINTS.find((p) => p.id === expandedId) || POINTS[0];
+  const selectedIndex = POINTS.indexOf(selectedPoint);
+  const selectedValue = answers[selectedPoint.id];
+
   function setAnswer(id, value) {
     const nextAnswers = { ...answers, [id]: value };
     onChange({ ...state, answers: nextAnswers });
@@ -85,7 +93,7 @@ export default function AwarenessCheck({ state, onChange, onContinue }) {
   }
 
   return (
-    <div className={styles.wrap}>
+    <div className={styles.wrap} data-desktop={isDesktop || undefined}>
       <div className={styles.phaseHeader}>
         <span className={styles.phaseEyebrow}>Awareness check</span>
         <h3 className={styles.phaseHeading}>Cover these 5 points and record the subscriber&apos;s answers</h3>
@@ -103,6 +111,87 @@ export default function AwarenessCheck({ state, onChange, onContinue }) {
         </div>
       </div>
 
+      {isDesktop && (
+        <div className={styles.masterDetail}>
+          <ul className={styles.qlist}>
+            {POINTS.map((p, i) => {
+              const value = answers[p.id];
+              const selected = expandedId === p.id;
+              return (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    className={styles.qrow}
+                    data-selected={selected || undefined}
+                    data-answered={value !== null || undefined}
+                    onClick={() => setExpandedId(p.id)}
+                    aria-pressed={selected}
+                  >
+                    <span className={styles.cardIndex}>{i + 1}</span>
+                    <span className={styles.cardHeaderText}>
+                      <span className={styles.cardShort}>{p.short}</span>
+                      <span className={styles.cardQuestion}>{p.question}</span>
+                    </span>
+                    <span
+                      className={styles.qstatus}
+                      data-state={value === true ? 'yes' : value === false ? 'no' : 'none'}
+                      aria-hidden="true"
+                    >
+                      {value === true && (
+                        <svg viewBox="0 0 16 16" width="12" height="12" fill="none"><path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      )}
+                      {value === false && (
+                        <svg viewBox="0 0 16 16" width="12" height="12" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className={styles.detail}>
+            <span className={styles.answerLabel}>Question {selectedIndex + 1} of {POINTS.length}</span>
+            <h4 className={styles.detailQuestion}>{selectedPoint.question}</h4>
+            <span className={styles.answerLabel}>What to convey</span>
+            <p className={styles.answerText}>{selectedPoint.answer}</p>
+            <div
+              className={styles.detailQuiz}
+              role="radiogroup"
+              aria-label={`${selectedPoint.short} — did the subscriber answer correctly?`}
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={selectedValue === true}
+                className={styles.quizYes}
+                data-active={selectedValue === true || undefined}
+                onClick={() => setAnswer(selectedPoint.id, true)}
+              >
+                <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+                  <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Yes
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={selectedValue === false}
+                className={styles.quizNo}
+                data-active={selectedValue === false || undefined}
+                onClick={() => setAnswer(selectedPoint.id, false)}
+              >
+                <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
+                  <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                </svg>
+                No
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isDesktop && (
       <ul className={styles.list}>
         {POINTS.map((p, i) => {
           const isOpen = expandedId === p.id;
@@ -188,6 +277,7 @@ export default function AwarenessCheck({ state, onChange, onContinue }) {
           );
         })}
       </ul>
+      )}
 
       {lowScore && (
         <div className={styles.warningBanner} role="status">

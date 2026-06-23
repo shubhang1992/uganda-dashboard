@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { useSignup } from '../SignupContext';
+import { useOnboardAudience } from '../OnboardAudienceContext';
 import { LEGAL_TERMS_URL, LEGAL_PRIVACY_URL } from '../../config/env';
 import styles from './Step.module.css';
 import own from './ConsentStep.module.css';
@@ -37,6 +38,7 @@ const RECIPIENTS = [
 
 export default function ConsentStep({ onActivate }) {
   const signup = useSignup();
+  const isAgent = useOnboardAudience() === 'agent';
   const [submitting, setSubmitting] = useState(false);
 
   function handleToggle(checked) {
@@ -55,13 +57,19 @@ export default function ConsentStep({ onActivate }) {
   }
 
   return (
-    <div className={styles.card}>
+    <div className={`${styles.card} ${own.consentCard}`}>
       <span className={styles.eyebrow}>Step 8 · Consent</span>
-      <h2 className={styles.heading}>One last thing before payment</h2>
+      <h2 className={styles.heading}>{isAgent ? 'Consent & data use' : 'One last thing before payment'}</h2>
       <p className={styles.subtext}>
-        Please read this and give your consent. This is required under Uganda’s Data Protection and Privacy Act, 2019.
+        {isAgent
+          ? 'The subscriber consents to data processing under Uganda’s Data Protection and Privacy Act, 2019.'
+          : 'Please read this and give your consent. This is required under Uganda’s Data Protection and Privacy Act, 2019.'}
       </p>
 
+      {/* Three panels are DIRECT children of the card (no wrapper) so the mobile
+          DOM + card child-reveal stagger are unchanged. On agent desktop the card
+          itself becomes a grid (own.consentCard, container query) and these panels
+          flow into a 3-column row while the other children span full width. */}
       <div className={own.panel}>
         <span className={own.panelLabel}>What we collected</span>
         <ul className={own.list}>

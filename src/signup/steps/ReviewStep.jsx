@@ -4,6 +4,7 @@ import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { useAllEntities } from '../../hooks/useEntity';
 import { useSignup } from '../SignupContext';
+import { useOnboardAudience } from '../OnboardAudienceContext';
 import { extractIdFields } from '../../services/kyc';
 import { parseUGPhoneLocal } from '../../utils/phone';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
@@ -29,6 +30,7 @@ const OCCUPATIONS = [
 
 export default function ReviewStep({ onNext }) {
   const signup = useSignup();
+  const isAgent = useOnboardAudience() === 'agent';
   const { data: districts = [] } = useAllEntities('district');
 
   // "OCR already ran" is signalled by idConfidence (set only by the OCR patch
@@ -216,9 +218,11 @@ export default function ReviewStep({ onNext }) {
     return (
       <div className={styles.card}>
         <span className={styles.eyebrow}>Step 2 · Review</span>
-        <h2 className={styles.heading}>Reading your card</h2>
+        <h2 className={styles.heading}>{isAgent ? 'Reading the ID' : 'Reading your card'}</h2>
         <p className={styles.subtext}>
-          We’re pulling your details from the photos you uploaded. This takes a few seconds.
+          {isAgent
+            ? 'Pulling details from the uploaded photos. This takes a few seconds.'
+            : 'We’re pulling your details from the photos you uploaded. This takes a few seconds.'}
         </p>
         <div className={own.ocrLoading}>
           <span className={own.ocrSpinner} aria-hidden="true" />
@@ -233,7 +237,7 @@ export default function ReviewStep({ onNext }) {
     return (
       <div className={styles.card}>
         <span className={styles.eyebrow}>Step 2 · Review</span>
-        <h2 className={styles.heading}>We couldn’t read your card</h2>
+        <h2 className={styles.heading}>{isAgent ? 'Couldn’t read the ID' : 'We couldn’t read your card'}</h2>
         <p className={styles.subtext}>{ocrError}</p>
         <div className={styles.actions}>
           <button
@@ -270,9 +274,11 @@ export default function ReviewStep({ onNext }) {
   return (
     <div className={styles.card}>
       <span className={styles.eyebrow}>Step 2 · Review</span>
-      <h2 className={styles.heading}>Check your details</h2>
+      <h2 className={styles.heading}>{isAgent ? "Check the subscriber's details" : 'Check your details'}</h2>
       <p className={styles.subtext}>
-        We read these from your ID. Fix anything we got wrong. Fill in your district, phone number and occupation below.
+        {isAgent
+          ? 'Read from their ID — confirm or correct, then add the district, phone and occupation below.'
+          : 'We read these from your ID. Fix anything we got wrong. Fill in your district, phone number and occupation below.'}
       </p>
 
       {confidencePct != null && (
@@ -356,7 +362,7 @@ export default function ReviewStep({ onNext }) {
           </ReviewField>
         </div>
 
-        <ReviewField id="gender" label="Gender" autoFilled={isAutoFilled('gender')} error={errors.gender}>
+        <ReviewField id="gender" label="Gender" className={own.spanFull} autoFilled={isAutoFilled('gender')} error={errors.gender}>
           <PillChipGroup label="Gender" layout="grid" columns={3}>
             {GENDERS.map((g) => (
               <PillChip
@@ -585,9 +591,9 @@ function EyeOffIcon() {
 /**
  * Field wrapper that shows label + optional "Auto-filled" chip that disappears on edit.
  */
-function ReviewField({ id, label, hint, labelHint, optional, autoFilled, error, children }) {
+function ReviewField({ id, label, hint, labelHint, optional, autoFilled, error, className, children }) {
   return (
-    <div className={styles.field}>
+    <div className={className ? `${styles.field} ${className}` : styles.field}>
       <div className={own.labelRow}>
         <label className={styles.label} htmlFor={id} id={`${id}-label`}>
           {label}

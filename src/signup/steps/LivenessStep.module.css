@@ -10,6 +10,15 @@
   box-shadow: 0 12px 40px rgba(27, 26, 74, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
+/* Desktop agent onboarding: the selfie viewfinder gets a little more presence on
+   the wider card. Fires only inside the `onboardcanvas` named container (agent
+   desktop) — subscriber phone signup keeps the 260px frame, byte-identical. */
+@container onboardcanvas (min-width: 420px) {
+  .frame {
+    max-width: 300px;
+  }
+}
+
 .frameInner {
   position: absolute;
   inset: 0;

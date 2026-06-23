@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../../utils/motion';
 
 import { useSignup } from '../SignupContext';
+import { useOnboardAudience } from '../OnboardAudienceContext';
 import { verifyNira } from '../../services/kyc';
 import EducationalLoader from '../EducationalLoader';
 import styles from './Step.module.css';
@@ -17,6 +18,7 @@ const FIELD_LABELS = {
 
 export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
   const signup = useSignup();
+  const isAgent = useOnboardAudience() === 'agent';
   const [state, setState] = useState(() => {
     if (!signup.niraResult) return 'running';
     if (signup.niraResult === 'partial') return 'partial';
@@ -95,7 +97,9 @@ export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
         </motion.div>
         <h2 className={`${styles.heading} textCenter`}>Identity verified</h2>
         <p className={`${styles.subtext} textCenter`} role="status">
-          Your details match NIRA records. Taking you to the next step…
+          {isAgent
+            ? "The subscriber's details match NIRA records. Moving on…"
+            : 'Your details match NIRA records. Taking you to the next step…'}
         </p>
       </div>
     );
@@ -106,7 +110,9 @@ export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
     return (
       <div className={styles.card}>
         <span className={styles.eyebrow}>Step 3 · Verification</span>
-        <h2 className={styles.heading}>Verifying your identity with NIRA</h2>
+        <h2 className={styles.heading}>
+          {isAgent ? 'Verifying with NIRA' : 'Verifying your identity with NIRA'}
+        </h2>
         <EducationalLoader
           title="Checking NIRA records"
           subtitle="While we verify your details, here's something worth knowing."
@@ -137,7 +143,9 @@ export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
           We need to double-check one thing
         </h2>
         <p className={`${styles.subtext} textCenter`}>
-          NIRA found your record but flagged a small difference:
+          {isAgent
+            ? 'NIRA found their record but flagged a small difference:'
+            : 'NIRA found your record but flagged a small difference:'}
         </p>
 
         {mismatched.length > 0 && (
@@ -187,9 +195,13 @@ export default function NiraStep({ onNext, onEdit, onAgentFallback }) {
         </svg>
       </motion.div>
 
-      <h2 className={`${styles.heading} textCenter`}>We couldn’t verify you</h2>
+      <h2 className={`${styles.heading} textCenter`}>
+        {isAgent ? 'Couldn’t verify the subscriber' : 'We couldn’t verify you'}
+      </h2>
       <p className={`${styles.subtext} textCenter`}>
-        Your details didn’t match an existing record. Check your NIN and date of birth, then try again. If the problem continues, an agent can help in person.
+        {isAgent
+          ? 'Their details didn’t match an existing record. Check the NIN and date of birth, then try again. If the problem continues, an agent can help in person.'
+          : 'Your details didn’t match an existing record. Check your NIN and date of birth, then try again. If the problem continues, an agent can help in person.'}
       </p>
 
       <div className={styles.actions}>

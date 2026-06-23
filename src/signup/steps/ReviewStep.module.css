@@ -226,3 +226,21 @@
   color: var(--color-gray);
   line-height: 1.5;
 }
+
+/* ── Desktop agent onboarding (Review at the 980px tier) ─────────────────
+   Pairs with the 2-column `.form` grid in Step.module.css. Fires only inside
+   the `onboardcanvas` named container (agent desktop), so subscriber phone
+   signup is untouched. The section dividers and the gender field span both
+   columns (the gender ReviewField opts in via `spanFull`); the source
+   thumbnails are capped so they read as small reference chips on the wide
+   card instead of blowing up to ~half its width. */
+@container onboardcanvas (min-width: 720px) {
+  .manualHeader,
+  .spanFull {
+    grid-column: 1 / -1;
+  }
+
+  .thumbs {
+    max-width: 240px;
+  }
+}
