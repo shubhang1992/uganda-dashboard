@@ -4,13 +4,12 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { EASE_OUT_EXPO } from '../utils/motion';
 import { formatUGX } from '../utils/currency';
 import { PillChip, PillChipGroup } from './PillChip';
+import { MOBILE_MONEY_METHODS } from '../constants/payment';
 import styles from './PaySheet.module.css';
 
-// Mobile-money methods, matching the Save / Policies flows.
-const DEFAULT_METHODS = [
-  { id: 'mtn', label: 'MTN MoMo', full: 'MTN Mobile Money', helper: '+256 71 100 0001' },
-  { id: 'airtel', label: 'Airtel Money', full: 'Airtel Money', helper: '+256 70 100 0001' },
-];
+// Mobile-money methods, matching the Save / Policies flows. Single-sourced in
+// constants/payment so the desktop <InlinePayPanel> offers the SAME picker.
+const DEFAULT_METHODS = MOBILE_MONEY_METHODS;
 
 /**
  * Shared demo pay sheet — a portaled bottom sheet with a confirm view (eyebrow +

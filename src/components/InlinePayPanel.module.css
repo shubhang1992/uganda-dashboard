@@ -1,0 +1,361 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   InlinePayPanel — the DESKTOP (>=1024px) confirm → success surface for the
+   subscriber money-flows (Save, Withdraw, Schedule-settle, Insurance upgrade,
+   Policy renewal). It is the on-page replacement for the phone-style bottom
+   sheet: an ordinary card that lives in the right "summary" column and flips in
+   place from the live summary to a confirm panel, then to a success panel — no
+   portal, no scrim, no slide-up-from-the-bottom.
+
+   It deliberately speaks the same visual language as desktopFlow.module.css
+   (white card, lavender hairline, ~8px functional corner, indigo accents) so a
+   page can swap its sticky summary for this panel and nothing else shifts. The
+   subscriber desktop shell scopes --radius-md/-lg to 0.5rem, so var(--radius-md)
+   renders the ~8px corner here too.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.panel {
+  background: var(--color-white);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: var(--space-5) var(--space-6);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.panel[data-center='true'] {
+  align-items: center;
+  text-align: center;
+}
+
+/* The panel / success block take programmatic focus (tabIndex=-1) so screen
+   readers land in the surface when it appears — they are not keyboard tab stops,
+   so they carry no focus ring; the interactive buttons inside keep their own
+   :focus-visible indicators. */
+.panel:focus,
+.successInner:focus {
+  outline: none;
+}
+
+/* A thin indigo accent rule along the top edge marks the panel as the active
+   "pay" surface (a quiet equivalent of the sheet grip), without a heavy header. */
+.accent {
+  height: 3px;
+  width: 40px;
+  border-radius: var(--radius-full);
+  background: var(--color-indigo);
+  margin-bottom: var(--space-4);
+}
+
+/* ── Confirm header ───────────────────────────────────────────────────────── */
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+  margin: 0;
+}
+
+.big {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-3xl);
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.02;
+  margin: 6px 0 0;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  line-height: 1.45;
+}
+
+/* ── Line items ───────────────────────────────────────────────────────────── */
+.list {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 11px 0;
+  border-top: 1px solid var(--color-lavender);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+}
+
+.row:first-child {
+  border-top: none;
+}
+
+.rowLabel {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 7px;
+  flex: 0 0 auto;
+}
+
+.val {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-indigo);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A highlighted row (e.g. "New balance") reads as the bottom-line total. */
+.rowHighlight {
+  margin-top: 2px;
+  padding-top: 13px;
+  border-top: 1.5px solid var(--color-indigo-soft);
+}
+
+.rowHighlight .val {
+  font-size: var(--text-base);
+}
+
+.valPos {
+  color: var(--color-green-ink, var(--color-green));
+}
+
+/* ── Method picker (Insurance / Policies / Schedule-settle) ───────────────── */
+.methodBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: var(--space-4);
+}
+
+.methodLabel {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-gray);
+}
+
+.methodHelper {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-gray);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Note ─────────────────────────────────────────────────────────────────── */
+.note {
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-gray);
+  margin: var(--space-4) 0 0;
+}
+
+.note b {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-indigo-soft);
+}
+
+/* ── Actions ──────────────────────────────────────────────────────────────── */
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: var(--space-5);
+}
+
+.btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-md);
+  padding: 13px 18px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-sm);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid transparent;
+  transition: background 0.16s ease, transform 0.16s var(--ease-out-expo),
+    box-shadow 0.16s var(--ease-out-expo), border-color 0.15s ease;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+}
+
+.btnPrimary {
+  background: var(--color-indigo);
+  color: var(--color-white);
+  border-color: var(--color-indigo);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+}
+
+.btnPrimary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--color-indigo-deep);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-indigo) 30%, transparent);
+}
+
+.btnDanger {
+  background: var(--color-status-poor);
+  color: var(--color-white);
+  border-color: var(--color-status-poor);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-status-poor) 22%, transparent);
+}
+
+.btnDanger:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-status-poor) 30%, transparent);
+}
+
+.btnGhost {
+  background: var(--color-white);
+  color: var(--color-indigo);
+  border-color: var(--color-lavender);
+}
+
+.btnGhost:hover:not(:disabled) {
+  border-color: var(--color-indigo-soft);
+  background: var(--color-cloud);
+}
+
+.btn:disabled {
+  background: var(--color-lavender);
+  border-color: var(--color-lavender);
+  color: var(--color-gray);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* ── Success ──────────────────────────────────────────────────────────────── */
+.successInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+}
+
+.successCheck {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-green) 12%, transparent);
+  color: var(--color-green);
+  display: grid;
+  place-items: center;
+  margin-bottom: var(--space-3);
+}
+
+.successTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-xl);
+  letter-spacing: -0.025em;
+  color: var(--color-indigo);
+  margin: 0;
+}
+
+.successSubtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  margin: 8px 0 0;
+  max-width: 38ch;
+  line-height: 1.55;
+}
+
+.successRef {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  background: var(--color-cloud);
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  margin-top: var(--space-3);
+}
+
+.successRef strong {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-indigo);
+  letter-spacing: 0.02em;
+}
+
+.successActions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  margin-top: var(--space-5);
+}
+
+/* A text link in the success footer (e.g. "View your activity"). */
+.successLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-indigo-soft);
+  padding: 6px;
+}
+
+.successLink:hover {
+  color: var(--color-indigo);
+}
+
+.successLink:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition: none;
+  }
+  .btn:hover:not(:disabled) {
+    transform: none;
+  }
+}

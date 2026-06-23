@@ -18,8 +18,11 @@ import {
 } from '../../utils/periodSettlement';
 import PageHeader from '../../components/PageHeader';
 import PaySheet from '../../components/PaySheet';
+import InlinePayPanel from '../../components/InlinePayPanel';
 import ContributionSettingsForm from '../../components/contribution/ContributionSettingsForm';
+import { MOBILE_MONEY_METHODS } from '../../constants/payment';
 import styles from './SchedulePage.module.css';
+import flow from './desktopFlow.module.css';
 
 export default function SchedulePage() {
   const navigate = useNavigate();
@@ -146,15 +149,77 @@ export default function SchedulePage() {
   // Desktop (>=1024px): mirror the agent's schedule sub-page — a plain header
   // (no indigo hero dome) over a width-capped, centred frame wrapping the SAME
   // form in its 2-column "split" layout (inputs left / sticky summary right).
+  // When a save leaves a balance owed, the form is replaced IN PLACE by a
+  // 2-column settle checkout (breakdown left, inline pay panel right) — desktop
+  // never opens the phone-style bottom sheet.
   if (isDesktop) {
+    const settleItems = (settle?.lineItems ?? []).map((li) => ({
+      label: li.label,
+      value: `${li.kind === 'insurance' ? '+' : ''}${formatUGX(li.amount, { compact: false })}`,
+    }));
     return (
-      <>
-        <div className={styles.page}>
-          <PageHeader
-            title={isNew ? 'Set up contribution schedule' : 'Tune your schedule'}
-            subtitle="Frequency, amount, and the retirement/emergency split"
-            fallback="/dashboard/save"
-          />
+      <div className={styles.page}>
+        <PageHeader
+          title={settle ? 'Settle this month' : (isNew ? 'Set up contribution schedule' : 'Tune your schedule')}
+          subtitle={
+            settle
+              ? 'Pay for the changes you just made to this month’s plan.'
+              : 'Frequency, amount, and the retirement/emergency split'
+          }
+          fallback="/dashboard/save"
+        />
+        {settle ? (
+          <div className={flow.splitHost}>
+            <div className={flow.split}>
+              {/* LEFT — what's owed this month (the breakdown lives here, so the
+                  pay panel on the right stays a focused total + method + pay). */}
+              <div className={flow.col}>
+                <div className={flow.card}>
+                  <p className={flow.sumEyebrow}>What’s owed this month</p>
+                  <ul className={flow.sumList}>
+                    {settleItems.map((it) => (
+                      <li className={flow.sumRow} key={it.label}>
+                        <span>{it.label}</span>
+                        <span className={flow.sumVal}>{it.value}</span>
+                      </li>
+                    ))}
+                    <li className={flow.sumRow}>
+                      <span><b>Total</b></span>
+                      <span className={flow.sumVal}>{formatUGX(settle.total, { compact: false })}</span>
+                    </li>
+                  </ul>
+                  <p className={flow.note}>
+                    {settleView === 'success' ? (
+                      <>Your contribution schedule is saved and this month’s balance is settled — you’re all caught up.</>
+                    ) : (
+                      <>Your contribution schedule is saved. This is the balance for the current month from the changes you just made — settle it now to stay on track, or choose <b>Maybe later</b>.</>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* RIGHT — the inline pay panel (confirm → success in place). */}
+              <aside className={flow.summaryCol}>
+                <InlinePayPanel
+                  view={settleView === 'success' ? 'success' : 'confirm'}
+                  ariaLabel="Settle this period"
+                  eyebrow="Settle this month"
+                  total={settle.total}
+                  subtitle="Pay for the changes you just made to this month’s plan."
+                  methods={MOBILE_MONEY_METHODS}
+                  note="You’ll receive an SMS prompt to authorise the payment on your mobile money account."
+                  submitting={settleSubmitting}
+                  primaryLabel={`Pay ${formatUGX(settle.total, { compact: false })}`}
+                  cancelLabel="Maybe later"
+                  onPay={handleSettlePay}
+                  onCancel={closeSettle}
+                  success={{ title: 'Payment complete', subtitle: 'Your plan is up to date for this month.' }}
+                  successPrimary={{ label: 'Done', onClick: closeSettle }}
+                />
+              </aside>
+            </div>
+          </div>
+        ) : (
           <div className={styles.frame}>
             {sub && (
               <ContributionSettingsForm
@@ -168,9 +233,8 @@ export default function SchedulePage() {
               />
             )}
           </div>
-        </div>
-        {settleSheet}
-      </>
+        )}
+      </div>
     );
   }
 

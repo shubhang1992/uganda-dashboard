@@ -406,3 +406,11 @@
     transform: none;
   }
 }
+
+/* Desktop split: align the sticky summary card's top with the first policy card.
+   The left column opens with the "Active" section heading (one line + the
+   section's row gap); the right column has no heading, so without this offset
+   the summary card floats a heading-height above the cards it summarises. */
+.summaryAlign {
+  padding-top: calc(var(--text-base) * 1.6 + var(--space-3));
+}

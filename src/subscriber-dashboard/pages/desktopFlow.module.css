@@ -120,6 +120,20 @@
   min-width: 0;
 }
 
+/* The action column recedes (and is made `inert` in JSX) while the right-column
+   inline pay panel owns the confirm/success flow — a quiet focus affordance that
+   keeps everything on one screen without a modal. Content stays readable. */
+.colLocked {
+  opacity: 0.55;
+  transition: opacity 0.2s var(--ease-out-expo);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .colLocked {
+    transition: none;
+  }
+}
+
 .summaryCol {
   position: sticky;
   top: var(--space-5);

@@ -18,11 +18,12 @@ const SparkIcon = (
 );
 
 // The Home overview gets the full content canvas, and so do the money-flow
-// pages — Save, the Withdrawals hub, Withdraw savings, File a claim, and the
-// contribution-schedule editor all use the WIDE 2-column desktop "split" layout
-// (action column + sticky summary), which needs more room than the centred
-// reading column allows. Every other route is a focused list / detail view whose
-// mobile layout reads best centred.
+// pages — Save, the Withdrawals hub, Withdraw savings, File a claim, the
+// contribution-schedule editor, and the Insurance + Policies pages all use the
+// WIDE 2-column desktop "split" layout (action column + sticky summary that
+// flips to the inline pay panel), which needs more room than the centred reading
+// column allows. Every other route is a focused list / detail view whose mobile
+// layout reads best centred.
 function isWideRoute(pathname) {
   return (
     pathname === '/dashboard' ||
@@ -32,6 +33,8 @@ function isWideRoute(pathname) {
     pathname === '/dashboard/withdraw' ||
     pathname === '/dashboard/withdraw/savings' ||
     pathname === '/dashboard/withdraw/claim' ||
+    pathname === '/dashboard/policies' ||
+    pathname === '/dashboard/settings/insurance' ||
     pathname === '/dashboard/agent'
   );
 }

@@ -69,6 +69,15 @@
   right: calc(var(--space-6) + var(--subscriber-copilot-w));
 }
 
+/* Lift the notification bell to the same soft elevation as the Ask AI button, so
+   the two stay separate controls but both clearly float above the scrolling
+   content (no shared container). The bell is a shared component (styled in
+   Notifications.module.css); scoping the shadow to .topBar's nested button keeps
+   every other role's bell untouched. Matches .askAi's resting shadow. */
+.topBar > div > button {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .topBar { transition: none; }
 }

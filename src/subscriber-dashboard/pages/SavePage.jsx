@@ -22,6 +22,7 @@ import {
   RETIREMENT_AGE,
 } from '../../constants/savings';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
+import InlinePayPanel from '../../components/InlinePayPanel';
 import styles from './SavePage.module.css';
 import flow from './desktopFlow.module.css';
 
@@ -206,8 +207,11 @@ export default function SavePage() {
           </header>
 
           <div className={flow.split}>
-            {/* LEFT — the contribution action */}
-            <div className={flow.col}>
+            {/* LEFT — the contribution action. Locked (inert) once the right
+                column owns the confirm/success flow, so the amount/method can't
+                be edited underneath the confirm panel (mirrors the mobile sheet's
+                effective lockout). */}
+            <div className={`${flow.col} ${view !== 'form' ? flow.colLocked : ''}`} inert={view !== 'form'}>
               <div className={flow.card}>
                 {lockableSchedule && (
                   <div className={flow.seg} role="group" aria-label="Contribution type">
@@ -308,74 +312,111 @@ export default function SavePage() {
                   ))}
                 </PillChipGroup>
                 <p className={styles.methodHelper} style={{ marginTop: '10px' }}>{methodById(method).helper}</p>
-                <button
-                  type="button"
-                  className={`${flow.cta} ${flow.ctaPrimary}`}
-                  disabled={!hasAmount}
-                  onClick={handleContinue}
-                >
-                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-                    <rect x="2.5" y="6" width="19" height="13" rx="2" stroke="currentColor" strokeWidth="1.75" />
-                    <path d="M2.5 10h19" stroke="currentColor" strokeWidth="1.75" />
-                    <path d="M6 15h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-                  </svg>
-                  {hasAmount
-                    ? `${payScheduled ? 'Pay' : 'Top up'} ${formatUGX(amount, { compact: false })}`
-                    : payScheduled ? 'Pay' : 'Top up'}
-                </button>
+                {/* The action CTA lives on the left in form view; once the user
+                    advances to confirm/success the right column owns the pay
+                    actions, so this is hidden to avoid a second, stale CTA. */}
+                {view === 'form' && (
+                  <button
+                    type="button"
+                    className={`${flow.cta} ${flow.ctaPrimary}`}
+                    disabled={!hasAmount}
+                    onClick={handleContinue}
+                  >
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                      <rect x="2.5" y="6" width="19" height="13" rx="2" stroke="currentColor" strokeWidth="1.75" />
+                      <path d="M2.5 10h19" stroke="currentColor" strokeWidth="1.75" />
+                      <path d="M6 15h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                    </svg>
+                    {hasAmount
+                      ? `${payScheduled ? 'Pay' : 'Top up'} ${formatUGX(amount, { compact: false })}`
+                      : payScheduled ? 'Pay' : 'Top up'}
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* RIGHT — sticky summary */}
+            {/* RIGHT — sticky summary that flips IN PLACE to the confirm → success
+                pay panel (no bottom sheet on desktop). In form view it's the live
+                order summary; once the user presses the CTA it becomes the inline
+                confirm/pay panel, then the success panel. */}
             <aside className={flow.summaryCol}>
-              <div className={flow.card}>
-                <p className={flow.sumEyebrow}>{payScheduled ? 'This contribution' : 'Your top-up'}</p>
-                <div className={flow.sumBig}>{formatUGX(hasAmount ? amount : 0, { compact: false })}</div>
-                <ul className={flow.sumList}>
-                  <li className={flow.sumRow}>
-                    <span className={flow.sumRowLabel}>
-                      <span className={flow.sumDot} style={{ background: 'var(--color-indigo)' }} />
-                      Retirement ({retirementPct}%)
-                    </span>
-                    <span className={flow.sumVal}>{formatUGX(retAmt, { compact: false })}</span>
-                  </li>
-                  <li className={flow.sumRow}>
-                    <span className={flow.sumRowLabel}>
-                      <span className={flow.sumDot} style={{ background: 'var(--color-indigo-soft)' }} />
-                      Emergency ({emergencyPct}%)
-                    </span>
-                    <span className={flow.sumVal}>{formatUGX(emgAmt, { compact: false })}</span>
-                  </li>
-                  <li className={flow.sumRow}>
-                    <span>Units it buys</span>
-                    <span className={flow.sumVal}>{units.toLocaleString('en-UG', { maximumFractionDigits: 2 })} units</span>
-                  </li>
-                  <li className={flow.sumRow}>
-                    <span>New balance</span>
-                    <span className={`${flow.sumVal} ${flow.sumValPos}`}>{formatUGX(newBalance, { compact: false })}</span>
-                  </li>
-                </ul>
-                {canProject && (
-                  <div className={flow.proj}>
-                    <p className={flow.projLabel}>Projected at age {RETIREMENT_AGE}</p>
-                    <p className={flow.projValue}>{formatUGX(projectedAtRet, { compact: false })}</p>
-                    <p className={flow.projNote}>Retirement bucket, compounded over {yearsToRet} years.</p>
-                  </div>
-                )}
-                <p className={flow.note}>
-                  {payScheduled ? (
-                    nextDue ? (
-                      <>Next scheduled payment due <b>{formatDate(nextDue, { variant: 'day-month' })}</b>.</>
-                    ) : (
-                      'Paid into the buckets you set in your schedule.'
-                    )
-                  ) : lockableSchedule ? (
-                    <>One-off — this doesn&apos;t change your {cadenceLabel.toLowerCase()} schedule.</>
-                  ) : (
-                    'A one-off top-up to your savings.'
+              {view === 'form' ? (
+                <div className={flow.card}>
+                  <p className={flow.sumEyebrow}>{payScheduled ? 'This contribution' : 'Your top-up'}</p>
+                  <div className={flow.sumBig}>{formatUGX(hasAmount ? amount : 0, { compact: false })}</div>
+                  <ul className={flow.sumList}>
+                    <li className={flow.sumRow}>
+                      <span className={flow.sumRowLabel}>
+                        <span className={flow.sumDot} style={{ background: 'var(--color-indigo)' }} />
+                        Retirement ({retirementPct}%)
+                      </span>
+                      <span className={flow.sumVal}>{formatUGX(retAmt, { compact: false })}</span>
+                    </li>
+                    <li className={flow.sumRow}>
+                      <span className={flow.sumRowLabel}>
+                        <span className={flow.sumDot} style={{ background: 'var(--color-indigo-soft)' }} />
+                        Emergency ({emergencyPct}%)
+                      </span>
+                      <span className={flow.sumVal}>{formatUGX(emgAmt, { compact: false })}</span>
+                    </li>
+                    <li className={flow.sumRow}>
+                      <span>Units it buys</span>
+                      <span className={flow.sumVal}>{units.toLocaleString('en-UG', { maximumFractionDigits: 2 })} units</span>
+                    </li>
+                    <li className={flow.sumRow}>
+                      <span>New balance</span>
+                      <span className={`${flow.sumVal} ${flow.sumValPos}`}>{formatUGX(newBalance, { compact: false })}</span>
+                    </li>
+                  </ul>
+                  {canProject && (
+                    <div className={flow.proj}>
+                      <p className={flow.projLabel}>Projected at age {RETIREMENT_AGE}</p>
+                      <p className={flow.projValue}>{formatUGX(projectedAtRet, { compact: false })}</p>
+                      <p className={flow.projNote}>Retirement bucket, compounded over {yearsToRet} years.</p>
+                    </div>
                   )}
-                </p>
-              </div>
+                  <p className={flow.note}>
+                    {payScheduled ? (
+                      nextDue ? (
+                        <>Next scheduled payment due <b>{formatDate(nextDue, { variant: 'day-month' })}</b>.</>
+                      ) : (
+                        'Paid into the buckets you set in your schedule.'
+                      )
+                    ) : lockableSchedule ? (
+                      <>One-off — this doesn&apos;t change your {cadenceLabel.toLowerCase()} schedule.</>
+                    ) : (
+                      'A one-off top-up to your savings.'
+                    )}
+                  </p>
+                </div>
+              ) : (
+                <InlinePayPanel
+                  view={view === 'success' ? 'success' : 'confirm'}
+                  ariaLabel={view === 'success' ? 'Top-up complete' : 'Confirm top-up'}
+                  eyebrow={payScheduled ? 'Your scheduled payment' : 'You’re paying'}
+                  total={amount}
+                  lineItems={[
+                    { label: `Retirement (${retirementPct}%)`, value: formatUGX(retAmt, { compact: false }), dot: 'var(--color-indigo)' },
+                    { label: `Emergency (${emergencyPct}%)`, value: formatUGX(emgAmt, { compact: false }), dot: 'var(--color-indigo-soft)' },
+                    { label: 'Payment method', value: methodById(method).full },
+                    { label: 'New balance', value: formatUGX(newBalance, { compact: false }), highlight: true, positive: true },
+                  ]}
+                  note="You'll receive an SMS prompt to authorise the payment on your mobile money account."
+                  submitting={submitting}
+                  canPay={hasAmount}
+                  primaryLabel="Confirm & pay"
+                  cancelLabel="Back"
+                  onPay={handleConfirm}
+                  onCancel={closeConfirm}
+                  success={{
+                    title: 'Contribution added',
+                    subtitle: `${formatUGX(amount, { compact: false })} is now working for you. Your new balance is ${formatUGX(newBalance, { compact: false })}.`,
+                    reference: resultTx?.reference,
+                  }}
+                  successPrimary={{ label: 'Back to home', onClick: () => navigate('/dashboard') }}
+                  successLink={{ label: 'View your activity', onClick: () => navigate('/dashboard/reports') }}
+                />
+              )}
             </aside>
           </div>
         </div>
@@ -499,8 +540,10 @@ export default function SavePage() {
 
       {/* Confirm → success sheet (state-based, not routed) — portaled to <body>
           so it escapes the page's animated (transformed) ancestor and layers
-          ABOVE the fixed BottomTabBar instead of being trapped beneath it. */}
-      {createPortal(
+          ABOVE the fixed BottomTabBar instead of being trapped beneath it.
+          MOBILE ONLY: on desktop the confirm/success step renders inline in the
+          right summary column (InlinePayPanel) instead of a bottom sheet. */}
+      {!isDesktop && createPortal(
         <AnimatePresence>
         {(view === 'confirm' || view === 'success') && (
           <motion.div
@@ -530,26 +573,10 @@ export default function SavePage() {
                   <div className={styles.confirmBig}>{formatUGX(amount, { compact: false })}</div>
 
                   <ul className={styles.confirmList}>
-                    {/* Retirement/emergency split — desktop only. On mobile the
-                        split is a property of the saved schedule, not surfaced. */}
-                    {isDesktop && (
-                      <>
-                        <li className={styles.confirmRow}>
-                          <span>
-                            <span className={styles.summaryDot} data-tone="retirement" />
-                            Retirement ({retirementPct}%)
-                          </span>
-                          <strong>{formatUGX(retAmt, { compact: false })}</strong>
-                        </li>
-                        <li className={styles.confirmRow}>
-                          <span>
-                            <span className={styles.summaryDot} data-tone="emergency" />
-                            Emergency ({emergencyPct}%)
-                          </span>
-                          <strong>{formatUGX(emgAmt, { compact: false })}</strong>
-                        </li>
-                      </>
-                    )}
+                    {/* This sheet is mobile-only (gated !isDesktop above); the
+                        retirement/emergency split is a property of the saved
+                        schedule and intentionally not surfaced on mobile. The
+                        desktop confirm (with the split) renders via InlinePayPanel. */}
                     <li className={styles.confirmRow}>
                       <span>Payment method</span>
                       <strong>{methodById(method).full}</strong>

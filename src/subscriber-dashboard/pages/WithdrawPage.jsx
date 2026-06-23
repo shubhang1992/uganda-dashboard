@@ -10,6 +10,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import { MIN_WITHDRAW, RETIREMENT_AGE } from '../../constants/savings';
 import { PillChip, PillChipGroup } from '../../components/PillChip';
+import InlinePayPanel from '../../components/InlinePayPanel';
 import { goBackOrFallback } from '../shell/navigation';
 import styles from './WithdrawPage.module.css';
 import flow from './desktopFlow.module.css';
@@ -184,8 +185,10 @@ export default function WithdrawPage() {
           </header>
 
           <div className={flow.split}>
-            {/* LEFT — withdrawal form */}
-            <div className={flow.col}>
+            {/* LEFT — withdrawal form. Locked (inert) once the right column owns
+                the confirm/success flow, so the amount/pot/method can't change
+                underneath the confirm panel (mirrors the mobile sheet lockout). */}
+            <div className={`${flow.col} ${sheetView !== null ? flow.colLocked : ''}`} inert={sheetView !== null}>
               <div className={flow.card}>
                 <span className={flow.fieldLabel}>How much do you need?</span>
                 <input
@@ -282,22 +285,29 @@ export default function WithdrawPage() {
                 <p className={styles.helperLine} style={{ marginTop: '10px' }}>
                   Funds reach your registered account ({sub?.phone || 'your number'}) within 2 business days.
                 </p>
-                <button
-                  type="button"
-                  className={`${flow.cta} ${flow.ctaPrimary}`}
-                  disabled={!hasAmount}
-                  onClick={handleReview}
-                >
-                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 3v12M7 8l5-5 5 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-                  </svg>
-                  {hasAmount ? `Withdraw ${formatUGX(amount, { compact: false })}` : 'Request withdrawal'}
-                </button>
+                {/* The action CTA lives on the left in form view; once the user
+                    advances to confirm/success the right column owns the actions,
+                    so this is hidden to avoid a second, stale CTA. */}
+                {sheetView === null && (
+                  <button
+                    type="button"
+                    className={`${flow.cta} ${flow.ctaPrimary}`}
+                    disabled={!hasAmount}
+                    onClick={handleReview}
+                  >
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 3v12M7 8l5-5 5 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                    </svg>
+                    {hasAmount ? `Withdraw ${formatUGX(amount, { compact: false })}` : 'Request withdrawal'}
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* RIGHT — sticky summary */}
+            {/* RIGHT — sticky summary; the "This withdrawal" card flips IN PLACE
+                to the inline confirm → success panel (no bottom sheet on desktop).
+                The "Available to withdraw" context card stays above it throughout. */}
             <aside className={flow.summaryCol}>
               <div className={flow.card}>
                 <p className={flow.sumEyebrow}>Available to withdraw</p>
@@ -329,31 +339,72 @@ export default function WithdrawPage() {
                 </p>
               </div>
 
-              <div className={flow.card}>
-                <p className={flow.sumEyebrow}>This withdrawal</p>
-                <div className={flow.sumBig}>{formatUGX(hasAmount ? amount : 0, { compact: false })}</div>
-                <ul className={flow.sumList}>
-                  <li className={flow.sumRow}>
-                    <span>{potLabel} left after</span>
-                    <span className={flow.sumVal}>{formatUGX(hasAmount ? remainingAfter : max, { compact: false })}</span>
-                  </li>
-                  <li className={flow.sumRow}>
-                    <span>Pay out to</span>
-                    <span className={flow.sumVal}>{methodHint}</span>
-                  </li>
-                  <li className={flow.sumRow}>
-                    <span>Arrives</span>
-                    <span className={flow.sumVal}>1–2 days</span>
-                  </li>
-                </ul>
-                {bucket === 'retirement' && retirementImpact != null ? (
-                  <p className={flow.note}>
-                    May reduce your projected retirement by approx <b>{formatUGX(retirementImpact)}</b>.
-                  </p>
-                ) : (
-                  <p className={flow.note}>Your retirement savings stay locked until age {RETIREMENT_AGE}.</p>
-                )}
-              </div>
+              {sheetView === null ? (
+                <div className={flow.card}>
+                  <p className={flow.sumEyebrow}>This withdrawal</p>
+                  <div className={flow.sumBig}>{formatUGX(hasAmount ? amount : 0, { compact: false })}</div>
+                  <ul className={flow.sumList}>
+                    <li className={flow.sumRow}>
+                      <span>{potLabel} left after</span>
+                      <span className={flow.sumVal}>{formatUGX(hasAmount ? remainingAfter : max, { compact: false })}</span>
+                    </li>
+                    <li className={flow.sumRow}>
+                      <span>Pay out to</span>
+                      <span className={flow.sumVal}>{methodHint}</span>
+                    </li>
+                    <li className={flow.sumRow}>
+                      <span>Arrives</span>
+                      <span className={flow.sumVal}>1–2 days</span>
+                    </li>
+                  </ul>
+                  {bucket === 'retirement' && retirementImpact != null ? (
+                    <p className={flow.note}>
+                      May reduce your projected retirement by approx <b>{formatUGX(retirementImpact)}</b>.
+                    </p>
+                  ) : (
+                    <p className={flow.note}>Your retirement savings stay locked until age {RETIREMENT_AGE}.</p>
+                  )}
+                </div>
+              ) : (
+                <InlinePayPanel
+                  view={sheetView === 'success' ? 'success' : 'confirm'}
+                  ariaLabel={sheetView === 'success' ? 'Withdrawal requested' : 'Confirm withdrawal'}
+                  eyebrow="You’re taking out"
+                  total={amount}
+                  lineItems={[
+                    { label: 'From', value: potLabel },
+                    { label: 'Reason', value: reasonLabel },
+                    { label: 'Payout method', value: methodLabel },
+                    { label: `${potLabel} left after`, value: formatUGX(remainingAfter, { compact: false }) },
+                  ]}
+                  extra={bucket === 'retirement' && retirementImpact != null ? (
+                    <div className={styles.warnBox} style={{ marginTop: 'var(--space-4)' }}>
+                      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" width="18" height="18">
+                        <path d="M12 3l10 18H2L12 3z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+                        <path d="M12 10v5M12 18v.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                      </svg>
+                      <span>
+                        May reduce your projected retirement by approx <strong>{formatUGX(retirementImpact)}</strong>.
+                      </span>
+                    </div>
+                  ) : null}
+                  submitting={submitting}
+                  canPay={hasAmount}
+                  primaryLabel="Confirm withdrawal"
+                  submittingLabel="Submitting…"
+                  primaryTone="danger"
+                  cancelLabel="Back"
+                  onPay={handleConfirm}
+                  onCancel={closeSheet}
+                  success={{
+                    title: 'Withdrawal requested',
+                    subtitle: `${formatUGX(amount, { compact: false })} will arrive via ${methodLabel} within 2 business days.`,
+                    reference: resultWd?.reference,
+                  }}
+                  successPrimary={{ label: 'Back to home', onClick: () => navigate('/dashboard') }}
+                  successLink={{ label: 'View your activity', onClick: () => navigate('/dashboard/reports') }}
+                />
+              )}
             </aside>
           </div>
         </div>
@@ -517,8 +568,10 @@ export default function WithdrawPage() {
 
       {/* Confirm → success sheet — portaled to <body> so it escapes the page's
           animated (transformed) ancestor and layers ABOVE the fixed BottomTabBar
-          instead of being trapped beneath it (z-index then works against root). */}
-      {createPortal(
+          instead of being trapped beneath it (z-index then works against root).
+          MOBILE ONLY: on desktop the confirm/success step renders inline in the
+          right summary column (InlinePayPanel) instead of a bottom sheet. */}
+      {!isDesktop && createPortal(
         <AnimatePresence>
         {sheetView && (
           <motion.div
