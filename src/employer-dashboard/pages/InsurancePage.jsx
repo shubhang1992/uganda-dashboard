@@ -1,13 +1,13 @@
 import { lazy, Suspense } from 'react';
 import { useIsDesktop } from '../../hooks/useIsDesktop';
 import PageFallback from '../shell/PageFallback';
-import MobilePlaceholder from '../shell/MobilePlaceholder';
+import InsuranceMobile from '../mobile/InsuranceMobile';
 
 const InsuranceDesktop = lazy(() => import('../desktop/InsuranceDesktop'));
 
 export default function InsurancePage() {
   const isDesktop = useIsDesktop();
-  if (!isDesktop) return <MobilePlaceholder name="Insurance & benefits" />;
+  if (!isDesktop) return <InsuranceMobile />;
   return (
     <Suspense fallback={<PageFallback />}>
       <InsuranceDesktop />

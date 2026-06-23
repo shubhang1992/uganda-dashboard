@@ -584,3 +584,81 @@
 .totchip.grand { background: var(--color-indigo); border-color: var(--color-indigo); }
 .totchip.grand small { color: rgba(255, 255, 255, 0.72); }
 .totchip.grand b { color: #fff; }
+
+/* ── analytics: KPI tiles ── */
+.kpi2 { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.kpiC {
+  background: linear-gradient(155deg, #fff 0%, var(--color-cloud) 100%);
+  border: 1px solid var(--color-lavender);
+  border-radius: 18px;
+  padding: 15px;
+  box-shadow: 0 1px 3px rgba(41, 40, 103, 0.07);
+}
+.kpiLbl { font-family: var(--font-display); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-gray); }
+.kpiV { font-family: var(--font-display); font-weight: 800; font-size: 21px; letter-spacing: -0.02em; color: var(--color-indigo); margin-top: 5px; font-variant-numeric: tabular-nums; }
+.kpiV.grow { color: var(--color-status-good); }
+.kpiV small { font-size: 11px; font-weight: 700; color: var(--color-gray); }
+
+/* ── analytics: horizontal bars ── */
+.barRow { display: flex; align-items: center; gap: 11px; margin-top: 13px; }
+.barRow:first-of-type { margin-top: 4px; }
+.bl { font-family: var(--font-display); font-weight: 600; font-size: 11.5px; color: var(--color-slate); width: 86px; flex: 0 0 auto; }
+.barTrack { flex: 1; height: 10px; border-radius: var(--radius-full); background: var(--color-cloud); border: 1px solid var(--color-lavender); overflow: hidden; }
+.barFill { height: 100%; border-radius: var(--radius-full); background: linear-gradient(90deg, var(--color-indigo-soft), var(--color-indigo)); }
+.barFill.teal { background: linear-gradient(90deg, #5bb3bf, var(--color-teal)); }
+.barV { font-family: var(--font-display); font-weight: 800; font-size: 12px; color: var(--color-indigo); width: 32px; text-align: right; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+
+/* ── analytics: donut + legend ── */
+.donutWrap { display: flex; align-items: center; gap: 16px; }
+.donut { width: 104px; height: 104px; border-radius: var(--radius-full); flex: 0 0 auto; display: flex; align-items: center; justify-content: center; position: relative; }
+.donut::after { content: ''; position: absolute; inset: 19px; border-radius: var(--radius-full); background: #fff; }
+.donutC { position: relative; z-index: 1; text-align: center; }
+.donutC b { font-family: var(--font-display); font-weight: 800; font-size: 20px; color: var(--color-indigo); font-variant-numeric: tabular-nums; }
+.donutC small { display: block; font-size: 9.5px; color: var(--color-gray); }
+.legend { display: flex; flex-direction: column; gap: 9px; flex: 1; min-width: 0; }
+.legendRow { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--color-slate); }
+.legendRow i { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
+.legendRow b { margin-left: auto; font-family: var(--font-display); font-weight: 800; color: var(--color-indigo); font-variant-numeric: tabular-nums; }
+
+/* ── analytics: stacked status bar ── */
+.stackbar { display: flex; height: 32px; border-radius: 10px; overflow: hidden; border: 1px solid var(--color-lavender); margin-top: 8px; }
+.stackbar span { display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 800; font-size: 11.5px; color: #fff; min-width: 26px; }
+.stackKey { display: flex; gap: 16px; margin-top: 12px; font-size: 11.5px; color: var(--color-slate); flex-wrap: wrap; }
+.stackKeyRow { display: flex; align-items: center; gap: 7px; }
+.stackKey i { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
+
+/* ── analytics: area + downloads ── */
+.area { width: 100%; height: 96px; display: block; margin-top: 6px; }
+.aMeta { display: flex; justify-content: space-between; font-size: 10px; color: var(--color-gray); margin-top: 5px; }
+.dlrow { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--color-lavender); border-radius: 13px; padding: 12px; cursor: pointer; width: 100%; text-align: left; }
+.dlrowIc { width: 32px; height: 32px; flex: 0 0 auto; border-radius: 10px; background: color-mix(in srgb, var(--color-indigo) 8%, transparent); color: var(--color-indigo-soft); display: flex; align-items: center; justify-content: center; }
+.dlrow b { font-family: var(--font-display); font-weight: 800; font-size: 12.5px; color: var(--color-indigo); }
+.dlrow small { display: block; font-size: 10px; color: var(--color-gray); }
+
+/* ── support: thread bubbles + composer ── */
+.msgs { display: flex; flex-direction: column; }
+.msgWho { font-family: var(--font-display); font-weight: 700; font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-indigo-soft); margin-bottom: 3px; }
+.bubble { max-width: 86%; padding: 11px 14px; border-radius: 13px; font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
+.bubbleYou { background: var(--color-indigo); color: #fff; margin-left: auto; border-bottom-right-radius: 10px; }
+.bubbleThem { background: var(--color-cloud); color: var(--color-slate); border: 1px solid var(--color-lavender); border-bottom-left-radius: 10px; }
+.composer { display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--color-lavender); border-radius: 13px; padding: 6px 6px 6px 15px; background: #fff; }
+.composer input { flex: 1; min-width: 0; border: none; outline: none; font-family: var(--font-body); font-size: 13px; color: var(--color-indigo); background: none; }
+.composer input::placeholder { color: var(--color-gray); }
+.composerSend { width: 40px; height: 40px; flex: 0 0 auto; border: none; border-radius: 10px; background: var(--color-indigo); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.composerSend:disabled { opacity: 0.5; }
+
+/* ── form fields ── */
+.fl { display: block; font-family: var(--font-display); font-weight: 600; font-size: 11.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-gray); margin-bottom: 10px; }
+.fieldInput, .fieldArea {
+  width: 100%;
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
+  border-radius: 13px;
+  padding: 14px 16px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--color-slate);
+  outline: none;
+}
+.fieldArea { resize: none; min-height: 96px; line-height: 1.5; }
+.trowTime { font-size: 10.5px; color: var(--color-gray); font-family: var(--font-display); font-weight: 600; flex: 0 0 auto; }
