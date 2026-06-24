@@ -59,6 +59,22 @@ export function scoreLabel(s) {
   return 'Needs Attention';
 }
 
+/* ── Score breakdown — the four weighted factors calcScore() combines, exposed so
+ *    the desktop card can show WHAT drives the number: each factor's current
+ *    value, its weight, and its 0–100 sub-score (the progress the factor itself
+ *    is at). Keep in lockstep with calcScore(). ── */
+export function scoreBreakdown(derived = {}) {
+  const { retentionRate = 0, avgPerSub = 0, avgMonthlyGrowth = 0, agentActivity = 0 } = derived;
+  const avgContribScore = Math.min(100, (avgPerSub / 500_000) * 100);
+  const growthScore = Math.min(100, Math.max(0, (avgMonthlyGrowth / 5) * 50 + 50));
+  return [
+    { key: 'retention', label: 'Retention', weight: 30, value: `${Math.round(retentionRate)}%`, sub: Math.round(retentionRate) },
+    { key: 'contrib', label: 'Avg / subscriber', weight: 25, value: formatUGX(avgPerSub, { compact: true }), sub: Math.round(avgContribScore) },
+    { key: 'agents', label: 'Agent activity', weight: 25, value: `${Math.round(agentActivity)}%`, sub: Math.round(agentActivity) },
+    { key: 'growth', label: 'Growth', weight: 20, value: `${avgMonthlyGrowth >= 0 ? '+' : ''}${Math.round(avgMonthlyGrowth)}%`, sub: Math.round(growthScore) },
+  ];
+}
+
 /* ── This-month contribution stat (matches the mobile hero's currMonth/prev) ── */
 export function monthlyContribStat(metrics = {}) {
   const mc = metrics.monthlyContributions || [];

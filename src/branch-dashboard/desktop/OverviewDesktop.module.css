@@ -167,6 +167,66 @@
   max-width: 320px;
 }
 
+/* ── Score factor boxes — the four weighted drivers, structured ── */
+.scoreFactors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-lavender);
+}
+.factorBox {
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  background: var(--color-cloud);
+  padding: 11px 12px;
+}
+.factorTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.factorLabel {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  color: var(--color-slate);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.factorWeight {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--color-gray);
+  flex: 0 0 auto;
+}
+.factorVal {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg, 18px);
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+  margin: 6px 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+.factorBar {
+  height: 5px;
+  border-radius: var(--radius-full);
+  background: var(--color-lavender);
+  overflow: hidden;
+}
+.factorBar span {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--color-indigo-soft), var(--color-indigo));
+}
+
 /* ── Contributions chart (rounded bars + average line) ── */
 .chartStat {
   display: flex;
@@ -251,18 +311,41 @@
 .xlabels { display: flex; gap: 9px; margin-top: 9px; }
 .xlabels span { flex: 1; text-align: center; font-size: 10.5px; color: var(--color-gray); font-weight: 500; }
 
-/* ── Needs attention list ── */
-.attn { display: flex; flex-direction: column; }
+/* ── Needs attention — status tiles ── */
+.attnCount {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 5px 11px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+.attnCountWarn { color: var(--color-amber, #D97706); background: color-mix(in srgb, var(--color-amber, #D97706) 13%, #fff); }
+.attnCountOk { color: var(--color-green-ink, #1F6B41); background: color-mix(in srgb, var(--color-green) 13%, #fff); }
 
-.attnRow {
+.attnList { display: flex; flex-direction: column; gap: 10px; }
+
+.attnTile {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 15px 0;
-  border-top: 1px solid var(--color-lavender);
+  gap: 13px;
+  padding: 13px;
+  border: 1px solid var(--color-lavender);
+  border-left: 3px solid var(--attn-rail, var(--color-lavender));
+  border-radius: var(--radius-md);
+  background: var(--color-cloud);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
+.attnTile:hover { background: #fff; transform: translateY(-1px); box-shadow: 0 8px 18px -12px rgba(41, 40, 103, 0.32); }
+.attnTile:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; }
 
-.attnRow:first-child { border-top: none; padding-top: var(--space-2); }
+.railAlert { --attn-rail: var(--color-status-poor); }
+.railWarn { --attn-rail: var(--color-amber, #D97706); }
+.railOk { --attn-rail: var(--color-green); }
 
 .attnIc {
   width: 42px;
@@ -272,42 +355,34 @@
   display: grid;
   place-items: center;
 }
+.tintAlert { background: color-mix(in srgb, var(--color-status-poor) 11%, transparent); color: var(--color-status-poor); }
+.tintWarn { background: color-mix(in srgb, var(--color-amber, #D97706) 12%, transparent); color: var(--color-amber, #D97706); }
+.tintOk { background: color-mix(in srgb, var(--color-green) 11%, transparent); color: var(--color-green-ink, #1F6B41); }
 
-.attnIcWarn { background: color-mix(in srgb, var(--color-amber, #D97706) 12%, transparent); color: var(--color-amber, #D97706); }
-.attnIcAlert { background: color-mix(in srgb, var(--color-status-poor) 11%, transparent); color: var(--color-status-poor); }
-.attnIcOk { background: color-mix(in srgb, var(--color-green) 11%, transparent); color: var(--color-green-ink, #1F6B41); }
-
-.attnVal {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: var(--text-2xl);
-  letter-spacing: -0.03em;
-  color: var(--color-indigo);
-  min-width: 44px;
-}
-
-.attnTx { flex: 1; min-width: 0; }
-.attnLabel { font-size: var(--text-sm); font-weight: 600; color: var(--color-slate); }
-.attnSub { font-size: var(--text-xs); color: var(--color-gray); margin-top: 1px; }
-
-.attnGo {
-  margin-left: auto;
-  flex: 0 0 auto;
+.attnMid { flex: 1; min-width: 0; }
+.attnMid b {
+  display: block;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 12px;
-  color: var(--color-indigo);
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 7px 11px;
-  border-radius: var(--radius-md);
-  transition: background 0.14s ease;
+  font-size: var(--text-base, 15px);
+  color: var(--color-slate);
 }
+.attnMid small { font-size: var(--text-xs); color: var(--color-gray); }
 
-.attnGo:hover { background: color-mix(in srgb, var(--color-indigo) 7%, transparent); }
-.attnGo:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; }
+.attnPill {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  padding: 4px 11px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.pillAlert { color: var(--color-status-poor); background: color-mix(in srgb, var(--color-status-poor) 12%, #fff); }
+.pillWarn { color: var(--color-amber, #D97706); background: color-mix(in srgb, var(--color-amber, #D97706) 14%, #fff); }
+.pillOk { color: var(--color-green-ink, #1F6B41); background: color-mix(in srgb, var(--color-green) 13%, #fff); }
+
+.attnChev { color: #b7bcd0; flex: 0 0 auto; display: flex; }
 
 /* ── Activity feed ── */
 .feedLive {

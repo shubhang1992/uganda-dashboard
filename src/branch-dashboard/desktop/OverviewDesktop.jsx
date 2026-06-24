@@ -13,6 +13,7 @@ import {
   deriveMetrics,
   calcScore,
   scoreLabel,
+  scoreBreakdown,
   monthlyContribStat,
   generateActivity,
   computeAttention,
@@ -129,8 +130,10 @@ export default function OverviewDesktop() {
 
   const derived = useMemo(() => deriveMetrics(metrics, agents), [metrics, agents]);
   const score = useMemo(() => calcScore(derived), [derived]);
+  const breakdown = useMemo(() => scoreBreakdown(derived), [derived]);
   const month = useMemo(() => monthlyContribStat(metrics), [metrics]);
   const attention = useMemo(() => computeAttention(metrics), [metrics]);
+  const attnCount = attention.filter((a) => a.severity !== 'ok').length;
   const activity = useMemo(() => generateActivity(agents), [agents]);
 
   const [sortKey, setSortKey] = useState('contributions');
@@ -223,6 +226,21 @@ export default function OverviewDesktop() {
                 <p className={styles.insight}>{insightText}</p>
               </div>
             </div>
+            {/* What drives the score — the four weighted factors, boxed. */}
+            <div className={styles.scoreFactors}>
+              {breakdown.map((f) => (
+                <div className={styles.factorBox} key={f.key}>
+                  <div className={styles.factorTop}>
+                    <span className={styles.factorLabel}>{f.label}</span>
+                    <span className={styles.factorWeight}>{f.weight}%</span>
+                  </div>
+                  <div className={styles.factorVal}>{f.value}</div>
+                  <div className={styles.factorBar}>
+                    <span style={{ width: `${Math.max(0, Math.min(100, f.sub))}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </Card>
 
           {/* Contributions chart */}
@@ -233,31 +251,45 @@ export default function OverviewDesktop() {
         </div>
 
         <div className={styles.col}>
-          {/* Needs attention */}
+          {/* Needs attention — status tiles */}
           <Card>
-            <SectionHead title="Needs attention" />
-            <div className={styles.attn}>
+            <SectionHead
+              title="Needs attention"
+              action={
+                <span className={`${styles.attnCount} ${attnCount > 0 ? styles.attnCountWarn : styles.attnCountOk}`}>
+                  {attnCount > 0 ? `${attnCount} to action` : 'All clear'}
+                </span>
+              }
+            />
+            <div className={styles.attnList}>
               {attention.map((a) => {
-                const icCls = a.severity === 'alert' ? styles.attnIcAlert : a.severity === 'ok' ? styles.attnIcOk : styles.attnIcWarn;
+                const tone = a.severity === 'alert' ? 'Alert' : a.severity === 'ok' ? 'Ok' : 'Warn';
                 return (
-                  <div className={styles.attnRow} key={a.label}>
-                    <span className={`${styles.attnIc} ${icCls}`} aria-hidden="true">
+                  <Link
+                    to="/dashboard/reports"
+                    state={{ reportId: a.reportId }}
+                    className={`${styles.attnTile} ${styles[`rail${tone}`]}`}
+                    key={a.label}
+                    aria-label={`${a.label}: ${formatNumber(a.value)} — review`}
+                  >
+                    <span className={`${styles.attnIc} ${styles[`tint${tone}`]}`} aria-hidden="true">
                       {a.severity === 'ok' ? checkIcon(20) : (
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
                           <circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" />
                         </svg>
                       )}
                     </span>
-                    <span className={styles.attnVal}>{formatNumber(a.value)}</span>
-                    <div className={styles.attnTx}>
-                      <div className={styles.attnLabel}>{a.label}</div>
-                      <div className={styles.attnSub}>{a.sub}</div>
-                    </div>
-                    <Link to="/dashboard/reports" state={{ reportId: a.reportId }} className={styles.attnGo}>
-                      Review
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
-                    </Link>
-                  </div>
+                    <span className={styles.attnMid}>
+                      <b>{a.label}</b>
+                      <small>{a.sub}</small>
+                    </span>
+                    <span className={`${styles.attnPill} ${styles[`pill${tone}`]}`}>
+                      {a.severity === 'ok' ? 'Clear' : formatNumber(a.value)}
+                    </span>
+                    <span className={styles.attnChev} aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+                    </span>
+                  </Link>
                 );
               })}
             </div>
