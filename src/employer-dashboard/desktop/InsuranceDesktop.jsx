@@ -1,7 +1,7 @@
 import { useEmployerScope } from '../../contexts/EmployerScopeContext';
 import { useEmployer, useEmployerMetrics, useEmployees } from '../../hooks/useEmployer';
 import { formatUGX, formatNumber } from '../../utils/currency';
-import { groupPremiumPerMember } from '../../utils/groupInsurance';
+import { groupInsuranceProducts, groupInsurancePremiumPerMember } from '../../utils/groupInsurance';
 import { PageHead, MetricRow, Tile, Card, SectionHead, StatusBadge, Btn } from './ui';
 import { shieldIcon, walletIcon, coinsIcon, sparkIcon, checkIcon, lockIcon, settingsIcon } from './icons';
 import ui from './ui.module.css';
@@ -48,12 +48,12 @@ export default function InsuranceDesktop() {
   const headcount = metrics.headcount || employees.length || 0;
 
   const cfg = employer?.defaultContributionConfig;
-  const cover = Number(cfg?.groupCoverAmount) || 0;
-  // Back-compat: an un-migrated config with a positive cover counts as enabled.
-  const insuranceOn = (cfg?.insuranceEnabled ?? cover > 0) && cover > 0;
-  const totalCover = cover * headcount;
-  // Group-life premium the employer funds (priced at the individual life rate).
-  const premiumPerStaff = groupPremiumPerMember(cover);
+  // Multi-product group insurance (Life / Health / Funeral), employer-funded.
+  const insProducts = groupInsuranceProducts(cfg);
+  const insuranceOn = insProducts.length > 0;
+  const coverSum = insProducts.reduce((s, p) => s + p.cover, 0);
+  const totalCover = coverSum * headcount;
+  const premiumPerStaff = groupInsurancePremiumPerMember(cfg); // Σ products / mo
   const totalPremium = premiumPerStaff * headcount;
 
   return (
@@ -61,7 +61,7 @@ export default function InsuranceDesktop() {
       <PageHead
         eyebrow="Benefits"
         title="Insurance"
-        sub="Company-wide group life cover — one flat amount for every staff member."
+        sub="Company-wide group insurance — Life, Health & Funeral cover, fully employer-funded."
       />
 
       {/* 1) Group life cover summary */}
@@ -69,7 +69,7 @@ export default function InsuranceDesktop() {
         <SectionHead
           icon={shieldIcon(20)}
           iconTone="teal"
-          title="Group life cover"
+          title="Group cover"
           action={
             <span className={styles.headActions}>
               <Btn variant="secondary" size="sm" to="/dashboard/settings">
@@ -97,9 +97,9 @@ export default function InsuranceDesktop() {
               <Tile
                 accent="teal"
                 icon={shieldIcon(18)}
-                label="Cover per member"
-                value={formatUGX(cover)}
-                sub="flat group life"
+                label="Products"
+                value={formatNumber(insProducts.length)}
+                sub={insProducts.map((p) => p.product).join(' · ')}
               />
               <Tile
                 accent="green"
@@ -116,6 +116,16 @@ export default function InsuranceDesktop() {
                 sub={`${formatUGX(premiumPerStaff)} × ${formatNumber(headcount)}`}
               />
             </MetricRow>
+
+            <div className={styles.prodList}>
+              {insProducts.map((p) => (
+                <div className={styles.prodCard} key={p.product}>
+                  <span className={styles.prodName}>{p.product}</span>
+                  <span className={styles.prodCover}>{formatUGX(p.cover)} cover / member</span>
+                  <span className={styles.prodPrem}>{formatUGX(p.premiumMonthly)} / mo · employer-funded</span>
+                </div>
+              ))}
+            </div>
 
             <div className={styles.insBar}><div className={styles.insBarFill} /></div>
             <div className={styles.insCap}>

@@ -45,6 +45,8 @@ export default function InsurancePage() {
   const lifePolicy = sub?.policies?.find((p) => p.type === 'life');
   const insNominees = sub?.nominees?.insurance || [];
   const noPolicy = !lifePolicy || lifePolicy.status !== 'active';
+  // Employer-funded life cover can't be bought/adjusted by the member (no double-buy).
+  const employerFundedLife = lifePolicy?.fundedBy === 'employer';
 
   const [coverIdx, setCoverIdx] = useState(() => {
     const found = COVER_TIERS.findIndex((t) => t.cover === insurance?.cover);
@@ -151,7 +153,17 @@ export default function InsurancePage() {
     </section>
   );
 
-  const coverPicker = (
+  const coverPicker = employerFundedLife ? (
+    <section className={styles.section}>
+      <div className={styles.sectionHead}>
+        <h2 className={styles.sectionTitle}>Life cover</h2>
+      </div>
+      <p className={styles.employerNote}>
+        Your life cover of <strong>{formatUGX(lifePolicy.cover)}</strong> is provided and paid for by
+        your employer. There's nothing to pay — see it on your <strong>Policies</strong> page.
+      </p>
+    </section>
+  ) : (
     <section ref={pickerRef} className={styles.section}>
       <div className={styles.sectionHead}>
         <h2 className={styles.sectionTitle}>{noPolicy ? 'Pick your cover' : 'Upgrade your cover'}</h2>

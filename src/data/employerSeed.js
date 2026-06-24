@@ -17,6 +17,7 @@
 // (`defaultContributionConfig`) — applied to every member, never per-member.
 
 import { MOCK_NOW } from './mockData';
+import { groupInsurancePremiumPerMember } from '../utils/groupInsurance';
 
 const DAY_MS = 86400000;
 const UNIT_PRICE = 1000; // UGX/unit — matches the contribution trigger.
@@ -49,9 +50,19 @@ export const EMPLOYER = Object.freeze({
   districtId: 'd-kampala',
   payrollCadence: 'monthly',
   // Co-contribution funding (v2): employee saves 10% of compensation, employer
-  // matches 50% of that leg. Plus company-wide group life cover (all-or-nothing:
-  // every member is covered at the same flat amount, or none are).
-  defaultContributionConfig: { mode: 'co-contribution', employeePct: 10, employerMatchPct: 50, insuranceEnabled: true, groupCoverAmount: 15000000 },
+  // matches 50% of that leg. Plus multi-product group insurance (all-or-nothing
+  // per product, employer-funded): Life 15M + Health 5M here. groupCoverAmount /
+  // insuranceEnabled are kept for back-compat with any legacy reader (the life
+  // product mirrors them).
+  defaultContributionConfig: {
+    mode: 'co-contribution', employeePct: 10, employerMatchPct: 50,
+    insuranceEnabled: true, groupCoverAmount: 15000000,
+    groupInsuranceProducts: {
+      life: { enabled: true, cover: 15000000 },
+      health: { enabled: true, cover: 5000000 },
+      funeral: { enabled: false, cover: 0 },
+    },
+  },
 });
 
 // Flat group life cover applied uniformly to EVERY member (the all-or-nothing
@@ -208,10 +219,10 @@ const atMidday = (d) => `${d}T12:00:00.000Z`;
 function buildContributionHistory() {
   const txns = [];
   const runs = [];
-  // Employer-funded group-life premium per covered member, priced at the
-  // individual life rate (2,000 per 1,000,000 cover = 0.2%/mo) — mirrors
-  // src/utils/groupInsurance.js groupPremiumPerMember + the run RPC (0066).
-  const groupPremium = (COMPANY.insuranceEnabled && GROUP_COVER > 0) ? round(GROUP_COVER * 0.002) : 0;
+  // Total employer-funded group insurance premium per covered member = Σ over
+  // the enabled products (Life + Health here) at 0.2%/mo of cover — mirrors
+  // src/utils/groupInsurance.js groupInsurancePremiumPerMember + the run RPC (0067).
+  const groupPremium = groupInsurancePremiumPerMember(COMPANY);
   RUN_DATES.forEach(({ id: runId, date, periodLabel }, i) => {
     let employeeTotal = 0;
     let employerTotal = 0;

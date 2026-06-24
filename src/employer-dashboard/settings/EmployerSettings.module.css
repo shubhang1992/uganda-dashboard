@@ -152,6 +152,22 @@
   color: var(--color-status-poor);
 }
 
+/* ── Multi-product group insurance rows ────────────────────────────────────── */
+.prodRow {
+  padding: 12px 0;
+  border-top: 1px solid var(--color-lavender);
+}
+.prodRow:first-of-type { border-top: none; }
+.prodBlurb { font-style: normal; font-weight: 500; color: var(--color-gray); }
+.prodTotal {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-lavender);
+  font-size: 0.8125rem;
+  color: var(--color-slate);
+}
+.prodTotal strong { color: var(--color-indigo); font-family: var(--font-display); }
+
 /* ── Funding-mode fieldset (default-config tab) ────────────────────────────── */
 .fieldset {
   margin: 0;

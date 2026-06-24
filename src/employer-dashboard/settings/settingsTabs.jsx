@@ -26,6 +26,7 @@ import {
 } from '../../hooks/useEmployer';
 import { changePassword, AuthError } from '../../services/auth';
 import { formatUGX, formatNumber } from '../../utils/currency';
+import { groupInsuranceProducts, groupInsurancePremiumPerMember } from '../../utils/groupInsurance';
 import GroupInsuranceFieldset from './GroupInsuranceFieldset';
 import styles from './EmployerSettings.module.css';
 
@@ -82,7 +83,19 @@ export function SettingsBody({ tab, settingsOpen, employer, employerId, addToast
   // Insurance tabs edit the SAME state.
   const initial = useMemo(() => {
     const cfg = employer?.defaultContributionConfig ?? {};
-    const coverRaw = cfg.groupCoverAmount;
+    // Per-product group insurance draft (Life / Health / Funeral). Back-compat:
+    // a legacy config (insuranceEnabled + groupCoverAmount) seeds the life product
+    // and leaves health/funeral off.
+    const gip = cfg.groupInsuranceProducts;
+    const prodDraft = (id) => {
+      const p = gip?.[id];
+      if (p) return { enabled: p.enabled ?? (Number(p.cover) > 0), cover: p.cover != null && p.cover !== '' ? String(p.cover) : '' };
+      if (id === 'life') {
+        const lc = cfg.groupCoverAmount;
+        return { enabled: cfg.insuranceEnabled ?? (Number(lc) > 0), cover: lc != null && lc !== '' ? String(lc) : '' };
+      }
+      return { enabled: false, cover: '' };
+    };
     return {
       mode: cfg.mode ?? 'co-contribution',
       // Employer-only: fixed UGX amount OR a % of compensation.
@@ -93,11 +106,11 @@ export function SettingsBody({ tab, settingsOpen, employer, employerId, addToast
       // employee leg (no cap in v2).
       employeePct: cfg.employeePct ?? 10,
       employerMatchPct: cfg.employerMatchPct ?? cfg.matchPct ?? 50,
-      // Group insurance is a company-wide TRUE/FALSE config, independent of
-      // funding mode. Back-compat: an un-migrated config with a positive cover
-      // is treated as enabled so existing employers keep their cover.
-      insuranceEnabled: cfg.insuranceEnabled ?? (Number(coverRaw) > 0),
-      groupCoverAmount: coverRaw ?? '',
+      groupInsuranceProducts: {
+        life: prodDraft('life'),
+        health: prodDraft('health'),
+        funeral: prodDraft('funeral'),
+      },
     };
   }, [employer]);
 
@@ -127,16 +140,27 @@ export function SettingsBody({ tab, settingsOpen, employer, employerId, addToast
 
     const isCo = draft.mode === 'co-contribution';
 
-    // Group insurance is a company-wide TRUE/FALSE config, independent of the
-    // funding mode: either every member gets the flat group cover or none do.
-    const insuranceEnabled = !!draft.insuranceEnabled;
-    const cover = insuranceEnabled
-      ? (draft.groupCoverAmount === '' ? null : Number(draft.groupCoverAmount))
-      : null;
-    if (insuranceEnabled && !(cover > 0)) {
-      setErr('Enter a cover amount greater than 0, or turn group insurance off.');
-      return;
+    // Per-product group insurance (Life / Health / Funeral), employer-funded and
+    // all-or-nothing per product. Validate each enabled product has a cover.
+    const gipDraft = draft.groupInsuranceProducts || {};
+    const groupInsuranceProducts = {};
+    let anyInsuranceOn = false;
+    for (const id of ['life', 'health', 'funeral']) {
+      const d = gipDraft[id] || {};
+      const on = !!d.enabled;
+      const c = d.cover === '' || d.cover == null ? 0 : Number(d.cover);
+      if (on && !(c > 0)) {
+        setErr(`Enter a cover amount greater than 0 for ${id} insurance, or turn it off.`);
+        return;
+      }
+      groupInsuranceProducts[id] = { enabled: on, cover: on ? c : 0 };
+      if (on) anyInsuranceOn = true;
     }
+    // Legacy life-derived keys, kept so any back-compat reader still works.
+    const insuranceEnabled = anyInsuranceOn;
+    const cover = groupInsuranceProducts.life.enabled && groupInsuranceProducts.life.cover > 0
+      ? groupInsuranceProducts.life.cover
+      : null;
 
     // Build the mode-specific config per the contribution-model v2 DB CONTRACT
     // (migration 0062). The insurance fields ride along on both modes so the
@@ -159,6 +183,7 @@ export function SettingsBody({ tab, settingsOpen, employer, employerId, addToast
         employerMatchPct,
         insuranceEnabled,
         groupCoverAmount: cover,
+        groupInsuranceProducts,
       };
     } else {
       const employerBasis = draft.employerBasis === 'percent' ? 'percent' : 'fixed';
@@ -213,15 +238,17 @@ export function SettingsBody({ tab, settingsOpen, employer, employerId, addToast
 
   const saving = updateProfile.isPending;
 
-  // Insurance is configured only on the Insurance tab; these lifted handlers
-  // drive its <GroupInsuranceFieldset>, editing the same shared draft so its
-  // values ride along on the one atomic saveConfig.
-  const setInsuranceEnabled = (on) => {
-    setDraft((d) => ({ ...d, insuranceEnabled: on }));
-    if (err) setErr('');
-  };
-  const setGroupCover = (value) => {
-    setDraft((d) => ({ ...d, groupCoverAmount: value }));
+  // Insurance is configured only on the Insurance tab; this lifted handler drives
+  // its <GroupInsuranceFieldset>, editing the same shared draft so the products
+  // ride along on the one atomic saveConfig.
+  const onProductChange = (id, patch) => {
+    setDraft((d) => ({
+      ...d,
+      groupInsuranceProducts: {
+        ...d.groupInsuranceProducts,
+        [id]: { ...d.groupInsuranceProducts[id], ...patch },
+      },
+    }));
     if (err) setErr('');
   };
 
@@ -252,8 +279,7 @@ export function SettingsBody({ tab, settingsOpen, employer, employerId, addToast
         err={err}
         saving={saving}
         saveConfig={saveConfig}
-        setInsuranceEnabled={setInsuranceEnabled}
-        setGroupCover={setGroupCover}
+        onProductChange={onProductChange}
       />
     ),
     password: <PasswordTab open={settingsOpen} addToast={addToast} />,
@@ -701,40 +727,44 @@ export function InsuranceTab({
   err,
   saving,
   saveConfig,
-  setInsuranceEnabled,
-  setGroupCover,
+  onProductChange,
 }) {
   const { data: employees = [] } = useEmployees(employerId);
   const headcount = employees.length;
 
   // Live exposure reflects the in-progress draft so the summary updates as the
-  // employer edits cover before saving (mirrors the read-only panel's numbers).
-  const enabled = !!draft.insuranceEnabled;
-  const cover = Number(draft.groupCoverAmount) || 0;
+  // employer edits products/cover before saving.
+  const cfgLike = { groupInsuranceProducts: draft.groupInsuranceProducts };
+  const products = groupInsuranceProducts(cfgLike);
+  const anyOn = products.length > 0;
+  const totalCover = products.reduce((s, p) => s + p.cover, 0);
+  const premiumPerStaff = groupInsurancePremiumPerMember(cfgLike);
 
   return (
     <form className={styles.form} onSubmit={saveConfig} noValidate>
       <p className={styles.intro}>
-        Group life cover is company-wide and all-or-nothing — a single flat
-        amount applies to <strong>every</strong> staff member, or no-one.
+        Group insurance is company-wide and all-or-nothing per product — each
+        enabled product covers <strong>every</strong> staff member at the same
+        amount, fully employer-funded.
       </p>
 
       <GroupInsuranceFieldset
-        enabled={draft.insuranceEnabled}
-        coverAmount={draft.groupCoverAmount}
-        onToggle={setInsuranceEnabled}
-        onCoverChange={setGroupCover}
+        products={draft.groupInsuranceProducts}
+        onProductChange={onProductChange}
       />
 
-      {/* Company-wide exposure summary — same numbers the read-only
-          InsuranceBenefits panel shows, kept in sync with the draft. */}
+      {/* Company-wide exposure summary — kept in sync with the draft. */}
       <div className={styles.preview} aria-live="polite">
         <span className={styles.previewLabel}>Company exposure</span>
         <div className={styles.previewRow}>
-          <span>Staff covered: <strong>{enabled ? formatNumber(headcount) : '0'}</strong></span>
+          <span>Staff covered: <strong>{anyOn ? formatNumber(headcount) : '0'}</strong></span>
           <span>
-            Total exposure:{' '}
-            <strong>{enabled ? formatUGX(cover * headcount, { compact: false }) : '—'}</strong>
+            Total cover in force:{' '}
+            <strong>{anyOn ? formatUGX(totalCover * headcount, { compact: false }) : '—'}</strong>
+          </span>
+          <span>
+            Total premium / mo:{' '}
+            <strong>{anyOn ? formatUGX(premiumPerStaff * headcount, { compact: false }) : '—'}</strong>
           </span>
         </div>
       </div>

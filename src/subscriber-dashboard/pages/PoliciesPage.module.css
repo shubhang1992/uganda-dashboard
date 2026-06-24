@@ -298,6 +298,21 @@
 }
 
 /* ── Policy meta ─────────────────────────────────────────── */
+.employerBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-teal) 12%, #fff);
+  color: var(--color-teal-ink, #1F6E7A);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+}
+
 .policyMeta {
   display: grid;
   grid-template-columns: 1fr 1fr;

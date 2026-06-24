@@ -486,3 +486,16 @@
 .primaryBtn:hover:not(:disabled) {
   background: var(--color-indigo-deep);
 }
+
+/* Employer-funded life cover notice (no double-buy). */
+.employerNote {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-md, 12px);
+  background: color-mix(in srgb, var(--color-teal) 9%, #fff);
+  border: 1px solid color-mix(in srgb, var(--color-teal) 22%, transparent);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--color-slate);
+}
+.employerNote strong { color: var(--color-teal-ink, #1F6E7A); font-weight: 700; }

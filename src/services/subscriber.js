@@ -268,6 +268,7 @@ function mapSubscriberRow(row) {
             policyStart: ins.policy_start,
             renewalDate: ins.renewal_date,
             status: ins.status ?? 'inactive',
+            fundedBy: ins.funded_by ?? 'self',
           }]
         : []),
       ...extraInsuranceRows
@@ -279,6 +280,7 @@ function mapSubscriberRow(row) {
           policyStart: p.policy_start,
           renewalDate: p.renewal_date,
           status: p.status ?? 'inactive',
+          fundedBy: p.funded_by ?? 'self',
         })),
     ],
   };

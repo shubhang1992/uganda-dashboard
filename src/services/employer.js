@@ -23,7 +23,7 @@
 import { supabase } from './supabaseClient';
 import { IS_SUPABASE_ENABLED } from './api';
 import { normalizeFrequency } from '../utils/finance';
-import { groupPremiumPerMember } from '../utils/groupInsurance';
+import { groupInsurancePremiumPerMember } from '../utils/groupInsurance';
 import { currentTime } from '../data/mockData';
 import {
   EMPLOYER,
@@ -233,11 +233,9 @@ function _mockSubmitEmployerRun(employerId, { periodLabel, method, nonce } = {})
   if (nonce && _mockNonceResults.has(nonce)) return _mockNonceResults.get(nonce);
   const cfg = { ...EMPLOYER.defaultContributionConfig, ...(_mockEmployerOverride?.defaultContributionConfig ?? {}) };
   const mode = cfg.mode ?? 'employer-only';
-  // Company-wide group-life premium the employer funds per covered member —
-  // identical for everyone (parity with submit_employer_contribution_run / 0066).
-  const cover = Number(cfg.groupCoverAmount ?? 0);
-  const insOn = (cfg.insuranceEnabled ?? cover > 0) && cover > 0;
-  const insuranceLeg = insOn ? groupPremiumPerMember(cover) : 0;
+  // Total employer-funded group insurance premium per covered member = Σ products
+  // (parity with submit_employer_contribution_run / group_insurance_premium_per_member, 0067).
+  const insuranceLeg = groupInsurancePremiumPerMember(cfg);
   const runId = `run-mock-${nonce ?? mockRuns().length + 1}`;
   let employerTotal = 0;
   let employeeTotal = 0;

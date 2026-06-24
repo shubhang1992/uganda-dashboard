@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEmployerScope } from '../../contexts/EmployerScopeContext';
 import { useEmployer, useEmployerMetrics, useEmployees } from '../../hooks/useEmployer';
 import { formatUGX, formatNumber } from '../../utils/currency';
-import { groupPremiumPerMember } from '../../utils/groupInsurance';
+import { groupInsuranceProducts, groupInsurancePremiumPerMember } from '../../utils/groupInsurance';
 import s from './employerMobile.module.css';
 
 const HOW = [
@@ -31,31 +31,40 @@ export default function InsuranceMobile() {
 
   const headcount = metrics.headcount || employees.length || 0;
   const cfg = employer?.defaultContributionConfig;
-  const cover = Number(cfg?.groupCoverAmount) || 0;
-  const insuranceOn = (cfg?.insuranceEnabled ?? cover > 0) && cover > 0;
-  const totalCover = cover * headcount;
-  // Group-life premium the employer funds (priced at the individual life rate).
-  const premiumPerStaff = groupPremiumPerMember(cover);
+  // Multi-product group insurance (Life / Health / Funeral), employer-funded.
+  const insProducts = groupInsuranceProducts(cfg);
+  const insuranceOn = insProducts.length > 0;
+  const coverSum = insProducts.reduce((sum, p) => sum + p.cover, 0);
+  const totalCover = coverSum * headcount;
+  const premiumPerStaff = groupInsurancePremiumPerMember(cfg); // Σ products / mo
   const totalPremium = premiumPerStaff * headcount;
 
   return (
     <div className={s.page}>
       <div className={`${s.card} ${s.grad}`}>
         <div className={s.cardHd} style={{ marginBottom: 6 }}>
-          <h3>Group life cover</h3>
+          <h3>Group cover</h3>
           <span className={`${s.pill} ${insuranceOn ? s.pillOk : s.pillOff}`}><i />{insuranceOn ? 'On' : 'Off'}</span>
         </div>
 
         {insuranceOn ? (
           <>
             <p style={{ fontSize: 12, color: 'var(--color-gray)', lineHeight: 1.5 }}>
-              Cover applies to all {formatNumber(headcount)} staff at a flat amount each — the employer funds the monthly premium, staff pay nothing, and there’s no per-member opt-out.
+              Cover applies to all {formatNumber(headcount)} staff — the employer funds the monthly premium, staff pay nothing, and there’s no per-member opt-out.
             </p>
             <div className={s.kpi2} style={{ marginTop: 14 }}>
-              <div className={s.kpiC}><div className={s.kpiLbl}>Cover / member</div><div className={s.kpiV}>{formatUGX(cover, { compact: true })}</div></div>
+              <div className={s.kpiC}><div className={s.kpiLbl}>Products</div><div className={s.kpiV}>{formatNumber(insProducts.length)}</div></div>
               <div className={s.kpiC}><div className={s.kpiLbl}>Premium / member</div><div className={s.kpiV}>{formatUGX(premiumPerStaff, { compact: true })}<span style={{ fontSize: 11, color: 'var(--color-gray)', fontWeight: 600 }}> /mo</span></div></div>
               <div className={s.kpiC}><div className={s.kpiLbl}>Total in force</div><div className={s.kpiV}>{formatUGX(totalCover, { compact: true })}</div></div>
               <div className={s.kpiC}><div className={s.kpiLbl}>Total premium</div><div className={s.kpiV}>{formatUGX(totalPremium, { compact: true })}<span style={{ fontSize: 11, color: 'var(--color-gray)', fontWeight: 600 }}> /mo</span></div></div>
+            </div>
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {insProducts.map((p) => (
+                <div key={p.product} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 12.5 }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--color-slate)', textTransform: 'capitalize' }}>{p.product}</span>
+                  <span style={{ color: 'var(--color-gray)' }}>{formatUGX(p.cover, { compact: true })} cover · {formatUGX(p.premiumMonthly, { compact: true })}/mo</span>
+                </div>
+              ))}
             </div>
             <button type="button" className={`${s.btn} ${s.btnSec} ${s.btnBlock}`} style={{ marginTop: 14 }} onClick={() => navigate('/dashboard/settings?tab=insurance')}>
               Manage cover in Settings

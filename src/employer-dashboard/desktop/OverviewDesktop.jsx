@@ -10,7 +10,7 @@ import {
   usePendingInvites,
 } from '../../hooks/useEmployer';
 import { formatUGX, formatNumber } from '../../utils/currency';
-import { groupPremiumPerMember } from '../../utils/groupInsurance';
+import { groupInsuranceProducts, groupInsurancePremiumPerMember } from '../../utils/groupInsurance';
 import { PageHead, Hero, MetricRow, Tile, Card, SectionHead, StatusBadge } from './ui';
 import { coinsIcon, walletIcon, buildingIcon, pendingIcon, shieldIcon } from './icons';
 import FundingPanel from './FundingPanel';
@@ -96,11 +96,12 @@ export default function OverviewDesktop() {
 
   const cfg = employer?.defaultContributionConfig;
   const funding = fundingModel(cfg);
-  const cover = Number(cfg?.groupCoverAmount) || 0;
-  const insuranceOn = (cfg?.insuranceEnabled ?? cover > 0) && cover > 0;
-  // Group-life premium the employer funds (priced at the individual life rate).
-  const premiumPerStaff = groupPremiumPerMember(cover);
+  // Multi-product group insurance (Life / Health / Funeral), employer-funded.
+  const insProducts = groupInsuranceProducts(cfg);
+  const insuranceOn = insProducts.length > 0;
+  const premiumPerStaff = groupInsurancePremiumPerMember(cfg); // Σ products / mo
   const totalPremiumMonthly = premiumPerStaff * headcount;
+  const totalCover = insProducts.reduce((s, p) => s + p.cover, 0);
 
   const pendingKyc = pendingInvites.length;
   const companyName = employer?.name || 'Your company';
@@ -174,7 +175,7 @@ export default function OverviewDesktop() {
             latestLabel={latest?.periodLabel}
             pendingKyc={pendingKyc}
             insuranceOn={insuranceOn}
-            cover={cover}
+            cover={totalCover}
             onRun={() => navigate('/dashboard/runs')}
             onKyc={() => setKycOpen(true)}
             onInsurance={() => navigate('/dashboard/insurance')}
@@ -203,9 +204,9 @@ export default function OverviewDesktop() {
                 <span className={styles.insSub}>every staff member</span>
               </div>
               <div className={styles.insStat}>
-                <span className={styles.insK}>Cover per member</span>
-                <span className={styles.insV}>{formatUGX(cover)}</span>
-                <span className={styles.insSub}>flat group life</span>
+                <span className={styles.insK}>Products</span>
+                <span className={styles.insV}>{formatNumber(insProducts.length)}</span>
+                <span className={styles.insSub}>{insProducts.map((p) => p.product).join(' · ')}</span>
               </div>
               <div className={styles.insStat}>
                 <span className={styles.insK}>Premium / staff</span>
@@ -218,10 +219,19 @@ export default function OverviewDesktop() {
                 <span className={styles.insSub}>per month · company-wide</span>
               </div>
             </div>
+            <div className={styles.insProducts}>
+              {insProducts.map((p) => (
+                <div className={styles.insProduct} key={p.product}>
+                  <span className={styles.insProductName}>{p.product}</span>
+                  <span className={styles.insProductCover}>{formatUGX(p.cover)} cover</span>
+                  <span className={styles.insProductPrem}>{formatUGX(p.premiumMonthly)}/mo</span>
+                </div>
+              ))}
+            </div>
             <div className={styles.insBar}><div className={styles.insBarFill} /></div>
             <div className={styles.insCap}>
               <span><span className={styles.insPct}>100%</span> of staff covered — staff pay nothing</span>
-              <span>{formatUGX(cover * headcount)} total cover in force</span>
+              <span>{formatUGX(totalCover * headcount)} total cover in force</span>
             </div>
           </>
         ) : (

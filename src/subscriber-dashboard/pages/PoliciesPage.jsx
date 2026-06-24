@@ -53,8 +53,9 @@ function StatusPill({ status }) {
   );
 }
 
-function PolicyCard({ policy, onRenew, onCertificate }) {
+function PolicyCard({ policy, onRenew, onCertificate, employerName }) {
   const expired = policy.status === 'expired';
+  const employerPaid = policy.fundedBy === 'employer';
   return (
     <article className={styles.policyCard} data-status={policy.status}>
       <div className={styles.policyTop}>
@@ -68,18 +69,34 @@ function PolicyCard({ policy, onRenew, onCertificate }) {
         <StatusPill status={policy.status} />
       </div>
 
+      {employerPaid && (
+        <span className={styles.employerBadge}>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" aria-hidden="true">
+            <path d="M4 20V7l7-3 7 3v13M3 20h18M8 11h.01M11 11h.01M14 11h.01" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Paid by {employerName || 'your employer'}
+        </span>
+      )}
+
       <dl className={styles.policyMeta}>
         <div>
           <dt>Premium</dt>
-          <dd>{formatUGX(policy.premiumMonthly, { compact: false })} / mo</dd>
+          <dd>{employerPaid ? 'Employer-funded' : `${formatUGX(policy.premiumMonthly, { compact: false })} / mo`}</dd>
         </div>
         <div>
-          <dt>{expired ? 'Expired' : 'Renews'}</dt>
-          <dd>{formatDate(policy.renewalDate)}</dd>
+          <dt>{employerPaid ? 'Status' : expired ? 'Expired' : 'Renews'}</dt>
+          <dd>{employerPaid ? 'Managed by employer' : formatDate(policy.renewalDate)}</dd>
         </div>
       </dl>
 
-      {expired ? (
+      {employerPaid ? (
+        <button type="button" className={styles.ghostBtn} onClick={() => onCertificate(policy)}>
+          Download certificate
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none">
+            <path d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      ) : expired ? (
         <button type="button" className={styles.renewBtn} onClick={() => onRenew(policy)}>
           Renew · {formatUGX(policy.renewalAmount, { compact: false })}
         </button>
@@ -218,7 +235,7 @@ export default function PoliciesPage() {
           <h2 id="policies-active" className={styles.sectionTitle}>Active</h2>
           <div className={styles.cards}>
             {active.map((p) => (
-              <PolicyCard key={p.id} policy={p} onRenew={openRenew} onCertificate={handleCertificate} />
+              <PolicyCard key={p.id} policy={p} onRenew={openRenew} onCertificate={handleCertificate} employerName={sub?.employerName} />
             ))}
           </div>
         </section>
@@ -229,7 +246,7 @@ export default function PoliciesPage() {
           <h2 id="policies-expired" className={styles.sectionTitle}>Expired</h2>
           <div className={styles.cards}>
             {expired.map((p) => (
-              <PolicyCard key={p.id} policy={p} onRenew={openRenew} onCertificate={handleCertificate} />
+              <PolicyCard key={p.id} policy={p} onRenew={openRenew} onCertificate={handleCertificate} employerName={sub?.employerName} />
             ))}
           </div>
         </section>

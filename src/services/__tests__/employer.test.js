@@ -20,6 +20,7 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { makeSupabaseMock } from '../../test/supabaseMock';
 import { EMPLOYER, MEMBERS } from '../../data/employerSeed';
+import { groupInsurancePremiumPerMember } from '../../utils/groupInsurance';
 
 const supabaseMock = makeSupabaseMock();
 
@@ -60,12 +61,10 @@ function expectedLegs(m) {
 }
 const EXPECTED_EMPLOYER_TOTAL = ACTIVE.reduce((s, m) => s + expectedLegs(m).employerLeg, 0);
 const EXPECTED_EMPLOYEE_TOTAL = ACTIVE.reduce((s, m) => s + expectedLegs(m).employeeLeg, 0);
-// Group-life premium leg (employer-funded), priced at 0.2%/mo of cover — mirrors
-// groupPremiumPerMember + the run RPC (0066). All-or-nothing, so when it is on
-// every active member is funded and gets one premium leg.
-const GROUP_COVER = Number(CFG.groupCoverAmount ?? 0);
-const INS_ON = (CFG.insuranceEnabled ?? GROUP_COVER > 0) && GROUP_COVER > 0;
-const EXPECTED_INSURANCE_LEG = INS_ON ? round(GROUP_COVER * 0.002) : 0;
+// Group insurance premium leg (employer-funded) = Σ enabled products at 0.2%/mo
+// of cover — mirrors groupInsurancePremiumPerMember + the run RPC (0067). When on,
+// every active member is funded and gets one (total-premium) insurance leg.
+const EXPECTED_INSURANCE_LEG = groupInsurancePremiumPerMember(CFG);
 // Distinct members funded = active members with at least one non-zero leg
 // (pension OR insurance).
 const EXPECTED_FUNDED = ACTIVE.filter((m) => {

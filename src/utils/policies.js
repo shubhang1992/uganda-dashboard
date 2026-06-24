@@ -56,9 +56,12 @@ export function derivePolicyStatus({ renewalDate }, now) {
 function buildPolicy(base, override, now) {
   // A renewal override pushes the renewal date forward and reactivates.
   const renewalDate = override?.renewalDate ?? base.renewalDate;
-  const premiumMonthly = Number(base.premiumMonthly) > 0
-    ? Number(base.premiumMonthly)
-    : FALLBACK_PREMIUM_MONTHLY;
+  const employerPaid = base.fundedBy === 'employer';
+  // Employer-funded group cover: the member pays nothing (premium 0, no renewal
+  // amount). Self-funded falls back to the entry premium so renewal is never 0.
+  const premiumMonthly = employerPaid
+    ? 0
+    : (Number(base.premiumMonthly) > 0 ? Number(base.premiumMonthly) : FALLBACK_PREMIUM_MONTHLY);
   return {
     id: base.id,
     type: base.type,
@@ -68,7 +71,10 @@ function buildPolicy(base, override, now) {
     policyStart: base.policyStart ?? null,
     renewalDate: renewalDate ?? null,
     status: derivePolicyStatus({ renewalDate }, now),
-    renewalAmount: premiumMonthly * 12,
+    renewalAmount: employerPaid ? 0 : premiumMonthly * 12,
+    // 'employer' = the subscriber's employer pays this group premium (the member
+    // pays nothing and can't re-buy it); 'self' = the subscriber funds it.
+    fundedBy: base.fundedBy ?? 'self',
   };
 }
 
@@ -100,6 +106,7 @@ export function derivePolicies(subscriber, { now, renewalOverrides = {} } = {}) 
         policyStart: ins.policyStart,
         renewalDate: ins.renewalDate,
         status: ins.status,
+        fundedBy: ins.fundedBy,
       }];
     }
   }
@@ -116,6 +123,7 @@ export function derivePolicies(subscriber, { now, renewalOverrides = {} } = {}) 
         premiumMonthly: r.premiumMonthly,
         policyStart: r.policyStart,
         renewalDate: r.renewalDate,
+        fundedBy: r.fundedBy,
       },
       renewalOverrides[r.product],
       now,
