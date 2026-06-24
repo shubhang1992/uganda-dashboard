@@ -20,6 +20,7 @@ import {
   useRunContribution,
 } from '../../hooks/useEmployer';
 import { formatUGX, formatNumber } from '../../utils/currency';
+import { groupPremiumPerMember } from '../../utils/groupInsurance';
 import { formatDate } from '../../utils/date';
 import SkeletonRow from '../../components/SkeletonRow';
 import EmptyState from '../../components/EmptyState';
@@ -47,7 +48,9 @@ export const WIZARD_STEPS = [
  *   employer-only:   employeeLeg = 0
  *                    percent → employerLeg = round(comp * employerPct/100)
  *                    fixed   → employerLeg = round(employerAmount)
- * Returns BOTH legs so the wizard can surface employee / employer / grand.
+ * Plus the company-wide INSURANCE leg (employer-funded group-life premium,
+ * the same for every covered member). Returns all three legs so the wizard can
+ * surface employee / employer / insurance / grand.
  */
 export function previewMemberLegs(member, cfg) {
   const mode = cfg?.mode ?? 'employer-only';
@@ -65,7 +68,10 @@ export function previewMemberLegs(member, cfg) {
       employerLeg = round(Number(cfg?.employerAmount ?? 0));
     }
   }
-  return { employeeLeg, employerLeg };
+  const cover = Number(cfg?.groupCoverAmount ?? 0);
+  const insOn = (cfg?.insuranceEnabled ?? cover > 0) && cover > 0;
+  const insuranceLeg = insOn ? groupPremiumPerMember(cover) : 0;
+  return { employeeLeg, employerLeg, insuranceLeg };
 }
 
 export function defaultPeriodLabel() {
@@ -135,9 +141,12 @@ export function HistoryView({ employerId, onOpenRun, onNewRun }) {
   );
 }
 
-/** Employee + employer + grand totals shown on each history card + the detail
-    header. Grand = employer + employee under the v2 two-leg model. */
+/** Employee + employer (+ insurance) + grand totals shown on each history card +
+    the detail header. Grand = employee + employer + insurance. The insurance chip
+    is shown only when the run actually funded a premium (older pension-only runs
+    omit it). */
 export function RunTotals({ run }) {
+  const insurance = Number(run.insuranceTotal ?? 0);
   return (
     <span className={styles.runTotals}>
       <span className={styles.totalChip}>
@@ -148,6 +157,12 @@ export function RunTotals({ run }) {
         <span className={styles.totalChipLabel}>Employer</span>
         <span className={styles.totalChipValue}>{formatUGX(run.employerTotal)}</span>
       </span>
+      {insurance > 0 && (
+        <span className={styles.totalChip}>
+          <span className={styles.totalChipLabel}>Insurance</span>
+          <span className={styles.totalChipValue}>{formatUGX(insurance)}</span>
+        </span>
+      )}
       <span className={styles.totalChip} data-grand="true">
         <span className={styles.totalChipLabel}>Grand total</span>
         <span className={styles.totalChipValue}>{formatUGX(run.grandTotal)}</span>
@@ -204,6 +219,7 @@ export function RunDetailView({ runId }) {
             <span role="columnheader" className={styles.colEmp}>Member</span>
             <span role="columnheader" className={styles.colNum}>Employee</span>
             <span role="columnheader" className={styles.colNum}>Employer</span>
+            <span role="columnheader" className={styles.colNum}>Insurance</span>
             <span role="columnheader" className={styles.colSplit}>Ret / Emg</span>
             <span role="columnheader" className={styles.colMethod}>Method</span>
           </div>
@@ -216,6 +232,9 @@ export function RunDetailView({ runId }) {
                 </span>
                 <span role="cell" className={styles.colNum} data-strong="true">
                   {formatUGX(row.employerAmount, { compact: false })}
+                </span>
+                <span role="cell" className={styles.colNum}>
+                  {row.insuranceAmount > 0 ? formatUGX(row.insuranceAmount, { compact: false }) : '—'}
                 </span>
                 <span role="cell" className={styles.colSplit}>
                   {formatUGX(row.retirementAmount, { compact: false })} / {formatUGX(row.emergencyAmount, { compact: false })}
@@ -246,14 +265,22 @@ export function groupLinesByMember(lines) {
         memberName: line.memberName ?? null,
         employeeAmount: 0,
         employerAmount: 0,
+        insuranceAmount: 0,
         retirementAmount: 0,
         emergencyAmount: 0,
         method: line.method ?? null,
       };
       byMember.set(key, row);
     }
-    if (line.source === 'employer') row.employerAmount += Number(line.amount ?? 0);
-    else row.employeeAmount += Number(line.amount ?? 0);
+    // Key insurance off TYPE (it carries source='employer' too, so a source-only
+    // test would wrongly fold the premium into the employer pension leg).
+    if (line.type === 'insurance_premium') {
+      row.insuranceAmount += Number(line.amount ?? 0);
+    } else if (line.source === 'employer') {
+      row.employerAmount += Number(line.amount ?? 0);
+    } else {
+      row.employeeAmount += Number(line.amount ?? 0);
+    }
     row.retirementAmount += Number(line.retirementAmount ?? 0);
     row.emergencyAmount += Number(line.emergencyAmount ?? 0);
     if (!row.memberName && line.memberName) row.memberName = line.memberName;
@@ -291,16 +318,24 @@ export function NewRunWizard({ employerId, addToast, onDone, onCancel }) {
   const preview = useMemo(() => {
     let employerTotal = 0;
     let employeeTotal = 0;
+    let insuranceTotal = 0;
     let funded = 0;
     for (const emp of activeEmployees) {
-      const { employeeLeg, employerLeg } = previewMemberLegs(emp, config);
-      if (employeeLeg > 0 || employerLeg > 0) {
+      const { employeeLeg, employerLeg, insuranceLeg } = previewMemberLegs(emp, config);
+      if (employeeLeg > 0 || employerLeg > 0 || insuranceLeg > 0) {
         employeeTotal += employeeLeg;
         employerTotal += employerLeg;
+        insuranceTotal += insuranceLeg;
         funded += 1;
       }
     }
-    return { employerTotal, employeeTotal, grandTotal: employerTotal + employeeTotal, funded };
+    return {
+      employerTotal,
+      employeeTotal,
+      insuranceTotal,
+      grandTotal: employerTotal + employeeTotal + insuranceTotal,
+      funded,
+    };
   }, [activeEmployees, config]);
 
   const isPending = runContribution.isPending;
@@ -399,6 +434,12 @@ export function NewRunWizard({ employerId, addToast, onDone, onCancel }) {
                 <span className={styles.previewCellLabel}>Employer total</span>
                 <span className={styles.previewCellValue}>{formatUGX(preview.employerTotal, { compact: false })}</span>
               </div>
+              {preview.insuranceTotal > 0 && (
+                <div className={styles.previewCell}>
+                  <span className={styles.previewCellLabel}>Insurance total</span>
+                  <span className={styles.previewCellValue}>{formatUGX(preview.insuranceTotal, { compact: false })}</span>
+                </div>
+              )}
               <div className={styles.previewCell} data-grand="true">
                 <span className={styles.previewCellLabel}>Grand total</span>
                 <span className={styles.previewCellValue}>{formatUGX(preview.grandTotal, { compact: false })}</span>
@@ -433,6 +474,12 @@ export function NewRunWizard({ employerId, addToast, onDone, onCancel }) {
                 <dt>Employer total</dt>
                 <dd>{formatUGX(preview.employerTotal, { compact: false })}</dd>
               </div>
+              {preview.insuranceTotal > 0 && (
+                <div className={styles.summaryItem}>
+                  <dt>Insurance total</dt>
+                  <dd>{formatUGX(preview.insuranceTotal, { compact: false })}</dd>
+                </div>
+              )}
               <div className={styles.summaryItem} data-grand="true">
                 <dt>Grand total</dt>
                 <dd>{formatUGX(preview.grandTotal, { compact: false })}</dd>

@@ -1482,6 +1482,7 @@ async function main() {
         { name: 'status', type: 'text' },
         { name: 'employer_total', type: 'numeric' },
         { name: 'employee_total', type: 'numeric' },
+        { name: 'insurance_total', type: 'numeric' },
         { name: 'grand_total', type: 'numeric' },
         { name: 'run_at', type: 'timestamptz' },
       ],
@@ -1492,6 +1493,7 @@ async function main() {
         CONTRIBUTION_RUNS.map((r) => r.status ?? 'completed'),
         CONTRIBUTION_RUNS.map((r) => r.employerTotal ?? 0),
         CONTRIBUTION_RUNS.map((r) => r.employeeTotal ?? 0),
+        CONTRIBUTION_RUNS.map((r) => r.insuranceTotal ?? 0),
         CONTRIBUTION_RUNS.map((r) => r.grandTotal ?? 0),
         CONTRIBUTION_RUNS.map((r) => toTimestamptz(r.runAt)),
       ],
@@ -1509,8 +1511,11 @@ async function main() {
     // contribution per member so SUM(their transactions) == total_balance.
     const _allMembers = [...MEMBERS, ...EXTRA_MEMBERS];
     const memberOpenings = _allMembers.map((m) => {
+      // Only balance-affecting flows (contribution / withdrawal) reconcile against
+      // the authored total_balance. Insurance premiums are an employer cost and
+      // never credit the pension pot, so exclude them from the residual math.
       const sum = MEMBER_TRANSACTIONS
-        .filter((t) => t.subscriberId === m.id)
+        .filter((t) => t.subscriberId === m.id && (t.type ?? 'contribution') !== 'insurance_premium')
         .reduce((acc, t) => acc + Number(t.amount || 0), 0);
       const residual = Math.round(Number(m.netBalance ?? 0) - sum);
       if (residual === 0) return null;

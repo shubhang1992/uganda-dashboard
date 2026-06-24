@@ -60,11 +60,19 @@ function expectedLegs(m) {
 }
 const EXPECTED_EMPLOYER_TOTAL = ACTIVE.reduce((s, m) => s + expectedLegs(m).employerLeg, 0);
 const EXPECTED_EMPLOYEE_TOTAL = ACTIVE.reduce((s, m) => s + expectedLegs(m).employeeLeg, 0);
-// Distinct members funded = active members with at least one non-zero leg.
+// Group-life premium leg (employer-funded), priced at 0.2%/mo of cover — mirrors
+// groupPremiumPerMember + the run RPC (0066). All-or-nothing, so when it is on
+// every active member is funded and gets one premium leg.
+const GROUP_COVER = Number(CFG.groupCoverAmount ?? 0);
+const INS_ON = (CFG.insuranceEnabled ?? GROUP_COVER > 0) && GROUP_COVER > 0;
+const EXPECTED_INSURANCE_LEG = INS_ON ? round(GROUP_COVER * 0.002) : 0;
+// Distinct members funded = active members with at least one non-zero leg
+// (pension OR insurance).
 const EXPECTED_FUNDED = ACTIVE.filter((m) => {
   const { employeeLeg, employerLeg } = expectedLegs(m);
-  return employeeLeg > 0 || employerLeg > 0;
+  return employeeLeg > 0 || employerLeg > 0 || EXPECTED_INSURANCE_LEG > 0;
 }).length;
+const EXPECTED_INSURANCE_TOTAL = EXPECTED_FUNDED * EXPECTED_INSURANCE_LEG;
 
 // =============================================================================
 // Real (Supabase) branch — call shape
@@ -289,9 +297,10 @@ describe('employer service — real (Supabase) branch', () => {
 
   describe('getEmployerLeaderboard', () => {
     it('ranks the employer against the seeded competitor field, flagging "you"', async () => {
-      // getContributionRuns → newest run's grandTotal is the employer's monthly total.
+      // getContributionRuns → newest run's PENSION total (employee + employer) is
+      // the employer's monthly leaderboard figure (insurance is excluded).
       supabaseMock.__queueFrom('contribution_runs', {
-        data: [{ id: 'run-1', employer_id: 'emp-001', grand_total: 9_000_000_000, run_at: '2026-05-01' }],
+        data: [{ id: 'run-1', employer_id: 'emp-001', employee_total: 6_000_000_000, employer_total: 3_000_000_000, insurance_total: 500_000_000, grand_total: 9_500_000_000, run_at: '2026-05-01' }],
         error: null,
       });
       // getEmployer → company name.
@@ -482,11 +491,14 @@ describe('employer service — mock-fallback branch (IS_SUPABASE_ENABLED=false)'
     expect(result.linesCreated).toBe(EXPECTED_FUNDED);
     expect(result.employerTotal).toBe(EXPECTED_EMPLOYER_TOTAL);
     expect(result.employeeTotal).toBe(EXPECTED_EMPLOYEE_TOTAL);
-    expect(result.grandTotal).toBe(EXPECTED_EMPLOYER_TOTAL + EXPECTED_EMPLOYEE_TOTAL);
+    // Insurance is a distinct, employer-funded third leg; grand = all three.
+    expect(result.insuranceTotal).toBe(EXPECTED_INSURANCE_TOTAL);
+    expect(result.grandTotal).toBe(EXPECTED_EMPLOYER_TOTAL + EXPECTED_EMPLOYEE_TOTAL + EXPECTED_INSURANCE_TOTAL);
     // The seeded company config is co-contribution, so BOTH legs are non-zero.
     expect(CFG.mode).toBe('co-contribution');
     expect(result.employeeTotal).toBeGreaterThan(0);
     expect(result.employerTotal).toBeGreaterThan(0);
+    expect(result.insuranceTotal).toBeGreaterThan(0);
     // Suspended members are excluded from the run entirely (parity with the live SQL
     // `WHERE is_active`), so they never appear in skipped[] — only zero_contribution can.
     expect(result.skipped.some((s) => s.reason === 'suspended')).toBe(false);
@@ -497,28 +509,37 @@ describe('employer service — mock-fallback branch (IS_SUPABASE_ENABLED=false)'
     const { run, lines } = await svc.getContributionRun(result.runId);
     expect(run.id).toBe(result.runId);
 
-    // A funded co-contribution member gets exactly two lines: own + employer.
+    // A funded co-contribution member gets three lines: own + employer + insurance.
     const sample = ACTIVE.find((m) => {
       const { employeeLeg, employerLeg } = expectedLegs(m);
       return employeeLeg > 0 && employerLeg > 0;
     });
     const memberLines = lines.filter((l) => l.subscriberId === sample.id);
-    expect(memberLines).toHaveLength(2);
+    expect(memberLines).toHaveLength(3);
 
     const { employeeLeg, employerLeg } = expectedLegs(sample);
     const ownLine = memberLines.find((l) => l.source === 'own');
-    const employerLine = memberLines.find((l) => l.source === 'employer');
+    // The employer PENSION leg and the insurance leg both carry source='employer',
+    // so disambiguate the pension leg by type='contribution'.
+    const employerLine = memberLines.find((l) => l.source === 'employer' && l.type === 'contribution');
+    const insuranceLine = memberLines.find((l) => l.type === 'insurance_premium');
     expect(ownLine.amount).toBe(employeeLeg);
     expect(employerLine.amount).toBe(employerLeg);
-    // Each leg is split by the member's retirementPct (default 80), rounding ONCE.
+    // Each pension leg is split by the member's retirementPct (default 80), rounding ONCE.
     const retPct = Number(sample.contributionSchedule?.retirementPct ?? 80);
     expect(ownLine.retirementAmount).toBe(round(employeeLeg * retPct / 100));
     expect(ownLine.emergencyAmount).toBe(employeeLeg - round(employeeLeg * retPct / 100));
     expect(employerLine.retirementAmount).toBe(round(employerLeg * retPct / 100));
     expect(employerLine.emergencyAmount).toBe(employerLeg - round(employerLeg * retPct / 100));
-    // Both legs carry the run id and no agent commission (employer source).
+    // The insurance leg is employer-funded, flat, and NOT split into ret/emg.
+    expect(insuranceLine.amount).toBe(EXPECTED_INSURANCE_LEG);
+    expect(insuranceLine.source).toBe('employer');
+    expect(insuranceLine.retirementAmount).toBe(0);
+    expect(insuranceLine.emergencyAmount).toBe(0);
+    // All three legs carry the run id and no agent commission (employer source).
     expect(ownLine.contributionRunId).toBe(result.runId);
     expect(employerLine.contributionRunId).toBe(result.runId);
+    expect(insuranceLine.contributionRunId).toBe(result.runId);
   });
 
   it('updateMemberCompensation updates the member compensation override (mock)', async () => {

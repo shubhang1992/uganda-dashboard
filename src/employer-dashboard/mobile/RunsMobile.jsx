@@ -108,6 +108,9 @@ export default function RunsMobile() {
             <div className={s.totchips}>
               <div className={s.totchip}><small>Employee</small><b>{formatUGX(run.employeeTotal, { compact: true })}</b></div>
               <div className={s.totchip}><small>Employer</small><b>{formatUGX(run.employerTotal, { compact: true })}</b></div>
+              {Number(run.insuranceTotal ?? 0) > 0 && (
+                <div className={s.totchip}><small>Insurance</small><b>{formatUGX(run.insuranceTotal, { compact: true })}</b></div>
+              )}
               <div className={`${s.totchip} ${s.grand}`}><small>Grand total</small><b>{formatUGX(run.grandTotal, { compact: true })}</b></div>
             </div>
           </button>

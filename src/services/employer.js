@@ -23,6 +23,7 @@
 import { supabase } from './supabaseClient';
 import { IS_SUPABASE_ENABLED } from './api';
 import { normalizeFrequency } from '../utils/finance';
+import { groupPremiumPerMember } from '../utils/groupInsurance';
 import { currentTime } from '../data/mockData';
 import {
   EMPLOYER,
@@ -125,6 +126,7 @@ export function mapRun(row) {
     status: row.status,
     employerTotal: Number(row.employer_total ?? 0),
     employeeTotal: Number(row.employee_total ?? 0),
+    insuranceTotal: Number(row.insurance_total ?? 0),
     grandTotal: Number(row.grand_total ?? 0),
     runAt: row.run_at,
     createdAt: row.created_at,
@@ -231,9 +233,15 @@ function _mockSubmitEmployerRun(employerId, { periodLabel, method, nonce } = {})
   if (nonce && _mockNonceResults.has(nonce)) return _mockNonceResults.get(nonce);
   const cfg = { ...EMPLOYER.defaultContributionConfig, ...(_mockEmployerOverride?.defaultContributionConfig ?? {}) };
   const mode = cfg.mode ?? 'employer-only';
+  // Company-wide group-life premium the employer funds per covered member —
+  // identical for everyone (parity with submit_employer_contribution_run / 0066).
+  const cover = Number(cfg.groupCoverAmount ?? 0);
+  const insOn = (cfg.insuranceEnabled ?? cover > 0) && cover > 0;
+  const insuranceLeg = insOn ? groupPremiumPerMember(cover) : 0;
   const runId = `run-mock-${nonce ?? mockRuns().length + 1}`;
   let employerTotal = 0;
   let employeeTotal = 0;
+  let insuranceTotal = 0;
   let lines = 0; // DISTINCT members funded
   let txnSeq = 0; // transaction-row counter (for unique mock ids)
   const skipped = [];
@@ -254,7 +262,9 @@ function _mockSubmitEmployerRun(employerId, { periodLabel, method, nonce } = {})
         employerLeg = round(Number(cfg.employerAmount ?? 0));
       }
     }
-    if (employeeLeg <= 0 && employerLeg <= 0) {
+    // Funded when ANY leg is positive — insurance is all-or-nothing, so an active
+    // member with zero pension still gets the premium leg (parity with the RPC).
+    if (employeeLeg <= 0 && employerLeg <= 0 && insuranceLeg <= 0) {
       skipped.push({ subscriberId: m.id, reason: 'zero_contribution' });
       continue;
     }
@@ -308,6 +318,25 @@ function _mockSubmitEmployerRun(employerId, { periodLabel, method, nonce } = {})
       employerTotal += employerLeg;
     }
 
+    // Insurance premium leg (type='insurance_premium', source='employer'). Fully
+    // employer-funded; NOT split and NOT a 'contribution', so it never touches the
+    // member's balance/units — it is a cost, not savings (parity with the RPC).
+    if (insuranceLeg > 0) {
+      _mockTxns.unshift({
+        id: `t-mock-${runId}-${++txnSeq}`,
+        subscriberId: m.id,
+        type: 'insurance_premium',
+        source: 'employer',
+        amount: insuranceLeg,
+        date: currentTime().toISOString(),
+        method: method ?? null,
+        retirementAmount: 0,
+        emergencyAmount: 0,
+        contributionRunId: runId,
+      });
+      insuranceTotal += insuranceLeg;
+    }
+
     lines += 1; // this member was funded (at least one leg posted)
   }
 
@@ -315,7 +344,8 @@ function _mockSubmitEmployerRun(employerId, { periodLabel, method, nonce } = {})
   if (lines > 0) {
     _mockRuns = [
       { id: runId, employerId, periodLabel: periodLabel ?? null, status: 'completed',
-        employerTotal, employeeTotal, grandTotal: employerTotal + employeeTotal, runAt: currentTime().toISOString() },
+        employerTotal, employeeTotal, insuranceTotal,
+        grandTotal: employerTotal + employeeTotal + insuranceTotal, runAt: currentTime().toISOString() },
       ..._mockRuns,
     ];
   } else {
@@ -326,7 +356,8 @@ function _mockSubmitEmployerRun(employerId, { periodLabel, method, nonce } = {})
     linesCreated: lines,
     employerTotal,
     employeeTotal,
-    grandTotal: employerTotal + employeeTotal,
+    insuranceTotal,
+    grandTotal: employerTotal + employeeTotal + insuranceTotal,
     skipped,
   };
   if (nonce) _mockNonceResults.set(nonce, result);
@@ -478,8 +509,11 @@ export async function getContributionRun(runId) {
 export async function getEmployeeContributions(employeeId) {
   if (!IS_SUPABASE_ENABLED) {
     if (!employeeId) return [];
-    const seed = MEMBER_TRANSACTIONS.filter((t) => t.subscriberId === employeeId);
-    const session = _mockTxns.filter((t) => t.subscriberId === employeeId);
+    // Exclude insurance_premium so a member's history shows their pension flows
+    // only — parity with the Supabase path, which filters type='contribution'.
+    const notInsurance = (t) => (t.type ?? 'contribution') !== 'insurance_premium';
+    const seed = MEMBER_TRANSACTIONS.filter((t) => t.subscriberId === employeeId && notInsurance(t));
+    const session = _mockTxns.filter((t) => t.subscriberId === employeeId && notInsurance(t));
     return [...session, ...seed].sort((a, b) =>
       String(b.date ?? '').localeCompare(String(a.date ?? '')));
   }
@@ -601,7 +635,9 @@ export async function getAllEmployersMetrics() {
 export async function getEmployerLeaderboard(employerId) {
   if (!employerId) return [];
   const runs = await getContributionRuns(employerId);
-  const myMonthly = runs[0]?.grandTotal ?? 0;
+  // Compare PENSION funding (employee + employer); insurance premiums are a
+  // separate leg and don't belong in the contributions leaderboard.
+  const myMonthly = runs[0] ? (runs[0].employeeTotal || 0) + (runs[0].employerTotal || 0) : 0;
   const me = await getEmployer(employerId);
   const myName = me?.name || 'Your company';
   const entries = [

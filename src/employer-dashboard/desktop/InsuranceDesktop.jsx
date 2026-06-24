@@ -1,8 +1,9 @@
 import { useEmployerScope } from '../../contexts/EmployerScopeContext';
 import { useEmployer, useEmployerMetrics, useEmployees } from '../../hooks/useEmployer';
 import { formatUGX, formatNumber } from '../../utils/currency';
+import { groupPremiumPerMember } from '../../utils/groupInsurance';
 import { PageHead, MetricRow, Tile, Card, SectionHead, StatusBadge, Btn } from './ui';
-import { shieldIcon, walletIcon, sparkIcon, checkIcon, lockIcon, settingsIcon } from './icons';
+import { shieldIcon, walletIcon, coinsIcon, sparkIcon, checkIcon, lockIcon, settingsIcon } from './icons';
 import ui from './ui.module.css';
 import styles from './InsuranceDesktop.module.css';
 
@@ -16,14 +17,8 @@ const usersIcon = (size = 18) => (
   </svg>
 );
 
-const heartIcon = (size = 18) => (
-  <svg aria-hidden="true" viewBox="0 0 24 24" width={size} height={size} fill="none">
-    <path d="M12 20s-7-4.3-9.3-9A4.6 4.6 0 0112 6a4.6 4.6 0 019.3 5c-2.3 4.7-9.3 9-9.3 9z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-// The four "how it works" bullets — exact copy from the mockup. The bold lead-in
-// is rendered in indigo; the rest follows in slate.
+// The four "how it works" bullets. The bold lead-in is rendered in indigo; the
+// rest follows in slate.
 const HOW_IT_WORKS = [
   {
     lead: 'All-or-nothing',
@@ -35,7 +30,7 @@ const HOW_IT_WORKS = [
   },
   {
     lead: 'Premiums are fully employer-funded',
-    rest: '— your staff pay nothing toward cover, and there’s no per-member opt-out.',
+    rest: '— the company pays a flat monthly premium per member; your staff pay nothing and there’s no per-member opt-out.',
   },
   {
     lead: 'Managed from Settings',
@@ -57,6 +52,9 @@ export default function InsuranceDesktop() {
   // Back-compat: an un-migrated config with a positive cover counts as enabled.
   const insuranceOn = (cfg?.insuranceEnabled ?? cover > 0) && cover > 0;
   const totalCover = cover * headcount;
+  // Group-life premium the employer funds (priced at the individual life rate).
+  const premiumPerStaff = groupPremiumPerMember(cover);
+  const totalPremium = premiumPerStaff * headcount;
 
   return (
     <div className={ui.stack}>
@@ -107,15 +105,15 @@ export default function InsuranceDesktop() {
                 accent="green"
                 icon={walletIcon(18)}
                 label="Premium / staff"
-                value="UGX 0"
-                sub="employer-funded"
+                value={formatUGX(premiumPerStaff)}
+                sub="per month · employer-funded"
               />
               <Tile
                 accent="indigoSoft"
-                icon={heartIcon(18)}
-                label="Total cover in force"
-                value={formatUGX(totalCover)}
-                sub={`${formatUGX(cover)} × ${formatNumber(headcount)}`}
+                icon={coinsIcon(18)}
+                label="Total premium / mo"
+                value={formatUGX(totalPremium)}
+                sub={`${formatUGX(premiumPerStaff)} × ${formatNumber(headcount)}`}
               />
             </MetricRow>
 

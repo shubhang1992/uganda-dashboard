@@ -208,9 +208,14 @@ const atMidday = (d) => `${d}T12:00:00.000Z`;
 function buildContributionHistory() {
   const txns = [];
   const runs = [];
+  // Employer-funded group-life premium per covered member, priced at the
+  // individual life rate (2,000 per 1,000,000 cover = 0.2%/mo) — mirrors
+  // src/utils/groupInsurance.js groupPremiumPerMember + the run RPC (0066).
+  const groupPremium = (COMPANY.insuranceEnabled && GROUP_COVER > 0) ? round(GROUP_COVER * 0.002) : 0;
   RUN_DATES.forEach(({ id: runId, date, periodLabel }, i) => {
     let employeeTotal = 0;
     let employerTotal = 0;
+    let insuranceTotal = 0;
     ACTIVE_MEMBERS.forEach((m) => {
       const retPct = Number(m.contributionSchedule?.retirementPct ?? 80);
       const { employeeLeg, employerLeg } = memberLegs(m.compensation);
@@ -232,10 +237,21 @@ function buildContributionHistory() {
         });
         employerTotal += employerLeg;
       }
+      // Group-life premium leg — employer-funded, all-or-nothing, NO ret/emg
+      // split and NOT a 'contribution' (never inflates the member's pension pot).
+      if (groupPremium > 0) {
+        txns.push({
+          id: `t-ins-${m.id}-${i + 1}`, subscriberId: m.id, type: 'insurance_premium', source: 'employer',
+          amount: groupPremium, date: atMidday(date), method: 'Bank transfer',
+          retirementAmount: null, emergencyAmount: null, contributionRunId: runId,
+        });
+        insuranceTotal += groupPremium;
+      }
     });
     runs.push({
       id: runId, employerId: EMPLOYER.id, periodLabel, status: 'completed',
-      employerTotal, employeeTotal, grandTotal: employeeTotal + employerTotal, runAt: atMidday(date),
+      employerTotal, employeeTotal, insuranceTotal,
+      grandTotal: employeeTotal + employerTotal + insuranceTotal, runAt: atMidday(date),
     });
   });
   return { txns, runs };

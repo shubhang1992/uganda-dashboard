@@ -214,15 +214,17 @@ export function buildRunsExport(runs = []) {
   const columns = [
     { key: 'period', label: 'Period' },
     { key: 'date', label: 'Run date' },
-    { key: 'employer', label: 'Employer total (UGX)' },
     { key: 'employee', label: 'Employee total (UGX)' },
+    { key: 'employer', label: 'Employer total (UGX)' },
+    { key: 'insurance', label: 'Insurance premium (UGX)' },
     { key: 'grand', label: 'Grand total (UGX)' },
   ];
   const rows = runs.map((r) => ({
     period: r.periodLabel ?? '',
     date: r.runAt ? String(r.runAt).slice(0, 10) : '',
-    employer: Number(r.employerTotal ?? r.employer_total ?? 0) || 0,
     employee: Number(r.employeeTotal ?? r.employee_total ?? 0) || 0,
+    employer: Number(r.employerTotal ?? r.employer_total ?? 0) || 0,
+    insurance: Number(r.insuranceTotal ?? r.insurance_total ?? 0) || 0,
     grand: Number(r.grandTotal ?? r.grand_total ?? 0) || 0,
   }));
   return { rows, columns };

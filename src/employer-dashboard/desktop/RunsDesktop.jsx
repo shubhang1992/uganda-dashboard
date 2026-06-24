@@ -35,9 +35,12 @@ export default function RunsDesktop() {
 
   const isCold = isLoading && runs.length === 0;
 
-  // KPI figures — real hooks only.
+  // KPI figures — real hooks only. "Funded to date" is PENSION (employee +
+  // employer); insurance premiums are a separate leg and are excluded here (the
+  // RPC's metrics.totalContributions counts type='contribution' only, so the
+  // fallback must sum the two pension legs, NOT grandTotal which includes insurance).
   const fundedToDate = metrics.totalContributions
-    || runs.reduce((s, r) => s + (r.grandTotal || 0), 0);
+    || runs.reduce((s, r) => s + ((r.employeeTotal || 0) + (r.employerTotal || 0)), 0);
   const completed = runs.filter((r) => r.status === 'completed').length;
 
   // "Next run" cadence — due now once the latest run isn't in the current month.
@@ -139,6 +142,7 @@ export default function RunsDesktop() {
                       <th>Date</th>
                       <th className={ui.num}>Employee leg</th>
                       <th className={ui.num}>Employer leg</th>
+                      <th className={ui.num}>Insurance leg</th>
                       <th className={ui.num}>Total</th>
                       <th>Status</th>
                     </tr>
@@ -163,6 +167,9 @@ export default function RunsDesktop() {
                         <td>{formatDate(run.runAt)}</td>
                         <td className={ui.num}>{formatUGX(run.employeeTotal, { compact: false })}</td>
                         <td className={ui.num}>{formatUGX(run.employerTotal, { compact: false })}</td>
+                        <td className={ui.num}>
+                          {run.insuranceTotal > 0 ? formatUGX(run.insuranceTotal, { compact: false }) : '—'}
+                        </td>
                         <td className={ui.num}>
                           <strong>{formatUGX(run.grandTotal, { compact: false })}</strong>
                         </td>

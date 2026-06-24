@@ -120,10 +120,12 @@ export default function AnalyticsDesktop() {
   // ── KPI figures (live) ─────────────────────────────────────────────────────
   const headcount = metrics.headcount ?? a.kpis.total;
   const active = metrics.active ?? a.kpis.active;
+  // Contributions = PENSION (employee + employer). Insurance premiums are a
+  // separate run leg and are excluded from the contributions trends/KPIs.
   const totalContributions = metrics.totalContributions
-    ?? runs.reduce((s, r) => s + (r.grandTotal || 0), 0);
+    ?? runs.reduce((s, r) => s + ((r.employeeTotal || 0) + (r.employerTotal || 0)), 0);
   const latest = chronoRuns[chronoRuns.length - 1];
-  const thisMonth = latest?.grandTotal ?? 0;
+  const thisMonth = latest ? (latest.employeeTotal || 0) + (latest.employerTotal || 0) : 0;
   const participation = active > 0 ? 100 : 0; // every active staff member is funded each run
   const avgComp = a.kpis.avgMonthly;
   const cover = Number(cfg?.groupCoverAmount) || 0;
@@ -131,10 +133,10 @@ export default function AnalyticsDesktop() {
   const insuredStaff = insuranceOn ? headcount : (metrics.insuredCount ?? 0);
 
   // ── Chart series (live, from the windowed run history) ─────────────────────
-  // a. Contributions over time — grand total per run month.
+  // a. Contributions over time — pension total (employee + employer) per run month.
   const overTime = windowed.map((r) => ({
     label: runMonthLabel(r.runAt),
-    total: r.grandTotal || 0,
+    total: (r.employeeTotal || 0) + (r.employerTotal || 0),
   }));
 
   // b. Employee vs employer leg — stacked per run month.
@@ -158,10 +160,10 @@ export default function AnalyticsDesktop() {
     fill: COMP_BAND_FILL[i],
   }));
 
-  // e. Cumulative funding — running total across the windowed runs.
+  // e. Cumulative funding — running PENSION total across the windowed runs.
   let cumAcc = 0;
   const cumulative = windowed.map((r) => {
-    cumAcc += r.grandTotal || 0;
+    cumAcc += (r.employeeTotal || 0) + (r.employerTotal || 0);
     return { label: runMonthLabel(r.runAt), total: cumAcc };
   });
 

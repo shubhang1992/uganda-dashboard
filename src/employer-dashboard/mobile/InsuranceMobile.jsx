@@ -2,12 +2,13 @@ import { useNavigate } from 'react-router-dom';
 import { useEmployerScope } from '../../contexts/EmployerScopeContext';
 import { useEmployer, useEmployerMetrics, useEmployees } from '../../hooks/useEmployer';
 import { formatUGX, formatNumber } from '../../utils/currency';
+import { groupPremiumPerMember } from '../../utils/groupInsurance';
 import s from './employerMobile.module.css';
 
 const HOW = [
   { lead: 'All-or-nothing', rest: '— every staff member is covered, or none are. There’s no partial roster.' },
   { lead: 'Same flat amount for everyone', rest: '— one flat amount of group life cover per member, regardless of pay or role.' },
-  { lead: 'Premiums are fully employer-funded', rest: '— your staff pay nothing toward cover, and there’s no per-member opt-out.' },
+  { lead: 'Premiums are fully employer-funded', rest: '— the company pays a flat monthly premium per member; your staff pay nothing and there’s no per-member opt-out.' },
   { lead: 'Managed from Settings', rest: '— turn cover on or off for the whole company; the change applies to every member at once.' },
 ];
 
@@ -33,6 +34,9 @@ export default function InsuranceMobile() {
   const cover = Number(cfg?.groupCoverAmount) || 0;
   const insuranceOn = (cfg?.insuranceEnabled ?? cover > 0) && cover > 0;
   const totalCover = cover * headcount;
+  // Group-life premium the employer funds (priced at the individual life rate).
+  const premiumPerStaff = groupPremiumPerMember(cover);
+  const totalPremium = premiumPerStaff * headcount;
 
   return (
     <div className={s.page}>
@@ -45,13 +49,13 @@ export default function InsuranceMobile() {
         {insuranceOn ? (
           <>
             <p style={{ fontSize: 12, color: 'var(--color-gray)', lineHeight: 1.5 }}>
-              Cover applies to all {formatNumber(headcount)} staff at a flat amount each — employer-funded, no member premium and no per-member opt-out.
+              Cover applies to all {formatNumber(headcount)} staff at a flat amount each — the employer funds the monthly premium, staff pay nothing, and there’s no per-member opt-out.
             </p>
             <div className={s.kpi2} style={{ marginTop: 14 }}>
               <div className={s.kpiC}><div className={s.kpiLbl}>Cover / member</div><div className={s.kpiV}>{formatUGX(cover, { compact: true })}</div></div>
-              <div className={s.kpiC}><div className={s.kpiLbl}>Staff covered</div><div className={s.kpiV}>{formatNumber(headcount)}</div></div>
+              <div className={s.kpiC}><div className={s.kpiLbl}>Premium / member</div><div className={s.kpiV}>{formatUGX(premiumPerStaff, { compact: true })}<span style={{ fontSize: 11, color: 'var(--color-gray)', fontWeight: 600 }}> /mo</span></div></div>
               <div className={s.kpiC}><div className={s.kpiLbl}>Total in force</div><div className={s.kpiV}>{formatUGX(totalCover, { compact: true })}</div></div>
-              <div className={s.kpiC}><div className={s.kpiLbl}>Premium / member</div><div className={s.kpiV}>UGX 0</div></div>
+              <div className={s.kpiC}><div className={s.kpiLbl}>Total premium</div><div className={s.kpiV}>{formatUGX(totalPremium, { compact: true })}<span style={{ fontSize: 11, color: 'var(--color-gray)', fontWeight: 600 }}> /mo</span></div></div>
             </div>
             <button type="button" className={`${s.btn} ${s.btnSec} ${s.btnBlock}`} style={{ marginTop: 14 }} onClick={() => navigate('/dashboard/settings?tab=insurance')}>
               Manage cover in Settings

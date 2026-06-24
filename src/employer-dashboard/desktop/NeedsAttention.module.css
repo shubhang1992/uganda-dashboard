@@ -1,0 +1,96 @@
+/* NeedsAttention — status tiles for the employer desktop Overview.
+   Companion to NeedsAttention.jsx. */
+
+/* ── Header count chip ───────────────────────────────────────────── */
+.count {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 5px 11px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+.countWarn { color: #8a6209; background: color-mix(in srgb, #fbbf24 18%, #fff); }
+.countOk { color: var(--color-green-ink, #1F6B41); background: color-mix(in srgb, var(--color-green, #2E8B57) 13%, #fff); }
+
+/* ── Tiles ───────────────────────────────────────────────────────── */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 13px;
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
+  border-left: 3px solid var(--rail, var(--color-lavender));
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.row:hover {
+  background: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px -12px rgba(41, 40, 103, 0.32);
+}
+
+.railWarn { --rail: var(--color-amber, #D9A441); }
+.railOk { --rail: var(--color-green, #2E8B57); }
+.railTeal { --rail: var(--color-teal); }
+.railOff { --rail: var(--color-gray); }
+
+.ic {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tintAmber { background: color-mix(in srgb, #fbbf24 18%, transparent); color: #8a6209; }
+.tintGreen { background: color-mix(in srgb, var(--color-green, #2E8B57) 13%, transparent); color: var(--color-green-ink, #1F6B41); }
+.tintTeal { background: color-mix(in srgb, var(--color-teal) 12%, transparent); color: var(--color-teal); }
+.tintGray { background: color-mix(in srgb, var(--color-gray) 14%, transparent); color: var(--color-slate); }
+
+.mid { flex: 1; min-width: 0; }
+.mid b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base, 15px);
+  color: var(--color-slate);
+}
+.mid small {
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+}
+
+.chev { color: #b7bcd0; flex: 0 0 auto; display: flex; }
+
+/* ── Status pills ────────────────────────────────────────────────── */
+.pill {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 5px 11px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.pill i { width: 6px; height: 6px; border-radius: var(--radius-full); background: currentColor; }
+.pillOk { color: var(--color-green-ink, #1F6B41); background: color-mix(in srgb, var(--color-green, #2E8B57) 13%, #fff); }
+.pillWarn { color: #8a6209; background: color-mix(in srgb, #fbbf24 18%, #fff); }
+.pillTeal { color: var(--color-teal-ink, #1F6E7A); background: color-mix(in srgb, var(--color-teal) 14%, #fff); }
+.pillOff { color: var(--color-slate); background: var(--color-cloud); border: 1px solid var(--color-lavender); }

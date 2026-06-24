@@ -1,5 +1,7 @@
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEmployerScope } from '../../contexts/EmployerScopeContext';
+import { useEmployerPanel } from '../../contexts/EmployerPanelContext';
 import {
   useEmployer,
   useEmployerMetrics,
@@ -8,8 +10,11 @@ import {
   usePendingInvites,
 } from '../../hooks/useEmployer';
 import { formatUGX, formatNumber } from '../../utils/currency';
+import { groupPremiumPerMember } from '../../utils/groupInsurance';
 import { PageHead, Hero, MetricRow, Tile, Card, SectionHead, StatusBadge } from './ui';
 import { coinsIcon, walletIcon, buildingIcon, pendingIcon, shieldIcon } from './icons';
+import FundingPanel from './FundingPanel';
+import NeedsAttention from './NeedsAttention';
 import ui from './ui.module.css';
 import styles from './OverviewDesktop.module.css';
 
@@ -58,6 +63,8 @@ function fundingModel(cfg) {
 export default function OverviewDesktop() {
   const { user } = useAuth();
   const { employerId } = useEmployerScope();
+  const navigate = useNavigate();
+  const { setKycOpen } = useEmployerPanel();
 
   const { data: employer } = useEmployer(employerId);
   const { data: metrics = {} } = useEmployerMetrics(employerId);
@@ -67,8 +74,12 @@ export default function OverviewDesktop() {
 
   const headcount = metrics.headcount || employees.length || 0;
   const active = metrics.active || employees.filter((e) => e.status === 'active').length || 0;
+  // "Total contributions" is PENSION (employee + employer). Insurance premiums
+  // are a separate leg in the run and are excluded here — the metrics RPC counts
+  // type='contribution' only, so the fallback sums the two pension legs (NOT
+  // grandTotal, which now includes the insurance premium).
   const totalContributions = metrics.totalContributions
-    || runs.reduce((s, r) => s + (r.grandTotal || 0), 0);
+    || runs.reduce((s, r) => s + ((r.employeeTotal || 0) + (r.employerTotal || 0)), 0);
 
   // Employee vs employer leg totals across all runs (the two-leg split the hero
   // tiles surface). Falls back to 0 cleanly for a company with no runs yet.
@@ -76,7 +87,9 @@ export default function OverviewDesktop() {
   const employerTotal = runs.reduce((s, r) => s + (r.employerTotal || 0), 0);
 
   const latest = runs[0];
-  const nextAmount = latest?.grandTotal ?? 0;
+  // Next contribution forecast = pension only (employee + employer), consistent
+  // with the "contributions" framing; insurance shows on its own card/run leg.
+  const nextAmount = latest ? (latest.employeeTotal || 0) + (latest.employerTotal || 0) : 0;
   const runDue = !latest
     || new Date(latest.runAt).getMonth() !== new Date().getMonth()
     || new Date(latest.runAt).getFullYear() !== new Date().getFullYear();
@@ -85,6 +98,9 @@ export default function OverviewDesktop() {
   const funding = fundingModel(cfg);
   const cover = Number(cfg?.groupCoverAmount) || 0;
   const insuranceOn = (cfg?.insuranceEnabled ?? cover > 0) && cover > 0;
+  // Group-life premium the employer funds (priced at the individual life rate).
+  const premiumPerStaff = groupPremiumPerMember(cover);
+  const totalPremiumMonthly = premiumPerStaff * headcount;
 
   const pendingKyc = pendingInvites.length;
   const companyName = employer?.name || 'Your company';
@@ -142,40 +158,29 @@ export default function OverviewDesktop() {
         />
       </MetricRow>
 
-      {/* How your staff's pension is funded */}
-      {funding && (
+      {/* Funding split (pie) + Needs attention — two-column row */}
+      <div className={styles.splitRow}>
+        {funding && (
+          <Card>
+            <SectionHead icon={coinsIcon(18)} title="How your staff’s pension is funded" tag={funding.tag} />
+            <FundingPanel funding={funding} />
+          </Card>
+        )}
+
+        {/* Needs attention — desktop status tiles (extracted) */}
         <Card>
-          <SectionHead icon={coinsIcon(18)} title="How your staff’s pension is funded" tag={funding.tag} />
-          {funding.mode === 'co-contribution' ? (
-            <div className={styles.fundStack}>
-              <div className={styles.fundOwn} style={{ flex: funding.ownPct }}>
-                <span className={styles.fundSegK}>Staff contributions</span>
-                <span className={styles.fundSegV}>{funding.ownPct}%</span>
-              </div>
-              <div className={styles.fundEmp} style={{ flex: funding.empPct }}>
-                <span className={styles.fundSegK}>Your top-up</span>
-                <span className={styles.fundSegV}>{funding.empPct}%</span>
-              </div>
-            </div>
-          ) : (
-            <div className={styles.fundStack}>
-              <div className={styles.fundEmp} style={{ flex: 1, borderRadius: 'var(--radius-md)' }}>
-                <span className={styles.fundSegK}>Employer-funded</span>
-                <span className={styles.fundSegV}>100%</span>
-              </div>
-            </div>
-          )}
-          <div className={styles.fundRules}>
-            {funding.rules.map((r, i) => (
-              <span key={i} className={styles.fundRule}>
-                <span className={`${styles.dot} ${r.tone === 'own' ? styles.dotOwn : styles.dotEmp}`} />
-                <b>{r.strong}</b>&nbsp;{r.rest}
-              </span>
-            ))}
-          </div>
-          <p className={styles.fundFoot}>{funding.foot}</p>
+          <NeedsAttention
+            runDue={runDue}
+            latestLabel={latest?.periodLabel}
+            pendingKyc={pendingKyc}
+            insuranceOn={insuranceOn}
+            cover={cover}
+            onRun={() => navigate('/dashboard/runs')}
+            onKyc={() => setKycOpen(true)}
+            onInsurance={() => navigate('/dashboard/insurance')}
+          />
         </Card>
-      )}
+      </div>
 
       {/* Group insurance */}
       <Card accent="teal">
@@ -204,13 +209,18 @@ export default function OverviewDesktop() {
               </div>
               <div className={styles.insStat}>
                 <span className={styles.insK}>Premium / staff</span>
-                <span className={styles.insV}>UGX 0</span>
-                <span className={styles.insSub}>employer-funded</span>
+                <span className={styles.insV}>{formatUGX(premiumPerStaff)}</span>
+                <span className={styles.insSub}>per month · employer-funded</span>
+              </div>
+              <div className={styles.insStat}>
+                <span className={styles.insK}>Total premium</span>
+                <span className={styles.insV}>{formatUGX(totalPremiumMonthly)}</span>
+                <span className={styles.insSub}>per month · company-wide</span>
               </div>
             </div>
             <div className={styles.insBar}><div className={styles.insBarFill} /></div>
             <div className={styles.insCap}>
-              <span><span className={styles.insPct}>100%</span> of staff covered — all-or-nothing</span>
+              <span><span className={styles.insPct}>100%</span> of staff covered — staff pay nothing</span>
               <span>{formatUGX(cover * headcount)} total cover in force</span>
             </div>
           </>

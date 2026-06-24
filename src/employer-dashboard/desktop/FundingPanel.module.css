@@ -1,0 +1,105 @@
+/* FundingPanel — solid pie (soft tints) + boxed legend + match-note callout.
+   Companion to FundingPanel.jsx (employer desktop Overview funding card body). */
+
+.body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  margin-bottom: var(--space-4);
+}
+.chartWrap {
+  flex: 0 0 auto;
+  width: 150px;
+  height: 150px;
+  line-height: 0;
+}
+
+/* ── Boxed legend ────────────────────────────────────────────────── */
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.legBox {
+  border: 1px solid var(--color-lavender);
+  border-left: 3px solid var(--seg, var(--color-indigo));
+  border-radius: var(--radius-md);
+  padding: 10px 13px;
+  background: var(--color-cloud);
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+.legBox:hover { background: #fff; }
+.legBoxActive {
+  background: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--seg, var(--color-indigo)) 55%, transparent);
+}
+.legTop {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.legSwatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 4px;
+  flex: 0 0 auto;
+}
+.legName {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--color-slate);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.legPct {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg, 18px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.legRule {
+  margin-top: 5px;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--color-gray);
+}
+.legRule b { color: var(--color-slate); font-weight: 700; }
+
+/* ── Match-note callout ──────────────────────────────────────────── */
+.foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, #5FA877 10%, #fff);
+  border: 1px solid color-mix(in srgb, #5FA877 22%, transparent);
+}
+.footIc {
+  flex: 0 0 auto;
+  display: flex;
+  margin-top: 1px;
+  color: #2C7150;
+}
+.foot p {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-slate);
+}
+.foot p strong { color: #2C7150; font-weight: 700; }
+
+@media (max-width: 560px) {
+  .body { flex-direction: column; align-items: stretch; }
+  .chartWrap { align-self: center; }
+}
