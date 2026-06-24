@@ -60,6 +60,10 @@ const {
 // employer rows + tagged subscribers + balances.
 const employerGeoSeed = await import('../src/data/employerGeoSeed.js');
 const { EXTRA_EMPLOYERS, EXTRA_MEMBERS } = employerGeoSeed;
+// Employer group insurance product normaliser — fans the employer config out to
+// its members so a reseed keeps multi-product (Life/Health/Funeral) employer cover.
+const groupInsuranceMod = await import('../src/utils/groupInsurance.js');
+const { groupInsuranceProducts } = groupInsuranceMod;
 
 const { Client } = pg;
 
@@ -647,6 +651,20 @@ async function main() {
       'subscriber_id'
     );
 
+    // ── employer group insurance fan-out (migration 0067) ──────────────────
+    // Map employerId → its enabled group products [{product, cover, premiumMonthly}]
+    // so a sponsored member's policies are seeded employer-funded (funded_by=
+    // 'employer', premium 0), matching update_employer_profile's fan-out.
+    const employerProductMap = new Map();
+    for (const emp of [EMPLOYER, ...EXTRA_EMPLOYERS]) {
+      employerProductMap.set(emp.id, groupInsuranceProducts(emp.defaultContributionConfig));
+    }
+    const employerProductsFor = (s) => (s.employerId ? (employerProductMap.get(s.employerId) || []) : []);
+    const employerCoverFor = (s, product) => {
+      const p = employerProductsFor(s).find((x) => x.product === product);
+      return p ? p.cover : null;
+    };
+
     // ── insurance_policies (only for subscribers with cover > 0) ───────────
     console.log('• insurance_policies…');
     const insureds = subscribers.filter((s) => s.insurance?.cover > 0);
@@ -660,14 +678,17 @@ async function main() {
         { name: 'policy_start', type: 'date' },
         { name: 'renewal_date', type: 'date' },
         { name: 'status', type: 'text' },
+        { name: 'funded_by', type: 'text' },
       ],
       [
         insureds.map((s) => s.id),
-        insureds.map((s) => s.insurance.cover),
-        insureds.map((s) => s.insurance.premiumMonthly ?? 0),
+        // Employer-funded life uses the employer's configured cover; the member pays 0.
+        insureds.map((s) => employerCoverFor(s, 'life') ?? s.insurance.cover),
+        insureds.map((s) => (employerCoverFor(s, 'life') != null ? 0 : (s.insurance.premiumMonthly ?? 0))),
         insureds.map((s) => s.insurance.policyStart ?? null),
         insureds.map((s) => s.insurance.renewalDate ?? null),
         insureds.map((s) => s.insurance.status ?? 'active'),
+        insureds.map((s) => (employerCoverFor(s, 'life') != null ? 'employer' : 'self')),
       ],
       'subscriber_id'
     );
@@ -692,15 +713,31 @@ async function main() {
     const sipPolicyStart = [];
     const sipRenewalDate = [];
     const sipStatus = [];
-    const pushProduct = (id, product) => {
+    const sipFundedBy = [];
+    const seenSip = new Set(); // dedup (subscriber_id, product) — bulkInsert upsert can't hit a row twice
+    const pushProduct = (id, product, { cover, premium, fundedBy = 'self' } = {}) => {
+      const key = `${id}|${product}`;
+      if (seenSip.has(key)) return;
+      seenSip.add(key);
       sipSubId.push(id);
       sipProduct.push(product);
-      sipCover.push(EXTRA_PRODUCTS[product].cover);
-      sipPremium.push(EXTRA_PRODUCTS[product].premium);
+      sipCover.push(cover ?? EXTRA_PRODUCTS[product].cover);
+      sipPremium.push(premium ?? EXTRA_PRODUCTS[product].premium);
       sipPolicyStart.push(sipStart);
       sipRenewalDate.push(sipRenewal);
       sipStatus.push('active');
+      sipFundedBy.push(fundedBy);
     };
+    // Employer-funded health/funeral FIRST so a sponsored member's product is
+    // employer-funded (premium 0) and the self-slice below can't override it.
+    subscribers.forEach((s) => {
+      for (const p of employerProductsFor(s)) {
+        if (p.product === 'health' || p.product === 'funeral') {
+          pushProduct(s.id, p.product, { cover: p.cover, premium: 0, fundedBy: 'employer' });
+        }
+      }
+    });
+    // Self-funded add-ons for a deterministic slice + all of agent a-001's members.
     insureds.forEach((s, i) => {
       const isA001 = s.parentId === 'a-001';
       if (isA001 || i % 3 === 0) pushProduct(s.id, 'health');
@@ -717,8 +754,9 @@ async function main() {
         { name: 'policy_start', type: 'date' },
         { name: 'renewal_date', type: 'date' },
         { name: 'status', type: 'text' },
+        { name: 'funded_by', type: 'text' },
       ],
-      [sipSubId, sipProduct, sipCover, sipPremium, sipPolicyStart, sipRenewalDate, sipStatus],
+      [sipSubId, sipProduct, sipCover, sipPremium, sipPolicyStart, sipRenewalDate, sipStatus, sipFundedBy],
       'subscriber_id, product'
     );
 

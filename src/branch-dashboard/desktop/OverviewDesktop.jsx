@@ -132,7 +132,7 @@ export default function OverviewDesktop() {
   const score = useMemo(() => calcScore(derived), [derived]);
   const breakdown = useMemo(() => scoreBreakdown(derived), [derived]);
   const month = useMemo(() => monthlyContribStat(metrics), [metrics]);
-  const attention = useMemo(() => computeAttention(metrics), [metrics]);
+  const attention = useMemo(() => computeAttention(metrics, agents), [metrics, agents]);
   const attnCount = attention.filter((a) => a.severity !== 'ok').length;
   const activity = useMemo(() => generateActivity(agents), [agents]);
 
@@ -266,8 +266,8 @@ export default function OverviewDesktop() {
                 const tone = a.severity === 'alert' ? 'Alert' : a.severity === 'ok' ? 'Ok' : 'Warn';
                 return (
                   <Link
-                    to="/dashboard/reports"
-                    state={{ reportId: a.reportId }}
+                    to={a.to}
+                    state={a.state}
                     className={`${styles.attnTile} ${styles[`rail${tone}`]}`}
                     key={a.label}
                     aria-label={`${a.label}: ${formatNumber(a.value)} — review`}

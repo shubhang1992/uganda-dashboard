@@ -152,17 +152,20 @@ export function generateActivity(agents = [], now = Date.now()) {
 
 /* ── Needs-attention (Dormant + KYC only — the desktop mockup intentionally drops
  *    the commission "Settled" tile that the mobile hero still shows). ── */
-export function computeAttention(metrics = {}) {
+export function computeAttention(metrics = {}, agents = []) {
   const totalSubs = metrics.totalSubscribers || 0;
   const activeSubs = Math.round(totalSubs * ((metrics.activeRate || 0) / 100));
   const dormant = totalSubs - activeSubs;
   const kycIssues = (metrics.kycPending || 0) + (metrics.kycIncomplete || 0);
+  const inactiveAgents = agents.filter((a) => a.status === 'inactive').length;
   return [
     {
       value: dormant,
       label: 'Dormant subscribers',
       sub: 'Not contributing recently',
       severity: dormant > 0 ? 'warning' : 'ok',
+      to: '/dashboard/reports',
+      state: { reportId: 'all-subscribers' },
       reportId: 'all-subscribers',
     },
     {
@@ -170,7 +173,16 @@ export function computeAttention(metrics = {}) {
       label: 'KYC issues',
       sub: 'Pending or incomplete verification',
       severity: kycIssues > 0 ? 'alert' : 'ok',
+      to: '/dashboard/reports',
+      state: { reportId: 'kyc-compliance' },
       reportId: 'kyc-compliance',
+    },
+    {
+      value: inactiveAgents,
+      label: 'Inactive agents',
+      sub: 'No recent field activity',
+      severity: inactiveAgents > 0 ? 'warning' : 'ok',
+      to: '/dashboard/agents',
     },
   ];
 }

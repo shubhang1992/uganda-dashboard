@@ -53,15 +53,19 @@ describe('branchOverviewDerive', () => {
     expect(m.changePct).toBe(Math.round(((20 - 18) / 18) * 100)); // +11%
   });
 
-  it('computeAttention returns ONLY Dormant + KYC (no commission tile)', () => {
-    const a = computeAttention(metrics);
-    expect(a).toHaveLength(2);
+  it('computeAttention returns Dormant + KYC + Inactive agents (no commission tile)', () => {
+    const a = computeAttention(metrics, [{ status: 'active' }, { status: 'inactive' }, { status: 'inactive' }]);
+    expect(a).toHaveLength(3);
     expect(a[0].label).toBe('Dormant subscribers');
     expect(a[0].value).toBe(400);
     expect(a[0].reportId).toBe('all-subscribers');
     expect(a[1].label).toBe('KYC issues');
     expect(a[1].value).toBe(8); // 5 pending + 3 incomplete
     expect(a[1].reportId).toBe('kyc-compliance');
+    expect(a[2].label).toBe('Inactive agents');
+    expect(a[2].value).toBe(2); // 2 of 3 agents inactive
+    expect(a[2].to).toBe('/dashboard/agents');
+    expect(a[2].severity).toBe('warning');
     expect(a.some((x) => /settle|commission/i.test(x.label))).toBe(false);
   });
 
@@ -78,6 +82,6 @@ describe('branchOverviewDerive', () => {
     expect(calcScore(d)).toBeGreaterThanOrEqual(0);
     expect(calcScore(d)).toBeLessThanOrEqual(100);
     expect(topAgent([])).toBeNull();
-    expect(computeAttention({})).toHaveLength(2);
+    expect(computeAttention({})).toHaveLength(3);
   });
 });
