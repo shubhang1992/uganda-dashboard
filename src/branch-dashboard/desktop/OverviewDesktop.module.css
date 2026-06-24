@@ -1,0 +1,408 @@
+/* OverviewDesktop — branch desktop home. Bespoke visuals (gauge, rounded-bar
+   contributions chart, attention list, activity feed) live here; tiles/cards/
+   tables reuse the shared employer desktop atoms (ui.module.css). Radius is
+   inherited from the shell .page scope (~8px). */
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid var(--color-lavender);
+  border-top-color: var(--color-indigo);
+  border-radius: 50%;
+  animation: ovSpin 0.7s linear infinite;
+}
+
+@keyframes ovSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.4s; } }
+
+/* ── Header ── */
+.head { margin-bottom: var(--space-2); }
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--color-indigo-soft);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: 5px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-3xl);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--color-indigo);
+}
+
+.roleBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
+  color: var(--color-indigo);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+.roleDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-green);
+}
+
+.sub {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+}
+
+/* ── Two-column grid ── */
+.grid2 {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.col { display: flex; flex-direction: column; gap: var(--space-5); }
+
+@media (max-width: 1100px) {
+  .grid2 { grid-template-columns: 1fr; }
+}
+
+/* ── Health score card ── */
+.scoreRow {
+  display: flex;
+  gap: var(--space-7);
+  align-items: center;
+  padding-top: var(--space-2);
+}
+
+.gauge { position: relative; flex: 0 0 auto; width: 150px; height: 150px; }
+.gauge svg { transform: rotate(-90deg); }
+
+.gaugeMid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.gaugeNum {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 42px;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--color-indigo);
+}
+
+.gaugeQ {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 3px;
+  color: var(--color-green);
+}
+
+.scoreMeta { min-width: 0; }
+
+.sLabel {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-gray);
+}
+
+.rankChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-amber, #D97706) 12%, transparent);
+  color: var(--color-amber, #D97706);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.insight {
+  margin: 14px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-gray);
+  max-width: 320px;
+}
+
+/* ── Contributions chart (rounded bars + average line) ── */
+.chartStat {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: var(--space-2);
+}
+
+.chartStatVal {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-xl);
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+}
+
+.chartStatDelta {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  color: var(--color-green-ink, #1F6B41);
+}
+
+.trend { position: relative; height: 180px; margin-top: var(--space-2); }
+
+.avg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1.5px dashed var(--color-indigo-soft);
+  opacity: 0.85;
+}
+
+.avgLabel {
+  position: absolute;
+  left: 0;
+  top: -9px;
+  background: var(--color-white);
+  padding: 0 6px 0 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-indigo-soft);
+}
+
+.cols { display: flex; align-items: flex-end; gap: 9px; height: 100%; }
+.barCol { flex: 1; height: 100%; display: flex; align-items: flex-end; justify-content: center; position: relative; }
+
+.bar {
+  width: 17px;
+  border-radius: 6px 6px 3px 3px;
+  background: linear-gradient(180deg, var(--color-indigo-soft), var(--color-indigo));
+  transition: filter 0.18s ease;
+}
+
+.barCol:hover .bar { filter: brightness(1.08); }
+
+.barCur {
+  width: 19px;
+  background: linear-gradient(180deg, #3fb0bf, #1f7a86);
+  box-shadow: 0 6px 14px -4px color-mix(in srgb, var(--color-teal) 55%, transparent);
+}
+
+.barTag {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 11px;
+  color: var(--color-teal-ink, #1F6E7A);
+  background: color-mix(in srgb, var(--color-teal) 12%, #fff);
+  border: 1px solid color-mix(in srgb, var(--color-teal) 28%, transparent);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+.xlabels { display: flex; gap: 9px; margin-top: 9px; }
+.xlabels span { flex: 1; text-align: center; font-size: 10.5px; color: var(--color-gray); font-weight: 500; }
+
+/* ── Needs attention list ── */
+.attn { display: flex; flex-direction: column; }
+
+.attnRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 0;
+  border-top: 1px solid var(--color-lavender);
+}
+
+.attnRow:first-child { border-top: none; padding-top: var(--space-2); }
+
+.attnIc {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+}
+
+.attnIcWarn { background: color-mix(in srgb, var(--color-amber, #D97706) 12%, transparent); color: var(--color-amber, #D97706); }
+.attnIcAlert { background: color-mix(in srgb, var(--color-status-poor) 11%, transparent); color: var(--color-status-poor); }
+.attnIcOk { background: color-mix(in srgb, var(--color-green) 11%, transparent); color: var(--color-green-ink, #1F6B41); }
+
+.attnVal {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-2xl);
+  letter-spacing: -0.03em;
+  color: var(--color-indigo);
+  min-width: 44px;
+}
+
+.attnTx { flex: 1; min-width: 0; }
+.attnLabel { font-size: var(--text-sm); font-weight: 600; color: var(--color-slate); }
+.attnSub { font-size: var(--text-xs); color: var(--color-gray); margin-top: 1px; }
+
+.attnGo {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--color-indigo);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 11px;
+  border-radius: var(--radius-md);
+  transition: background 0.14s ease;
+}
+
+.attnGo:hover { background: color-mix(in srgb, var(--color-indigo) 7%, transparent); }
+.attnGo:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; }
+
+/* ── Activity feed ── */
+.feedLive {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  padding: 0 0 12px;
+}
+
+.liveDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-green);
+  animation: feedPulse 2s infinite;
+}
+
+@keyframes feedPulse {
+  0% { box-shadow: 0 0 0 0 rgba(46,139,87,0.45); }
+  70% { box-shadow: 0 0 0 6px rgba(46,139,87,0); }
+  100% { box-shadow: 0 0 0 0 rgba(46,139,87,0); }
+}
+
+@media (prefers-reduced-motion: reduce) { .liveDot { animation: none; } }
+
+.fitem { display: flex; gap: 12px; padding: 11px 0; border-top: 1px solid var(--color-lavender); }
+.fitem:first-of-type { border-top: none; }
+
+.fic {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
+  color: var(--color-indigo);
+}
+
+.ficGreen { background: color-mix(in srgb, var(--color-green) 12%, transparent); color: var(--color-green-ink, #1F6B41); }
+
+.ft { font-size: var(--text-sm); color: var(--color-slate); line-height: 1.4; }
+.ftName { font-weight: 600; color: var(--color-indigo); }
+.fm { font-size: var(--text-xs); color: var(--color-gray); margin-top: 2px; }
+
+.feedEmpty {
+  padding: var(--space-4) 0;
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+}
+
+/* ── Team table extras ── */
+.sortPills { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+
+.sortPill {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-lavender);
+  background: var(--color-white);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--color-gray);
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.sortPill:hover { border-color: var(--color-indigo-soft); color: var(--color-indigo); }
+.sortPill:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; }
+
+.sortPillOn {
+  background: color-mix(in srgb, var(--color-indigo) 9%, transparent);
+  border-color: transparent;
+  color: var(--color-indigo);
+  font-weight: 700;
+}
+
+.who { display: flex; align-items: center; gap: 11px; }
+.whoName { font-weight: 600; color: var(--color-indigo); font-size: var(--text-sm); }
+.whoMeta { font-size: var(--text-xs); color: var(--color-gray); }
+
+.miniBar {
+  width: 84px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--color-cloud);
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+  overflow: hidden;
+}
+
+.miniBar i { display: block; height: 100%; border-radius: var(--radius-full); background: var(--color-teal); }
+
+.teamLink { color: inherit; text-decoration: none; }

@@ -1,24 +1,16 @@
 // Smoke tests for the branch admin dashboard.
 //
-// Unlike the subscriber/agent dashboards, the branch shell has NO routed
-// sub-pages — every drawer is state-based via DashboardPanelContext +
-// `splitMode`. There is effectively a single URL (`/dashboard`) and panels
-// open by clicking sidebar nav buttons (and, for agent flows, items inside
-// the Agents popover).
+// As of the desktop redesign, the branch shell is a `useIsDesktop()` (>=1024px)
+// gate: on DESKTOP it renders BranchDesktopShell — a routed 3-column shell with
+// a white nav rail and one URL per destination (/dashboard, /dashboard/agents,
+// …). On MOBILE (<1024px) it keeps the original panel/drawer shell, where every
+// destination is a state-based slide-in panel (DashboardPanelContext) at the
+// single /dashboard URL. This spec covers BOTH:
+//   • desktop (default 1280px viewport) → routed nav + in-page Add-agent view
+//   • mobile (390px viewport)            → the panel flow still works (byte-identical)
 //
-// What we cover:
-//   1. /dashboard loads BranchOverview cleanly (no error boundary)
-//   2. Each side panel opens from the sidebar:
-//        • Create agent  (sidebar → "Agents" → "Create New Agent")
-//        • View agents   (sidebar → "Agents" → "View Existing Agents")
-//        • View reports  (sidebar → "Reports")
-//        • Commissions   (sidebar → "Commissions")
-//        • Settings      (bottom sidebar → "Settings")
-//
-// Sidebar labels are taken verbatim from
-// src/branch-dashboard/sidebar/BranchSidebar.jsx (NAV_ITEMS / BOTTOM_ITEMS).
-// Popover labels come from the same file (handleClick → 'create-agent' /
-// 'view-agents' branches).
+// Desktop rail labels come from src/branch-dashboard/shell/branchNav.jsx; the
+// mobile panel labels from src/branch-dashboard/sidebar/BranchSidebar.jsx.
 
 import { test, expect } from '@playwright/test';
 import { disableAnimations } from '../../fixtures/motion';
@@ -27,15 +19,17 @@ import { selectors } from '../../helpers/selectors';
 
 test.use({ storageState: storageStatePathFor('branch') });
 
-test.describe('branch dashboard — smoke', () => {
+test.describe('branch dashboard — desktop (routed)', () => {
+  // Force a >=1024px viewport so the useIsDesktop() gate renders the routed
+  // shell even under the mobile-viewport Playwright projects.
+  test.use({ viewport: { width: 1280, height: 800 } });
+
   test.beforeEach(async ({ page }) => {
     await disableAnimations(page);
   });
 
-  test('main overview loads', async ({ page }) => {
+  test('overview loads', async ({ page }) => {
     await page.goto('/dashboard');
-    // Wait for either the page to settle or the error boundary to mount.
-    // networkidle gives data fetches enough time to fail and trigger the boundary.
     await page.waitForLoadState('networkidle', { timeout: 20_000 });
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
     await expect(page.getByText(/branch overview/i).first()).toBeVisible();
@@ -43,51 +37,106 @@ test.describe('branch dashboard — smoke', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
-  test('Create agent panel opens', async ({ page }) => {
+  test('rail navigates to each routed page', async ({ page }) => {
     await page.goto('/dashboard');
-    // "Agents" sidebar button opens a popover with two choices.
-    await selectors.dashboardShell.agentsTab(page).first().click();
-    await page.getByRole('button', { name: /create new agent/i }).click();
-    // CreateAgent renders `<h2>Create New Agent</h2>` as the drawer title.
-    await expect(
-      page.getByRole('heading', { name: /create new agent/i }),
-    ).toBeVisible();
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+
+    await page.getByRole('link', { name: 'Agents', exact: true }).click();
+    await expect(page).toHaveURL(/\/dashboard\/agents/);
+    await expect(page.getByRole('heading', { level: 1, name: /^agents$/i })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Commissions', exact: true }).click();
+    await expect(page).toHaveURL(/\/dashboard\/commissions/);
+    await expect(page.getByRole('heading', { level: 1, name: /^commissions$/i })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Reports', exact: true }).click();
+    await expect(page).toHaveURL(/\/dashboard\/reports/);
+    await expect(page.getByRole('heading', { level: 1, name: /^reports$/i })).toBeVisible();
+
+    await page.getByRole('link', { name: /support/i }).click();
+    await expect(page).toHaveURL(/\/dashboard\/support/);
+    await expect(page.getByRole('heading', { level: 1, name: /^support$/i })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Settings', exact: true }).click();
+    await expect(page).toHaveURL(/\/dashboard\/settings/);
+    await expect(page.getByRole('heading', { level: 1, name: /^settings$/i })).toBeVisible();
   });
 
-  test('View agents panel opens', async ({ page }) => {
-    await page.goto('/dashboard');
-    await selectors.dashboardShell.agentsTab(page).first().click();
-    await page.getByRole('button', { name: /view existing agents/i }).click();
-    await expect(
-      page.getByRole('heading', { name: /existing agents/i }),
-    ).toBeVisible();
+  test('Add agent opens an in-page view (not a modal) with Single + Bulk tabs', async ({ page }) => {
+    await page.goto('/dashboard/agents');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+    await page.getByRole('button', { name: /add agent/i }).click();
+    // Integrated in-page view — the heading swaps, the URL stays on /agents,
+    // and crucially there is NO dialog/modal.
+    await expect(page.getByRole('heading', { level: 1, name: /add agents to/i })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard\/agents/);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    // Bulk upload tab → Excel template + dropzone.
+    await page.getByRole('tab', { name: /bulk upload/i }).click();
+    await expect(page.getByRole('button', { name: /download excel template/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /upload filled template/i })).toBeVisible();
   });
 
-  test('View reports panel opens', async ({ page }) => {
-    // Reports panel opens via DashboardPanelContext state — independent of the
-    // ViewAgents shell crash, so this test passes cleanly even with the bug.
-    await page.goto('/dashboard');
-    await page.getByRole('button', { name: /^reports$/i }).first().click();
-    await expect(
-      page.getByRole('heading', { name: /^reports$/i }),
-    ).toBeVisible();
+  test('agent roster shows active/inactive (no "Onboarding") and drills into a detail page', async ({ page }) => {
+    await page.goto('/dashboard/agents');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+    // The bogus "Onboarding" status is gone — agents are Active or Inactive.
+    await expect(page.getByText(/onboarding/i)).toHaveCount(0);
+    await expect(page.getByText(/^active$/i).first()).toBeVisible();
+    // Drill into the first agent → detail page with the Deactivate action.
+    const firstAgent = page.locator('tbody tr a[href^="/dashboard/agents/"]').first();
+    await firstAgent.click();
+    await expect(page).toHaveURL(/\/dashboard\/agents\/[\w-]+/);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.getByRole('button', { name: /deactivate agent|reactivate agent/i })).toBeVisible();
   });
 
-  test('Commissions panel opens', async ({ page }) => {
-    // Commission panel opens via DashboardPanelContext state — independent of
-    // the ViewAgents shell crash, so this test passes cleanly even with the bug.
-    await page.goto('/dashboard');
-    await selectors.dashboardShell.commissionsTab(page).first().click();
-    await expect(
-      page.getByRole('dialog', { name: /commission settlement/i }),
-    ).toBeVisible();
+  test('Support ticket opens a read-only thread', async ({ page }) => {
+    await page.goto('/dashboard/support');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+    // TicketListRow's accessible name is the ticket subject. Click the first
+    // seeded branch ticket → read-only ThreadView ("All tickets" back, no composer).
+    await page.getByRole('button', {
+      name: /cannot log in|contribution did not reflect|wrong nominee|withdrawal was paid|monthly savings|insurance claim|phone number/i,
+    }).first().click();
+    await expect(page.getByRole('button', { name: /all tickets/i })).toBeVisible({ timeout: 10_000 });
   });
 
-  test('Settings panel opens', async ({ page }) => {
+  test('deep-link to a sub-route survives a hard refresh', async ({ page }) => {
+    // /dashboard/reports specifically: the legacy DashboardNavContext used to
+    // intercept it for branch (open the mobile panel + rewrite the URL back to
+    // /dashboard). The desktop gate must let the routed page render and STAY.
+    await page.goto('/dashboard/reports');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
+    await expect(page).toHaveURL(/\/dashboard\/reports/);
+    await expect(page.getByRole('heading', { level: 1, name: /^reports$/i })).toBeVisible();
+
+    await page.goto('/dashboard/commissions');
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+    await expect(page).toHaveURL(/\/dashboard\/commissions/);
+    await expect(page.getByRole('heading', { level: 1, name: /^commissions$/i })).toBeVisible();
+  });
+});
+
+test.describe('branch dashboard — mobile (panels, byte-identical)', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test.beforeEach(async ({ page }) => {
+    await disableAnimations(page);
+  });
+
+  test('renders the original mobile panel shell, not the routed desktop rail', async ({ page }) => {
     await page.goto('/dashboard');
-    await selectors.dashboardShell.settingsTab(page).first().click();
-    await expect(
-      page.getByRole('dialog', { name: /^settings$/i }),
-    ).toBeVisible();
+    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+    await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
+    // The mobile MobileHeader hamburger only exists in the panel/drawer shell —
+    // its presence proves the useIsDesktop() gate fell through to mobile.
+    await expect(page.getByRole('button', { name: /open menu/i })).toBeVisible();
+    await expect(page.getByText(/branch overview/i).first()).toBeVisible();
+    // And the routed desktop rail link must NOT exist below the breakpoint.
+    await expect(page.getByRole('link', { name: 'Commissions', exact: true })).toHaveCount(0);
+    // The mobile panel flow itself is unchanged — exercised by the existing
+    // panel-based suites; here we only lock the shell boundary.
   });
 });

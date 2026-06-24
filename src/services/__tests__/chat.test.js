@@ -161,6 +161,40 @@ describe('chat service — mock-fallback branch (IS_SUPABASE_ENABLED=false)', ()
     expect(reply).toMatch(/help|analyse|ask/i);
   });
 
+  const BRANCH_CTX = {
+    branchName: 'Kampala Central', score: 78, label: 'Good',
+    totalSubscribers: 1234, activeSubscribers: 567, dormant: 127, kycIssues: 8,
+    totalAgents: 6, activeAgents: 5, topAgentName: 'James Okello', topAgentMultiple: 1.3,
+    aum: 847234000, contributionsThisMonth: 62456000, contribChangePct: 8,
+    settlementRate: 74, genderRatio: { male: 666, female: 568 },
+  };
+
+  it('getBranchChatResponse does NOT call the network', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    await mod.getBranchChatResponse('who are my top agents', BRANCH_CTX);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('getBranchChatResponse "top agents" names the leading agent', async () => {
+    const reply = await mod.getBranchChatResponse('who are my top agents', BRANCH_CTX);
+    expect(reply).toContain('James Okello');
+  });
+
+  it('getBranchChatResponse "dormant" surfaces the reactivation count', async () => {
+    const reply = await mod.getBranchChatResponse('dormant subscribers to reactivate', BRANCH_CTX);
+    expect(reply).toContain('127');
+  });
+
+  it('getBranchChatResponse "settlement" reports the rate', async () => {
+    const reply = await mod.getBranchChatResponse('commissions still due', BRANCH_CTX);
+    expect(reply).toContain('74%');
+  });
+
+  it('getBranchChatResponse default mentions the branch by name', async () => {
+    const reply = await mod.getBranchChatResponse('quantum tunnelling', BRANCH_CTX);
+    expect(reply).toContain('Kampala Central');
+  });
+
   it('getAgentReply handles withdraw keyword', async () => {
     const reply = await mod.getAgentReply('I want to withdraw');
     expect(reply.toLowerCase()).toContain('withdraw');

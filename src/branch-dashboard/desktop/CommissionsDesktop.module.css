@@ -1,0 +1,21 @@
+.who { display: flex; align-items: center; gap: 11px; }
+.whoName { font-weight: 600; color: var(--color-indigo); font-size: var(--text-sm); }
+
+.miniBar {
+  width: 96px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--color-cloud);
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+  overflow: hidden;
+}
+
+.miniBar i { display: block; height: 100%; border-radius: var(--radius-full); background: var(--color-teal); }
+
+.note {
+  padding: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+}

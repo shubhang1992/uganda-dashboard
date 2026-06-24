@@ -109,6 +109,19 @@ export async function getEmployerChatResponse(message, ctx = {}) {
   return mockEmployerChatResponse(message, ctx);
 }
 
+/**
+ * @endpoint POST /api/chat (branch copilot — client-side mock)
+ * @param {string} message
+ * @param {object} ctx - the branch's OWN figures from buildBranchCopilotContext
+ *   (live, RLS-scoped). Distinct from getChatResponse('admin'), which answers
+ *   over the whole network — this stays scoped to the single branch the desktop
+ *   Branch Copilot speaks to, so every reply is truthful for that branch.
+ * @returns {Promise<string>}
+ */
+export async function getBranchChatResponse(message, ctx = {}) {
+  return mockBranchChatResponse(message, ctx);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Subscriber-facing copilot                                                 */
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -251,6 +264,91 @@ function mockEmployerChatResponse(message, ctx = {}) {
   }
 
   return 'I can answer about your staff, contribution runs, company funding, group insurance, and who’s pending KYC. Try “Who is pending KYC?” or “What’s our funding split?”.';
+}
+
+function mockBranchChatResponse(message, ctx = {}) {
+  const l = (message || '').toLowerCase();
+  const {
+    branchName = 'your branch',
+    score = 0,
+    label = '',
+    totalSubscribers = 0,
+    activeSubscribers = 0,
+    dormant = 0,
+    kycIssues = 0,
+    totalAgents = 0,
+    activeAgents = 0,
+    topAgentName = null,
+    topAgentMultiple = 0,
+    aum = 0,
+    contributionsThisMonth = 0,
+    contribChangePct = 0,
+    settlementRate = 0,
+    genderRatio = {},
+  } = ctx;
+
+  // Top / best agent.
+  if (l.includes('top') || l.includes('best') || (l.includes('agent') && (l.includes('lead') || l.includes('perform') || l.includes('who')))) {
+    if (!topAgentName) return `You have ${formatNumber(totalAgents)} agents at ${branchName}, but none have recorded contributions yet.`;
+    const mult = topAgentMultiple >= 1.1 ? ` — about ${topAgentMultiple.toFixed(1)}x the branch average` : '';
+    return `${topAgentName} is leading on contributions${mult}. Open Agents to see the full roster.`;
+  }
+
+  // Dormant / reactivation.
+  if (l.includes('dormant') || l.includes('reactivat') || l.includes('not contributing') || l.includes('inactive subscriber')) {
+    return dormant > 0
+      ? `${formatNumber(dormant)} of ${formatNumber(totalSubscribers)} subscribers are dormant (not contributing recently). Reactivating them is your biggest lever — open Reports → All subscribers to target them.`
+      : `Great news — every subscriber at ${branchName} is currently active.`;
+  }
+
+  // KYC.
+  if (l.includes('kyc') || l.includes('verif') || l.includes('compliance')) {
+    return kycIssues > 0
+      ? `${formatNumber(kycIssues)} subscribers have a pending or incomplete KYC. Open Reports → KYC compliance to resolve them.`
+      : 'No outstanding KYC issues — every subscriber is verified.';
+  }
+
+  // Commissions / settlement.
+  if (l.includes('commission') || l.includes('settle') || l.includes('due') || l.includes('payout')) {
+    return `Your agents are at a ${Math.round(settlementRate)}% commission settlement rate this cycle. Open Commissions for the per-agent paid-vs-due breakdown.`;
+  }
+
+  // Gender split.
+  if (l.includes('gender') || l.includes('male') || l.includes('female')) {
+    const male = genderRatio.male || 0;
+    const female = genderRatio.female || 0;
+    const tot = male + female;
+    if (tot === 0) return 'I don’t have a gender breakdown for this branch yet.';
+    return `Your subscribers are ${Math.round((male / tot) * 100)}% male and ${Math.round((female / tot) * 100)}% female. See Reports for the full demographic split.`;
+  }
+
+  // Contributions this month.
+  if (l.includes('contribut') || l.includes('collect') || l.includes('this month') || l.includes('trend')) {
+    const dir = contribChangePct >= 0 ? 'up' : 'down';
+    return `${branchName} collected ${formatUGX(contributionsThisMonth)} this month — ${dir} ${Math.abs(contribChangePct)}% on last month.`;
+  }
+
+  // AUM / savings.
+  if (l.includes('aum') || l.includes('savings') || l.includes('funds') || l.includes('under management')) {
+    return `${branchName} holds ${formatUGX(aum)} in subscriber savings under management.`;
+  }
+
+  // Subscribers / active.
+  if (l.includes('subscriber') || l.includes('member') || l.includes('active') || l.includes('how many')) {
+    return `${branchName} has ${formatNumber(totalSubscribers)} subscribers — ${formatNumber(activeSubscribers)} actively contributing.`;
+  }
+
+  // Agents count.
+  if (l.includes('agent') || l.includes('team') || l.includes('staff')) {
+    return `You have ${formatNumber(totalAgents)} agents at ${branchName}${activeAgents !== totalAgents ? `, ${formatNumber(activeAgents)} active` : ' (all active)'}.`;
+  }
+
+  // Health score.
+  if (l.includes('score') || l.includes('health') || l.includes('how are we')) {
+    return `${branchName} is at a health score of ${score}/100 (${label}). Reactivating dormant subscribers is the quickest way to lift it.`;
+  }
+
+  return `I can answer about your agents, subscribers, contributions, commissions, KYC, and branch health for ${branchName}. Try “Who are my top agents?” or “How many dormant subscribers can I reactivate?”.`;
 }
 
 function mockAgentReply(message, firstName) {

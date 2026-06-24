@@ -5,7 +5,9 @@ import { EASE_OUT_EXPO } from '../utils/motion';
 import { DashboardProvider } from '../contexts/DashboardContext';
 import { BranchScopeProvider } from '../contexts/BranchScopeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 import logo from '../assets/logo.png';
+import BranchDesktopShell from './shell/BranchDesktopShell';
 import BranchSidebar from './sidebar/BranchSidebar';
 import BranchOverview from './overview/BranchOverview';
 import CreateAgent from './agent/CreateAgent';
@@ -126,11 +128,16 @@ function useAutoCloseOnRouteChange(open, onClose) {
 }
 
 function ShellInner() {
+  const isDesktop = useIsDesktop();
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const toggleMenu = useCallback(() => setMenuOpen((prev) => !prev), []);
 
   useAutoCloseOnRouteChange(menuOpen, closeMenu);
+
+  // Desktop (>=1024px) gets the new routed 3-column shell; mobile keeps the
+  // panel/drawer experience below, byte-identical to before this redesign.
+  if (isDesktop) return <BranchDesktopShell />;
 
   return (
     <div className={styles.shell}>

@@ -431,6 +431,41 @@ export function useEmployerActivityRollup(enabled = true) {
 }
 
 /**
+ * Branch: deactivate / reactivate one of its own agents (direct agents UPDATE —
+ * RLS `agents_update_branch`, migration 0007; no dedicated RPC needed). The
+ * login gate (api/auth/verify-otp) already reads `agents.status`, so a
+ * deactivated agent can no longer sign in. Optimistically patches the cached
+ * agent so the detail page flips immediately; invalidates the branch's agent
+ * list + metrics so the roster and hero KPIs recompute.
+ * @returns {import('@tanstack/react-query').UseMutationResult}
+ */
+export function useSetAgentStatus(branchId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }) => entities.setAgentStatus(id, status),
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['entity', 'agent', id] });
+      const previous = queryClient.getQueryData(['entity', 'agent', id]);
+      queryClient.setQueryData(['entity', 'agent', id], (old) =>
+        old ? { ...old, status } : old,
+      );
+      return { previous };
+    },
+    onError: (_err, { id }, ctx) => {
+      if (ctx?.previous !== undefined) {
+        queryClient.setQueryData(['entity', 'agent', id], ctx.previous);
+      }
+    },
+    onSettled: (_data, _err, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['entity', 'agent', id] });
+      queryClient.invalidateQueries({ queryKey: ['entities', 'agent'] });
+      queryClient.invalidateQueries({ queryKey: ['children', 'branch', branchId] });
+      queryClient.invalidateQueries({ queryKey: ['childrenMetrics', 'branch', branchId] });
+    },
+  });
+}
+
+/**
  * Mutation to flip a branch between active and inactive. Optimistically
  * updates the cached entity so the status pill flips instantly; rolls back
  * on error.

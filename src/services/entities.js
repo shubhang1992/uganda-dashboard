@@ -1107,6 +1107,32 @@ function mockCreateBranch(data) {
   };
 }
 
+/**
+ * Set an agent's status ('active' | 'inactive'). Branch admins can UPDATE their
+ * own agents directly under RLS (`agents_update_branch`, migration 0007), so no
+ * dedicated RPC is required — and the login gate (api/auth/verify-otp) already
+ * reads `agents.status`, so a deactivated agent is blocked from signing in.
+ * @endpoint UPDATE agents SET status = $2 WHERE id = $1
+ */
+export async function setAgentStatus(id, status) {
+  if (!IS_SUPABASE_ENABLED) return mockSetAgentStatus(id, status);
+  const { data, error } = await supabase
+    .from('agents')
+    .update({ status })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  const mapped = mapAgent(data);
+  cacheEntity('agent', mapped);
+  return mapped;
+}
+
+function mockSetAgentStatus(id, status) {
+  const existing = getEntityById('agent', id);
+  return existing ? { ...existing, status } : null;
+}
+
 function mockCreateAgent(data) {
   return {
     id: `a-new-${Date.now()}`,
