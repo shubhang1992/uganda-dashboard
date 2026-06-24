@@ -84,14 +84,33 @@
 .grid2 {
   display: grid;
   grid-template-columns: 1.35fr 1fr;
+  grid-template-rows: auto auto;
   gap: var(--space-5);
-  align-items: start;
 }
 
-.col { display: flex; flex-direction: column; gap: var(--space-5); }
+/* Each column spans both rows and SUBGRIDS them, so the two row-1 cards (Branch
+   Health Score / Needs attention) share a height and the two row-2 cards
+   (Contributions / Today's Snapshot) share a height — keeping the rows aligned
+   across the columns instead of each column stacking independently (which left
+   the right column's cards starting higher + dead space below them). */
+.col {
+  display: grid;
+  grid-row: 1 / span 2;
+  grid-template-rows: subgrid;
+  gap: var(--space-5);
+}
+.col:nth-of-type(1) { grid-column: 1; }
+.col:nth-of-type(2) { grid-column: 2; }
 
 @media (max-width: 1100px) {
-  .grid2 { grid-template-columns: 1fr; }
+  .grid2 { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .col {
+    display: flex;
+    flex-direction: column;
+    grid-row: auto;
+    grid-column: auto;
+    grid-template-rows: none;
+  }
 }
 
 /* ── Health score card ── */
