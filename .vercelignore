@@ -9,3 +9,10 @@ dist-server/
 **/*.test.ts
 e2e/
 playwright.config.ts
+
+# Don't publish production source maps. vite builds them with sourcemap:'hidden'
+# (strips the devtools hint) but the .map files still emit to dist/assets/, and
+# the .js hashes are public — so GET /assets/index-*.js.map would otherwise
+# return full original source. Excluding them keeps the deployed bundle opaque
+# (audit S4). If symbolication is ever wanted, upload-then-delete via Sentry.
+dist/assets/*.map
