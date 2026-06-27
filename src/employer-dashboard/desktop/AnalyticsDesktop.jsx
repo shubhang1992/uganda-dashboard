@@ -9,7 +9,7 @@
 // are derived inline from the real contribution-run history. The mockup's hardcoded
 // figures are illustrative only — every value here is live-derived.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import {
   ResponsiveContainer,
@@ -100,7 +100,13 @@ export default function AnalyticsDesktop() {
   const [exporting, setExporting] = useState(false);
 
   const cfg = employer?.defaultContributionConfig;
-  const a = deriveEmployeeAnalytics(employees, cfg);
+
+  // Every derived series + KPI figure below depends only on the fetched data and
+  // the selected period — memoize so they don't recompute on each export-spinner
+  // / toast re-render. (The rebuild into AnalyticsDesktop dropped the useMemo the
+  // old EmployerReports panel had — audit R1.)
+  const derived = useMemo(() => {
+    const a = deriveEmployeeAnalytics(employees, cfg);
 
   // ── Period window over the run history ─────────────────────────────────────
   // Runs arrive newest-first; chronological order (oldest→newest) is what the
@@ -192,6 +198,19 @@ export default function AnalyticsDesktop() {
     }))
     .sort((x, y) => y.value - x.value)
     .slice(0, 6);
+
+    return {
+      a, headcount, active, totalContributions, thisMonth, participation,
+      avgComp, insuranceOn, insuredStaff, overTime, splitSeries,
+      statusData, compDist, cumulative, fundingByRole, latest, cumAcc,
+    };
+  }, [employees, runs, cfg, metrics, period]);
+
+  const {
+    a, headcount, active, totalContributions, thisMonth, participation,
+    avgComp, insuranceOn, insuredStaff, overTime, splitSeries,
+    statusData, compDist, cumulative, fundingByRole, latest, cumAcc,
+  } = derived;
 
   // ── Exports (reuse the derive engine's builders + shared download helpers) ──
   const runExport = async (label, fn) => {
