@@ -84,13 +84,11 @@ export default defineConfig({
       use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } },
     },
     // Mobile Chromium (iPhone SE viewport, Chromium engine) — limited to
-    // specs that work without the desktop sidebar. Branch + distributor
-    // dashboards expose a MobileDrawer instead of the sidebar buttons our
-    // smoke spec targets, so those smoke specs are desktop-only by design.
-    // The dedicated `regression/branch-mobile-drawer.spec.ts` opts in via
-    // filename match. We override the iPhone-SE device's default browser
-    // (WebKit) with Chromium so this project runs even when WebKit isn't
-    // installed locally.
+    // specs that work without the desktop sidebar. The distributor dashboard
+    // exposes a MobileDrawer instead of the sidebar buttons our smoke spec
+    // targets, so those smoke specs are desktop-only by design. We override the
+    // iPhone-SE device's default browser (WebKit) with Chromium so this project
+    // runs even when WebKit isn't installed locally.
     {
       name: 'mobile-chromium',
       use: {
@@ -108,8 +106,7 @@ export default defineConfig({
         '**/smoke/subscriber-dashboard.spec.ts',
         '**/smoke/agent-dashboard.spec.ts',
         '**/smoke/_health.spec.ts',
-        '**/regression/branch-mobile-drawer.spec.ts',
-        '**/flows/distributor-exports-csv.spec.ts',
+          '**/flows/distributor-exports-csv.spec.ts',
       ],
     },
     // Mobile WebKit (iPhone 12 viewport, WebKit engine) — Safari/iOS
@@ -123,8 +120,7 @@ export default defineConfig({
         '**/smoke/subscriber-dashboard.spec.ts',
         '**/smoke/agent-dashboard.spec.ts',
         '**/smoke/_health.spec.ts',
-        '**/regression/branch-mobile-drawer.spec.ts',
-        '**/flows/distributor-exports-csv.spec.ts',
+          '**/flows/distributor-exports-csv.spec.ts',
       ],
     },
   ],
