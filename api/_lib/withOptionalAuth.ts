@@ -16,7 +16,8 @@
 // A handler that reads `req.user.subscriberId` (etc.) behind this middleware
 // will crash on anonymous calls and — worse — trusts whatever claims an
 // unverified-but-present token carries. For anything that must be authenticated
-// or authorized, use `withAuth`, which rejects (401) on a bad/absent token.
+// or authorized, verify the token explicitly (extractBearer + verifyJwt, with a
+// 401 on a bad/absent token) the way change-password.ts does.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyJwt, type JwtClaims } from './jwt.js';
