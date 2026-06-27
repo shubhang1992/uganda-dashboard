@@ -10,9 +10,6 @@ dist-server/
 e2e/
 playwright.config.ts
 
-# Don't publish production source maps. vite builds them with sourcemap:'hidden'
-# (strips the devtools hint) but the .map files still emit to dist/assets/, and
-# the .js hashes are public — so GET /assets/index-*.js.map would otherwise
-# return full original source. Excluding them keeps the deployed bundle opaque
-# (audit S4). If symbolication is ever wanted, upload-then-delete via Sentry.
-dist/assets/*.map
+# NOTE: production source maps (audit S4) are handled in vite.config.js via
+# `sourcemap: false`, NOT here — .vercelignore filters the source upload, but
+# Vercel regenerates dist/ during its own build, so a dist/ rule here is inert.

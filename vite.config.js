@@ -60,15 +60,17 @@ export default defineConfig({
     // Slightly higher than the default 500kB so we don't get warnings on
     // routes that legitimately carry a chart library (recharts) or map.
     chunkSizeWarningLimit: 700,
-    // 'hidden' emits .map files on disk WITHOUT the trailing
-    // `//# sourceMappingURL=` comment, so the bundle stays minified to end
-    // users (no source leak in devtools) while leaving maps available for a
-    // future symbolication step. There is intentionally no `@sentry/vite-plugin`
-    // upload wired (BL-29 / H-5) — this is a demo platform, so the frontend
-    // Sentry init (`src/main.jsx`) is best-effort and its captured stack frames
-    // are minified unless these maps are manually uploaded to Sentry. See
-    // FRONTEND.md §11 / BACKEND.md §2 observability note.
-    sourcemap: 'hidden',
+    // No source maps. 'hidden' still WRITES .map files to dist/assets/, and
+    // Vercel runs this build itself + serves the whole dist/ — so the maps were
+    // publicly fetchable at /assets/*.js.map (full source recoverable) even
+    // though the devtools hint was stripped. .vercelignore can't help: it
+    // filters the source upload, not Vercel's regenerated build output. There is
+    // intentionally no `@sentry/vite-plugin` upload wired (BL-29 / H-5), so the
+    // maps had no consumer — pure liability. `false` stops emitting them
+    // entirely. If symbolication is ever wanted, switch back to 'hidden' AND add
+    // the Sentry plugin to upload-then-delete the maps before they ship.
+    // (Audit S4.) See FRONTEND.md §11 / BACKEND.md §2 observability note.
+    sourcemap: false,
     rollupOptions: {
       output: {
         // Split heavy third-party deps out of the entry chunk so the marketing
