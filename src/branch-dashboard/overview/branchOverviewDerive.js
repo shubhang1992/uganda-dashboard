@@ -150,41 +150,59 @@ export function generateActivity(agents = [], now = Date.now()) {
   return events.sort((a, b) => b.time - a.time).slice(0, 8);
 }
 
-/* ── Needs-attention (Dormant + KYC only — the desktop mockup intentionally drops
- *    the commission "Settled" tile that the mobile hero still shows). ── */
-export function computeAttention(metrics = {}, agents = []) {
+/* ── Needs-attention rows.
+ *
+ *  Every row is AGENT-ACTIONABLE: the branch admin supervises agents, so each
+ *  issue resolves by nudging the responsible agent(s), not by managing members
+ *  directly. Each row carries a semantic `type` instead of a hard-coded route —
+ *  every surface (mobile home/hub, desktop overview) maps that type onto its own
+ *  drill-down (see `attentionRouteMobile`). The old "KYC issues" row was dropped
+ *  (it was structurally ~0 — every subscriber is seeded `kyc_status='complete'`)
+ *  and replaced with "Overdue contributions": ACTIVE members past their next
+ *  scheduled payment date, counted per agent by the
+ *  `get_branch_pending_contributions` RPC and passed in as `opts.overdue`.
+ *
+ *  @param {object} opts.overdue - branch-total overdue-contribution count
+ *    (from useBranchPendingContributions). Defaults to 0 when unresolved so the
+ *    row degrades to "all clear" rather than throwing.
+ * ── */
+export function computeAttention(metrics = {}, agents = [], { overdue = 0 } = {}) {
   const totalSubs = metrics.totalSubscribers || 0;
   const activeSubs = Math.round(totalSubs * ((metrics.activeRate || 0) / 100));
   const dormant = totalSubs - activeSubs;
-  const kycIssues = (metrics.kycPending || 0) + (metrics.kycIncomplete || 0);
   const inactiveAgents = agents.filter((a) => a.status === 'inactive').length;
   return [
     {
+      type: 'dormant',
       value: dormant,
       label: 'Dormant subscribers',
       sub: 'Not contributing recently',
       severity: dormant > 0 ? 'warning' : 'ok',
-      to: '/dashboard/reports',
-      state: { reportId: 'all-subscribers' },
-      reportId: 'all-subscribers',
     },
     {
-      value: kycIssues,
-      label: 'KYC issues',
-      sub: 'Pending or incomplete verification',
-      severity: kycIssues > 0 ? 'alert' : 'ok',
-      to: '/dashboard/reports',
-      state: { reportId: 'kyc-compliance' },
-      reportId: 'kyc-compliance',
+      type: 'overdue',
+      value: overdue,
+      label: 'Overdue contributions',
+      sub: 'Members past their payment date',
+      severity: overdue > 0 ? 'warning' : 'ok',
     },
     {
+      type: 'inactiveAgents',
       value: inactiveAgents,
       label: 'Inactive agents',
       sub: 'No recent field activity',
       severity: inactiveAgents > 0 ? 'warning' : 'ok',
-      to: '/dashboard/agents',
     },
   ];
+}
+
+/* Map an attention row `type` to its MOBILE drill-down route. Dormant + overdue
+ * open the per-agent action list (AttentionAgentsMobile); inactive agents go
+ * straight to the roster (already an agent-level view). */
+export function attentionRouteMobile(type) {
+  if (type === 'dormant') return '/dashboard/attention/dormant';
+  if (type === 'overdue') return '/dashboard/attention/overdue';
+  return '/dashboard/agents';
 }
 
 /** Top-contributing agent + how many × the branch average (for copilot answers). */

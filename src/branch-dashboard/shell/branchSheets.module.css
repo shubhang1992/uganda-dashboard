@@ -1,0 +1,235 @@
+/* Content styles for the branch app-bar bottom sheets (Ask AI Branch Copilot +
+   Notifications). The sheet shell itself lives in BottomSheet.module.css.
+   Mirrors agentSheets.module.css. */
+
+.welcome {
+  padding: 6px 0 4px;
+}
+.welcomeTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--color-indigo);
+}
+.welcomeText {
+  font-size: 13px;
+  color: var(--color-gray);
+  line-height: 1.5;
+  margin: 6px 0 16px;
+}
+.chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.chip {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 13px 15px;
+  border: 1.5px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-lavender) 28%, var(--color-white));
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--color-indigo);
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+.messages {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+}
+.msg {
+  max-width: 88%;
+  margin-bottom: 10px;
+}
+.msgUser {
+  align-self: flex-end;
+}
+.msgAi {
+  align-self: flex-start;
+}
+.msgLabel {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-indigo-soft);
+  margin-bottom: 3px;
+}
+.bubble {
+  display: inline-block;
+  padding: 11px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.msgUser .bubble {
+  background: var(--color-indigo);
+  color: var(--color-white);
+  border-bottom-right-radius: var(--radius-sm);
+}
+.msgAi .bubble {
+  background: var(--color-cloud);
+  color: var(--color-slate);
+  border: 1px solid var(--color-lavender);
+  border-bottom-left-radius: var(--radius-sm);
+}
+.typing {
+  display: inline-flex;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--color-cloud);
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+}
+.typingDot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-indigo-soft);
+  animation: blink 1.2s infinite ease-in-out both;
+}
+.typingDot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.typingDot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
+}
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1.5px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: 6px 6px 6px 15px;
+  background: var(--color-white);
+  margin-top: 8px;
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-indigo);
+  background: none;
+}
+.input::placeholder {
+  color: var(--color-gray);
+}
+.send {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.send:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ── Notifications feed ─────────────────────────────────────────────── */
+.markAll {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--color-indigo-soft);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 4px;
+}
+.markAll:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nrow {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-lavender);
+}
+.nrow:first-child {
+  border-top: none;
+}
+.ndot {
+  width: 8px;
+  flex: 0 0 8px;
+  display: flex;
+  justify-content: center;
+  padding-top: 6px;
+}
+.ndot i {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-amber);
+}
+.nrowRead .ndot i {
+  background: transparent;
+}
+.nIc {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-indigo) 9%, transparent);
+  color: var(--color-indigo);
+}
+.nb b {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--color-indigo);
+}
+.nb p {
+  font-size: 12px;
+  color: var(--color-slate);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+.nb time {
+  font-size: 10.5px;
+  color: var(--color-gray);
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+.empty {
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-gray);
+  padding: 28px 12px;
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typingDot { animation: none; }
+}

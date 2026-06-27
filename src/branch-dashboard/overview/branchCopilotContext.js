@@ -37,7 +37,6 @@ export function buildBranchCopilotContext({ branch, metrics = {}, agents = [], c
     totalSubscribers: derived.totalSubs,
     activeSubscribers: derived.activeSubs,
     dormant: derived.dormant,
-    kycIssues: (metrics.kycPending || 0) + (metrics.kycIncomplete || 0),
     totalAgents: agents.length,
     activeAgents: derived.activeAgents,
     topAgentName: top?.name || null,

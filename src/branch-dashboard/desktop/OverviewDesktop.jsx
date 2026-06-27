@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBranchScope } from '../../contexts/BranchScopeContext';
-import { useEntity, useChildren, useEntityMetrics, useChildrenMetrics } from '../../hooks/useEntity';
+import { useEntity, useChildren, useEntityMetrics, useChildrenMetrics, useBranchPendingContributions } from '../../hooks/useEntity';
 import { formatUGX, formatUGXShort, formatNumber } from '../../utils/currency';
 import { formatDate, formatRelativeTime } from '../../utils/date';
 import ErrorCard from '../../components/feedback/ErrorCard';
@@ -19,6 +19,15 @@ import {
   computeAttention,
 } from '../overview/branchOverviewDerive';
 import styles from './OverviewDesktop.module.css';
+
+/* Desktop drill target for a Needs-attention row. Dormant + overdue open the
+   per-agent action list + nudge (AttentionAgentsDesktop); inactive agents go
+   straight to the roster (already an agent-level view). Mirrors the mobile
+   attentionRouteMobile mapping. */
+function attentionTargetDesktop(type) {
+  if (type === 'inactiveAgents') return { to: '/dashboard/agents' };
+  return { to: `/dashboard/attention/${type}` };
+}
 
 /* Local light-theme gauge — the shared ScoreGauge is built for the dark hero
    (white strokes), so on a white card we use the mockup's indigo ring. */
@@ -122,6 +131,7 @@ export default function OverviewDesktop() {
   const { data: metrics = {} } = useEntityMetrics('branch', branchId);
   const { data: agentsRaw = [], isError: agentsError, refetch: refetchAgents } = useChildren('branch', branchId);
   const { data: agentMetricsMap = {} } = useChildrenMetrics('branch', branchId);
+  const { data: pending } = useBranchPendingContributions(branchId);
 
   const agents = useMemo(
     () => agentsRaw.map((a) => ({ ...a, metrics: agentMetricsMap[a.id] ?? a.metrics })),
@@ -132,7 +142,10 @@ export default function OverviewDesktop() {
   const score = useMemo(() => calcScore(derived), [derived]);
   const breakdown = useMemo(() => scoreBreakdown(derived), [derived]);
   const month = useMemo(() => monthlyContribStat(metrics), [metrics]);
-  const attention = useMemo(() => computeAttention(metrics, agents), [metrics, agents]);
+  const attention = useMemo(
+    () => computeAttention(metrics, agents, { overdue: pending?.total || 0 }),
+    [metrics, agents, pending],
+  );
   const attnCount = attention.filter((a) => a.severity !== 'ok').length;
   const activity = useMemo(() => generateActivity(agents), [agents]);
 
@@ -264,10 +277,11 @@ export default function OverviewDesktop() {
             <div className={styles.attnList}>
               {attention.map((a) => {
                 const tone = a.severity === 'alert' ? 'Alert' : a.severity === 'ok' ? 'Ok' : 'Warn';
+                const target = attentionTargetDesktop(a.type);
                 return (
                   <Link
-                    to={a.to}
-                    state={a.state}
+                    to={target.to}
+                    state={target.state}
                     className={`${styles.attnTile} ${styles[`rail${tone}`]}`}
                     key={a.label}
                     aria-label={`${a.label}: ${formatNumber(a.value)} — review`}

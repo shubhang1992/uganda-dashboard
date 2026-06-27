@@ -1,0 +1,143 @@
+/* AnalyticsDesktop — branch-admin Analytics page. Page-specific atoms: the
+   tab strip (pills, adapted from ReportsDesktop.module.css), the chart card
+   header/body, the 2-up chart grid, the donut legend, the leaderboard
+   mini-bar, and graceful empty-states. Shared chrome (stack, toolrow, tiles,
+   card, section head, table, buttons) comes from ui.module.css / ui.jsx. */
+
+/* ── Toolbar + tab pills (adapted from ReportsDesktop) ───────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.pills { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.pill {
+  height: 34px;
+  padding: 0 15px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-lavender);
+  background: var(--color-white);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.pill:hover { border-color: var(--color-indigo-soft); color: var(--color-indigo); }
+.pill:focus-visible { outline: 2px solid var(--color-indigo-soft); outline-offset: 2px; }
+
+.pillOn {
+  background: color-mix(in srgb, var(--color-indigo) 9%, transparent);
+  border-color: transparent;
+  color: var(--color-indigo);
+  font-weight: 700;
+}
+
+.exportRow { display: inline-flex; gap: var(--space-2); flex-wrap: wrap; }
+
+/* spacer that pushes the export buttons to the far right of a toolrow */
+.grow { flex: 1; }
+
+/* ── Chart grid (2-up, collapses to 1 on narrow viewports) ───────── */
+.charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .charts { grid-template-columns: 1fr; }
+}
+
+/* ── Chart card header ───────────────────────────────────────────── */
+.chartHead { margin-bottom: var(--space-4); }
+
+.chartTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-base);
+  line-height: 1.2;
+  color: var(--color-indigo);
+  margin-bottom: 4px;
+}
+
+.chartSub {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--color-gray);
+}
+
+/* ── Chart body — Recharts ResponsiveContainer lives here ────────── */
+.chartBody {
+  width: 100%;
+  min-width: 0;
+}
+
+.chartEmpty {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  text-align: center;
+}
+
+/* ── Donut + legend (adapted from ReportsDesktop) ────────────────── */
+.donutWrap { display: flex; gap: var(--space-6); align-items: center; flex-wrap: wrap; }
+.donutChart { width: 180px; height: 180px; flex: 0 0 auto; }
+
+.legend { display: flex; flex-direction: column; gap: 11px; min-width: 0; }
+.lg { display: flex; align-items: center; gap: 9px; font-size: var(--text-sm); color: var(--color-slate); }
+.sw { width: 11px; height: 11px; border-radius: 3px; flex: 0 0 auto; }
+.lgVal { font-family: var(--font-display); font-weight: 700; margin-left: auto; color: var(--color-indigo); font-variant-numeric: tabular-nums; }
+
+/* ── Leaderboard mini-bar (echoes Overview's Your-Team bar) ──────── */
+.miniBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 92px;
+}
+.miniTrack {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-lavender);
+  overflow: hidden;
+}
+.miniFill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-indigo);
+}
+.miniLabel {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  color: var(--color-slate);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+/* ── KYC empty-state sentence ────────────────────────────────────── */
+.kycNote {
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+  line-height: 1.55;
+}
+
+/* ── Generic inline empty-state paragraph ────────────────────────── */
+.empty {
+  padding: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-gray);
+}

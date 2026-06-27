@@ -1,0 +1,88 @@
+/* CreateAgentMobile — page-specific additions on top of branchMobile.module.css.
+   The shared .field sets `outline: none` on its inputs without a focus
+   replacement and has no error styling, so we layer a :focus-within ring, a
+   data-error state, inline error text, and an "· optional" label affordance
+   here (composed onto the same elements). */
+
+/* The shell's .page wrapper (BranchMobileShell.module.css) applies the
+   inter-section gap, but our top-level <form> is a single child of it and swallows
+   that gap (the sections are the form's children, not .page's). Re-apply the same
+   flex-column gap on the form so the callout / fields / steps / footer space
+   identically to every other branch mobile page. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.field:focus-within {
+  border-color: var(--color-indigo-soft);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 12%, transparent);
+}
+
+.field[data-error='true'] {
+  border-color: var(--color-status-poor, var(--color-poor-ink, #b02530));
+}
+
+.field[data-error='true']:focus-within {
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--color-status-poor, #b02530) 16%, transparent);
+}
+
+.labelOpt {
+  text-transform: none;
+  font-weight: 500;
+  color: var(--color-gray);
+  letter-spacing: 0;
+}
+
+.error {
+  display: block;
+  margin-top: 7px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-status-poor, var(--color-poor-ink, #b02530));
+}
+
+.submitError {
+  display: block;
+  margin-bottom: 12px;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--color-status-poor, var(--color-poor-ink, #b02530));
+}
+
+.btnSpinner {
+  width: 15px;
+  height: 15px;
+  border-radius: var(--radius-full);
+  border: 2px solid color-mix(in srgb, #fff 45%, transparent);
+  border-top-color: #fff;
+  animation: caSpin 0.7s linear infinite;
+}
+
+@keyframes caSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Sticky footer CTA — mirrors the mockup's .footcta (fixed above the bottom
+   tab bar with a fade so content scrolls under it). Positioned within the
+   shell's scrolling viewport. */
+.footcta {
+  /* The shell's .page wrapper (BranchMobileShell.module.css) pads 4px 16px 8px
+     and lays out children in a 15px-gap flex column. Cancel its horizontal +
+     bottom padding so the footer spans edge-to-edge and seats flush at the
+     scroll bottom. */
+  position: sticky;
+  bottom: 0;
+  margin: 0 -16px -8px;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-cloud) 0%, transparent),
+    var(--color-cloud) 38%
+  );
+}

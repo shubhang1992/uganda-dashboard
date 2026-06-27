@@ -275,7 +275,6 @@ function mockBranchChatResponse(message, ctx = {}) {
     totalSubscribers = 0,
     activeSubscribers = 0,
     dormant = 0,
-    kycIssues = 0,
     totalAgents = 0,
     activeAgents = 0,
     topAgentName = null,
@@ -301,11 +300,9 @@ function mockBranchChatResponse(message, ctx = {}) {
       : `Great news — every subscriber at ${branchName} is currently active.`;
   }
 
-  // KYC.
-  if (l.includes('kyc') || l.includes('verif') || l.includes('compliance')) {
-    return kycIssues > 0
-      ? `${formatNumber(kycIssues)} subscribers have a pending or incomplete KYC. Open Reports → KYC compliance to resolve them.`
-      : 'No outstanding KYC issues — every subscriber is verified.';
+  // Overdue / pending contributions.
+  if (l.includes('overdue') || l.includes('pending') || (l.includes('contribut') && (l.includes('late') || l.includes('miss') || l.includes('behind')))) {
+    return 'Members past their scheduled contribution date show up on your Home under Needs attention → Overdue contributions. Tap in to see which agents to nudge to follow up.';
   }
 
   // Commissions / settlement.

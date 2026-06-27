@@ -13,10 +13,11 @@ import styles from './BranchDesktopShell.module.css';
 // Pages are lazy-loaded so the Overview doesn't pay for their JS on first paint
 // (the shell itself is already lazy one level up, in BranchDashboardShell).
 const OverviewDesktop = lazy(() => import('../desktop/OverviewDesktop'));
+const AttentionAgentsDesktop = lazy(() => import('../desktop/AttentionAgentsDesktop'));
 const AgentsDesktop = lazy(() => import('../desktop/AgentsDesktop'));
 const AgentDetailDesktop = lazy(() => import('../desktop/AgentDetailDesktop'));
 const CommissionsDesktop = lazy(() => import('../desktop/CommissionsDesktop'));
-const ReportsDesktop = lazy(() => import('../desktop/ReportsDesktop'));
+const AnalyticsDesktop = lazy(() => import('../desktop/AnalyticsDesktop'));
 const SupportDesktop = lazy(() => import('../desktop/SupportDesktop'));
 const SettingsDesktop = lazy(() => import('../desktop/SettingsDesktop'));
 
@@ -146,10 +147,12 @@ export default function BranchDesktopShell() {
     <Routes>
       <Route element={<DesktopLayout />}>
         <Route index element={<Suspense fallback={<PageFallback />}><OverviewDesktop /></Suspense>} />
+        <Route path="attention/:type" element={<Suspense fallback={<PageFallback />}><AttentionAgentsDesktop /></Suspense>} />
         <Route path="agents" element={<Suspense fallback={<PageFallback />}><AgentsDesktop /></Suspense>} />
         <Route path="agents/:agentId" element={<Suspense fallback={<PageFallback />}><AgentDetailDesktop /></Suspense>} />
         <Route path="commissions" element={<Suspense fallback={<PageFallback />}><CommissionsDesktop /></Suspense>} />
-        <Route path="reports" element={<Suspense fallback={<PageFallback />}><ReportsDesktop /></Suspense>} />
+        <Route path="analytics" element={<Suspense fallback={<PageFallback />}><AnalyticsDesktop /></Suspense>} />
+        <Route path="reports" element={<Navigate to="/dashboard/analytics" replace />} />
         <Route path="support" element={<Suspense fallback={<PageFallback />}><SupportDesktop /></Suspense>} />
         <Route path="settings" element={<Suspense fallback={<PageFallback />}><SettingsDesktop /></Suspense>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

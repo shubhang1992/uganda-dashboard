@@ -187,6 +187,26 @@ function reanchorDateStr(v) {
   return toDateStr(shifted);
 }
 
+// Deterministic demo "overdue contributions" backlog. Branch admins surface
+// members past their scheduled payment date as a Needs-attention metric (drills
+// to per-agent nudges via get_branch_pending_contributions). Without a backlog
+// the metric is structurally 0 (every member is seeded as having paid), so we
+// seed ~18% of ACTIVE members with a recent past-due next_due_date. Deterministic
+// (hash of the subscriber id) so reseeds are stable.
+function hashStr(str) {
+  let h = 0;
+  const s = String(str ?? '');
+  for (let i = 0; i < s.length; i += 1) {
+    h = (h * 31 + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+const isOverdueSeed = (s) => Boolean(s.isActive) && hashStr(s.id) % 100 < 18;
+function pastDueDateStr(id) {
+  const days = 1 + (hashStr(id) % 21); // 1..21 days ago
+  return toDateStr(new Date(SEED_TODAY.getTime() - days * 86400000));
+}
+
 /** Coerce a JS Date / string to a TIMESTAMPTZ-compatible ISO string. */
 function toTimestamptz(v) {
   if (!v) return null;
@@ -645,8 +665,14 @@ async function main() {
         // Re-anchor the forward-looking due date onto wall-clock today (§4b.2)
         // so no schedule is seeded already-overdue when real time has elapsed
         // past MOCK_NOW. Offset from MOCK_NOW is preserved (no-op at run-time
-        // == MOCK_NOW).
-        subscribers.map((s) => reanchorDateStr(s.contributionSchedule?.nextDueDate ?? null)),
+        // == MOCK_NOW). EXCEPT the deterministic ~18% "overdue" slice of active
+        // members (isOverdueSeed), which is seeded a recent past-due date so the
+        // branch "Overdue contributions" needs-attention metric is non-zero.
+        subscribers.map((s) => (
+          isOverdueSeed(s)
+            ? pastDueDateStr(s.id)
+            : reanchorDateStr(s.contributionSchedule?.nextDueDate ?? null)
+        )),
       ],
       'subscriber_id'
     );

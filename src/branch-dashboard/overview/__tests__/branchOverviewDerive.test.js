@@ -53,20 +53,33 @@ describe('branchOverviewDerive', () => {
     expect(m.changePct).toBe(Math.round(((20 - 18) / 18) * 100)); // +11%
   });
 
-  it('computeAttention returns Dormant + KYC + Inactive agents (no commission tile)', () => {
-    const a = computeAttention(metrics, [{ status: 'active' }, { status: 'inactive' }, { status: 'inactive' }]);
+  it('computeAttention returns Dormant + Overdue + Inactive agents (no KYC, no commission tile)', () => {
+    const a = computeAttention(
+      metrics,
+      [{ status: 'active' }, { status: 'inactive' }, { status: 'inactive' }],
+      { overdue: 7 },
+    );
     expect(a).toHaveLength(3);
+    expect(a[0].type).toBe('dormant');
     expect(a[0].label).toBe('Dormant subscribers');
     expect(a[0].value).toBe(400);
-    expect(a[0].reportId).toBe('all-subscribers');
-    expect(a[1].label).toBe('KYC issues');
-    expect(a[1].value).toBe(8); // 5 pending + 3 incomplete
-    expect(a[1].reportId).toBe('kyc-compliance');
-    expect(a[2].label).toBe('Inactive agents');
+    expect(a[1].type).toBe('overdue');
+    expect(a[1].label).toBe('Overdue contributions');
+    expect(a[1].value).toBe(7); // from the overdue option (RPC total)
+    expect(a[1].severity).toBe('warning');
+    expect(a[2].type).toBe('inactiveAgents');
     expect(a[2].value).toBe(2); // 2 of 3 agents inactive
-    expect(a[2].to).toBe('/dashboard/agents');
     expect(a[2].severity).toBe('warning');
+    // KYC row removed; no commission tile.
+    expect(a.some((x) => /kyc/i.test(x.label))).toBe(false);
     expect(a.some((x) => /settle|commission/i.test(x.label))).toBe(false);
+  });
+
+  it('computeAttention defaults overdue to 0 (all-clear) when not provided', () => {
+    const a = computeAttention(metrics, agents);
+    const overdue = a.find((x) => x.type === 'overdue');
+    expect(overdue.value).toBe(0);
+    expect(overdue.severity).toBe('ok');
   });
 
   it('topAgent picks the contributions leader with its branch-average multiple', () => {

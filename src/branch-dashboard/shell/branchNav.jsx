@@ -26,7 +26,7 @@ export const DESKTOP_PRIMARY_NAV = [
   { to: '/dashboard', end: true, label: 'Overview', icon: overviewIcon(20) },
   { to: '/dashboard/agents', label: 'Agents', icon: employeesIcon(20) },
   { to: '/dashboard/commissions', label: 'Commissions', icon: walletIcon(20) },
-  { to: '/dashboard/reports', label: 'Reports', icon: analyticsIcon(20) },
+  { to: '/dashboard/analytics', label: 'Analytics', icon: analyticsIcon(20) },
   { to: '/dashboard/support', label: 'Support', icon: supportIcon(20), badge: 'openTickets' },
 ];
 

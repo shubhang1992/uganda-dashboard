@@ -748,6 +748,48 @@ export async function getEntityMetricsRollup(level, entityIds) {
   return data ?? {};
 }
 
+/**
+ * @endpoint RPC get_branch_pending_contributions(p_branch_id)
+ * @param {string} branchId
+ * @returns {Promise<{ total: number, byAgent: Array<{
+ *   agentId: string, agentName: string, total: number, pending: number }> }>}
+ * @description Per-agent "overdue contributions" breakdown for a branch admin's
+ *   Needs-attention drill-down: for each agent in the branch, the count of ACTIVE
+ *   subscribers whose scheduled contribution is past due (next_due_date < today).
+ *   `total` is the branch-wide sum (drives the Home "Overdue contributions"
+ *   value); `byAgent` drives the drill-down list. Mock fallback approximates the
+ *   live ~18% overdue rate from each agent's active-subscriber count so the demo
+ *   stays non-zero without per-member mock data.
+ */
+export async function getBranchPendingContributions(branchId) {
+  if (!branchId) return { total: 0, byAgent: [] };
+  if (!IS_SUPABASE_ENABLED) {
+    const agentsInBranch = getChildEntities('branch', branchId) || [];
+    const byAgent = agentsInBranch.map((a) => {
+      const active = Math.round(
+        (a.metrics?.totalSubscribers || 0) * ((a.metrics?.activeRate || 0) / 100),
+      );
+      const pending = Math.round(active * 0.18);
+      return { agentId: a.id, agentName: a.name, total: active, pending };
+    });
+    return { total: byAgent.reduce((s, r) => s + r.pending, 0), byAgent };
+  }
+  const { data, error } = await supabase.rpc('get_branch_pending_contributions', {
+    p_branch_id: branchId,
+  });
+  if (error) {
+    console.warn('[getBranchPendingContributions] RPC failed', { branchId, error });
+    throw error;
+  }
+  const byAgent = (data ?? []).map((r) => ({
+    agentId: r.agent_id,
+    agentName: r.agent_name,
+    total: Number(r.total) || 0,
+    pending: Number(r.pending) || 0,
+  }));
+  return { total: byAgent.reduce((s, r) => s + r.pending, 0), byAgent };
+}
+
 // ─── Mutations ──────────────────────────────────────────────────────────────
 
 /**

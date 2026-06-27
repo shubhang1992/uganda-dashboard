@@ -49,9 +49,9 @@ test.describe('branch dashboard — desktop (routed)', () => {
     await expect(page).toHaveURL(/\/dashboard\/commissions/);
     await expect(page.getByRole('heading', { level: 1, name: /^commissions$/i })).toBeVisible();
 
-    await page.getByRole('link', { name: 'Reports', exact: true }).click();
-    await expect(page).toHaveURL(/\/dashboard\/reports/);
-    await expect(page.getByRole('heading', { level: 1, name: /^reports$/i })).toBeVisible();
+    await page.getByRole('link', { name: 'Analytics', exact: true }).click();
+    await expect(page).toHaveURL(/\/dashboard\/analytics/);
+    await expect(page.getByRole('heading', { level: 1, name: /^analytics$/i })).toBeVisible();
 
     await page.getByRole('link', { name: /support/i }).click();
     await expect(page).toHaveURL(/\/dashboard\/support/);
@@ -103,14 +103,14 @@ test.describe('branch dashboard — desktop (routed)', () => {
   });
 
   test('deep-link to a sub-route survives a hard refresh', async ({ page }) => {
-    // /dashboard/reports specifically: the legacy DashboardNavContext used to
+    // /dashboard/analytics specifically: the legacy DashboardNavContext used to
     // intercept it for branch (open the mobile panel + rewrite the URL back to
     // /dashboard). The desktop gate must let the routed page render and STAY.
-    await page.goto('/dashboard/reports');
+    await page.goto('/dashboard/analytics');
     await page.waitForLoadState('networkidle', { timeout: 20_000 });
     await expect(selectors.errorBoundary.fallback(page)).toHaveCount(0);
-    await expect(page).toHaveURL(/\/dashboard\/reports/);
-    await expect(page.getByRole('heading', { level: 1, name: /^reports$/i })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard\/analytics/);
+    await expect(page.getByRole('heading', { level: 1, name: /^analytics$/i })).toBeVisible();
 
     await page.goto('/dashboard/commissions');
     await page.waitForLoadState('networkidle', { timeout: 20_000 });

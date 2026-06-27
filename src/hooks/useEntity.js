@@ -75,6 +75,23 @@ export function useChildren(level, parentId) {
 }
 
 /**
+ * Per-agent "overdue contributions" breakdown for a branch (Needs-attention
+ * drill-down). Backs the branch Home "Overdue contributions" value + the
+ * AttentionAgentsMobile list. See entities.getBranchPendingContributions.
+ * @param {string} branchId
+ * @returns {import('@tanstack/react-query').UseQueryResult<{
+ *   total: number, byAgent: Array<{agentId,agentName,total,pending}> }>}
+ */
+export function useBranchPendingContributions(branchId) {
+  return useQuery({
+    queryKey: ['branchPendingContributions', branchId],
+    queryFn: () => entities.getBranchPendingContributions(branchId),
+    enabled: !!branchId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
  * Fetch all entities at a given hierarchy level.
  * @param {string} level - Hierarchy level
  * @returns {import('@tanstack/react-query').UseQueryResult<Object[]>}

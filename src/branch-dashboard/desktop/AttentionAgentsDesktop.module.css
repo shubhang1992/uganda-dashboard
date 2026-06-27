@@ -1,0 +1,58 @@
+/* AttentionAgentsDesktop — per-agent Needs-attention drill-down (dormant /
+   overdue) + nudge modal. Reuses the shared desktop ui.module.css table; this
+   module adds only the agent-cell + nudge-modal styling, mirroring
+   AgentsDesktop.module.css's who/whoName/whoMeta so the roster reads identically. */
+
+.who { display: flex; align-items: center; gap: 11px; }
+.rowLink { text-decoration: none; color: inherit; display: inline-flex; align-items: center; gap: 11px; }
+.rowLink:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.whoName { font-weight: 600; color: var(--color-indigo); font-size: var(--text-sm); }
+.whoMeta { font-size: var(--text-xs); color: var(--color-gray); display: block; }
+
+.actionCell { text-align: right; white-space: nowrap; }
+.empty { padding: var(--space-4); color: var(--color-gray); font-size: var(--text-sm); }
+
+/* ── Nudge modal ─────────────────────────────────────────────────────── */
+.modal { padding: var(--space-5); }
+.modalTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  letter-spacing: -0.02em;
+  color: var(--color-indigo);
+}
+.modalSub { font-size: var(--text-sm); color: var(--color-gray); margin-top: 4px; }
+.modalLabel {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+  margin: var(--space-4) 0 8px;
+}
+.textarea {
+  width: 100%;
+  border: 1px solid var(--color-lavender);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-slate);
+  background: var(--color-cloud);
+  resize: vertical;
+  min-height: 120px;
+}
+.textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-indigo-soft);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-indigo) 12%, transparent);
+}
+.note { font-size: var(--text-xs); color: var(--color-gray); margin-top: 10px; line-height: 1.5; }
+.modalActions { display: flex; justify-content: flex-end; gap: 10px; margin-top: var(--space-5); }
