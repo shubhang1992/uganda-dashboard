@@ -21,8 +21,8 @@ const BellIcon = (
   </svg>
 );
 const SparkIcon = (
-  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
-    <path d="M12 2l1.5 5L19 8.5 13.5 10 12 15l-1.5-5L5 8.5 10.5 7z" />
+  <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">
+    <path d="M8 1.5l1.3 3.9 3.9 1.3-3.9 1.3L8 11.9 6.7 8 2.8 6.7 6.7 5.4 8 1.5z" fill="currentColor" />
   </svg>
 );
 
@@ -113,11 +113,12 @@ export default function SubscriberMobileAppBar({ unread = 0, onOpenHelp, onOpenN
           </button>
           <button
             type="button"
-            className={`${styles.iconBtn} ${styles.ai}`}
+            className={styles.aiBtn}
             onClick={onOpenAI}
             aria-label="Ask AI"
           >
             {SparkIcon}
+            <span>Ask AI</span>
           </button>
         </div>
       )}

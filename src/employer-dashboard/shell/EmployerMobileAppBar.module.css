@@ -78,9 +78,44 @@
   background: color-mix(in srgb, var(--color-indigo) 8%, transparent);
 }
 
-.ai,
-.ai svg {
-  color: var(--color-indigo);
+/* "Ask AI" CTA — mirrors the desktop shell's v5 filled-indigo pill with an amber
+   sparkle, so the AI assistant reads as a clear call-to-action (UAT found the
+   bare star wasn't recognised as AI). */
+.aiBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-indigo);
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-indigo) 22%, transparent);
+  transition: transform 0.15s var(--ease-out-expo), background 0.15s ease;
+}
+
+/* Amber sparkle — the distinctive AI cue carried over from the desktop CTA. */
+.aiBtn svg {
+  flex: 0 0 auto;
+  color: var(--color-amber);
+}
+
+.aiBtn:active {
+  transform: translateY(1px);
+  background: var(--color-indigo-deep);
+}
+
+.aiBtn:focus-visible {
+  outline: 2px solid var(--color-indigo-soft);
+  outline-offset: 2px;
 }
 
 /* Numeric open-ticket badge for the Inbox (Support) action. */
